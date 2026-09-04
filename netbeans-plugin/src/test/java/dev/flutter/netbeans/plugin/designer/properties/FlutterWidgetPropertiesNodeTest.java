@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -862,7 +863,8 @@ class FlutterWidgetPropertiesNodeTest {
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
-                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value());
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -896,7 +898,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(730, writableCount,
+        assertEquals(735, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -907,8 +909,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
-                + "ExcludeSemantics leaves");
-        assertEquals(713, nonScaffoldWritableCount,
+                + "ExcludeSemantics, and IndexedStack leaves");
+        assertEquals(718, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2609,6 +2611,93 @@ class FlutterWidgetPropertiesNodeTest {
                         "without changing layout, painting, or hit testing")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void indexedStackProjectsFivePropertiesHonestNullableIndexAndChildren()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
+        StableId id = StableId.parse("2bd43403-31cc-4b8d-a74c-0bcdf95a7565");
+        PropertyName indexName = new PropertyName("index");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(indexName, new PropertyValue.NullValue()),
+                Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of())),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + IndexedStackWidgetPropertySchema.Group.values().length,
+                sets.length);
+        Node.PropertySet layout = propertySet(
+                node, IndexedStackWidgetPropertySchema.Group.LAYOUT.setName());
+        assertAll(
+                () -> assertEquals("Layout", layout.getDisplayName()),
+                () -> assertEquals(
+                        "Alignment, direction, sizing, clipping, and the visible child index.",
+                        layout.getShortDescription()),
+                () -> assertEquals("General", layout.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals(List.of(
+                        "alignment", "textDirection", "clipBehavior", "sizing", "index"),
+                        names(layout.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> index = cellProperty(
+                property(node, "index"));
+        PropertyEditor editor = index.getPropertyEditor();
+        editor.setValue(index.getValue());
+        assertAll(
+                () -> assertEquals("Index", index.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                        index.getValue()),
+                () -> assertEquals("null", editor.getAsText()),
+                () -> assertTrue(index.supportsDefaultValue()),
+                () -> assertTrue(editor.supportsCustomEditor()),
+                () -> assertTrue(index.getShortDescription().contains(
+                        "<not set> omits the argument")),
+                () -> assertTrue(index.getShortDescription().contains(
+                        "explicit null")),
+                () -> assertTrue(index.getShortDescription().contains(
+                        "below their count")),
+                () -> assertTrue(index.getShortDescription().contains(
+                        "Never use -1 as a sentinel")));
+
+        editor.setAsText(FlutterWidgetPropertiesNode.NOT_SET);
+        assertEquals(FlutterPropertyCellValue.unset(), cell(editor));
+        editor.setAsText("null");
+        assertEquals(new PropertyValue.NullValue(),
+                cell(editor).explicitValue().orElseThrow());
+        editor.setAsText("2");
+        FlutterPropertyCellValue explicitTwo = cell(editor);
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                explicitTwo.explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("-1"));
+
+        index.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()));
+        index.setValue(explicitTwo);
+        index.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, indexName,
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                new ResetProperty(id, indexName)), commands);
+
+        Node.Property<?> children = property(node, "children");
+        assertAll(
+                () -> assertEquals("Children", children.getDisplayName()),
+                () -> assertEquals("Empty", children.getValue()),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "all remain laid out and keep their state")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "painted, hit-tested, and exposed through Flutter semantics")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "explicit null selects none")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "Occupancy: 0/")));
     }
 
     @Test
@@ -4615,9 +4704,10 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
-                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
-                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
-                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value());
+                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4645,7 +4735,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(45, iconPaths.size(),
+        assertEquals(46, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

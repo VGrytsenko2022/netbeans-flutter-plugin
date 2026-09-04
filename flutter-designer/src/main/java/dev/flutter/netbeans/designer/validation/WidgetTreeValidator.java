@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -351,6 +352,11 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value())) {
+            validateIndexedStackIndex(node, propertiesPath, issues);
+            return;
+        }
+
         if (type.equals("flutter.widgets.Image")) {
             validateImageCenterSlice(node, propertiesPath, issues);
             return;
@@ -488,6 +494,51 @@ public final class WidgetTreeValidator {
                     node.id(),
                     owner + " semanticChildCount " + semanticCount
                     + " exceeds the current children count " + childCount + "."));
+        }
+    }
+
+    private static void validateIndexedStackIndex(
+            WidgetNode node,
+            String propertiesPath,
+            IssueCollector issues) {
+        PropertyValue configured = node.properties().get(new PropertyName("index"));
+        if (configured instanceof PropertyValue.NullValue) {
+            return;
+        }
+        BigInteger index;
+        if (configured == null) {
+            index = BigInteger.ZERO;
+        } else if (configured instanceof PropertyValue.IntegerValue integer) {
+            index = integer.value();
+        } else {
+            // Generic kind validation reports malformed values.
+            return;
+        }
+        if (index.signum() < 0) {
+            // Generic integer-range validation reports negative values.
+            return;
+        }
+        WidgetSlot children = node.slots().get(new SlotName("children"));
+        int childCount;
+        if (children == null) {
+            childCount = 0;
+        } else if (children instanceof WidgetSlot.ListSlot list) {
+            childCount = list.children().size();
+        } else {
+            // Generic slot-kind validation reports malformed slots.
+            return;
+        }
+        boolean valid = childCount == 0
+                ? BigInteger.ZERO.equals(index)
+                : index.compareTo(BigInteger.valueOf(childCount)) < 0;
+        if (!valid) {
+            issues.add(issue(
+                    PROPERTY_CONSTRAINT,
+                    propertiesPath + "/index",
+                    node.id(),
+                    "IndexedStack index " + index + " is outside the valid range for "
+                    + childCount + " children; use 0 or null when empty, otherwise "
+                    + "use null or an index from 0 through " + (childCount - 1) + "."));
         }
     }
 

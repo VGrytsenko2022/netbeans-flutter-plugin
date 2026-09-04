@@ -243,6 +243,14 @@ const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   zonePlacement: CanvasDropZonePlacement.fullNode,
 );
 
+/// IndexedStack children overlap, so the complete rendered stack is the
+/// deterministic append zone rather than a visually ambiguous terminal edge.
+const canvasIndexedStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
+  slotName: 'children',
+  maximumChildren: 10000,
+  zonePlacement: CanvasDropZonePlacement.fullNode,
+);
+
 /// Wrap can break children into multiple runs, so there is no stable linear
 /// terminal edge. The complete rendered Wrap is the deterministic append zone.
 const canvasWrapChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
@@ -329,6 +337,9 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.OverflowBar' => const [canvasChildrenAppendDropSlot],
       'flutter.widgets.Wrap' => const [canvasWrapChildrenAppendDropSlot],
       'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
+      'flutter.widgets.IndexedStack' => const [
+        canvasIndexedStackChildrenAppendDropSlot,
+      ],
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Baseline' ||

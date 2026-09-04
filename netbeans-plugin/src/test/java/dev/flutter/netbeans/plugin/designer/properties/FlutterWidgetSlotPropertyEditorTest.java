@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -1602,6 +1603,89 @@ class FlutterWidgetSlotPropertyEditorTest {
             children.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted Stack children dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
+    void indexedStackChildrenAddsAtExactTerminalSourceOrderIndex()
+            throws Exception {
+        WidgetDefinition definition = CATALOG
+                .find(IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE)
+                .orElseThrow();
+        WidgetNode first = text(
+                id("360a4b81-dad5-4f15-9c18-bfd5b4ca5861"), "first");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition,
+                id("8a2de214-a9cc-4f13-a235-e561860abca5"));
+        WidgetNode indexedStack = new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                Map.of(new PropertyName("index"), new PropertyValue.NullValue()),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first))),
+                Extensions.empty());
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                indexedStack,
+                definition,
+                ignored -> { },
+                new FlutterWidgetSlotEditorContext(
+                        document(indexedStack),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))),
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+
+            assertEquals(1, current.getModel().getSize());
+            assertEquals("1 widget", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals(List.of(), labels(position),
+                    "new IndexedStack children append in exact source order");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(indexedStack.id(), add.ownerId());
+            assertEquals(CHILDREN, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(1, add.index());
+
+            children.setValue(staged);
+            children.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted IndexedStack children dialog consumes one revision lease");
             return null;
         });
     }

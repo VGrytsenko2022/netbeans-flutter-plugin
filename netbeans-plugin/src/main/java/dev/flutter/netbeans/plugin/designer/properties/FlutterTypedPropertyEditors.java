@@ -73,6 +73,9 @@ final class FlutterTypedPropertyEditors {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
             editorKind = EditorKind.INTEGER;
+        } else if (kinds.equals(EnumSet.of(
+                PropertyValueKind.INTEGER, PropertyValueKind.NULL))) {
+            editorKind = EditorKind.NULLABLE_INTEGER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.DOUBLE))) {
             editorKind = EditorKind.DOUBLE;
         } else if (kinds.equals(EnumSet.of(
@@ -160,6 +163,7 @@ final class FlutterTypedPropertyEditors {
         NEWLINE_STRING_LIST,
         BOOLEAN,
         INTEGER,
+        NULLABLE_INTEGER,
         DOUBLE,
         NUMBER,
         ENUM,
@@ -271,6 +275,7 @@ final class FlutterTypedPropertyEditors {
                 case NEWLINE_STRING_LIST -> new NewlineStringListEditor(this);
                 case BOOLEAN -> new BooleanEditor(this);
                 case INTEGER -> new IntegerEditor(this);
+                case NULLABLE_INTEGER -> new NullableIntegerEditor(this);
                 case DOUBLE -> new DoubleEditor(this);
                 case NUMBER -> new NumberEditor(this);
                 case ENUM -> new CatalogEnumEditor(this);
@@ -559,6 +564,42 @@ final class FlutterTypedPropertyEditors {
                         new BigInteger(text.strip())));
             } catch (NumberFormatException failure) {
                 throw new IllegalArgumentException("Expected a whole number.", failure);
+            }
+        }
+    }
+
+    private static final class NullableIntegerEditor extends TypedEditor {
+        NullableIntegerEditor(Binding binding) {
+            super(binding);
+        }
+
+        @Override
+        public String getAsText() {
+            return explicitValue().map(value -> switch (value) {
+                case PropertyValue.NullValue ignored -> "null";
+                case PropertyValue.IntegerValue integer ->
+                    integer.value().toString();
+                default -> throw new IllegalStateException(
+                        "Unexpected nullable-integer value " + value.kind());
+            }).orElseGet(this::unsetText);
+        }
+
+        @Override
+        public void setAsText(String text) {
+            if (parseUnset(text)) {
+                return;
+            }
+            String normalized = Objects.requireNonNull(text, "text").strip();
+            if ("null".equalsIgnoreCase(normalized)) {
+                setExplicit(new PropertyValue.NullValue());
+                return;
+            }
+            try {
+                setExplicit(new PropertyValue.IntegerValue(
+                        new BigInteger(normalized)));
+            } catch (NumberFormatException failure) {
+                throw new IllegalArgumentException(
+                        "Expected null or a whole-number child index.", failure);
             }
         }
     }

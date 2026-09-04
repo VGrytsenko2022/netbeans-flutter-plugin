@@ -19,6 +19,16 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PropertyValueConstraintTest {
     @Test
+    void anyNullConstraintAcceptsOnlyTheTypedExplicitNullValue() {
+        PropertyValueConstraint.AnyValue constraint =
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL);
+        assertTrue(constraint.accepts(new PropertyValue.NullValue()));
+        assertFalse(constraint.accepts(null));
+        assertFalse(constraint.accepts(new PropertyValue.StringValue("null")));
+        assertEquals("null", constraint.description());
+    }
+
+    @Test
     void validatesCreationDefaultAgainstTheCompleteRange() {
         assertThrows(IllegalArgumentException.class, () -> new PropertyDefinition(
                 new PropertyName("maxLines"),

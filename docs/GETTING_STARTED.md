@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly forty-five
+The current capability-gated Palette and native Canvas admit exactly forty-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
-`LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
+`LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox` and `ExcludeSemantics`.
-Thirty-nine definitions use reviewed const constructors. Their `General`
-Properties expose exactly 730 typed writable rows: 713 across the forty-four
+Forty definitions use reviewed const constructors. Their `General`
+Properties expose exactly 735 typed writable rows: 718 across the forty-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -493,9 +493,23 @@ through Slots and ordinary Palette/tree/Canvas insertion. Omitted or explicit
 widget; layout, paint and hit testing still proxy the child. The
 `ExcludeSemantics` node's own Designer selection, hit/drop and accessibility
 wrapper remains outside the effect; descendant Canvas semantics labels follow
-the real exclusion, while the NetBeans widget tree remains separately accessible. The
-practical backlog is now 45/92 complete with 47 remaining; Layout contains 30
-items, Scrolling 3, Basic 7, Material 4 and Accessibility 1.
+the real exclusion, while the NetBeans widget tree remains separately accessible.
+At that milestone the practical backlog was 45/92 complete with 47 remaining;
+Layout contained 30 items, Scrolling 3, Basic 7, Material 4 and Accessibility 1.
+
+[`IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+appears beside `Stack` in Layout. **Alignment**, **Text direction**, **Clip
+behavior** and **Sizing** use the existing closed Stack editors. **Index** has
+three distinct states: `<not set>` preserves Flutter's default `0`, a
+non-negative integer selects that existing child, and `null` displays no child.
+The editor and every child-list mutation enforce the live range relation;
+effective index zero is still valid while the list is empty. The **children**
+Slots list remains fully ordered even though the real native/exact-Web widget
+paints, hits and exposes application semantics only for the selected child and
+sizes itself to the largest child. The practical backlog is now 46/92 complete
+with 46 remaining; Layout contains 31 items, Scrolling 3, Basic 7, Material 4
+and Accessibility 1. Typed null advances `.fd` to v10, Catalog API to 10 and
+Canvas model to v15; NBFC framing and Canvas control/wire remain v1.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -531,7 +545,7 @@ The asset list comes only from app/package `pubspec.yaml` declarations resolved
 through `.dart_tool/package_config.json`. PNG/JPEG/GIF/WebP candidates are
 checked for safe POSIX-relative identity, root/symlink confinement, magic and
 dimensions. Canvas receives no filesystem path or callback name: Canvas model
-protocol v14 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
+protocol v15 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
 only referenced immutable compressed bytes under exact revision, order, size
 and SHA-256 checks. Native
 preview and the internal exact-Web runtime build the same real
@@ -543,17 +557,19 @@ without removing Container selection/layout/drop overlays. Exact-Web product
 selection is still gated; the routed Web choice remains the native-engine
 responsive layout preview.
 
-The current surface uses `.fd` schema v9, contributor Catalog API 9 and Canvas
-model protocol 14. SafeArea's exported
-`EdgeInsetsValues.directionalAllowed` constraint establishes the API-9 boundary;
-API-1 through API-8 contributors fail closed. Schema v1-v8 files migrate in
-memory and are written as v9
+The current surface uses `.fd` schema v10, contributor Catalog API 10 and Canvas
+model protocol 15. SafeArea's exported
+`EdgeInsetsValues.directionalAllowed` constraint established API 9, while the
+exact payload-free null value used by `IndexedStack.index` establishes API 10;
+API-1 through API-9 contributors fail closed. Schema v1-v9 files migrate in
+memory and are written as v10
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
-value, and version 9 adds the atomic finite signed `Offset` wire value.
-Forty-five sources across forty insertable any-widget and two trait-bound
-slots produce 1,890 compatibility candidates: 1,688 accepted and 202
+value, version 9 adds the atomic finite signed `Offset` wire value, and version
+10 adds the exact payload-free null property value.
+Forty-six sources across forty-one insertable any-widget and two trait-bound
+slots produce 1,978 compatibility candidates: 1,771 accepted and 207
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -561,8 +577,9 @@ replacement-only and excluded from the destination matrix. SafeArea and
 Directionality use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and neither can wrap
-Expanded, Flexible or Spacer. Placeholder, DecoratedBox and ExcludeSemantics contribute optional
-insertable `child` destinations. NBFC framing
+Expanded, Flexible or Spacer. Placeholder, DecoratedBox and ExcludeSemantics
+contribute optional insertable `child` destinations; IndexedStack contributes
+the insertable ordered `children` destination. NBFC framing
 and Canvas control/wire remain v1.
 
 `Scaffold` Properties are grouped as Floating action button, Appearance,

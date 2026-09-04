@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -90,6 +91,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final WidgetTypeId EXCLUDE_SEMANTICS =
             ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE;
+    private static final WidgetTypeId INDEXED_STACK =
+            IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -433,6 +436,54 @@ class FlutterDesignerWidgetMovePlannerTest {
                         widget.properties().get(new PropertyName("excluding"))),
                 () -> assertEquals(child, ((WidgetSlot.SingleSlot)
                         widget.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
+    void completedIndexedStackMovesWithFivePropertiesChildrenAndIdsPreserved() {
+        WidgetNode first = validText(C_ID, "indexed first");
+        WidgetNode second = validText(D_ID, "indexed second");
+        WidgetNode widget = new WidgetNode(
+                A_ID,
+                INDEXED_STACK,
+                Map.of(
+                        new PropertyName("alignment"),
+                        new PropertyValue.AlignmentGeometryValue(
+                                PropertyValue.AlignmentGeometryValue
+                                        .HorizontalBasis.DIRECTIONAL,
+                                java.math.BigDecimal.ONE.negate(),
+                                java.math.BigDecimal.ZERO),
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl"),
+                        new PropertyName("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "antiAlias"),
+                        new PropertyName("sizing"),
+                        new PropertyValue.EnumValue("StackFit", "expand"),
+                        new PropertyName("index"),
+                        new PropertyValue.NullValue()),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first, second))));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(widget.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertEquals(5, widget.properties().size()),
+                () -> assertEquals(new PropertyValue.NullValue(),
+                        widget.properties().get(new PropertyName("index"))),
+                () -> assertEquals(List.of(first, second),
+                        ((WidgetSlot.ListSlot) widget.slots().get(CHILDREN))
+                                .children()));
         assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
     }
 
@@ -1141,6 +1192,37 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void indexedStackChildReorderUsesPostRemovalIndexAndPreservesSelectedIndex() {
+        WidgetNode first = validText(A_ID, "first");
+        WidgetNode second = validText(C_ID, "second");
+        WidgetNode indexedStack = new WidgetNode(
+                B_ID,
+                INDEXED_STACK,
+                Map.of(new PropertyName("index"),
+                        new PropertyValue.IntegerValue(java.math.BigInteger.ONE)),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first, second))));
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(indexedStack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                second.id(),
+                new FlutterDesignerWidgetMovePlanner.Insert(
+                        indexedStack.id(), 0));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(
+                new MoveWidget(
+                        second.id(),
+                        new WidgetPlacement(indexedStack.id(), CHILDREN, 0)),
+                command);
+        assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
+                indexedStack.properties().get(new PropertyName("index")));
+        assertAcceptedCommandApplies(document, BUILT_INS, second, result);
     }
 
     @Test

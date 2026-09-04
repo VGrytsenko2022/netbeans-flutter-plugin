@@ -25,13 +25,13 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(45, javaTypes.size(),
+        assertEquals(46, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
                 + "SingleChildScrollView, SafeArea, ColoredBox, Placeholder, and "
-                + "Directionality, DecoratedBox and ExcludeSemantics");
+                + "Directionality, DecoratedBox, ExcludeSemantics and IndexedStack");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -43,6 +43,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.LimitedBox"));
         assertTrue(javaTypes.contains("flutter.widgets.OverflowBox"));
         assertTrue(javaTypes.contains("flutter.widgets.Stack"));
+        assertTrue(javaTypes.contains("flutter.widgets.IndexedStack"));
         assertTrue(javaTypes.contains("flutter.widgets.Wrap"));
         assertTrue(javaTypes.contains("flutter.widgets.Expanded"));
         assertTrue(javaTypes.contains("flutter.widgets.Flexible"));
@@ -120,6 +121,8 @@ class FlutterWidgetCapabilityParityTest {
                 "OverflowBox.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Stack"),
                 "Stack.children must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.IndexedStack"),
+                "IndexedStack.children must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Wrap"),
                 "Wrap.children must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.ListView"),

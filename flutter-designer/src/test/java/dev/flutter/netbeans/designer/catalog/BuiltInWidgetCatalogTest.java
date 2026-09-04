@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortyFiveTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortySixTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -57,6 +57,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.GridView",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
+                "flutter.widgets.IndexedStack",
                 "flutter.widgets.IntrinsicHeight",
                 "flutter.widgets.IntrinsicWidth",
                 "flutter.widgets.LimitedBox",
@@ -84,8 +85,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(45, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(39, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(46, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(40, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -99,10 +100,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(730, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(735, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(713, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(718, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -134,6 +135,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.GridView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.IndexedStack", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.IntrinsicHeight", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.IntrinsicWidth", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.LimitedBox", WIDGETS_IMPORT),
@@ -270,6 +272,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.LimitedBox",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Stack",
+                "flutter.widgets.IndexedStack",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.Spacer",
@@ -298,7 +301,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());
-        assertEquals(30, palette.stream()
+        assertEquals(31, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
@@ -458,6 +461,11 @@ class BuiltInWidgetCatalogTest {
         for (String property : List.of("flex", "fit")) {
             assertTrue(property(catalog, "flutter.widgets.Flexible", property)
                     .creationDefault().isEmpty(), "Flexible." + property);
+        }
+        for (String property : List.of(
+                "alignment", "textDirection", "clipBehavior", "sizing", "index")) {
+            assertTrue(property(catalog, "flutter.widgets.IndexedStack", property)
+                    .creationDefault().isEmpty(), "IndexedStack." + property);
         }
         assertTrue(property(catalog, "flutter.widgets.Spacer", "flex")
                 .creationDefault().isEmpty());

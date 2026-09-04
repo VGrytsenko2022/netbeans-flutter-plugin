@@ -42,6 +42,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.LimitedBox", ICON_ROOT + "limitedbox.svg"),
             Map.entry("flutter.widgets.OverflowBox", ICON_ROOT + "overflowbox.svg"),
             Map.entry("flutter.widgets.Stack", ICON_ROOT + "stack.svg"),
+            Map.entry("flutter.widgets.IndexedStack",
+                    ICON_ROOT + "indexedstack.svg"),
             Map.entry("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg"),
             Map.entry("flutter.widgets.Flexible", ICON_ROOT + "flexible.svg"),
             Map.entry("flutter.widgets.Spacer", ICON_ROOT + "spacer.svg"),

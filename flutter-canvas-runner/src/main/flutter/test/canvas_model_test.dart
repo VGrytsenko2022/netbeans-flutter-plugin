@@ -6,6 +6,14 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
 import 'package:netbeans_flutter_canvas_runner/src/sha256.dart';
 
 void main() {
+  test('Canvas model protocol v15 is exact and rejects v14 payloads', () {
+    expect(canvasModelProtocolVersion, 15);
+    expect(() => _decode(_modelJson()), returnsNormally);
+
+    final oldProtocol = _modelJson()..['protocolVersion'] = 14;
+    expect(() => _decode(oldProtocol), throwsFormatException);
+  });
+
   test('reviewed widget schema matches runtime metadata exactly', () {
     expect(canvasReviewedWidgetSchemaContract, startsWith('\n'));
     expect(
@@ -2057,6 +2065,296 @@ void main() {
     );
   });
 
+  test(
+    'decodes exact IndexedStack properties, nullable index, and ordered children',
+    () {
+      Map<String, Object?> model({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '4b36c27c-6f9d-4922-9747-17bd44396a4e',
+          'flutter.widgets.IndexedStack',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final first = _node(
+        '0da17d8a-a37b-4422-96e7-cdd3813939e2',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'First'},
+        },
+      );
+      final second = _node(
+        '6d83b1e9-4a15-44ef-b20f-c1af78920b07',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Second'},
+        },
+      );
+      final decoded = _decode(
+        model(
+          properties: {
+            'alignment': _canvasAlignment(
+              basis: 'directional',
+              horizontal: 1,
+              vertical: -0.5,
+            ),
+            'textDirection': {
+              'kind': 'enum',
+              'type': 'TextDirection',
+              'value': 'rtl',
+            },
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': 'antiAliasWithSaveLayer',
+            },
+            'sizing': {
+              'kind': 'enum',
+              'type': 'StackFit',
+              'value': 'passthrough',
+            },
+            'index': {'kind': 'integer', 'value': 1},
+          },
+          slots: {
+            'children': _list([first, second]),
+          },
+        ),
+      ).root;
+
+      expect(decoded.type, 'flutter.widgets.IndexedStack');
+      expect(decoded.properties.keys, const [
+        'alignment',
+        'textDirection',
+        'clipBehavior',
+        'sizing',
+        'index',
+      ]);
+      expect(decoded.properties['index']!.kind, 'integer');
+      expect(decoded.properties['index']!.value, 1);
+      expect(
+        (decoded.properties['sizing']!.value as CanvasEnumValue).value,
+        'passthrough',
+      );
+      expect(decoded.slot('children')!.children.map((child) => child.id), [
+        first['id'],
+        second['id'],
+      ]);
+
+      final omitted = _decode(
+        model(
+          slots: {
+            'children': _list([first]),
+          },
+        ),
+      ).root;
+      expect(omitted.properties.containsKey('index'), isFalse);
+
+      final explicitNull = _decode(
+        model(
+          properties: const {
+            'index': {'kind': 'null'},
+          },
+          slots: {
+            'children': _list([first, second]),
+          },
+        ),
+      ).root;
+      expect(explicitNull.properties['index']!.kind, 'null');
+      expect(explicitNull.properties['index']!.value, isNull);
+      expect(explicitNull.slot('children')!.children, hasLength(2));
+    },
+  );
+
+  test('enforces the exact IndexedStack index-to-children relationship', () {
+    Map<String, Object?> model({
+      Object? index = const _AbsentTestValue(),
+      List<Map<String, Object?>> children = const [],
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '4b36c27c-6f9d-4922-9747-17bd44396a4e',
+        'flutter.widgets.IndexedStack',
+        properties: {
+          if (index is! _AbsentTestValue)
+            'index': index == null
+                ? const {'kind': 'null'}
+                : {'kind': 'integer', 'value': index},
+        },
+        slots: {'children': _list(children)},
+      );
+      return json;
+    }
+
+    final child = _node(
+      '0da17d8a-a37b-4422-96e7-cdd3813939e2',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Child'},
+      },
+    );
+    final second = _node(
+      '6d83b1e9-4a15-44ef-b20f-c1af78920b07',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Second'},
+      },
+    );
+
+    expect(() => _decode(model()), returnsNormally);
+    expect(() => _decode(model(index: 0)), returnsNormally);
+    expect(() => _decode(model(index: null)), returnsNormally);
+    expect(() => _decode(model(children: [child])), returnsNormally);
+    expect(
+      () => _decode(model(index: 1, children: [child, second])),
+      returnsNormally,
+    );
+    for (final negative in <Map<String, Object?>>[
+      model(index: -1),
+      model(index: -1, children: [child]),
+    ]) {
+      expect(
+        () => _decode(negative),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains('numeric value is outside its bounds'),
+          ),
+        ),
+      );
+    }
+    for (final invalid in <Map<String, Object?>>[
+      model(index: 1),
+      model(index: 1, children: [child]),
+      model(index: 2, children: [child, second]),
+    ]) {
+      expect(
+        () => _decode(invalid),
+        throwsA(
+          isA<FormatException>().having(
+            (error) => error.message,
+            'message',
+            contains(
+              'IndexedStack index must be null or within children.length',
+            ),
+          ),
+        ),
+      );
+    }
+  });
+
+  test('rejects values outside the reviewed IndexedStack projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '4b36c27c-6f9d-4922-9747-17bd44396a4e',
+        'flutter.widgets.IndexedStack',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'index': {'kind': 'null', 'value': null},
+      },
+      const {
+        'index': {'kind': 'double', 'value': 0.0},
+      },
+      const {
+        'sizing': {'kind': 'enum', 'type': 'StackFit', 'value': 'tight'},
+      },
+      const {
+        'sizing': {'kind': 'enum', 'type': 'FlexFit', 'value': 'loose'},
+      },
+      const {
+        'fit': {'kind': 'enum', 'type': 'StackFit', 'value': 'loose'},
+      },
+      const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'auto',
+        },
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'children': _single(null)})),
+      throwsFormatException,
+    );
+    final expanded = _node(
+      '70e18fc2-a3d6-4976-aa99-45f0aed417b5',
+      'flutter.widgets.Expanded',
+      properties: const {
+        'flex': {'kind': 'integer', 'value': 1},
+      },
+      slots: {
+        'child': _single(
+          _node(
+            'bf98849f-028e-47f1-829e-766f007c69d7',
+            'flutter.widgets.Text',
+            properties: const {
+              'data': {'kind': 'string', 'value': 'Invalid'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(
+        model(
+          slots: {
+            'children': _list([expanded]),
+          },
+        ),
+      ),
+      throwsFormatException,
+    );
+  });
+
+  test('IndexedStack reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.IndexedStack\n');
+    final end = contract.indexOf('W|flutter.widgets.IntrinsicHeight\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.IndexedStack\n'
+      'P|alignment|alignmentGeometry|0|-|-|'
+      'alignmentGeometry:alignmentGeometry\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|index|integer,null|0|-|'
+      'integer:0:1:9007199254740991:1|'
+      'integer:range:0:1:9007199254740991:1;null:any\n'
+      'P|sizing|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'StackFit:expand,loose,passthrough\n'
+      'P|textDirection|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextDirection:ltr,rtl\n'
+      'S|children|list|0|0|10000|any\n',
+    );
+  });
+
   test('decodes every optional Wrap leaf and preserves ordered children', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},
@@ -2929,7 +3227,7 @@ void main() {
   test('Image reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Image\n');
-    final end = contract.indexOf('W|flutter.widgets.IntrinsicHeight\n', start);
+    final end = contract.indexOf('W|flutter.widgets.IndexedStack\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));
@@ -7713,7 +8011,7 @@ void main() {
   );
 
   test('rejects malformed or ambiguous project theme values', () {
-    final oldProtocol = _modelJson()..['protocolVersion'] = 13;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 14;
     expect(() => _decode(oldProtocol), throwsFormatException);
 
     final invalidSeed = _modelJson();
@@ -9150,9 +9448,13 @@ Map<String, Object?> _elevatedButtonNode(Map<String, Object?> model) {
   return body['child']! as Map<String, Object?>;
 }
 
+class _AbsentTestValue {
+  const _AbsentTestValue();
+}
+
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 14,
+  'protocolVersion': 15,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

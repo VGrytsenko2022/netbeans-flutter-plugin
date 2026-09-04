@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
@@ -506,6 +507,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
                 widget.type())) {
             addExcludeSemanticsPropertySets(sheet, hasSlotTab);
+        } else if (IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.equals(
+                widget.type())) {
+            addIndexedStackPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -871,6 +875,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && CHILDREN_SLOT.equals(slot.name())) {
             return "Ordered children laid out linearly along the selected scroll axis. "
                     + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children that all remain laid out and keep their state while only "
+                    + "the selected Index is painted, hit-tested, and exposed through Flutter "
+                    + "semantics. Omitted Index selects 0, explicit null selects none, and an "
+                    + "explicit integer must address an existing child (0 is also valid while "
+                    + "empty). Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
@@ -2210,6 +2224,59 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + " Omission preserves Flutter's true default; explicit true "
                             + "or false uses the standard checkbox editor."));
         }
+    }
+
+    private void addIndexedStackPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<IndexedStackWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(IndexedStackWidgetPropertySchema.Group.class);
+        for (IndexedStackWidgetPropertySchema.Group group
+                : IndexedStackWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            IndexedStackWidgetPropertySchema.Definition schema =
+                    IndexedStackWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in IndexedStack property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    indexedStackPropertyDescription(property.name())));
+        }
+    }
+
+    private static String indexedStackPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "alignment" ->
+                "Physical or directional position shared by all children. Flutter defaults "
+                + "to directional top-start; directional values resolve from the explicit "
+                + "Text direction when set, otherwise ambient LTR/RTL Directionality.";
+            case "textDirection" ->
+                "Optional LTR or RTL override used only to resolve directional Alignment. "
+                + "Omission preserves ambient Directionality; this is not a theme value.";
+            case "clipBehavior" ->
+                "How direct child geometry that overflows IndexedStack bounds is clipped. "
+                + "Omission preserves Flutter's hard-edge default; descendant or paint-only "
+                + "overflow does not by itself trigger RenderStack clipping.";
+            case "sizing" ->
+                "How non-positioned children contribute constraints and size: loose relaxes "
+                + "incoming minimums, expand tightens to the largest allowed size, and "
+                + "passthrough preserves incoming constraints. Flutter defaults to loose.";
+            case "index" ->
+                "Three distinct states: <not set> omits the argument and uses Flutter's "
+                + "default index 0; explicit null paints, hit-tests, and exposes semantics "
+                + "for no child; a non-negative integer selects that zero-based child. "
+                + "With children present the integer must be below their count; an empty "
+                + "IndexedStack accepts only effective index 0 or explicit null. Never use "
+                + "-1 as a sentinel.";
+            default -> "Explicit IndexedStack value for " + propertyName.value() + ".";
+        };
     }
 
     private void addPlaceholderPropertySets(Sheet sheet, boolean hasSlotTab) {

@@ -62,7 +62,7 @@ Disabling the project themes preserves those references and all entry states
 while generated nullable accessors make `MaterialApp` use Flutter defaults.
 The generator constructs each customized definition in one deterministic order:
 `ColorScheme.fromSeed`, `ColorScheme.copyWith`, `ThemeData.from`, then
-`TextTheme.copyWith` and the component themes. Canvas model protocol v14 carries
+`TextTheme.copyWith` and the component themes. Canvas model protocol v15 carries
 the same resolved role and component tables and applies that order before
 form-local widget overrides. Theme
 definitions remain independent of every form `.fd` model.
@@ -130,15 +130,16 @@ The 0.1.3 designer foundation follows the accepted contract in
 form maps `lib/<relative>/<name>.dart` to
 `.fd_templates/<relative>/<name>.fd`: the `.fd` JSON document owns the visual
 widget model, while guarded `imports` and `build` regions in the paired Dart
-file own only generated source. Current schema v9 keeps `source.dartFile` as
+file own only generated source. Current schema v10 keeps `source.dartFile` as
 the exact Dart basename, without a path separator; retains v4's closed typed
 nullable `IconData` and v5's structured `AlignmentGeometry`, `BoxConstraints`,
 `Matrix4` and `BoxDecoration`; and adds top-level asset-only
 `ImageProviderValue` plus `BoxDecoration.image`, and represents positive
 infinity in every BoxConstraints bound as JSON `null`, adds the closed atomic
 finite non-negative `Size` value used by SizedOverflowBox, and adds the closed
-atomic finite signed `Offset` value used by Transform. Schema-v1 through
-schema-v8 documents migrate in memory and become canonical v9 only on an
+atomic finite signed `Offset` value used by Transform, and adds the exact
+payload-free `NullValue` used by `IndexedStack.index`. Schema-v1 through
+schema-v9 documents migrate in memory and become canonical v10 only on an
 admitted edit. The mirrored relative directory is enforced by the
 NetBeans project adapter. The legacy generic `AssetValue` remains relative to
 the Flutter project/pubspec root, never the `.fd` location. The new image
@@ -159,22 +160,22 @@ Designer Form` creates both files atomically and accepts targets only in `lib`
 or its subfolders. `flutter-designer` owns the implemented NetBeans-independent
 schema, model, validation, generation, preparation, pair-rename, pair-copy and
 Dart Move-dependency planners, bounded undoable command session and canonical
-Canvas model projection, including migration of schema v1-v8 to v9. SafeArea's
-physical-insets constraint adds the exported `directionalAllowed` component to
-`PropertyValueConstraint.EdgeInsetsValues`, making contributor Catalog API 9
-the exact current boundary; API 1 through API 8 contributors fail closed.
+Canvas model projection, including migration of schema v1-v9 to v10. The exact
+tagged `NullValue` added for `IndexedStack.index` extends the exported property
+domain, making contributor Catalog API 10 the current boundary; API 1 through
+API 9 contributors fail closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, forty-five-item context Palette, selected-node
+Canvas/tree selection edge, forty-six-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 730 catalog-backed fields across
+Properties are writable for exactly 735 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
-`UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`,
+`UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`,
 `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Thirty-nine of the forty-five definitions use reviewed const
-constructors; the forty-four non-`Scaffold` definitions account for 713 rows.
+and `Image`. Forty of the forty-six definitions use reviewed const
+constructors; the forty-five non-`Scaffold` definitions account for 718 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -294,7 +295,7 @@ second inventory before image bytes can be published, closing the initial
 snapshot/listener race while retaining conservative invalidation for arbitrary
 or extensionless Flutter assets.
 
-Canvas model protocol v14 over NBFC framing v1 negotiates
+Canvas model protocol v15 over NBFC framing v1 negotiates
 `asset.imageBytes.v1` and projects only
 referenced immutable compressed resources after the model descriptor, under
 exact revision, order, byte-count and lowercase raw SHA-256 validation. The
@@ -733,19 +734,36 @@ subtree, explicit `false` preserves it, and layout, paint and hit testing proxy
 the child. The `ExcludeSemantics` node's own Designer selection, hit/drop and
 accessibility wrapper remains outside the semantics effect. Descendant Canvas
 semantics labels follow the real subtree exclusion, while the separate NetBeans
-widget tree remains accessible. The current surface has 45 widgets, 39 reviewed
+widget tree remains accessible. At that milestone the surface had 45 widgets, 39 reviewed
 const definitions and 730 writable rows (713 outside `Scaffold`): Layout has 30
 items, Scrolling three, Basic seven, Material four and Accessibility one. The
-practical backlog is 45/92 complete with 47 remaining. Persisted and transport
-shapes remain `.fd` v9, Catalog API 9, Canvas model v14 and NBFC framing,
+practical backlog was 45/92 complete with 47 remaining. Persisted and transport
+shapes remained `.fd` v9, Catalog API 9, Canvas model v14 and NBFC framing,
 control and wire v1.
 
-The current contract admits forty-five exact capability-gated Palette sources
-across forty insertable any-widget and two `PreferredSizeWidget`
-destination slots: 1,890 candidates, of which 1,688 are accepted and 202
+[`IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+fills the first remaining fixed-inventory gap at Layout item order 115 beside
+`Stack`. Its complete const Flutter 3.44.8 constructor contributes optional
+`alignment`, `textDirection`, `clipBehavior`, `sizing`, nullable `index` and an
+ordered any-widget `children` list; only `key` is excluded. Omitted index keeps
+the framework default `0`, a non-negative integer selects one existing child,
+and exact typed null selects none. Validation binds every concrete index to the
+live list, including Flutter's empty-list index-zero exception. Native and
+exact-Web Canvas construct the real widget: layout uses the largest child,
+while paint, hit testing and application semantics visit only the selected
+child; all children remain ordered in the model and NetBeans tree. The current
+surface has 46 widgets, 40 reviewed const definitions and 735 writable rows
+(718 outside `Scaffold`): Layout has 31 items, Scrolling three, Basic seven,
+Material four and Accessibility one. The practical backlog is 46/92 complete
+with 46 remaining. Exact typed null advances `.fd` to v10, Catalog API to 10
+and Canvas model to v15; NBFC framing, control and wire remain v1.
+
+The current contract admits forty-six exact capability-gated Palette sources
+across forty-one insertable any-widget and two `PreferredSizeWidget`
+destination slots: 1,978 candidates, of which 1,771 are accepted and 207
 rejected. Expanded and Flexible enter only direct `Row.children` and
 `Column.children` wrapper targets; Spacer enters those two list slots by
-ordinary insertion; SafeArea is admitted to the forty any-widget slots
+ordinary insertion; SafeArea is admitted to the forty-one any-widget slots
 but rejected by the two trait-bound slots. Directionality follows the same
 any-widget admission and trait rejection. All required wrapper child slots are
 replacement-only and excluded
@@ -966,7 +984,7 @@ project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 when available, or stores the reserved unresolved provider when the inventory is
 empty or unavailable; only destination and authority failures reject DnD. DnD
-outside the forty-five-source, 1,890-candidate matrix (1,688 accepted, 202 rejected)
+outside the forty-six-source, 1,978-candidate matrix (1,771 accepted, 207 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -978,10 +996,10 @@ publishes one exact validated revision, acknowledges its layout, synchronizes
 selection and capability-gates the narrowly typed `runner.paletteDrop` and
 `runner.textEditCommit` intents.
 Protocol negotiation and decoding do not authorize mutation. The canonical
-protocol-v14 model payload admits only exact reviewed built-in definitions with
+protocol-v15 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
-`FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
+`FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`,
 `SingleChildScrollView`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
@@ -1192,9 +1210,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact forty-five widgets carrying
-the Create capability. All forty-five built-ins, including `Scaffold`, admit the
-reviewed 730-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact forty-six widgets carrying
+the Create capability. All forty-six built-ins, including `Scaffold`, admit the
+reviewed 735-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

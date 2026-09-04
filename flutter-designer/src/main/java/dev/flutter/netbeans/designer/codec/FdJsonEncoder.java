@@ -375,7 +375,9 @@ final class FdJsonEncoder {
             EncodingContext context) throws IOException, FdEncodeException {
         context.startObject(pointer);
         context.stringField("kind", value.kind().wireName(), pointer + "/kind");
-        if (value instanceof PropertyValue.StringValue stringValue) {
+        if (value instanceof PropertyValue.NullValue) {
+            // The kind tag is the complete canonical representation.
+        } else if (value instanceof PropertyValue.StringValue stringValue) {
             context.stringField("value", stringValue.value(), pointer + "/value");
         } else if (value instanceof PropertyValue.BooleanValue booleanValue) {
             context.booleanField("value", booleanValue.value(), pointer + "/value");

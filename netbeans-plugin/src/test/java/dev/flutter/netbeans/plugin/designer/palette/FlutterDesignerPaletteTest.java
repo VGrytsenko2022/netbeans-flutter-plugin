@@ -53,6 +53,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
             "flutter.widgets.ExcludeSemantics",
+            "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -91,8 +92,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(45, CATALOG.definitions().size());
-        assertEquals(39, CATALOG.definitions().stream()
+        assertEquals(46, CATALOG.definitions().size());
+        assertEquals(40, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -110,11 +111,11 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
+                "Indexed Stack", "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
                 "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
                 itemLabels(categories[1]));
-        assertEquals(30, itemLabels(categories[1]).size());
+        assertEquals(31, itemLabels(categories[1]).size());
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
         assertEquals(3, itemLabels(categories[2]).size());
@@ -151,7 +152,7 @@ class FlutterDesignerPaletteTest {
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
-                "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
+                "Indexed Stack", "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
                 "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
                 itemLabels(categories[1]));
@@ -1101,6 +1102,34 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void indexedStackPaletteSelectionExplainsVisibleIndexAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.IndexedStack";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        115,
+                        "IndexedStack"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Indexed Stack", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("painting, hit-testing"));
+        assertTrue(node.getShortDescription().contains("default 0"));
+        assertTrue(node.getShortDescription().contains("null"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void textFieldPaletteSelectionExplainsRuntimeOnlyEditingState()
             throws ReflectiveOperationException {
         String typeId = "flutter.material.TextField";
@@ -1400,7 +1429,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void fortyFiveCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortySixCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1419,7 +1448,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(45, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(46, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

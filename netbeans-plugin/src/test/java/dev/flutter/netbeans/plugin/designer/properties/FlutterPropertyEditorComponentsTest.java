@@ -1368,6 +1368,128 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void indexedStackIndexEditorKeepsOmittedNullAndIntegerDistinct()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.IndexedStack", "index"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.NULLABLE_INTEGER,
+                binding.editorKind());
+        assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL),
+                binding.definition().acceptedKinds());
+        assertTrue(binding.optional());
+
+        PropertyEditor editor = binding.createEditor();
+        assertTrue(editor.supportsCustomEditor());
+        editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT);
+        assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+        editor.setAsText("NULL");
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                editor.getValue());
+        assertEquals("null", editor.getAsText());
+        editor.setAsText("3");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(3))),
+                editor.getValue());
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("-1"));
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("1.5"));
+
+        editor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()));
+        InplaceEditor inplace = FlutterPropertyEditorComponents
+                .inplaceFactory(binding).orElseThrow().getInplaceEditor();
+        PropertyEnv inplaceEnvironment = PropertyEnv.create(descriptor(
+                "Index", "Nullable zero-based child index."));
+        onEdt(() -> {
+            inplace.addActionListener(ignored ->
+                    editor.setAsText((String) inplace.getValue()));
+            inplace.connect(editor, inplaceEnvironment);
+            JTextField field = assertInstanceOf(
+                    JTextField.class, inplace.getComponent());
+            assertEquals(FlutterPropertyEditorComponents.NUMERIC_COMPONENT_NAME,
+                    field.getName());
+            assertEquals("null", field.getText());
+
+            field.setText("2");
+            field.postActionEvent();
+            assertEquals(PropertyEnv.STATE_VALID, inplaceEnvironment.getState());
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                    editor.getValue());
+            field.setText("-1");
+            field.postActionEvent();
+            assertEquals(PropertyEnv.STATE_INVALID, inplaceEnvironment.getState());
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                    editor.getValue(), "an invalid sentinel must not replace the value");
+            field.setText("null");
+            field.postActionEvent();
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.NullValue()),
+                    editor.getValue());
+            field.setText("");
+            field.postActionEvent();
+            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+            inplace.clear();
+            return null;
+        });
+
+        PropertyEditor custom = binding.createEditor();
+        FlutterPropertyCellValue initialNull = FlutterPropertyCellValue.explicit(
+                new PropertyValue.NullValue());
+        custom.setValue(initialNull);
+        PropertyEnv customEnvironment = PropertyEnv.create(descriptor(
+                "Index", "Omitted, explicit null, or non-negative child index."));
+        ((ExPropertyEditor) custom).attachEnv(customEnvironment);
+        onEdt(() -> {
+            Component panel = custom.getCustomEditor();
+            assertSame(panel, custom.getCustomEditor());
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class,
+                    FlutterPropertyEditorComponents.NULLABLE_INTEGER_MODE_NAME);
+            JTextField value = findNamed(
+                    panel, JTextField.class,
+                    FlutterPropertyEditorComponents.NULLABLE_INTEGER_VALUE_NAME);
+            assertNotNull(mode);
+            assertNotNull(value);
+            assertEquals(List.of(
+                    "Use Flutter default 0 (omit argument)",
+                    "Show no child (explicit null)",
+                    "Show child at index"), comboLabels(mode));
+            assertEquals("Show no child (explicit null)",
+                    String.valueOf(mode.getSelectedItem()));
+            assertFalse(value.isEnabled());
+
+            selectLabel(mode, "Show child at index");
+            value.setText("1");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    customEnvironment.getState());
+            assertEquals(initialNull, custom.getValue(),
+                    "custom editing must remain a local draft until OK");
+            customEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(
+                            new PropertyValue.IntegerValue(BigInteger.ONE)),
+                    custom.getValue());
+            return null;
+        });
+
+        PropertyEditor reset = binding.createEditor();
+        reset.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.IntegerValue(BigInteger.ONE)));
+        PropertyEnv resetEnvironment = PropertyEnv.create(descriptor(
+                "Index", "Reset nullable child index."));
+        ((ExPropertyEditor) reset).attachEnv(resetEnvironment);
+        onEdt(() -> {
+            Component panel = reset.getCustomEditor();
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class,
+                    FlutterPropertyEditorComponents.NULLABLE_INTEGER_MODE_NAME);
+            selectLabel(mode, "Use Flutter default 0 (omit argument)");
+            resetEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.unset(), reset.getValue());
+            return null;
+        });
+    }
+
+    @Test
     void doubleControlRetainsDoubleKindAndNonNegativeConstraint()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(

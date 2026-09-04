@@ -36,9 +36,18 @@ public sealed interface PropertyValue permits
         PropertyValue.BoxConstraintsValue,
         PropertyValue.Matrix4Value,
         PropertyValue.ImageProviderValue,
-        PropertyValue.BoxDecorationValue {
+        PropertyValue.BoxDecorationValue,
+        PropertyValue.NullValue {
 
     PropertyValueKind kind();
+
+    /** Explicit Dart {@code null}; distinct from an omitted property. */
+    record NullValue() implements PropertyValue {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.NULL;
+        }
+    }
 
     record StringValue(String value) implements PropertyValue {
         public StringValue {

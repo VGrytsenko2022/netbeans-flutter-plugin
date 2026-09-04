@@ -4,7 +4,7 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v14 may additionally carry
+screenshots or framebuffer pixels. Model protocol v15 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
 
@@ -77,13 +77,14 @@ resource while the valid peers remain admissible. The reviewed
 decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
-`SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `GridView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`
-and `OverflowBar`,
+`SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
+`OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
+`DecoratedBox` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v14 carries the resolved project-theme id, seed, brightness,
+Model protocol v15 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
@@ -235,9 +236,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-45 reviewed Canvas widgets. Palette insertion evaluates 1,890 exact
-source/destination cells across 45 draggable sources and 42 insertable reviewed
-slots; 1,688 are accepted and 202 cells are rejected. Expanded and Flexible are
+46 reviewed Canvas widgets. Palette insertion evaluates 1,978 exact
+source/destination cells across 46 draggable sources and 43 insertable reviewed
+slots; 1,771 are accepted and 207 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -807,10 +808,32 @@ effect. Descendant Canvas semantics labels follow the real subtree exclusion;
 the separate NetBeans widget tree remains accessible. An empty zero-size widget
 retains only a transient Designer target.
 
-The aggregate catalog now has 45 widgets and 39 reviewed const definitions,
-with 730 writable rows (713 outside Scaffold). Palette contains 30 Layout,
+At that milestone the aggregate catalog had 45 widgets and 39 reviewed const definitions,
+with 730 writable rows (713 outside Scaffold). Palette contained 30 Layout,
 three Scrolling, seven Basic, four Material and one Accessibility item; the
-backlog is 45/92 complete with 47 remaining. The 45 sources across 42
-insertable destinations form 1,890 cells, with 1,688 accepted and 202 rejected.
-`.fd` remains v9, Canvas model protocol remains v14, Catalog API remains v9 and
+backlog was 45/92 complete with 47 remaining. The 45 sources across 42
+insertable destinations formed 1,890 cells, with 1,688 accepted and 202 rejected.
+`.fd` remained v9, Canvas model protocol remained v14, Catalog API remained v9 and
 NBFC framing, control and wire remain v1.
+
+[`flutter.widgets.IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+is decoded as the complete const Flutter 3.44.8 projection. Optional
+`alignment`, `textDirection`, `clipBehavior` and `sizing` preserve their exact
+framework defaults when omitted. Nullable `index` has three distinct states:
+omission uses default zero, a non-negative integer selects one existing child,
+and the exact payload-free null value selects none. The ordered `children` list
+remains complete even though only the selected child paints, hits and contributes
+application semantics; layout uses the largest child.
+
+Native and exact-Web views construct the real IndexedStack. Every concrete
+index is revalidated against the live child list, including Flutter's empty-list
+index-zero exception. The full rendered rectangle supplies overlapping-list DnD;
+an empty zero-size node retains only the bounded transient Designer target.
+
+The aggregate catalog now has 46 widgets and 40 reviewed const definitions,
+with 735 writable rows (718 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seven Basic, four Material and one Accessibility item; the
+backlog is 46/92 complete with 46 remaining. The 46 sources across 43
+insertable destinations form 1,978 cells, with 1,771 accepted and 207 rejected.
+Exact typed null advances `.fd` to v10, Canvas model protocol to v15 and Catalog
+API to v10; NBFC framing, control and wire remain v1.

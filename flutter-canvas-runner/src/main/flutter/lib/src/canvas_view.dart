@@ -550,6 +550,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == canvasSafeAreaWidgetType ||
         node.type == canvasSpacerWidgetType ||
         node.type == 'flutter.widgets.Stack' ||
+        node.type == 'flutter.widgets.IndexedStack' ||
         node.type == 'flutter.widgets.Wrap' ||
         node.type == 'flutter.widgets.ListBody' ||
         node.type == 'flutter.widgets.OverflowBar' ||
@@ -560,8 +561,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
-    for (final slot in node.slots.values) {
-      for (final child in slot.children) {
+    for (final slotEntry in node.slots.entries) {
+      for (final index in _interactiveChildIndexes(
+        node,
+        slotEntry.key,
+        slotEntry.value,
+      )) {
+        final child = slotEntry.value.children[index];
         yield* _zeroSizedDesignerTargets(child);
       }
     }
@@ -1051,6 +1057,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       );
     }
     if ((parentNode.type == 'flutter.widgets.Stack' ||
+            parentNode.type == 'flutter.widgets.IndexedStack' ||
             parentNode.type == 'flutter.widgets.Wrap') &&
         slotName == 'children') {
       return parentRect;
@@ -1184,7 +1191,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             !wrapSlot.acceptsSource(source)) {
           continue;
         }
-        for (var index = 0; index < modelSlot.children.length; index++) {
+        for (final index in _interactiveChildIndexes(
+          node,
+          slotEntry.key,
+          modelSlot,
+        )) {
           final child = modelSlot.children[index];
           if (!canvasWrapperAcceptsExistingChild(
             wrapperWidgetType: source.widgetType,
@@ -1322,8 +1333,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         }
       }
     }
-    for (final slot in node.slots.values) {
-      for (final child in slot.children) {
+    for (final slotEntry in node.slots.entries) {
+      for (final index in _interactiveChildIndexes(
+        node,
+        slotEntry.key,
+        slotEntry.value,
+      )) {
+        final child = slotEntry.value.children[index];
         _collectDropCandidates(
           child,
           point,
@@ -1333,6 +1349,28 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           source,
         );
       }
+    }
+  }
+
+  Iterable<int> _interactiveChildIndexes(
+    CanvasNode node,
+    String slotName,
+    CanvasSlot slot,
+  ) sync* {
+    if (node.type == 'flutter.widgets.IndexedStack' && slotName == 'children') {
+      final indexValue = node.properties['index'];
+      final index = indexValue == null
+          ? 0
+          : indexValue.kind == 'null'
+          ? null
+          : indexValue.value as int;
+      if (index != null && index >= 0 && index < slot.children.length) {
+        yield index;
+      }
+      return;
+    }
+    for (var index = 0; index < slot.children.length; index++) {
+      yield index;
     }
   }
 
@@ -2277,6 +2315,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.GridView' => _gridView(),
       'flutter.widgets.SingleChildScrollView' => _singleChildScrollView(),
       'flutter.widgets.Stack' => _stack(),
+      'flutter.widgets.IndexedStack' => _indexedStack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
       'flutter.widgets.SafeArea' => _safeArea(),
@@ -3495,6 +3534,24 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     clipBehavior: _clipBehavior() ?? Clip.hardEdge,
     children: _children('children'),
   );
+
+  Widget _indexedStack() {
+    final indexValue = node.properties['index'];
+    final index = indexValue == null
+        ? 0
+        : indexValue.kind == 'null'
+        ? null
+        : indexValue.value as int;
+    return IndexedStack(
+      alignment:
+          _alignmentGeometry('alignment') ?? AlignmentDirectional.topStart,
+      textDirection: _textDirection(),
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      sizing: _stackFit('sizing'),
+      index: index,
+      children: _children('children'),
+    );
+  }
 
   Widget _safeArea() => SafeArea(
     left: _boolean('left') ?? true,
@@ -4930,7 +4987,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ? VerticalDirection.up
       : VerticalDirection.down;
 
-  StackFit _stackFit() => switch (_enum('fit')) {
+  StackFit _stackFit([String name = 'fit']) => switch (_enum(name)) {
     'expand' => StackFit.expand,
     'passthrough' => StackFit.passthrough,
     _ => StackFit.loose,

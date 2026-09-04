@@ -2373,7 +2373,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 9,
+                      "schemaVersion": 10,
                       "documentId": "2f04ce87-876a-4f35-8a7c-2fba3e135c7e",
                       "source": {
                         "dartFile": "%s.dart",
@@ -2424,7 +2424,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 9,
+                      "schemaVersion": 10,
                       "documentId": "5d5c0562-e7ad-4d32-bdbc-998bd05a11e6",
                       "source": {
                         "dartFile": "%s.dart",
@@ -2481,7 +2481,7 @@ final class FlutterDesignerDataObjectIT {
                     ".fd_templates/" + baseName + ".fd"), """
                     {
                       "format": "netbeans-flutter-designer",
-                      "schemaVersion": 9,
+                      "schemaVersion": 10,
                       "documentId": "6a277643-991f-47cc-88d3-1ad0044bb4c0",
                       "source": {
                         "dartFile": "%s.dart",

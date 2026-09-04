@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -102,6 +103,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final WidgetTypeId EXCLUDE_SEMANTICS =
             ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE;
+    private static final WidgetTypeId INDEXED_STACK =
+            IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -1551,6 +1554,86 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                         () -> NEW_ID)).command();
         assertAll(
                 () -> assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0),
+                        command.destination()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty()));
+    }
+
+    @Test
+    void indexedStackTokenCommitsOmittedDefaultAndEmptyChildrenList() {
+        Fixture fixture = fixture(INDEXED_STACK);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(INDEXED_STACK, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(INDEXED_STACK, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves Flutter's index=0 default"),
+                () -> assertEquals(
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the IndexedStack palette authority once"));
+    }
+
+    @Test
+    void textTokenAppendsIntoIndexedStackChildrenList() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(INDEXED_STACK));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(
+                        new WidgetPlacement(ROOT_ID, CHILDREN, 0),
                         command.destination()),
                 () -> assertEquals(TEXT, command.widget().type()),
                 () -> assertEquals(NEW_ID, command.widget().id()),

@@ -24,6 +24,7 @@ import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
@@ -131,6 +132,12 @@ class FlutterDesignerMutationControllerIntegrationTest {
             "22222222-2222-4222-8222-222222222222");
     private static final StableId NESTED_TEXT_ID = StableId.parse(
             "33333333-3333-4333-8333-333333333333");
+    private static final StableId INDEXED_STACK_ID = StableId.parse(
+            "44444444-4444-4444-8444-444444444441");
+    private static final StableId INDEXED_FIRST_ID = StableId.parse(
+            "44444444-4444-4444-8444-444444444442");
+    private static final StableId INDEXED_SECOND_ID = StableId.parse(
+            "44444444-4444-4444-8444-444444444443");
     private static final PropertyName DATA = new PropertyName("data");
     private static final PropertyName SOFT_WRAP = new PropertyName("softWrap");
     private static final PropertyName TEXT_ALIGN = new PropertyName("textAlign");
@@ -162,6 +169,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName DECORATION_POSITION =
             new PropertyName("position");
     private static final PropertyName EXCLUDING = new PropertyName("excluding");
+    private static final PropertyName INDEX = new PropertyName("index");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -4085,6 +4093,234 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void indexedStackSaveReopenNullIntegerUndoRedoRelationAndSaveRemainExact()
+            throws Exception {
+        WidgetTypeId indexedStackType =
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE;
+        PropertyValue.NullValue explicitNull = new PropertyValue.NullValue();
+        PropertyValue.IntegerValue selectedSecond =
+                new PropertyValue.IntegerValue(java.math.BigInteger.ONE);
+        ExactPair durableNullPair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_indexed_stack_save_null",
+                indexedStackColumnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const IndexedStack("));
+                        assertTrue(request.content().contains("index: null"));
+                        assertTrue(request.content().contains(
+                                "'indexed first'"));
+                        assertTrue(request.content().contains(
+                                "'indexed second'"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            WidgetNode baseline = findModelWidget(
+                    ready.document().orElseThrow().root(), INDEXED_STACK_ID);
+            assertAll(
+                    () -> assertFalse(baseline.properties().containsKey(INDEX),
+                            "the durable baseline must preserve omitted index=0"),
+                    () -> assertEquals(2, assertInstanceOf(
+                            WidgetSlot.ListSlot.class,
+                            baseline.slots().get(CHILDREN)).children().size()));
+
+            FlutterDesignerMutationController.MutationResult setNull =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            new SetProperty(INDEXED_STACK_ID, INDEX, explicitNull),
+                            "IndexedStack.index = null")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    setNull.outcome(), setNull::reason);
+            FlutterDesignerMutationController.Snapshot nullSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, INDEXED_STACK_ID));
+            assertEquals(explicitNull, findModelWidget(
+                    nullSnapshot.document().orElseThrow().root(),
+                    INDEXED_STACK_ID).properties().get(INDEX));
+            assertEquals(1, analyses.get());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durableNullPair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_indexed_stack_reopen_integer",
+                durableNullPair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedIndexedStack = findModelWidget(
+                    reopened.document().orElseThrow().root(), INDEXED_STACK_ID);
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(indexedStackType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedIndexedStack,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> index =
+                    cellProperty(propertiesNode, "index");
+            java.beans.PropertyEditor indexEditor = index.getPropertyEditor();
+            indexEditor.setValue(index.getValue());
+            Node.Property<?> children = java.util.Arrays.stream(
+                    propertiesNode.getPropertySets())
+                    .flatMap(set -> java.util.Arrays.stream(set.getProperties()))
+                    .filter(property -> "children".equals(property.getName()))
+                    .findFirst().orElseThrow();
+            assertAll(
+                    () -> assertTrue(index.canWrite(),
+                            "reopened IndexedStack must retain its index editor"),
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.explicit(explicitNull),
+                            index.getValue()),
+                    () -> assertEquals("null", indexEditor.getAsText()),
+                    () -> assertTrue(indexEditor.supportsCustomEditor()),
+                    () -> assertEquals("2 widgets", children.getValue()),
+                    () -> assertEquals(List.of(
+                            INDEXED_FIRST_ID, INDEXED_SECOND_ID),
+                            assertInstanceOf(
+                                    WidgetSlot.ListSlot.class,
+                                    reopenedIndexedStack.slots().get(CHILDREN))
+                                    .children().stream()
+                                    .map(WidgetNode::id)
+                                    .toList()));
+
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const IndexedStack("));
+                        assertTrue(request.content().contains("index: 1"));
+                        assertFalse(request.content().contains("index: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    INDEXED_STACK_ID, INDEX, selectedSecond),
+                            "IndexedStack.index = 1")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot integerSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, INDEXED_STACK_ID));
+            assertEquals(selectedSecond, findModelWidget(
+                    integerSnapshot.document().orElseThrow().root(),
+                    INDEXED_STACK_ID).properties().get(INDEX));
+            assertEquals(1, analyses.get());
+
+            PropertyValue.IntegerValue outsideRange =
+                    new PropertyValue.IntegerValue(
+                            java.math.BigInteger.valueOf(2));
+            FlutterDesignerMutationController.MutationResult rejected =
+                    fixture.mutations().submit(
+                            integerSnapshot.token().orElseThrow(),
+                            new SetProperty(
+                                    INDEXED_STACK_ID, INDEX, outsideRange),
+                            "IndexedStack.index = 2")
+                            .get(10, TimeUnit.SECONDS);
+            FlutterDesignerMutationController.Snapshot afterRejected =
+                    fixture.mutations().snapshot();
+            assertAll(
+                    () -> assertEquals(
+                            FlutterDesignerMutationController.Outcome.REJECTED,
+                            rejected.outcome(), rejected::reason),
+                    () -> assertTrue(rejected.reason().contains(
+                            "IndexedStack index 2 is outside the valid range for 2 children"),
+                            rejected::reason),
+                    () -> assertEquals(1, analyses.get(),
+                            "relationship rejection must happen before analyzer admission"),
+                    () -> assertEquals(
+                            FlutterDesignerMutationController.Status.READY,
+                            afterRejected.status()),
+                    () -> assertEquals(selectedSecond, findModelWidget(
+                            afterRejected.document().orElseThrow().root(),
+                            INDEXED_STACK_ID).properties().get(INDEX)));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            afterRejected.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, INDEXED_STACK_ID));
+            assertEquals(explicitNull, findModelWidget(
+                    undone.document().orElseThrow().root(),
+                    INDEXED_STACK_ID).properties().get(INDEX),
+                    "chronological Undo must restore the explicit null state");
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, INDEXED_STACK_ID));
+            WidgetNode finalIndexedStack = findModelWidget(
+                    redone.document().orElseThrow().root(), INDEXED_STACK_ID);
+            assertAll(
+                    () -> assertEquals(selectedSecond,
+                            finalIndexedStack.properties().get(INDEX),
+                            "chronological Redo must restore the integer state"),
+                    () -> assertEquals(List.of(
+                            INDEXED_FIRST_ID, INDEXED_SECOND_ID),
+                            assertInstanceOf(
+                                    WidgetSlot.ListSlot.class,
+                                    finalIndexedStack.slots().get(CHILDREN))
+                                    .children().stream()
+                                    .map(WidgetNode::id)
+                                    .toList()),
+                    () -> assertEquals(1, analyses.get(),
+                            "Undo/Redo must replay the exact analyzed pair"));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(finalIndexedStack,
+                    findModelWidget(saved.root(), INDEXED_STACK_ID));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
     void deletedCenterTextCanBeDroppedBackThroughTheExactMutationPipeline()
             throws Exception {
         MutationFixture fixture = fixture(
@@ -7378,6 +7614,23 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 new FdDocumentCodec().encode(exact).copyBytes());
     }
 
+    private ExactPair indexedStackColumnExactPair() throws Exception {
+        DesignerDocument provisional = indexedStackColumnDocument(
+                descriptor("0".repeat(64), "0".repeat(64)));
+        GeneratedDartRegions provisionalGenerated = new DartRegionGenerator()
+                .generate(provisional, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DesignerDocument exact = indexedStackColumnDocument(descriptor(
+                provisionalGenerated.imports().normalizedSha256(),
+                provisionalGenerated.build().normalizedSha256()));
+        GeneratedDartRegions generated = new DartRegionGenerator()
+                .generate(exact, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        return new ExactPair(
+                source(generated).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+    }
+
     private ExactPair scaffoldCenterTextExactPair() throws Exception {
         DesignerDocument provisional = scaffoldCenterTextDocument(
                 descriptor("0".repeat(64), "0".repeat(64)));
@@ -8679,6 +8932,44 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 Map.of(),
                 Map.of(CHILDREN,
                         new WidgetSlot.ListSlot(List.of(first, second))));
+        return new DesignerDocument(DOCUMENT_ID, source, root);
+    }
+
+    private static DesignerDocument indexedStackColumnDocument(
+            DartSourceDescriptor source) {
+        WidgetNode first = new WidgetNode(
+                FIRST_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("same")),
+                Map.of());
+        WidgetNode second = new WidgetNode(
+                SECOND_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("same")),
+                Map.of());
+        WidgetNode indexedFirst = new WidgetNode(
+                INDEXED_FIRST_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("indexed first")),
+                Map.of());
+        WidgetNode indexedSecond = new WidgetNode(
+                INDEXED_SECOND_ID,
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("indexed second")),
+                Map.of());
+        WidgetNode indexedStack = new WidgetNode(
+                INDEXED_STACK_ID,
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE,
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(
+                        List.of(indexedFirst, indexedSecond))));
+        WidgetNode root = new WidgetNode(
+                COLUMN_ID,
+                new WidgetTypeId("flutter.widgets.Column"),
+                Map.of(),
+                Map.of(CHILDREN,
+                        new WidgetSlot.ListSlot(
+                                List.of(first, second, indexedStack))));
         return new DesignerDocument(DOCUMENT_ID, source, root);
     }
 

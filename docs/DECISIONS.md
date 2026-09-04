@@ -28,10 +28,10 @@ historical `GridView.count` surface. ADR-067 establishes the historical
 surface, ADR-069 records the historical `SafeArea` surface, ADR-070 records the
 historical `Placeholder` surface, ADR-071 records the historical
 `Directionality` surface, ADR-072 records the historical `DecoratedBox`
-surface, and ADR-073 establishes the current `ExcludeSemantics` surface: 730
-typed rows across forty-five widgets, thirty-nine const-constructor definitions
-and 1,890 Palette/DnD candidates, including 1,688 accepted and 202 rejected
-cells. The 713-field
+surface, ADR-073 establishes the historical `ExcludeSemantics` surface, and
+ADR-074 establishes the current `IndexedStack` surface: 735 typed rows across
+forty-six widgets, forty const-constructor definitions and 1,978 Palette/DnD
+candidates, including 1,771 accepted and 207 rejected cells. The 718-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -41,7 +41,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-073 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-074 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -365,17 +365,19 @@ the historical forty-two-source, 1,680-candidate matrix (1,490 accepted and
 190 rejected), ADR-071 established the historical forty-three-source,
 1,720-candidate matrix (1,528 accepted and 192 rejected), ADR-072 established
 the historical forty-four-source, 1,804-candidate matrix (1,607 accepted and
-197 rejected), and ADR-073 establishes the current forty-five-source,
-1,890-candidate matrix (1,688 accepted and 202 rejected).
+197 rejected), ADR-073 established the historical forty-five-source,
+1,890-candidate matrix (1,688 accepted and 202 rejected), and ADR-074
+establishes the current forty-six-source, 1,978-candidate matrix (1,771
+accepted and 207 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v15 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
-`AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
+`AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
@@ -391,12 +393,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-five-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-six-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty-five Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,890-cell candidate matrix across forty insertable any-widget and two
-trait-bound destination slots; 1,688 cells are accepted and 202 rejected.
+those forty-six Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,978-cell candidate matrix across forty-one insertable any-widget and two
+trait-bound destination slots; 1,771 cells are accepted and 207 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -404,7 +406,7 @@ Directionality use the same generic atomic required-child wrapper mode, with
 tree root/non-root and Canvas non-root-only targets; neither can wrap Expanded,
 Flexible or Spacer.
 Canvas model
-protocol v14's
+protocol v15's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
 screenshot or framebuffer-pixel stream.
@@ -3064,3 +3066,53 @@ remaining. This planning target is not a normative complete list of Flutter
 widgets. Existing value, slot and transport shapes keep `.fd` schema v9,
 Catalog API 9, Canvas model v14 and NBFC framing plus Canvas control/wire v1
 unchanged.
+
+## ADR-074 — IndexedStack adds exact nullable selection to Layout
+
+Accepted. [`IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+is published in the **Layout** Palette category at item order 115 beside
+`Stack`. Its catalog identity is `flutter.widgets.IndexedStack`, its Dart class
+is `IndexedStack`, and its canonical Flutter 3.44.8 constructor is const.
+
+After excluding only the common `key` argument, the complete reviewed
+constructor contains optional `AlignmentGeometry alignment`, nullable
+`TextDirection textDirection`, `Clip clipBehavior`, `StackFit sizing`, nullable
+`int index`, and one ordered any-widget `children` list. A new Palette node
+stores neither properties nor children, preserving `AlignmentDirectional.topStart`,
+ambient text direction, `Clip.hardEdge`, `StackFit.loose`, index `0` and the
+empty list through constructor omission.
+
+The nullable index requires three exact Designer states. Property omission is
+`<not set>` and keeps Flutter's index-zero default; an explicit non-negative
+portable integer selects that existing child; explicit typed `NullValue`
+generates `index: null` and selects none. Validation rejects a concrete index
+outside the current ordered list, except that effective index zero remains
+valid for an empty list exactly as Flutter permits. Removing or reordering
+children is therefore checked against the same relation before mutation is
+accepted. The new null value is a closed tagged value, not a sentinel integer
+or arbitrary Dart expression.
+
+Generated Dart and native/exact-Web Canvas construct the real `IndexedStack`.
+Its layout remains as large as its largest child; only the selected child is
+painted, hit-tested and visited for application semantics, while every child
+remains ordered and editable through the Designer model and NetBeans widget
+tree. An empty instance keeps only a transient IDE-owned selection/drop target.
+The full slice includes typed Properties, ordered Slots,
+Palette/tree/Canvas creation and movement, deterministic const generation,
+Save/reopen and further editing, chronological Undo/Redo, accessibility and
+four reviewed 16/32 px light/dark SVGs.
+
+`IndexedStack` adds five writable rows, one source and one insertable
+any-widget destination. The 45 previous sources add 42 accepted cells and
+three ParentData rejections at the new `children` slot; the new source adds 41
+accepted any-widget cells and two rejected trait-bound cells. The resulting
+surface has 735 writable rows, 718 outside Scaffold, across 46 widgets and 40
+reviewed const-constructor definitions. Forty-six sources across 41 any-widget
+and two trait-bound destinations form 1,978 candidates: 1,771 accepted and 207
+rejected. Layout contains 31 Palette items, Scrolling three, Basic seven,
+Material four and Accessibility one.
+
+The practical Designer backlog is now 46/92 complete, with 46 remaining; the
+next missing item in the fixed priority order is `ClipRect`. Exact typed null
+advances `.fd` schema to v10, contributor Catalog API to 10 and Canvas model to
+v15. NBFC framing plus Canvas control/wire remain v1.

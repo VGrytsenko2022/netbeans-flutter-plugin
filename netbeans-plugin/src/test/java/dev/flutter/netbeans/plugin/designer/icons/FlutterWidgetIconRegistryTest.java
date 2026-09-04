@@ -416,6 +416,45 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void indexedStackFamilyUsesExactReviewedSelectedLayerGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "indexedstack.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=9, rx=1.5, stroke-dasharray=2 1, stroke-width=1, "
+                + "width=9, x=1.5, y=1.5]",
+                "rect[height=9, rx=1.5, stroke-dasharray=2 1, stroke-width=1, "
+                + "width=9, x=3.5, y=3.5]",
+                "rect[height=9, rx=1.5, stroke-width=1, width=9, x=5.5, y=5.5]",
+                "circle[cx=10, cy=10, r=1.75, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=18, rx=3, stroke-dasharray=4 2, stroke-width=2, "
+                + "width=18, x=3, y=3]",
+                "rect[height=18, rx=3, stroke-dasharray=4 2, stroke-width=2, "
+                + "width=18, x=7, y=7]",
+                "rect[height=18, rx=3, stroke-width=2, width=18, x=11, y=11]",
+                "circle[cx=20, cy=20, r=3.5, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#F4F7FA, stroke=#90A4AE]",
+                "rect[fill=#EAF5FC, stroke=#607D8B]",
+                "rect[fill=#80DEEA, stroke=#1565C0]",
+                "circle[fill=#FFFFFF, stroke=#1565C0]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#1E2933, stroke=#78909C]",
+                "rect[fill=#253746, stroke=#B0BEC5]",
+                "rect[fill=#4DD0E1, stroke=#90CAF9]",
+                "circle[fill=#10202C, stroke=#90CAF9]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void coloredBoxFamilyUsesExactReviewedSolidSwatchGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "coloredbox.svg";
@@ -1554,6 +1593,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.LimitedBox", ICON_ROOT + "limitedbox.svg");
         expected.put("flutter.widgets.OverflowBox", ICON_ROOT + "overflowbox.svg");
         expected.put("flutter.widgets.Stack", ICON_ROOT + "stack.svg");
+        expected.put("flutter.widgets.IndexedStack", ICON_ROOT + "indexedstack.svg");
         expected.put("flutter.widgets.Expanded", ICON_ROOT + "expanded.svg");
         expected.put("flutter.widgets.Flexible", ICON_ROOT + "flexible.svg");
         expected.put("flutter.widgets.Spacer", ICON_ROOT + "spacer.svg");

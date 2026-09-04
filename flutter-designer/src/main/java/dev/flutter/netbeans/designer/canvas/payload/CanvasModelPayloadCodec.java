@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 14;
+    public static final int VERSION = 15;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -326,6 +326,8 @@ public final class CanvasModelPayloadCodec {
             throws IOException {
         json.writeStartObject();
         switch (value) {
+            case PropertyValue.NullValue ignored ->
+                json.writeStringField("kind", "null");
             case PropertyValue.StringValue string -> {
                 json.writeStringField("kind", "string");
                 json.writeStringField("value", string.value());

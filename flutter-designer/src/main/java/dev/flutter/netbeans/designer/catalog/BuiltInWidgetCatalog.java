@@ -46,6 +46,7 @@ public final class BuiltInWidgetCatalog {
             limitedBox(),
             overflowBox(),
             stack(),
+            indexedStack(),
             expanded(),
             flexible(),
             spacer(),
@@ -928,6 +929,55 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("Clip", "none", "hardEdge", "antiAlias",
                                         "antiAliasWithSaveLayer"))),
                 List.of(listSlot("children", 4, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition indexedStack() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "alignment",
+                        0,
+                        false,
+                        List.of(new PropertyValueConstraint.AlignmentGeometryValues())),
+                namedProperty(
+                        "textDirection",
+                        1,
+                        false,
+                        enumValues("TextDirection", "rtl", "ltr")),
+                namedProperty(
+                        "clipBehavior",
+                        2,
+                        false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")),
+                namedProperty(
+                        "sizing",
+                        3,
+                        false,
+                        enumValues("StackFit", "loose", "expand", "passthrough")),
+                namedProperty(
+                        "index",
+                        4,
+                        false,
+                        List.of(
+                                new PropertyValueConstraint.IntegerRange(
+                                        BigInteger.ZERO,
+                                        DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        if (properties.size()
+                != IndexedStackWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "IndexedStack catalog/property schema count mismatch");
+        }
+        return widget(
+                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value(),
+                "IndexedStack",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 115, "IndexedStack"),
+                properties,
+                List.of(listSlot("children", 5, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition expanded() {

@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -103,6 +104,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
     private static final WidgetTypeId EXCLUDE_SEMANTICS =
             ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE;
+    private static final WidgetTypeId INDEXED_STACK =
+            IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE;
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
@@ -1070,7 +1073,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void singleChildScrollViewCompletesExact1482CellModelWithOptionalChild() {
-        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> previousTargets = preIndexedStackDefinitions()
                 .filter(definition -> !SINGLE_CHILD_SCROLL_VIEW.equals(definition.typeId()))
                 .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
@@ -1126,7 +1129,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> allSources = preIndexedStackDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !COLORED_BOX.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
@@ -1191,7 +1194,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void coloredBoxCompletesExact1560CellModelWithRequiredCreationColorAndOptionalChild() {
-        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> previousTargets = preIndexedStackDefinitions()
                 .filter(definition -> !COLORED_BOX.equals(definition.typeId()))
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
                 .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
@@ -1248,7 +1251,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> allSources = preIndexedStackDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !PLACEHOLDER.equals(type))
@@ -1342,7 +1345,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void safeAreaCompletesExact1599CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
-        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> optionalTargets = preIndexedStackDefinitions()
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
                 .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .filter(definition -> !EXCLUDE_SEMANTICS.equals(definition.typeId()))
@@ -1396,7 +1399,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, BUILT_INS.definitions().size() - 2),
+                () -> assertEquals(43, preIndexedStackWidgetCount() - 2),
                 () -> assertEquals(39, optionalTargets.size()),
                 () -> assertEquals(37, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -1407,7 +1410,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void placeholderCompletesExact1680CellModelWithOmittedDefaultsAndOptionalChild() {
-        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> previousTargets = preIndexedStackDefinitions()
                 .filter(definition -> !PLACEHOLDER.equals(definition.typeId()))
                 .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .filter(definition -> !EXCLUDE_SEMANTICS.equals(definition.typeId()))
@@ -1462,7 +1465,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> ordinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> ordinarySources = preIndexedStackDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -1527,7 +1530,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(1680,
                         1599 + previousTargets.size()
-                                + BUILT_INS.definitions().size() - 3),
+                                + preIndexedStackWidgetCount() - 3),
                 () -> assertEquals(1490,
                         1414 + sourceAccepted.get() + targetAccepted.get() + 1),
                 () -> assertEquals(190,
@@ -1536,7 +1539,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void directionalityCompletesExact1720CellModelAsRequiredWrapperAcrossAllOptionalTargets() {
-        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> optionalTargets = preIndexedStackDefinitions()
                 .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .filter(definition -> !EXCLUDE_SEMANTICS.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
@@ -1593,19 +1596,19 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, BUILT_INS.definitions().size() - 2),
+                () -> assertEquals(43, preIndexedStackWidgetCount() - 2),
                 () -> assertEquals(40, optionalTargets.size()),
                 () -> assertEquals(38, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
                 () -> assertEquals(1720,
-                        (BUILT_INS.definitions().size() - 2) * optionalTargets.size()),
+                        (preIndexedStackWidgetCount() - 2) * optionalTargets.size()),
                 () -> assertEquals(1528, 1490 + accepted.get()),
                 () -> assertEquals(192, 190 + rejected.get()));
     }
 
     @Test
     void decoratedBoxCompletesExact1804CellModelWithRequiredDecorationAndOptionalChild() {
-        List<MatrixTargetCase> previousTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> previousTargets = preIndexedStackDefinitions()
                 .filter(definition -> !DECORATED_BOX.equals(definition.typeId()))
                 .filter(definition -> !EXCLUDE_SEMANTICS.equals(definition.typeId()))
                 .flatMap(definition -> definition.slots().stream()
@@ -1656,7 +1659,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> ordinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> ordinarySources = preIndexedStackDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -1715,7 +1718,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(44, BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(44, preIndexedStackWidgetCount() - 1),
                 () -> assertEquals(40, previousTargets.size()),
                 () -> assertEquals(38, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -1724,7 +1727,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(1804,
                         1720 + previousTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + preIndexedStackWidgetCount() - 1),
                 () -> assertEquals(1607,
                         1528 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(197,
@@ -1733,7 +1736,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void excludeSemanticsCompletesExact1890CellModelWithNullableBooleanAndOptionalChild() {
-        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> allTargets = preIndexedStackDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -1781,7 +1784,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preIndexedStackDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -1840,7 +1843,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(45, BUILT_INS.definitions().size()),
+                () -> assertEquals(45, preIndexedStackWidgetCount()),
                 () -> assertEquals(42, allTargets.size()),
                 () -> assertEquals(40, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -1849,11 +1852,140 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(1890,
                         1804 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + preIndexedStackWidgetCount() - 1),
                 () -> assertEquals(1688,
                         1607 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(202,
                         197 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void indexedStackCompletesExact1978CellModelWithNullableIndexAndOrderedChildren() {
+        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, INDEXED_STACK, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "IndexedStack -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "IndexedStack -> " + target.name());
+                assertEquals(INDEXED_STACK, success.command().widget().type());
+                assertEquals(Map.of(), success.command().widget().properties(),
+                        "omission preserves Flutter's index=0 default");
+                assertEquals(
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !INDEXED_STACK.equals(type))
+                .toList();
+        MatrixTargetCase indexedStackTarget = target(
+                "IndexedStack.children", INDEXED_STACK, CHILDREN);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    indexedStackTarget.document(), BUILT_INS, source, ROOT_ID,
+                    indexedStackTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> IndexedStack.children");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> IndexedStack.children");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILDREN, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedIndexedStack = occupiedTarget(
+                "IndexedStack.children", INDEXED_STACK, CHILDREN);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedIndexedStack.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILDREN, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(46, BUILT_INS.definitions().size()),
+                () -> assertEquals(43, allTargets.size()),
+                () -> assertEquals(41, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(43, previousOrdinarySources.size()),
+                () -> assertEquals(42, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(1978,
+                        1890 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(1771,
+                        1688 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(207,
+                        202 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -2756,6 +2888,15 @@ class FlutterDesignerPaletteDropPlannerTest {
                         CROSS_AXIS_COUNT,
                         new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
                 Map.of(CHILDREN, SlotCardinality.LIST));
+    }
+
+    private static Stream<WidgetDefinition> preIndexedStackDefinitions() {
+        return BUILT_INS.definitions().stream()
+                .filter(definition -> !INDEXED_STACK.equals(definition.typeId()));
+    }
+
+    private static int preIndexedStackWidgetCount() {
+        return Math.toIntExact(preIndexedStackDefinitions().count());
     }
 
     private static MatrixTargetCase target(

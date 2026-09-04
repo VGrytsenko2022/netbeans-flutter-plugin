@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 14;
+const canvasModelProtocolVersion = 15;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -831,6 +831,23 @@ void _validateNodeSlotRelationships(
   Map<String, CanvasSlot> slots,
   String path,
 ) {
+  if (type == 'flutter.widgets.IndexedStack') {
+    final indexValue = properties['index'];
+    final index = indexValue == null
+        ? 0
+        : indexValue.kind == 'null'
+        ? null
+        : indexValue.value as int;
+    final childCount = slots['children']?.children.length ?? 0;
+    _expect(
+      index == null ||
+          (index == 0 && childCount == 0) ||
+          (index >= 0 && index < childCount),
+      'Canvas IndexedStack index must be null or within children.length: '
+      '$path/properties/index',
+    );
+    return;
+  }
   if (type != 'flutter.widgets.ListView' &&
       type != 'flutter.widgets.GridView') {
     return;
@@ -919,7 +936,7 @@ class CanvasValue {
   const CanvasValue(this.kind, this.value);
 
   final String kind;
-  final Object value;
+  final Object? value;
 
   static CanvasValue _decode(Object? value, _PropertySpec spec, String path) {
     final object = _object(value, path);
@@ -956,6 +973,9 @@ class CanvasValue {
       case 'callbackPresence':
         _exactKeys(object, path, const {'kind'});
         return CanvasValue(kind as String, true);
+      case 'null':
+        _exactKeys(object, path, const {'kind'});
+        return CanvasValue(kind as String, null);
       case 'integer':
         _exactKeys(object, path, const {'kind', 'value'});
         final integer = object['value'];
@@ -4106,6 +4126,29 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.IndexedStack': _WidgetSpec(
+    {
+      'alignment': _PropertySpec({'alignmentGeometry'}),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+      'sizing': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'StackFit',
+        enumValues: {'loose', 'expand', 'passthrough'},
+      ),
+      'index': _PropertySpec({
+        'integer',
+        'null',
+      }, numericBounds: _nonNegativeIntegerBounds),
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.Padding': _WidgetSpec(
     {
       'padding': _PropertySpec(
@@ -5552,6 +5595,13 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.IndexedStack
+P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|index|integer,null|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1;null:any
+P|sizing|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:StackFit:expand,loose,passthrough
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+S|children|list|0|0|10000|any
 W|flutter.widgets.IntrinsicHeight
 S|child|single|0|0|1|any
 W|flutter.widgets.IntrinsicWidth

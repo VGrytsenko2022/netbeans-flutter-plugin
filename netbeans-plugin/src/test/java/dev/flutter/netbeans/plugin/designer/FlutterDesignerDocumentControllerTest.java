@@ -278,7 +278,7 @@ class FlutterDesignerDocumentControllerTest {
     @Test
     void exposesFutureSchemaOnlyAsReadOnlyRawResult() throws Exception {
         String future = """
-                {"format":"netbeans-flutter-designer","schemaVersion":10,"future":true}
+                {"format":"netbeans-flutter-designer","schemaVersion":11,"future":true}
                 """;
         Pair pair = pair("home_page", future);
 
@@ -286,7 +286,7 @@ class FlutterDesignerDocumentControllerTest {
                 FlutterDesignerDocumentState.UnsupportedNewer.class,
                 load(pair));
 
-        assertEquals("10", newer.decoded().declaredSchemaVersion().toString());
+        assertEquals("11", newer.decoded().declaredSchemaVersion().toString());
         assertArrayEquals(
                 future.getBytes(StandardCharsets.UTF_8),
                 newer.decoded().original().copyBytes());
@@ -589,7 +589,7 @@ class FlutterDesignerDocumentControllerTest {
         assertTrue(currentPublished.await(5, TimeUnit.SECONDS));
 
         write(pair.modelFile(), """
-                {"format":"netbeans-flutter-designer","schemaVersion":10}
+                {"format":"netbeans-flutter-designer","schemaVersion":11}
                 """);
 
         assertTrue(futurePublished.await(5, TimeUnit.SECONDS));

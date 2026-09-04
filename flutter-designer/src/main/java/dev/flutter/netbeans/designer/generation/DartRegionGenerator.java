@@ -5262,6 +5262,9 @@ public final class DartRegionGenerator {
                     + "' contains an opaque Dart expression; generation profile "
                     + PROFILE_ID + " rejects expressions instead of parsing or rewriting them."));
         }
+        if (value instanceof PropertyValue.NullValue) {
+            return scalar("null", true, path, widgetId, context);
+        }
         if (value instanceof PropertyValue.IconDataValue iconData) {
             return renderIconData(iconData, path, widgetId, context);
         }

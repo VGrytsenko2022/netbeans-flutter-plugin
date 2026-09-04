@@ -309,6 +309,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
       canvasStackChildrenAppendDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.IndexedStack'), const [
+      canvasIndexedStackChildrenAppendDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ListView'), const [
       canvasChildrenAppendDropSlot,
     ]);
@@ -323,6 +326,10 @@ void main() {
     ]);
     expect(
       canvasStackChildrenAppendDropSlot.zonePlacement,
+      CanvasDropZonePlacement.fullNode,
+    );
+    expect(
+      canvasIndexedStackChildrenAppendDropSlot.zonePlacement,
       CanvasDropZonePlacement.fullNode,
     );
     expect(
@@ -614,7 +621,7 @@ void main() {
     );
   });
 
-  test('closes the 45-source by 42-destination compatibility matrix', () {
+  test('closes the 46-source by 43-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -653,6 +660,7 @@ void main() {
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.Image',
+      'flutter.widgets.IndexedStack',
       'flutter.widgets.ListBody',
       'flutter.widgets.ListView',
       'flutter.widgets.GridView',
@@ -670,8 +678,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(45));
-    expect(destinations, hasLength(42));
+    expect(sourceTypes, hasLength(46));
+    expect(destinations, hasLength(43));
 
     var accepted = 0;
     var rejected = 0;
@@ -697,9 +705,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1688);
-    expect(rejected, 202);
-    expect(accepted + rejected, 1890);
+    expect(accepted, 1771);
+    expect(rejected, 207);
+    expect(accepted + rejected, 1978);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -4291,6 +4299,439 @@ void main() {
       expect(tester.getSize(target), const Size(36, 36));
     },
   );
+
+  testWidgets(
+    'renders IndexedStack largest-child layout and only the selected child paints, hits, and has semantics',
+    (tester) async {
+      const indexedStackId = '910fd547-b4aa-4da2-8bd1-bde08cae3944';
+      const firstId = 'd63a0643-b74f-4ce7-a2f9-751936f45868';
+      const secondId = '21f27093-ed37-4d8d-b12c-2077a8d88c84';
+      final semantics = tester.ensureSemantics();
+      String? selectedWidgetId;
+      late CanvasModel model;
+
+      Finder indexedStackFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$indexedStackId')),
+            matching: find.byType(IndexedStack),
+          )
+          .first;
+
+      List<RenderBox> renderChildren(RenderIndexedStack stack) {
+        final result = <RenderBox>[];
+        RenderBox? child = stack.firstChild;
+        while (child != null) {
+          result.add(child);
+          child = stack.childAfter(child);
+        }
+        return result;
+      }
+
+      Future<RenderIndexedStack> pump(Map<String, Object?> properties) async {
+        selectedWidgetId = null;
+        model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithConstrainedIndexedStack(
+                  properties: properties,
+                  children: [
+                    _viewSizedBoxNode(firstId, width: 120, height: 70),
+                    _viewSizedBoxNode(secondId, width: 80, height: 30),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (id) => selectedWidgetId = id,
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderIndexedStack>(indexedStackFinder());
+      }
+
+      Future<void> expectSelection({
+        required RenderIndexedStack render,
+        required int? index,
+        required String? selectedChildId,
+      }) async {
+        expect(render.index, index);
+        expect(render.size, const Size(120, 70));
+        expect(renderChildren(render).map((child) => child.size), const [
+          Size(120, 70),
+          Size(80, 30),
+        ]);
+        expect(model.widgetIds, containsAll([firstId, secondId]));
+        expect(
+          find.byKey(
+            const ValueKey('canvas-widget-$firstId'),
+            skipOffstage: false,
+          ),
+          findsOneWidget,
+        );
+        expect(
+          find.byKey(
+            const ValueKey('canvas-widget-$secondId'),
+            skipOffstage: false,
+          ),
+          findsOneWidget,
+        );
+
+        final described = render.debugDescribeChildren();
+        expect(described, hasLength(2));
+        for (var childIndex = 0; childIndex < described.length; childIndex++) {
+          expect(
+            described[childIndex].style == DiagnosticsTreeStyle.offstage,
+            childIndex != index,
+            reason: 'only child $index is painted',
+          );
+        }
+        expect(
+          find.bySemanticsLabel(
+            RegExp('^SizedBox ${RegExp.escape(firstId)}\$'),
+          ),
+          selectedChildId == firstId ? findsOneWidget : findsNothing,
+        );
+        expect(
+          find.bySemanticsLabel(
+            RegExp('^SizedBox ${RegExp.escape(secondId)}\$'),
+          ),
+          selectedChildId == secondId ? findsOneWidget : findsNothing,
+        );
+
+        await tester.tapAt(
+          tester.getRect(indexedStackFinder()).topLeft + const Offset(10, 10),
+        );
+        await tester.pump();
+        expect(selectedWidgetId, selectedChildId ?? indexedStackId);
+      }
+
+      final omitted = await pump(const {});
+      expect(tester.widget<IndexedStack>(indexedStackFinder()).index, 0);
+      await expectSelection(
+        render: omitted,
+        index: 0,
+        selectedChildId: firstId,
+      );
+
+      final explicit = await pump(const {
+        'index': {'kind': 'integer', 'value': 1},
+      });
+      await expectSelection(
+        render: explicit,
+        index: 1,
+        selectedChildId: secondId,
+      );
+
+      final explicitNull = await pump(const {
+        'index': {'kind': 'null'},
+      });
+      expect(tester.widget<IndexedStack>(indexedStackFinder()).index, isNull);
+      await expectSelection(
+        render: explicitNull,
+        index: null,
+        selectedChildId: null,
+      );
+      expect(
+        find.bySemanticsLabel(
+          RegExp('^IndexedStack ${RegExp.escape(indexedStackId)}\$'),
+        ),
+        findsOneWidget,
+        reason: 'the Designer wrapper remains selectable when index is null',
+      );
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'applies IndexedStack direction, alignment, sizing, and clip exactly',
+    (tester) async {
+      const indexedStackId = '910fd547-b4aa-4da2-8bd1-bde08cae3944';
+      final children = <Map<String, Object?>>[
+        _viewSizedBoxNode(
+          'd63a0643-b74f-4ce7-a2f9-751936f45868',
+          width: 40,
+          height: 20,
+        ),
+        _viewSizedBoxNode(
+          '21f27093-ed37-4d8d-b12c-2077a8d88c84',
+          width: 80,
+          height: 30,
+        ),
+      ];
+
+      Finder indexedStackFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$indexedStackId')),
+            matching: find.byType(IndexedStack),
+          )
+          .first;
+
+      List<RenderBox> renderChildren(RenderIndexedStack stack) {
+        final result = <RenderBox>[];
+        RenderBox? child = stack.firstChild;
+        while (child != null) {
+          result.add(child);
+          child = stack.childAfter(child);
+        }
+        return result;
+      }
+
+      Future<RenderIndexedStack> pump(Map<String, Object?> properties) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithConstrainedIndexedStack(
+                  properties: properties,
+                  children: children,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        return tester.renderObject<RenderIndexedStack>(indexedStackFinder());
+      }
+
+      final directional = await pump({
+        'alignment': _viewAlignment(
+          basis: 'directional',
+          horizontal: -1,
+          vertical: 1,
+        ),
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'rtl',
+        },
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'none'},
+        'sizing': {'kind': 'enum', 'type': 'StackFit', 'value': 'loose'},
+        'index': {'kind': 'integer', 'value': 1},
+      });
+      final directionalWidget = tester.widget<IndexedStack>(
+        indexedStackFinder(),
+      );
+      expect(directionalWidget.alignment, AlignmentDirectional.bottomStart);
+      expect(directionalWidget.textDirection, TextDirection.rtl);
+      expect(directionalWidget.clipBehavior, Clip.none);
+      expect(directionalWidget.sizing, StackFit.loose);
+      expect(directional.alignment, AlignmentDirectional.bottomStart);
+      expect(directional.textDirection, TextDirection.rtl);
+      expect(directional.clipBehavior, Clip.none);
+      expect(directional.fit, StackFit.loose);
+      expect(directional.size, const Size(100, 50));
+      var renderedChildren = renderChildren(directional);
+      expect(
+        renderedChildren.map(
+          (child) => (child.parentData! as StackParentData).offset,
+        ),
+        const [Offset(60, 30), Offset(20, 20)],
+      );
+
+      final expanded = await pump(const {
+        'sizing': {'kind': 'enum', 'type': 'StackFit', 'value': 'expand'},
+      });
+      expect(expanded.fit, StackFit.expand);
+      expect(expanded.size, const Size(200, 100));
+      expect(renderChildren(expanded).map((child) => child.size), const [
+        Size(200, 100),
+        Size(200, 100),
+      ]);
+
+      final passthrough = await pump(const {
+        'sizing': {'kind': 'enum', 'type': 'StackFit', 'value': 'passthrough'},
+      });
+      expect(passthrough.fit, StackFit.passthrough);
+      expect(passthrough.size, const Size(100, 50));
+      renderedChildren = renderChildren(passthrough);
+      expect(renderedChildren.map((child) => child.size), const [
+        Size(100, 50),
+        Size(100, 50),
+      ]);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'uses full-node IndexedStack append and move geometry with an empty transient target',
+    (tester) async {
+      const indexedStackId = '910fd547-b4aa-4da2-8bd1-bde08cae3944';
+      const sourceId = 'd63a0643-b74f-4ce7-a2f9-751936f45868';
+      CanvasDropResolver? dropResolver;
+      CanvasMovePreviewResolver? moveResolver;
+      String? selectedWidgetId;
+
+      Future<void> pump({
+        required List<Map<String, Object?>> children,
+        bool unboundedMainAxis = false,
+      }) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithConstrainedIndexedStack(
+                  properties: const {},
+                  children: children,
+                  unboundedMainAxis: unboundedMainAxis,
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => selectedWidgetId = id,
+            onDropResolverChanged: (value) => dropResolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        );
+        await tester.pump();
+      }
+
+      await pump(
+        children: [_viewSizedBoxNode(sourceId, width: 40, height: 20)],
+      );
+      var surface = tester.getRect(find.byType(CanvasDocumentView));
+      var stack = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$indexedStackId')),
+      );
+      var point = stack.bottomRight - const Offset(2, 2);
+      var drop = dropResolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, indexedStackId);
+      expect(drop?.slotName, 'children');
+      expect(drop?.insertionIndex, 1);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(
+        drop!.zone!.rightMicros - drop.zone!.leftMicros,
+        closeTo((stack.width / surface.width * 1000000).round(), 2),
+      );
+      expect(
+        drop.zone!.bottomMicros - drop.zone!.topMicros,
+        closeTo(
+          (math.max(stack.height, 36) / surface.height * 1000000).round(),
+          2,
+        ),
+      );
+
+      final move = moveResolver!(sourceId, indexedStackId, 'children', 0);
+      expect(move?.parentWidgetId, indexedStackId);
+      expect(move?.slotName, 'children');
+      expect(move?.insertionIndex, 0);
+      expect(move?.zone?.leftMicros, drop.zone!.leftMicros);
+      expect(move?.zone?.topMicros, drop.zone!.topMicros);
+      expect(move?.zone?.rightMicros, drop.zone!.rightMicros);
+      expect(move?.zone?.bottomMicros, drop.zone!.bottomMicros);
+
+      await pump(children: const [], unboundedMainAxis: true);
+      final rendered = find.byKey(
+        const ValueKey('canvas-widget-$indexedStackId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$indexedStackId'),
+      );
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, indexedStackId);
+
+      surface = tester.getRect(find.byType(CanvasDocumentView));
+      stack = tester.getRect(target);
+      point = stack.center;
+      drop = dropResolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, indexedStackId);
+      expect(drop?.slotName, 'children');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('IndexedStack drop traversal ignores hidden child destinations', (
+    tester,
+  ) async {
+    const indexedStackId = '910fd547-b4aa-4da2-8bd1-bde08cae3944';
+    const visibleId = 'd63a0643-b74f-4ce7-a2f9-751936f45868';
+    const hiddenId = '21f27093-ed37-4d8d-b12c-2077a8d88c84';
+    CanvasDropResolver? resolver;
+    final hiddenContainer = <String, Object?>{
+      'id': hiddenId,
+      'type': 'flutter.widgets.Container',
+      'properties': <String, Object?>{
+        'width': {'kind': 'integer', 'value': 40},
+        'height': {'kind': 'integer', 'value': 20},
+      },
+      'slots': <String, Object?>{
+        'child': <String, Object?>{'kind': 'single', 'child': null},
+      },
+    };
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithConstrainedIndexedStack(
+              properties: const {},
+              children: [
+                _viewSizedBoxNode(visibleId, width: 80, height: 30),
+                hiddenContainer,
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: (_) {},
+        onDropResolverChanged: (value) => resolver = value,
+      ),
+    );
+    await tester.pump();
+
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final stack = tester.getRect(
+      find.byKey(const ValueKey('canvas-widget-$indexedStackId')),
+    );
+    final point = stack.topLeft + const Offset(10, 10);
+    final drop = resolver!(
+      ((point.dx - surface.left) / surface.width * 1000000).round(),
+      ((point.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(drop?.parentWidgetId, visibleId);
+    expect(drop?.slotName, 'child');
+    expect(drop?.insertionIndex, 0);
+    expect(
+      drop?.parentWidgetId,
+      isNot(hiddenId),
+      reason: 'a retained but unpainted child must not capture Canvas DnD',
+    );
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets(
     'renders real Expanded as the direct ParentDataWidget in Row and Column',
@@ -13927,6 +14368,68 @@ Map<String, Object?> _modelWithConstrainedStack({
         };
   body['child'] = <String, Object?>{
     'id': '3ca862de-2561-4f9e-af0f-dfa53e7f4f28',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': constrained},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithConstrainedIndexedStack({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  bool unboundedMainAxis = false,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final indexedStack = <String, Object?>{
+    'id': '910fd547-b4aa-4da2-8bd1-bde08cae3944',
+    'type': 'flutter.widgets.IndexedStack',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final constrained = unboundedMainAxis
+      ? <String, Object?>{
+          'id': '95152f05-efab-45e2-a5a0-1a60ef154c84',
+          'type': 'flutter.widgets.Row',
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[indexedStack],
+            },
+          },
+        }
+      : <String, Object?>{
+          'id': '8d2f2dda-13ae-43ae-b972-40931d45d44e',
+          'type': 'flutter.widgets.Container',
+          'properties': <String, Object?>{
+            'constraints': <String, Object?>{
+              'kind': 'boxConstraints',
+              'minWidth': 100,
+              'maxWidth': 200,
+              'minHeight': 50,
+              'maxHeight': 100,
+            },
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': indexedStack},
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '2fe9c951-a742-4fd9-919d-4ecba721f73f',
     'type': 'flutter.widgets.Center',
     'properties': <String, Object?>{},
     'slots': <String, Object?>{

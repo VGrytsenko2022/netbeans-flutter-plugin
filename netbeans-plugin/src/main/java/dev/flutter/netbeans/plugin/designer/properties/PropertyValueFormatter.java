@@ -21,6 +21,7 @@ public final class PropertyValueFormatter {
     public static String format(PropertyValue value) {
         Objects.requireNonNull(value, "value");
         return switch (value) {
+            case PropertyValue.NullValue ignored -> "null";
             case PropertyValue.StringValue stringValue -> quote(stringValue.value());
             case PropertyValue.BooleanValue booleanValue -> Boolean.toString(booleanValue.value());
             case PropertyValue.IntegerValue integerValue -> integerValue.value().toString();

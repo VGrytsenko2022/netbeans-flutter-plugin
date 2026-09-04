@@ -21,6 +21,8 @@ class PropertyValueFormatterTest {
                 new PropertyValue.StringValue("line\n\"quoted\"\\path")));
         assertEquals("true", PropertyValueFormatter.format(
                 new PropertyValue.BooleanValue(true)));
+        assertEquals("null", PropertyValueFormatter.format(
+                new PropertyValue.NullValue()));
         assertEquals("-42", PropertyValueFormatter.format(
                 new PropertyValue.IntegerValue(BigInteger.valueOf(-42))));
         assertEquals("12.5", PropertyValueFormatter.format(

@@ -65,6 +65,10 @@ import org.openide.explorer.propertysheet.PropertyModel;
 final class FlutterPropertyEditorComponents {
     static final String BOOLEAN_COMPONENT_NAME = "flutter.boolean.inplace";
     static final String NUMERIC_COMPONENT_NAME = "flutter.numeric.inplace";
+    static final String NULLABLE_INTEGER_MODE_NAME =
+            "flutter.nullableInteger.mode";
+    static final String NULLABLE_INTEGER_VALUE_NAME =
+            "flutter.nullableInteger.value";
     static final String COLOR_CHOOSER_NAME = "flutter.color.chooser";
     static final String COLOR_ARGB_NAME = "flutter.color.argb";
     static final String COLOR_ALPHA_NAME = "flutter.color.alpha";
@@ -85,7 +89,7 @@ final class FlutterPropertyEditorComponents {
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
             case BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
-            case INTEGER, DOUBLE, NUMBER -> Optional.of(
+            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER -> Optional.of(
                     () -> new NumericInplaceEditor(binding));
             default -> Optional.empty();
         };
@@ -94,7 +98,8 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, CALLBACK, NEWLINE_STRING_LIST, EDGE_INSETS, COLOR,
+            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER,
+                    EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
@@ -114,6 +119,8 @@ final class FlutterPropertyEditorComponents {
             case STRING -> new StringCustomEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
+                    editor, binding, environment);
+            case NULLABLE_INTEGER -> new NullableIntegerCustomEditor(
                     editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
@@ -667,6 +674,133 @@ final class FlutterPropertyEditorComponents {
                     && draftValid) {
                 committed = true;
                 editor.setValue(binding.validate(draft));
+            }
+        }
+    }
+
+    private enum NullableIntegerMode {
+        DEFAULT("Use Flutter default 0 (omit argument)"),
+        NULL("Show no child (explicit null)"),
+        INTEGER("Show child at index");
+
+        private final String label;
+
+        NullableIntegerMode(String label) {
+            this.label = label;
+        }
+
+        @Override
+        public String toString() {
+            return label;
+        }
+    }
+
+    private static final class NullableIntegerCustomEditor
+            extends CommitOnValidPanel {
+        private final JComboBox<NullableIntegerMode> mode =
+                new JComboBox<>(NullableIntegerMode.values());
+        private final JTextField index = new JTextField(12);
+        private boolean updating;
+
+        NullableIntegerCustomEditor(
+                PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding,
+                PropertyEnv environment) {
+            super(editor, binding, environment);
+            setLayout(new GridBagLayout());
+            setPreferredSize(new Dimension(480, 150));
+            setName("flutter.nullableInteger.editor");
+            getAccessibleContext().setAccessibleName(
+                    "Flutter nullable child-index editor");
+            getAccessibleContext().setAccessibleDescription(
+                    "Chooses between an omitted default, explicit null, and a "
+                    + "non-negative child index without changing the property until OK.");
+
+            mode.setName(NULLABLE_INTEGER_MODE_NAME);
+            mode.getAccessibleContext().setAccessibleName("Child index mode");
+            mode.getAccessibleContext().setAccessibleDescription(
+                    "Choose Flutter default zero, explicit null, or an explicit child index.");
+            index.setName(NULLABLE_INTEGER_VALUE_NAME);
+            index.getAccessibleContext().setAccessibleName("Zero-based child index");
+
+            addRow(this, 0, "Value:", mode,
+                    "Omit the argument, emit null, or emit a non-negative integer.");
+            addRow(this, 1, "Child index:", index,
+                    "Zero-based index; it must address an existing child when children exist.");
+
+            PropertyValue initial = initialValue().explicitValue().orElse(null);
+            updating = true;
+            try {
+                if (initial == null) {
+                    mode.setSelectedItem(NullableIntegerMode.DEFAULT);
+                    index.setText("0");
+                } else if (initial instanceof PropertyValue.NullValue) {
+                    mode.setSelectedItem(NullableIntegerMode.NULL);
+                    index.setText("0");
+                } else {
+                    mode.setSelectedItem(NullableIntegerMode.INTEGER);
+                    index.setText(((PropertyValue.IntegerValue) initial)
+                            .value().toString());
+                }
+            } finally {
+                updating = false;
+            }
+            mode.addActionListener(ignored -> refresh());
+            index.getDocument().addDocumentListener(documentListener(this::refresh));
+            refresh();
+            activate();
+        }
+
+        @Override
+        boolean prepareCommit() {
+            return refreshDraft(false);
+        }
+
+        private void refresh() {
+            if (!updating) {
+                refreshDraft(true);
+            }
+        }
+
+        private boolean refreshDraft(boolean requestValidation) {
+            NullableIntegerMode selected = (NullableIntegerMode) mode.getSelectedItem();
+            boolean integerMode = selected == NullableIntegerMode.INTEGER;
+            index.setEnabled(integerMode);
+            clearInvalid(index,
+                    "Enter a non-negative, zero-based child index. The selected index "
+                    + "must be below the current child count.");
+            try {
+                FlutterPropertyCellValue candidate = switch (
+                        Objects.requireNonNull(selected, "nullable integer mode")) {
+                    case DEFAULT -> FlutterPropertyCellValue.unset();
+                    case NULL -> FlutterPropertyCellValue.explicit(
+                            new PropertyValue.NullValue());
+                    case INTEGER -> {
+                        String text = index.getText().strip();
+                        if (text.isEmpty()) {
+                            throw new IllegalArgumentException(
+                                    "Enter a non-negative child index.");
+                        }
+                        try {
+                            yield FlutterPropertyCellValue.explicit(
+                                    new PropertyValue.IntegerValue(
+                                            new java.math.BigInteger(text)));
+                        } catch (NumberFormatException failure) {
+                            throw new IllegalArgumentException(
+                                    "Child index must be a whole number.", failure);
+                        }
+                    }
+                };
+                binding.validate(candidate);
+                if (requestValidation) {
+                    markValid(candidate);
+                } else {
+                    stageValid(candidate);
+                }
+                return true;
+            } catch (IllegalArgumentException failure) {
+                markInvalid(failure.getMessage(), integerMode ? index : mode);
+                return false;
             }
         }
     }

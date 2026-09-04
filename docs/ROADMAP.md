@@ -1361,14 +1361,37 @@ accepted architecture is documented in
   layout, paint and hit testing proxy the child. Keep the `ExcludeSemantics`
   node's own Designer selection, hit/drop and accessibility wrapper outside the
   effect; descendant Canvas semantics labels follow the real subtree exclusion,
-  while the NetBeans widget tree remains separately accessible. The current
-  surface is 45 widgets, 39 const definitions
+  while the NetBeans widget tree remains separately accessible. At that
+  milestone the surface was 45 widgets, 39 const definitions
   and 730 rows (713 outside Scaffold). Forty-five sources across 40 insertable
-  any-widget plus two trait destinations form 1,890 candidates: 1,688 accepted
-  and 202 rejected. Layout contains 30 items, Scrolling 3, Basic 7, Material 4
-  and Accessibility 1; the practical backlog is 45/92 complete with 47
+  any-widget plus two trait destinations formed 1,890 candidates: 1,688 accepted
+  and 202 rejected. Layout contained 30 items, Scrolling 3, Basic 7, Material 4
+  and Accessibility 1; the practical backlog was 45/92 complete with 47
   remaining. Existing encodings keep `.fd` schema v9, Catalog API 9, Canvas
   model v14 and NBFC framing/control/wire v1 unchanged.
+- [x] Complete const
+  [`IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+  as the first remaining gap in the fixed practical inventory, at Layout order
+  115 beside `Stack`. Expose the complete Flutter 3.44.8 non-`key` constructor:
+  optional physical/directional `alignment`, `textDirection`, `clipBehavior`,
+  `sizing`, nullable `index` and one ordered any-widget `children` slot. Keep
+  omission distinct from explicit null: omitted index preserves the framework
+  default `0`, an integer selects one existing child and typed `null` displays
+  none. Enforce the live index/children relationship including Flutter's exact
+  empty-list index-zero exception. Complete typed Properties,
+  Palette/tree/Canvas DnD and movement, deterministic const Dart generation,
+  Save/reopen and further editing, Undo/Redo, real native/exact-Web layout,
+  paint, hit testing and semantics, accessibility, empty-target handling and
+  four reviewed SVGs. The real widget sizes to its largest child while only the
+  selected child paints, hits and contributes application semantics; all
+  children remain ordered in the model and NetBeans tree. The resulting
+  surface is 46 widgets, 40 const definitions and 735 rows (718 outside
+  Scaffold). Forty-six sources across 41 insertable any-widget plus two trait
+  destinations form 1,978 candidates: 1,771 accepted and 207 rejected. Layout
+  contains 31 items, Scrolling 3, Basic 7, Material 4 and Accessibility 1; the
+  practical backlog is 46/92 complete with 46 remaining. Exact typed null
+  advances `.fd` schema to v10, Catalog API to 10 and Canvas model to v15;
+  NBFC framing/control/wire remain v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1386,8 +1409,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after ExcludeSemantics has yet been
-  assigned an explicit order. The current typed Properties slice spans all forty-five
+  vertical slices. The next missing item in the fixed priority order is
+  `ClipRect`. The current typed Properties slice spans all forty-six
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

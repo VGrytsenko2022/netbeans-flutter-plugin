@@ -13,6 +13,14 @@ import org.junit.jupiter.api.Test;
 
 class PropertyValueTest {
     @Test
+    void explicitNullIsARealSchemaValueDistinctFromJavaNull() {
+        PropertyValue.NullValue value = new PropertyValue.NullValue();
+        assertEquals(PropertyValueKind.NULL, value.kind());
+        assertEquals(new PropertyValue.NullValue(), value);
+        assertFalse(value.equals(null));
+    }
+
+    @Test
     void exposesEverySchemaV1ValueKind() {
         List<PropertyValue> values = List.of(
                 new PropertyValue.StringValue(""),

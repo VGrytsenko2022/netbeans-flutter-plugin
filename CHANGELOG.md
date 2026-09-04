@@ -7,6 +7,31 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`IndexedStack`](https://api.flutter.dev/flutter/widgets/IndexedStack/IndexedStack.html)
+  vertical slice fills the first remaining gap in the fixed practical
+  92-widget inventory, at Layout order 115 beside `Stack`. Its complete Flutter
+  3.44.8 non-`key` constructor exposes optional `alignment`, `textDirection`,
+  `clipBehavior`, `sizing` and nullable `index`, plus one ordered any-widget
+  `children` slot. Omitted `index` preserves Flutter's default `0`; an explicit
+  non-negative integer selects one existing child, while a new exact typed
+  `NullValue` emits `index: null` and displays none. Validation keeps the index
+  within the live child list, with Flutter's exact empty-list exception for
+  effective index zero. Generated Dart and native/exact-Web Canvas construct
+  the real widget: it sizes to the largest child and exposes paint, hit testing
+  and application semantics only for the selected child; all children remain
+  ordered in the Designer model and NetBeans tree. Typed Properties,
+  Palette/tree/Canvas DnD and movement, Save/reopen and further editing,
+  Undo/Redo, accessibility, empty-target handling and four reviewed light/dark
+  16/32 px SVGs share the same closed contract. The catalog now contains 46
+  widgets, 40 reviewed const constructors and 735 writable rows, including 718
+  across the 45 non-`Scaffold` definitions. Forty-six sources across 41
+  insertable any-widget and two trait-bound destinations form 1,978 candidates:
+  1,771 accepted and 207 rejected. Layout contains 31 items, Scrolling 3, Basic
+  7, Material 4 and Accessibility 1; the practical backlog is 46/92 complete
+  with 46 remaining. The new exact null value advances `.fd` schema to v10,
+  contributor Catalog API to 10 and Canvas model to v15; NBFC framing and
+  Canvas control/wire remain v1.
+- The accepted const
   [`ExcludeSemantics`](https://api.flutter.dev/flutter/widgets/ExcludeSemantics/ExcludeSemantics.html)
   vertical slice opens the Accessibility Palette category at category order 400
   and item order 10. Its complete Flutter 3.44.8 non-`key` constructor exposes

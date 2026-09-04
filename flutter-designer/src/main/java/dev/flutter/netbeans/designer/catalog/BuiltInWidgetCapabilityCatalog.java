@@ -54,6 +54,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.MATRIX4,
                     PropertyValueKind.IMAGE_PROVIDER,
                     PropertyValueKind.BOX_DECORATION,
+                    PropertyValueKind.NULL,
                     PropertyValueKind.CALLBACK));
     private static final Set<PropertyValueKind> NUMERIC_SCHEMA_KINDS =
             Collections.unmodifiableSet(EnumSet.of(
@@ -167,6 +168,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.LimitedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.OverflowBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Stack", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.IndexedStack", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Expanded", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Flexible", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Spacer", STATIC_EDITABLE),
@@ -502,6 +504,28 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ListBody", projection(Map.ofEntries(
                     enumProperty("mainAxis", "Axis", "horizontal", "vertical"),
                     property("reverse", PropertyValueKind.BOOLEAN)),
+                    Map.of("children", listSlotSchema(false, 0, 10_000)))),
+            Map.entry("flutter.widgets.IndexedStack", projection(Map.ofEntries(
+                    Map.entry("alignment", constrainedSchema(
+                            PropertyValueKind.ALIGNMENT_GEOMETRY,
+                            "alignmentGeometry")),
+                    enumProperty("textDirection", "TextDirection", "rtl", "ltr"),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer"),
+                    enumProperty(
+                            "sizing", "StackFit", "loose", "expand", "passthrough"),
+                    Map.entry("index", new CanvasPropertyContract(
+                            Set.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL),
+                            false,
+                            Optional.empty(),
+                            Map.of(PropertyValueKind.INTEGER,
+                                    NON_NEGATIVE_PORTABLE_INTEGER),
+                            Map.of(
+                                    PropertyValueKind.INTEGER,
+                                    "range:" + NON_NEGATIVE_PORTABLE_INTEGER.fingerprint(),
+                                    PropertyValueKind.NULL,
+                                    "any")))),
                     Map.of("children", listSlotSchema(false, 0, 10_000)))),
             Map.entry("flutter.widgets.OverflowBar", projection(Map.ofEntries(
                     numericProperty(
@@ -2165,6 +2189,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static String defaultFingerprint(PropertyValue value) {
+        if (value instanceof PropertyValue.NullValue) {
+            return "null";
+        }
         if (value instanceof PropertyValue.StringValue string) {
             return "string:" + base64(string.value());
         }

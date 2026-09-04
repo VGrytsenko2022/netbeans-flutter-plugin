@@ -608,13 +608,15 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:5",
                     "urn:netbeans-flutter-designer:schema:fd:6",
                     "urn:netbeans-flutter-designer:schema:fd:7",
-                    "urn:netbeans-flutter-designer:schema:fd:8" ->
-                    "urn:netbeans-flutter-designer:schema:fd:9";
+                    "urn:netbeans-flutter-designer:schema:fd:8",
+                    "urn:netbeans-flutter-designer:schema:fd:9" ->
+                    "urn:netbeans-flutter-designer:schema:fd:10";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
-                    "../fd-v7.schema.json", "../fd-v8.schema.json" ->
-                    "../fd-v9.schema.json";
+                    "../fd-v7.schema.json", "../fd-v8.schema.json",
+                    "../fd-v9.schema.json" ->
+                    "../fd-v10.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1148,7 +1150,17 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Offset values require schema version 9.");
         }
+        if (sourceVersion < 10 && kind.equals("null")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "Explicit null values require schema version 10.");
+        }
         return switch (kind) {
+            case "null" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind"));
+                yield new PropertyValue.NullValue();
+            }
             case "string" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind", "value"));
                 String value = jsonString(fields, "value", base);

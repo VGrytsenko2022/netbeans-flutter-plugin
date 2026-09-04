@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.canvas.runner.CanvasRunnerBundle;
+import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import java.io.IOException;
@@ -25,14 +26,14 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(48, javaTypes.size(),
+        assertEquals(49, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
                 + "SingleChildScrollView, SafeArea, ColoredBox, Placeholder, and "
                 + "Directionality, DecoratedBox, ExcludeSemantics, IndexedStack and "
-                + "ClipRect and ClipOval");
+                + "ClipRect, ClipOval and ClipRRect");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -70,7 +71,12 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.ExcludeSemantics"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipRect"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipOval"));
+        assertTrue(javaTypes.contains("flutter.widgets.ClipRRect"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
+
+        assertEquals(17, CanvasModelPayloadCodec.VERSION);
+        assertTrue(model.contains("const canvasModelProtocolVersion = 17;"),
+                "the packaged Dart decoder must consume Java payload v17");
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),
@@ -85,12 +91,34 @@ class FlutterWidgetCapabilityParityTest {
     void exactBelowTypeCanvasContractMatchesReviewedDartRuntimeSchema()
             throws Exception {
         String model = runnerSource("lib/src/canvas_model.dart");
+        String dartContract = reviewedSchemaContract(model);
 
         assertEquals(
                 BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract(),
-                reviewedSchemaContract(model),
+                dartContract,
                 "Java and Dart must agree on wire kinds, required/default values, "
                 + "numeric bounds, constraints and slot cardinality");
+        assertTrue(dartContract.contains("W|flutter.widgets.ClipRRect\n"));
+        assertTrue(dartContract.contains(
+                "P|borderRadius|borderRadius|0|-|-|"
+                + "borderRadius:borderRadius:v1:physical,directional:finiteNonNegative\n"));
+        String rectClipper =
+                "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
+                + "dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)\n";
+        assertTrue(dartContract.contains(
+                "W|flutter.widgets.ClipOval\n"
+                + "P|clipBehavior|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + rectClipper));
+        assertTrue(dartContract.contains(
+                "W|flutter.widgets.ClipRect\n"
+                + "P|clipBehavior|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + rectClipper));
     }
 
     @Test
@@ -156,6 +184,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ClipRect.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.ClipOval"),
                 "ClipOval.child is an ordinary optional any-widget insertion target");
+        assertTrue(javaContainers.contains("flutter.widgets.ClipRRect"),
+                "ClipRRect.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
                 "Baseline.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicHeight"),

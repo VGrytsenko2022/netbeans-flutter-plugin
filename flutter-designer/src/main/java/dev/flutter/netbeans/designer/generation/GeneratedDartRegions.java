@@ -57,6 +57,7 @@ public record GeneratedDartRegions(
                     + candidateCapacityBudget.profileId());
         }
         Set<String> ids = new HashSet<>();
+        Set<Integer> staticTypeExpressionStarts = new HashSet<>();
         GeneratedDartSymbolOccurrence previous = null;
         Comparator<GeneratedDartSymbolOccurrence> order = Comparator
                 .comparing(GeneratedDartSymbolOccurrence::region)
@@ -83,6 +84,32 @@ public record GeneratedDartRegions(
                         "Generated Dart symbol occurrence does not identify its payload text: "
                         + occurrence.id());
             }
+            occurrence.staticTypeRequirement().ifPresent(requirement -> {
+                if (occurrence.region() != DartManagedRegionId.BUILD) {
+                    throw new IllegalArgumentException(
+                            "Generated Dart static-type requirements must be in the build region");
+                }
+                if (requirement.expressionEndOffset() > payload.length()
+                        || requirement.expressionOffset() > occurrence.offset()
+                        || occurrence.endOffset() > requirement.expressionEndOffset()) {
+                    throw new IllegalArgumentException(
+                            "Generated Dart static-type requirement does not contain its terminal symbol: "
+                            + occurrence.id());
+                }
+                String expression = payload.substring(
+                        requirement.expressionOffset(),
+                        requirement.expressionEndOffset());
+                if (expression.indexOf('\n') >= 0 || expression.indexOf('\r') >= 0) {
+                    throw new IllegalArgumentException(
+                            "Generated Dart static-type expression must be a single line: "
+                            + occurrence.id());
+                }
+                if (!staticTypeExpressionStarts.add(requirement.expressionOffset())) {
+                    throw new IllegalArgumentException(
+                            "Duplicate generated Dart static-type expression: "
+                            + occurrence.id());
+                }
+            });
             previous = occurrence;
         }
     }

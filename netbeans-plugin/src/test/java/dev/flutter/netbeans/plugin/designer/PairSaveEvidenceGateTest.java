@@ -1,24 +1,32 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import dev.flutter.netbeans.api.DartCandidateCapacityBudget;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisRequest;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisResult;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisIssue;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisIssueCode;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisStatus;
+import dev.flutter.netbeans.dart.DartCandidateDiagnostic;
+import dev.flutter.netbeans.dart.DartCandidateDiagnosticSeverity;
 import dev.flutter.netbeans.dart.DartCandidateSnapshot;
 import dev.flutter.netbeans.dart.DartCandidateWarningPolicy;
 import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
+import dev.flutter.netbeans.dart.DartStaticTypeEvidence;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
@@ -70,8 +78,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PairSaveEvidenceGateTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
     private static final StableId DOCUMENT_ID = StableId.parse(
             "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
+    private static final String PROJECT_PACKAGE_NAME = "evidence_gate_fixture";
 
     @TempDir
     Path temporaryDirectory;
@@ -253,6 +263,192 @@ class PairSaveEvidenceGateTest {
         assertAnalyzedRejected(unavailable,
                 PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED);
         assertTrue(unavailable.analyzedOptional().isEmpty());
+    }
+
+    @Test
+    void rejectedAnalysisReportsTheFirstConcreteAnalyzerCauseWithoutLeaking()
+            throws Exception {
+        Fixture fixture = fixture();
+        PairCandidateAnalysisTicket unresolvedTicket = ticket(
+                fixture, fixture.current());
+        DartCandidateDiagnostic context = diagnostic(
+                unresolvedTicket,
+                DartCandidateDiagnosticSeverity.INFO,
+                "todo",
+                "Non-blocking analyzer context.",
+                false,
+                2,
+                3);
+        DartCandidateDiagnostic unresolved = diagnostic(
+                unresolvedTicket,
+                DartCandidateDiagnosticSeverity.ERROR,
+                "undefined_identifier",
+                "Undefined name 'MissingClipper'.\r\nDetails at "
+                + "C:\\Users\\Jane Doe\\private-project\\home_page.dart "
+                + "token=must-not-leak",
+                true,
+                7,
+                11);
+        DartCandidateDiagnostic later = diagnostic(
+                unresolvedTicket,
+                DartCandidateDiagnosticSeverity.ERROR,
+                "later_error",
+                "A later blocking diagnostic must not replace the first one.",
+                true,
+                9,
+                2);
+
+        PairAnalyzedCandidateResult unresolvedResult = unresolvedTicket.accept(
+                rejectedAnalysis(
+                        unresolvedTicket,
+                        List.of(context, unresolved, later),
+                        List.of()));
+        PairSaveEvidenceDiagnostic unresolvedStatus = unresolvedResult
+                .diagnostics().getFirst();
+        assertAll(
+                () -> assertEquals(
+                        PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED,
+                        unresolvedStatus.code()),
+                () -> assertTrue(unresolvedStatus.message().contains(
+                        "line 7, column 11 [undefined_identifier]"),
+                        unresolvedStatus::message),
+                () -> assertTrue(unresolvedStatus.message().contains(
+                        "Undefined name 'MissingClipper'."),
+                        unresolvedStatus::message),
+                () -> assertTrue(unresolvedStatus.message().contains("[path]"),
+                        unresolvedStatus::message),
+                () -> assertFalse(unresolvedStatus.message().contains("Jane Doe"),
+                        unresolvedStatus::message),
+                () -> assertFalse(unresolvedStatus.message().contains(
+                        "must-not-leak"), unresolvedStatus::message),
+                () -> assertFalse(unresolvedStatus.message().contains(
+                        "Non-blocking analyzer context"),
+                        unresolvedStatus::message),
+                () -> assertFalse(unresolvedStatus.message().contains(
+                        "later blocking"), unresolvedStatus::message),
+                () -> assertFalse(unresolvedStatus.message().contains("\n")),
+                () -> assertTrue(unresolvedStatus.message().codePointCount(
+                        0, unresolvedStatus.message().length()) <= 512));
+
+        PairCandidateAnalysisTicket secretTicket = ticket(
+                fixture, fixture.current());
+        PairAnalyzedCandidateResult secretResult = secretTicket.accept(
+                rejectedAnalysis(
+                        secretTicket,
+                        List.of(diagnostic(
+                                secretTicket,
+                                DartCandidateDiagnosticSeverity.ERROR,
+                                "synthetic_error",
+                                "Analyzer rejected credential authorization="
+                                + "Bearer must-not-leak and trailing detail",
+                                true,
+                                1,
+                                1)),
+                        List.of()));
+        String secretMessage = secretResult.diagnostics().getFirst().message();
+        assertAll(
+                () -> assertTrue(secretMessage.contains(
+                        "authorization=[redacted]"), () -> secretMessage),
+                () -> assertFalse(secretMessage.contains("Bearer"),
+                        () -> secretMessage),
+                () -> assertFalse(secretMessage.contains("must-not-leak"),
+                        () -> secretMessage),
+                () -> assertFalse(secretMessage.contains("trailing detail"),
+                        () -> secretMessage));
+
+        assertConcreteAnalyzerFailure(
+                fixture,
+                "uri_does_not_exist",
+                "Target of URI doesn't exist: 'missing_clippers.dart'.",
+                "missing_clippers.dart");
+        PairSaveEvidenceDiagnostic requiredArgument =
+                assertConcreteAnalyzerFailure(
+                fixture,
+                "missing_required_argument",
+                "The named parameter 'radius' is required, but there's no corresponding argument. "
+                + "x".repeat(2_000),
+                "named parameter 'radius'");
+        assertTrue(requiredArgument.message().endsWith("\u2026"),
+                requiredArgument::message);
+    }
+
+    @Test
+    void rejectedCustomClipperProofNamesModelPathTypeAndBoundedReason()
+            throws Exception {
+        PropertyValue.DartObjectReferenceValue reference =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:evidence_gate_fixture/clippers.dart"),
+                        "WrongClipperFactory",
+                        Optional.of("create"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+        Fixture fixture = fixture(Optional.of(reference));
+        DartSymbolEvidence typed = fixture.acceptedEvidence().stream()
+                .filter(value -> value.probe().staticTypeProbe().isPresent())
+                .findFirst()
+                .orElseThrow();
+        String concreteReason = "The expression is not statically assignable to "
+                + "non-null CustomClipper<RRect>. Analyzer detail at "
+                + "/home/Jane Doe/private-project/lib/clippers.dart "
+                + "api_key=must-not-leak";
+        DartStaticTypeEvidence rejectedType = new DartStaticTypeEvidence(
+                typed.probe().staticTypeProbe().orElseThrow(),
+                false,
+                Optional.of(concreteReason));
+        DartSymbolEvidence rejectedTyped = new DartSymbolEvidence(
+                typed.probe(),
+                typed.targets(),
+                false,
+                Optional.of(concreteReason),
+                Optional.of(rejectedType));
+        List<DartSymbolEvidence> rejectedEvidence = fixture.acceptedEvidence()
+                .stream()
+                .map(value -> value == typed ? rejectedTyped : value)
+                .toList();
+        PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+
+        PairAnalyzedCandidateResult result = ticket.accept(rejectedAnalysis(
+                ticket, List.of(), rejectedEvidence));
+
+        List<PairSaveEvidenceDiagnostic.Code> codes = result.diagnostics()
+                .stream().map(PairSaveEvidenceDiagnostic::code).toList();
+        assertEquals(PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED,
+                codes.getFirst());
+        assertTrue(codes.indexOf(PairSaveEvidenceDiagnostic.Code
+                .INCOMPLETE_SYMBOL_EVIDENCE) < codes.indexOf(
+                        PairSaveEvidenceDiagnostic.Code
+                                .INCOMPLETE_STATIC_TYPE_EVIDENCE),
+                () -> codes.toString());
+        for (PairSaveEvidenceDiagnostic diagnostic : result.diagnostics()) {
+            if (diagnostic.code()
+                    != PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED
+                    && diagnostic.code()
+                    != PairSaveEvidenceDiagnostic.Code
+                            .INCOMPLETE_SYMBOL_EVIDENCE
+                    && diagnostic.code()
+                    != PairSaveEvidenceDiagnostic.Code
+                            .INCOMPLETE_STATIC_TYPE_EVIDENCE) {
+                continue;
+            }
+            assertAll(
+                    () -> assertTrue(diagnostic.message().contains(
+                            "/root/properties/clipper"), diagnostic::message),
+                    () -> assertTrue(diagnostic.message().contains(
+                            typed.probe().id()), diagnostic::message),
+                    () -> assertTrue(diagnostic.message().contains(
+                            "CustomClipper<RRect>"), diagnostic::message),
+                    () -> assertTrue(diagnostic.message().contains(
+                            "not statically assignable"), diagnostic::message),
+                    () -> assertTrue(diagnostic.message().contains("[path]"),
+                            diagnostic::message),
+                    () -> assertFalse(diagnostic.message().contains("Jane Doe"),
+                            diagnostic::message),
+                    () -> assertFalse(diagnostic.message().contains(
+                            "must-not-leak"), diagnostic::message),
+                    () -> assertTrue(diagnostic.message().codePointCount(
+                            0, diagnostic.message().length()) <= 1_024));
+        }
     }
 
     @Test
@@ -466,7 +662,7 @@ class PairSaveEvidenceGateTest {
         Path sdkHome = fixture.flutterLib().getParent().getParent().getParent();
 
         List<DartSymbolProbe> sdkProbes = GeneratedDartSymbolProbePlanner.plan(
-                fixture.prepared(), sdkHome);
+                fixture.prepared(), sdkHome, fixture.projectRoot());
         DartSymbolProbe superclass = sdkProbes.stream()
                 .filter(probe -> probe.id().equals(
                         GeneratedDartSymbolProbePlanner
@@ -483,9 +679,358 @@ class PairSaveEvidenceGateTest {
                 .allMatch(probe -> probe.expectedTargetRoot()
                         .equals(sdkHome.toAbsolutePath().normalize())));
         assertTrue(GeneratedDartSymbolProbePlanner.plan(
-                fixture.prepared(), fixture.flutterLib()).stream()
+                fixture.prepared(), fixture.flutterLib(), fixture.projectRoot()).stream()
                 .allMatch(probe -> probe.expectedTargetRoot()
                         .equals(fixture.flutterLib().toAbsolutePath().normalize())));
+    }
+
+    @Test
+    void ordinaryCandidateDoesNotRequireAProjectLibDirectory()
+            throws Exception {
+        Fixture fixture = fixture(Optional.empty(), false);
+        assertFalse(Files.exists(fixture.projectRoot().resolve("lib")));
+
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+
+        assertTrue(ticket.request().symbolProbes().stream()
+                .noneMatch(PairSaveEvidenceGateTest::isProjectProbe));
+        assertTrue(ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence())).ready());
+    }
+
+    @Test
+    void acceptsCurrentLibraryReferenceRootAndMemberOnlyWithinProjectLib()
+            throws Exception {
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "_clipperRegistry",
+                        Optional.of("rounded"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())));
+        Files.delete(fixture.projectRoot().resolve(
+                ".dart_tool/package_config.json"));
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+
+        List<DartSymbolProbe> projectProbes = ticket.request().symbolProbes()
+                .stream()
+                .filter(PairSaveEvidenceGateTest::isProjectProbe)
+                .toList();
+        assertEquals(List.of("_clipperRegistry", "rounded"), projectProbes
+                .stream().map(DartSymbolProbe::expectedSymbolName).toList());
+        assertTrue(projectProbes.stream().allMatch(probe ->
+                probe.expectedLibraryUri().equals(
+                        DartRegionGenerator.CURRENT_PROJECT_LIBRARY_URI)));
+        Path projectLibraryReal = fixture.projectRoot().resolve("lib")
+                .toRealPath();
+        assertTrue(projectProbes.stream().allMatch(probe ->
+                probe.expectedTargetRoot().equals(projectLibraryReal)));
+        assertTrue(ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence())).ready());
+    }
+
+    @Test
+    void acceptsImportedRootAndMemberForTheOwningProjectPackage()
+            throws Exception {
+        String library = "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart";
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "RoundedClipperFactory",
+                        Optional.of("compact"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true))));
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+
+        List<DartSymbolProbe> projectProbes = ticket.request().symbolProbes()
+                .stream()
+                .filter(PairSaveEvidenceGateTest::isProjectProbe)
+                .toList();
+        assertEquals(List.of("RoundedClipperFactory", "compact"), projectProbes
+                .stream().map(DartSymbolProbe::expectedSymbolName).toList());
+        assertTrue(projectProbes.stream().allMatch(probe ->
+                probe.expectedLibraryUri().equals(library)));
+        assertTrue(ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence())).ready());
+
+        Files.writeString(fixture.projectRoot().resolve("pubspec.yaml"),
+                "name: renamed_fixture\n", StandardCharsets.UTF_8);
+        IOException prepareMismatch = assertThrows(IOException.class,
+                () -> ticket(fixture, fixture.current()));
+        assertTrue(prepareMismatch.getMessage().contains(
+                "self-package library roots disagree"));
+    }
+
+    @Test
+    void acceptsDeclaredDependencyAtItsExactConfiguredLibraryRoot()
+            throws Exception {
+        Path dependencyRoot = Files.createDirectories(
+                temporaryDirectory.resolve("clipper-dependency"));
+        Path dependencyLibrary = Files.createDirectories(
+                dependencyRoot.resolve("lib"));
+        Files.writeString(dependencyLibrary.resolve("clippers.dart"),
+                "class DependencyClipper {}\n", StandardCharsets.UTF_8);
+        String library = "package:clipper_dependency/clippers.dart";
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "DependencyClipper",
+                        Optional.of("rounded"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())), true, List.of(
+                                new DeclaredPackage("clipper_dependency",
+                                        dependencyRoot, "lib/"),
+                                new DeclaredPackage("stale_unrelated",
+                                        temporaryDirectory.resolve(
+                                                "removed-dependency"),
+                                        "lib/")));
+
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+        List<DartSymbolProbe> dependencyProbes = ticket.request().symbolProbes()
+                .stream()
+                .filter(probe -> probe.expectedLibraryUri().equals(library))
+                .toList();
+        assertEquals(List.of("DependencyClipper", "rounded"), dependencyProbes
+                .stream().map(DartSymbolProbe::expectedSymbolName).toList());
+        Path dependencyLibraryReal = dependencyLibrary.toRealPath();
+        assertTrue(dependencyProbes.stream().allMatch(probe ->
+                probe.expectedTargetRoot().equals(dependencyLibraryReal)));
+        assertTrue(ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence())).ready());
+
+        Path wrongDeclaredRootTarget = fixture.projectRoot().resolve(
+                "lib/clippers.dart");
+        List<DartSymbolEvidence> wrongDependencyTargets =
+                fixture.acceptedEvidence().stream()
+                        .map(value -> value.probe().expectedLibraryUri()
+                                        .equals(library)
+                                ? accepted(value.probe(),
+                                        wrongDeclaredRootTarget)
+                                : value)
+                        .toList();
+        assertAnalyzedRejected(analyze(fixture, fixture.current(),
+                        wrongDependencyTargets),
+                PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+    }
+
+    @Test
+    void rejectsUndeclaredPackageAndEscapingPackageLibraryRoot()
+            throws Exception {
+        IllegalArgumentException undeclared = assertThrows(
+                IllegalArgumentException.class,
+                () -> fixture(Optional.of(
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of("package:undeclared/clippers.dart"),
+                                "ExternalClipper", Optional.empty(),
+                                PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                                Optional.empty()))));
+        assertTrue(undeclared.getMessage().contains(
+                "is not declared by the trusted project"));
+
+        Path dependencyRoot = Files.createDirectories(
+                temporaryDirectory.resolve("escaping-dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Files.createDirectories(temporaryDirectory.resolve("escaped-library"));
+        IllegalArgumentException escaped = assertThrows(
+                IllegalArgumentException.class,
+                () -> fixture(Optional.of(
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of("package:escaping/clippers.dart"),
+                                "EscapingClipper", Optional.empty(),
+                                PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                                Optional.empty())), true, List.of(
+                                        new DeclaredPackage("escaping",
+                                                dependencyRoot,
+                                                "../escaped-library/"))));
+        assertTrue(escaped.getMessage().contains("packageUri escapes"));
+    }
+
+    @Test
+    void rejectsTrailingAndNonUtf8PackageConfigDocuments() throws Exception {
+        String library = "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart";
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "ProjectClipper",
+                        Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())));
+        Path config = fixture.projectRoot().resolve(
+                ".dart_tool/package_config.json");
+        String canonical = Files.readString(config, StandardCharsets.UTF_8);
+        Files.writeString(config,
+                canonical + "\n{}\n",
+                StandardCharsets.UTF_8);
+
+        IOException trailing = assertThrows(IOException.class,
+                () -> ticket(fixture, fixture.current()));
+        assertTrue(trailing.getMessage().contains(
+                "package_config.json cannot be resolved and read"));
+
+        Files.write(config, ("\ufeff" + canonical).getBytes(
+                StandardCharsets.UTF_16LE));
+        IOException nonUtf8 = assertThrows(IOException.class,
+                () -> ticket(fixture, fixture.current()));
+        assertTrue(nonUtf8.getMessage().contains(
+                "package_config.json is not valid strict UTF-8"));
+    }
+
+    @Test
+    void rejectsPackageUriEscapeThroughAnIntermediateDirectoryLink()
+            throws Exception {
+        Path dependencyRoot = Files.createDirectories(
+                temporaryDirectory.resolve("linked-dependency"));
+        Path dependencyLibrary = Files.createDirectories(
+                dependencyRoot.resolve("lib"));
+        Path externalRoot = Files.createDirectories(
+                temporaryDirectory.resolve("outside-dependency"));
+        Files.createDirectories(externalRoot.resolve("deep"));
+        Path bridge = dependencyLibrary.resolve("bridge");
+        try {
+            Files.createSymbolicLink(bridge, externalRoot.toAbsolutePath());
+        } catch (UnsupportedOperationException | IOException | SecurityException
+                unavailable) {
+            assumeTrue(false,
+                    "directory symlinks are unavailable for this containment proof: "
+                    + unavailable);
+            return;
+        }
+
+        IllegalArgumentException escaped = assertThrows(
+                IllegalArgumentException.class,
+                () -> fixture(Optional.of(
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of("package:linked/clippers.dart"),
+                                "LinkedClipper", Optional.empty(),
+                                PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                                Optional.empty())), true, List.of(
+                                        new DeclaredPackage("linked",
+                                                dependencyRoot,
+                                                "lib/bridge/deep/"))));
+        assertTrue(escaped.getMessage().contains(
+                "packageUri escapes through a link"));
+    }
+
+    @Test
+    void revalidatesDeclaredPackageResolutionWhenBindingTheLiveCandidate()
+            throws Exception {
+        Path dependencyRoot = Files.createDirectories(
+                temporaryDirectory.resolve("original-dependency"));
+        Path dependencyLibrary = Files.createDirectories(
+                dependencyRoot.resolve("lib"));
+        Files.writeString(dependencyLibrary.resolve("clippers.dart"),
+                "class DependencyClipper {}\n", StandardCharsets.UTF_8);
+        String library = "package:clipper_dependency/clippers.dart";
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "DependencyClipper",
+                        Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())), true, List.of(new DeclaredPackage(
+                                "clipper_dependency", dependencyRoot, "lib/")));
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+        PairAnalyzedCandidate analyzed = ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence()))
+                .analyzedOptional().orElseThrow();
+
+        Path replacementRoot = Files.createDirectories(
+                temporaryDirectory.resolve("replacement-dependency"));
+        Path replacementLibrary = Files.createDirectories(
+                replacementRoot.resolve("lib"));
+        Files.writeString(replacementLibrary.resolve("clippers.dart"),
+                "class DependencyClipper {}\n", StandardCharsets.UTF_8);
+        writePackageConfig(fixture.projectRoot(), List.of(new DeclaredPackage(
+                "clipper_dependency", replacementRoot, "lib/")));
+
+        PairSaveEvidenceResult rebound = PairSaveEvidenceGate.bindApplied(
+                analyzed, fixture.live());
+        assertFalse(rebound.ready());
+        assertTrue(rebound.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code() == PairSaveEvidenceDiagnostic.Code
+                        .GENERATED_SYMBOL_PROBE_SET_MISMATCH));
+    }
+
+    @Test
+    void rejectsNavigationTargetDeletedAfterAnalysisBeforeBinding()
+            throws Exception {
+        Fixture fixture = fixture();
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+        PairAnalyzedCandidate analyzed = ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence()))
+                .analyzedOptional().orElseThrow();
+
+        Files.delete(fixture.frameworkFile());
+
+        PairSaveEvidenceResult rebound = PairSaveEvidenceGate.bindApplied(
+                analyzed, fixture.live());
+        assertFalse(rebound.ready());
+        assertTrue(rebound.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code() == PairSaveEvidenceDiagnostic.Code
+                        .PATH_VALIDATION_FAILED
+                && diagnostic.subject().endsWith(".target")));
+    }
+
+    @Test
+    void rejectsNavigationTargetRedirectedOutsideTrustedRootBeforeBinding()
+            throws Exception {
+        Fixture fixture = fixture();
+        PairCandidateAnalysisTicket ticket = ticket(
+                fixture, fixture.current());
+        PairAnalyzedCandidate analyzed = ticket.accept(analysis(
+                ticket, fixture.acceptedEvidence()))
+                .analyzedOptional().orElseThrow();
+        Path outside = temporaryDirectory.resolve("outside-framework.dart");
+        Files.writeString(outside, "class Widget {}\n", StandardCharsets.UTF_8);
+        Files.delete(fixture.frameworkFile());
+        try {
+            Files.createSymbolicLink(
+                    fixture.frameworkFile(), outside.toAbsolutePath());
+        } catch (UnsupportedOperationException | IOException | SecurityException
+                unavailable) {
+            assumeTrue(false,
+                    "file symlinks are unavailable for this bind-time provenance proof: "
+                    + unavailable);
+            return;
+        }
+
+        PairSaveEvidenceResult rebound = PairSaveEvidenceGate.bindApplied(
+                analyzed, fixture.live());
+        assertFalse(rebound.ready());
+        assertTrue(rebound.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.code() == PairSaveEvidenceDiagnostic.Code
+                        .UNTRUSTED_NAVIGATION_TARGET
+                && diagnostic.subject().endsWith(".target")));
+    }
+
+    @Test
+    void rejectsProjectReferenceNavigationTargetOutsideProjectLib()
+            throws Exception {
+        String library = "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart";
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "RoundedClipper",
+                        Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())));
+        Path externalTarget = temporaryDirectory.resolve(
+                "pub-cache/external/clippers.dart");
+        Files.createDirectories(externalTarget.getParent());
+        Files.writeString(externalTarget, "class RoundedClipper {}\n",
+                StandardCharsets.UTF_8);
+        List<DartSymbolEvidence> escaped = fixture.acceptedEvidence().stream()
+                .map(value -> isProjectProbe(value.probe())
+                        ? accepted(value.probe(), externalTarget)
+                        : value)
+                .toList();
+
+        PairAnalyzedCandidateResult result = analyze(
+                fixture, fixture.current(), escaped);
+
+        assertAnalyzedRejected(result,
+                PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
     }
 
     @Test
@@ -539,8 +1084,10 @@ class PairSaveEvidenceGateTest {
                         transition)
                 .preparedPair().orElseThrow();
 
+        Path plannerProject = Files.createDirectories(
+                temporaryDirectory.resolve("planner-project/lib")).getParent();
         List<DartSymbolProbe> probes = GeneratedDartSymbolProbePlanner.plan(
-                prepared, temporaryDirectory.toAbsolutePath());
+                prepared, temporaryDirectory.toAbsolutePath(), plannerProject);
 
         GeneratedDartRegions generated = prepared.dartTransition().generation()
                 .generated().orElseThrow();
@@ -622,7 +1169,8 @@ class PairSaveEvidenceGateTest {
         PairAnalyzedCandidateResult result = maliciousTicket.accept(analysis);
 
         assertAnalyzedRejected(result,
-                PairSaveEvidenceDiagnostic.Code.INVALID_FLUTTER_LIBRARY_URI);
+                PairSaveEvidenceDiagnostic.Code
+                        .GENERATED_SYMBOL_PROBE_SET_MISMATCH);
     }
 
     @Test
@@ -701,10 +1249,39 @@ class PairSaveEvidenceGateTest {
     }
 
     private Fixture fixture() throws Exception {
+        return fixture(Optional.empty());
+    }
+
+    private Fixture fixture(
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference)
+            throws Exception {
+        return fixture(projectReference, true);
+    }
+
+    private Fixture fixture(
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference,
+            boolean createProjectLibrary) throws Exception {
+        return fixture(projectReference, createProjectLibrary, List.of());
+    }
+
+    private Fixture fixture(
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference,
+            boolean createProjectLibrary,
+            List<DeclaredPackage> declaredPackages) throws Exception {
         Path projectRoot = Files.createDirectories(
                 temporaryDirectory.resolve("project"));
-        Path dartFile = projectRoot.resolve("lib/home_page.dart");
+        Files.writeString(projectRoot.resolve("pubspec.yaml"),
+                "name: " + PROJECT_PACKAGE_NAME + "\n",
+                StandardCharsets.UTF_8);
+        Path dartFile = createProjectLibrary
+                ? projectRoot.resolve("lib/home_page.dart")
+                : projectRoot.resolve("home_page.dart");
         Files.createDirectories(dartFile.getParent());
+        if (createProjectLibrary) {
+            Files.writeString(projectRoot.resolve("lib/clippers.dart"),
+                    "class ProjectClipper {}\n", StandardCharsets.UTF_8);
+            writePackageConfig(projectRoot, declaredPackages);
+        }
 
         Path flutterLib = Files.createDirectories(
                 temporaryDirectory.resolve("flutter/packages/flutter/lib"));
@@ -755,12 +1332,15 @@ class PairSaveEvidenceGateTest {
                         dirtyLive,
                         baselineDescriptor,
                         generator.generate(
-                                document(baselineDescriptor, "after"),
+                                prospectiveDocument(
+                                        baselineDescriptor,
+                                        "after",
+                                        projectReference),
                                 BuiltInWidgetCatalog.getDefault()))
                 .plan()
                 .orElseThrow();
-        DesignerDocument prospective = document(
-                transition.prospectiveDescriptor(), "after");
+        DesignerDocument prospective = prospectiveDocument(
+                transition.prospectiveDescriptor(), "after", projectReference);
         PreparedDesignerPair prepared = new DesignerPairPreparationPlanner()
                 .prepare(decoded.original(), prospective, transition)
                 .preparedPair()
@@ -778,11 +1358,7 @@ class PairSaveEvidenceGateTest {
                 flutterLib,
                 framework,
                 List.of());
-        List<DartSymbolEvidence> evidence = evidence(
-                withoutAnalysis,
-                flutterLib,
-                framework,
-                "package:flutter/widgets.dart");
+        List<DartSymbolEvidence> evidence = exactEvidence(withoutAnalysis);
         return new Fixture(
                 current,
                 prepared,
@@ -813,7 +1389,8 @@ class PairSaveEvidenceGateTest {
             Path target,
             String libraryUri) {
         return GeneratedDartSymbolProbePlanner.plan(
-                fixture.prepared(), expectedRoot.toAbsolutePath()).stream()
+                fixture.prepared(), expectedRoot.toAbsolutePath(),
+                fixture.projectRoot()).stream()
                 .map(planned -> accepted(
                         new DartSymbolProbe(
                                 planned.id(),
@@ -827,13 +1404,70 @@ class PairSaveEvidenceGateTest {
                 .toList();
     }
 
+    private static List<DartSymbolEvidence> exactEvidence(Fixture fixture) {
+        return GeneratedDartSymbolProbePlanner.plan(
+                fixture.prepared(), fixture.flutterLib(),
+                fixture.projectRoot()).stream()
+                .map(probe -> accepted(
+                        probe,
+                        isProjectProbe(probe)
+                                ? DartRegionGenerator.CURRENT_PROJECT_LIBRARY_URI.equals(
+                                        probe.expectedLibraryUri())
+                                        ? fixture.dartFile()
+                                        : probe.expectedTargetRoot().resolve(
+                                                "clippers.dart")
+                                : fixture.frameworkFile()))
+                .toList();
+    }
+
+    private static void writePackageConfig(
+            Path projectRoot,
+            List<DeclaredPackage> declaredPackages) throws IOException {
+        ObjectNode root = JSON.createObjectNode();
+        root.put("configVersion", 2);
+        ArrayNode packages = root.putArray("packages");
+        addDeclaredPackage(packages, PROJECT_PACKAGE_NAME, projectRoot, "lib/");
+        for (DeclaredPackage declaredPackage : declaredPackages) {
+            addDeclaredPackage(packages,
+                    declaredPackage.name(),
+                    declaredPackage.root(),
+                    declaredPackage.packageUri());
+        }
+        Path config = projectRoot.resolve(".dart_tool/package_config.json");
+        Files.createDirectories(config.getParent());
+        JSON.writeValue(config.toFile(), root);
+    }
+
+    private static void addDeclaredPackage(
+            ArrayNode packages,
+            String name,
+            Path root,
+            String packageUri) {
+        ObjectNode entry = packages.addObject();
+        entry.put("name", name);
+        entry.put("rootUri", root.toAbsolutePath().normalize().toUri().toString());
+        entry.put("packageUri", packageUri);
+    }
+
+    private static boolean isProjectProbe(DartSymbolProbe probe) {
+        return DartRegionGenerator.CURRENT_PROJECT_LIBRARY_URI.equals(
+                probe.expectedLibraryUri())
+                || !probe.expectedLibraryUri().startsWith("package:flutter/");
+    }
+
     private static DartSymbolEvidence accepted(
             DartSymbolProbe probe,
             Path target) {
         DartNavigationTarget navigation = new DartNavigationTarget(
                 "CLASS", target, 0, 1, 1, 1);
         return new DartSymbolEvidence(
-                probe, List.of(navigation), true, Optional.empty());
+                probe,
+                List.of(navigation),
+                true,
+                Optional.empty(),
+                probe.staticTypeProbe().map(staticType ->
+                        new DartStaticTypeEvidence(
+                                staticType, true, Optional.empty())));
     }
 
     private static DartCandidateAnalysisResult analysis(
@@ -874,6 +1508,78 @@ class PairSaveEvidenceGateTest {
                 evidence);
     }
 
+    private PairSaveEvidenceDiagnostic assertConcreteAnalyzerFailure(
+            Fixture fixture,
+            String code,
+            String message,
+            String expectedDetail) throws Exception {
+        PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+        PairAnalyzedCandidateResult result = ticket.accept(rejectedAnalysis(
+                ticket,
+                List.of(diagnostic(
+                        ticket,
+                        DartCandidateDiagnosticSeverity.ERROR,
+                        code,
+                        message,
+                        true,
+                        4,
+                        5)),
+                List.of()));
+        PairSaveEvidenceDiagnostic status = result.diagnostics().getFirst();
+        assertAll(
+                () -> assertEquals(
+                        PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED,
+                        status.code()),
+                () -> assertTrue(status.message().contains("[" + code + "]"),
+                        status::message),
+                () -> assertTrue(status.message().contains(expectedDetail),
+                        status::message),
+                () -> assertTrue(status.message().codePointCount(
+                        0, status.message().length()) <= 512,
+                        status::message));
+        return status;
+    }
+
+    private static DartCandidateAnalysisResult rejectedAnalysis(
+            PairCandidateAnalysisTicket ticket,
+            List<DartCandidateDiagnostic> diagnostics,
+            List<DartSymbolEvidence> evidence) {
+        return new DartCandidateAnalysisResult(
+                DartCandidateAnalysisStatus.REJECTED,
+                ticket.request().snapshot(),
+                Optional.of("test"),
+                diagnostics,
+                ticket.request().symbolProbes().size(),
+                evidence,
+                Optional.empty());
+    }
+
+    private static DartCandidateDiagnostic diagnostic(
+            PairCandidateAnalysisTicket ticket,
+            DartCandidateDiagnosticSeverity severity,
+            String code,
+            String message,
+            boolean blocking,
+            int line,
+            int column) {
+        return new DartCandidateDiagnostic(
+                severity,
+                severity == DartCandidateDiagnosticSeverity.INFO
+                        ? "HINT" : "COMPILE_TIME_ERROR",
+                Optional.of(code),
+                message,
+                Optional.empty(),
+                Optional.empty(),
+                ticket.realDartPath(),
+                0,
+                1,
+                line,
+                column,
+                line,
+                column + 1,
+                blocking);
+    }
+
     private static Loaded load(byte[] source) throws Exception {
         StyledDocument document = (StyledDocument) new DartEditorKit()
                 .createDefaultDocument();
@@ -905,6 +1611,22 @@ class PairSaveEvidenceGateTest {
                 Map.of(new PropertyName("data"),
                         new PropertyValue.StringValue(text)),
                 Map.of());
+        return new DesignerDocument(DOCUMENT_ID, descriptor, root);
+    }
+
+    private static DesignerDocument prospectiveDocument(
+            DartSourceDescriptor descriptor,
+            String text,
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference) {
+        if (projectReference.isEmpty()) {
+            return document(descriptor, text);
+        }
+        WidgetNode root = new WidgetNode(
+                StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                new WidgetTypeId("flutter.widgets.ClipRRect"),
+                Map.of(new PropertyName("clipper"),
+                        projectReference.orElseThrow()),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
         return new DesignerDocument(DOCUMENT_ID, descriptor, root);
     }
 
@@ -977,6 +1699,12 @@ class PairSaveEvidenceGateTest {
     private record Loaded(
             StyledDocument document,
             DartGuardedSectionsProvider provider) {
+    }
+
+    private record DeclaredPackage(
+            String name,
+            Path root,
+            String packageUri) {
     }
 
     private record Fixture(

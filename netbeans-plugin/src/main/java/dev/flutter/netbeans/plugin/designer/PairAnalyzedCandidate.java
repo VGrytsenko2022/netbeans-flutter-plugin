@@ -6,7 +6,18 @@ import dev.flutter.netbeans.designer.pair.PreparedDesignerPair;
 import java.nio.file.Path;
 import java.util.Objects;
 
-/** Immutable analyzer proof for a candidate which has not yet touched the editor. */
+/**
+ * Immutable point-in-time analyzer proof for a candidate which has not yet
+ * touched the editor.
+ *
+ * <p>Binding and delayed history replay re-resolve the exact package manifest,
+ * probe roots, and navigation target real paths. They therefore fail closed on
+ * deletion or path/provenance redirection. They do not claim that mutable
+ * transitive Dart dependency contents at the same real paths remain frozen
+ * after the analyzer process exits; such external concurrent semantic mutation
+ * is outside the atomic Designer document/pair boundary and requires a fresh
+ * analyzer admission cycle.</p>
+ */
 final class PairAnalyzedCandidate {
     private final PairCandidateAnalysisTicket ticketIdentity;
     private final FlutterDesignerDocumentState.Current currentIdentity;

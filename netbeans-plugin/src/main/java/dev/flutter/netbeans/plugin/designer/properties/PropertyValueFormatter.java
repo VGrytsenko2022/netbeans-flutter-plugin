@@ -78,7 +78,51 @@ public final class PropertyValueFormatter {
             case PropertyValue.ImageProviderValue image -> imageProvider(image);
             case PropertyValue.BoxDecorationValue decoration ->
                 decoration(decoration);
+            case PropertyValue.BorderRadiusValue borderRadius ->
+                borderRadius(borderRadius.geometry());
+            case PropertyValue.DartObjectReferenceValue reference ->
+                dartObjectReference(reference);
         };
+    }
+
+    private static String dartObjectReference(
+            PropertyValue.DartObjectReferenceValue value) {
+        String target = value.rootSymbol()
+                + value.member().map(member -> "." + member).orElse("");
+        if (value.access()
+                == PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION) {
+            target = (value.constant().orElseThrow() ? "const " : "")
+                    + target + "()";
+        }
+        String rendered = target;
+        return value.libraryUri()
+                .map(uri -> rendered + " @ " + uri)
+                .orElse(rendered);
+    }
+
+    private static String borderRadius(
+            PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry) {
+        java.util.List<PropertyValue.BoxDecorationValue.Radius> radii;
+        String basis;
+        if (geometry instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius value) {
+            basis = "physical";
+            radii = java.util.List.of(value.topLeft(), value.topRight(),
+                    value.bottomRight(), value.bottomLeft());
+        } else {
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius value =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) geometry;
+            basis = "directional";
+            radii = java.util.List.of(value.topStart(), value.topEnd(),
+                    value.bottomEnd(), value.bottomStart());
+        }
+        boolean uniform = radii.stream().allMatch(radii.getFirst()::equals);
+        PropertyValue.BoxDecorationValue.Radius first = radii.getFirst();
+        if (uniform && first.x().compareTo(first.y()) == 0) {
+            return basis + " circular " + number(first.x());
+        }
+        return basis + " corners [" + radii.stream()
+                .map(radius -> number(radius.x()) + "×" + number(radius.y()))
+                .collect(java.util.stream.Collectors.joining(", ")) + ']';
     }
 
     private static String range(

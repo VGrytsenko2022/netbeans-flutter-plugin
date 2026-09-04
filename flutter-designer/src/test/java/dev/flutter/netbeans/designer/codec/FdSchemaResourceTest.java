@@ -33,6 +33,10 @@ class FdSchemaResourceTest {
             Path.of("docs", "flutter-designer", "fd-v9.schema.json");
     private static final Path V10_DOCUMENTATION_SCHEMA =
             Path.of("docs", "flutter-designer", "fd-v10.schema.json");
+    private static final Path V11_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v11.schema.json");
+    private static final Path V12_DOCUMENTATION_SCHEMA =
+            Path.of("docs", "flutter-designer", "fd-v12.schema.json");
 
     @Test
     void packagesTheCanonicalSchemaAsAnLfNormalizedRuntimeResource() throws IOException {
@@ -251,8 +255,6 @@ class FdSchemaResourceTest {
                 V10_DOCUMENTATION_SCHEMA));
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v10 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v10");
         String schema = new String(packaged, StandardCharsets.UTF_8);
 
         assertFalse(schema.contains("\r"));
@@ -266,6 +268,68 @@ class FdSchemaResourceTest {
         assertTrue(nullValue >= 0 && stringValue > nullValue);
         assertTrue(schema.substring(nullValue, stringValue).contains(
                 "\"additionalProperties\": false"));
+    }
+
+    @Test
+    void packagesCanonicalV11WithStandaloneTypedBorderRadius() throws IOException {
+        byte[] packaged = loadPackagedV11Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V11_DOCUMENTATION_SCHEMA));
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v11 copies must remain byte-identical");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:11\""));
+        assertTrue(schema.contains("\"const\": 11"));
+        assertTrue(schema.contains("\"$ref\": \"#/$defs/borderRadiusValue\""));
+        int borderRadiusValue = schema.indexOf("\"borderRadiusValue\": {");
+        int boxDecorationValue = schema.indexOf(
+                "\"boxDecorationValue\"", borderRadiusValue);
+        assertTrue(borderRadiusValue >= 0 && boxDecorationValue > borderRadiusValue);
+        String definition = schema.substring(borderRadiusValue, boxDecorationValue);
+        assertTrue(definition.contains("\"const\": \"borderRadius\""));
+        assertTrue(definition.contains("\"geometry\""));
+        assertTrue(definition.contains(
+                "\"$ref\": \"#/$defs/borderRadiusGeometry\""));
+        assertTrue(definition.contains("\"additionalProperties\": false"));
+    }
+
+    @Test
+    void packagesCanonicalV12WithTypedDartObjectReferences() throws IOException {
+        byte[] packaged = loadPackagedV12Schema();
+        byte[] documented = Files.readAllBytes(findRepositoryFile(
+                V12_DOCUMENTATION_SCHEMA));
+        assertArrayEquals(documented, packaged,
+                "The bundled and browsable schema v12 copies must remain byte-identical");
+        assertArrayEquals(packaged, loadCurrentSchema(),
+                "The current schema pointer must resolve to v12");
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains(
+                "\"$id\": \"urn:netbeans-flutter-designer:schema:fd:12\""));
+        assertTrue(schema.contains("\"const\": 12"));
+        assertTrue(schema.contains(
+                "\"$ref\": \"#/$defs/dartObjectReferenceValue\""));
+        int referenceValue = schema.indexOf("\"dartObjectReferenceValue\": {");
+        int themeToken = schema.indexOf("\"themeToken\": {", referenceValue);
+        assertTrue(referenceValue >= 0 && themeToken > referenceValue);
+        String definition = schema.substring(referenceValue, themeToken);
+        assertTrue(definition.contains("\"oneOf\""));
+        assertTrue(definition.contains("\"const\": \"dartObjectReference\""));
+        assertTrue(definition.contains("\"libraryUri\""));
+        assertTrue(definition.contains("\"rootSymbol\""));
+        assertTrue(definition.contains("\"member\""));
+        assertTrue(definition.contains("\"const\": \"reference\""));
+        assertTrue(definition.contains(
+                "\"const\": \"zeroArgumentInvocation\""));
+        assertTrue(definition.contains("\"constant\""));
+        assertTrue(definition.contains("\"type\": \"boolean\""));
+        assertTrue(definition.contains(
+                "\"$ref\": \"#/$defs/publicDartObjectIdentifier\""));
+        assertTrue(definition.contains("\"additionalProperties\": false"));
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {
@@ -364,6 +428,26 @@ class FdSchemaResourceTest {
                 "The canonical schema v10 must be present on the runtime classpath");
         try (InputStream input = FdSchemas.openV10()) {
             assertNotNull(input, "The canonical schema v10 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV11Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V11_RESOURCE),
+                "The canonical schema v11 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV11()) {
+            assertNotNull(input, "The canonical schema v11 resource must be readable");
+            return input.readAllBytes();
+        }
+    }
+
+    private static byte[] loadPackagedV12Schema() throws IOException {
+        ClassLoader loader = FdSchemaResourceTest.class.getClassLoader();
+        assertNotNull(loader.getResource(FdSchemas.V12_RESOURCE),
+                "The canonical schema v12 must be present on the runtime classpath");
+        try (InputStream input = FdSchemas.openV12()) {
+            assertNotNull(input, "The canonical schema v12 resource must be readable");
             return input.readAllBytes();
         }
     }

@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,57 @@ class ClipOvalDartGenerationTest {
                     < build.indexOf("child: const Text('Visible')"), build);
             assertFalse(build.contains("clipper:"), build);
         }
+    }
+
+    @Test
+    void emitsImportedConstClipperInvocationWithAliasedImportAndProvenance() {
+        String library = "package:sample/clippers/oval_clipper.dart";
+        PropertyValue.DartObjectReferenceValue clipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(library), "OvalClipper", Optional.of("create"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+
+        GeneratedDartRegions generated = generate(clipOval(
+                Map.of(new PropertyName("clipper"), clipper),
+                Optional.of(text("Visible"))));
+        DartImportDirective directive = generated.importPlan().directives().stream()
+                .filter(value -> value.uri().equals(library))
+                .findFirst().orElseThrow();
+        String prefix = directive.prefix().orElseThrow();
+
+        assertEquals(List.of("package:flutter/widgets.dart", library),
+                generated.importPlan().directives().stream()
+                        .map(DartImportDirective::uri).toList());
+        assertTrue(generated.imports().payload().contains(
+                "import '" + library + "' as " + prefix + ";"),
+                generated.imports().payload());
+        String build = generated.build().payload();
+        assertTrue(build.contains("return const ClipOval("), build);
+        assertTrue(build.contains(
+                "clipper: const " + prefix + ".OvalClipper.create()"), build);
+        assertTrue(build.indexOf("clipper:") < build.indexOf("child:"), build);
+        List<GeneratedDartSymbolOccurrence> occurrences = generated
+                .symbolOccurrences().stream()
+                .filter(value -> value.modelPath()
+                        .startsWith("/root/properties/clipper/"))
+                .toList();
+        assertEquals(List.of("OvalClipper", "create"), occurrences.stream()
+                .map(GeneratedDartSymbolOccurrence::symbolName).toList());
+        assertTrue(occurrences.stream()
+                .allMatch(value -> value.libraryUri().equals(library)));
+        GeneratedDartStaticTypeRequirement requirement = occurrences.stream()
+                .flatMap(value -> value.staticTypeRequirement().stream())
+                .findFirst().orElseThrow();
+        assertEquals("CustomClipper<Rect>", requirement.expectedDartType());
+        assertEquals("const " + prefix + ".OvalClipper.create()",
+                build.substring(
+                        requirement.expressionOffset(),
+                        requirement.expressionEndOffset()));
+        assertEquals(1, occurrences.stream()
+                .filter(value -> value.staticTypeRequirement().isPresent())
+                .count());
     }
 
     @Test

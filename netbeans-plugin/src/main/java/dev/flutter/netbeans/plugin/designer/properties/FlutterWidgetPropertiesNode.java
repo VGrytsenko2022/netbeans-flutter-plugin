@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -518,6 +519,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.equals(
                 widget.type())) {
             addClipOvalPropertySets(sheet, hasSlotTab);
+        } else if (ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.equals(
+                widget.type())) {
+            addClipRRectPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -947,8 +951,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child clipped to this widget's rectangular bounds. "
-                    + "Clip behavior controls edge quality; a null CustomClipper keeps "
-                    + "the exact child-bounds rectangle. Occupancy: " + count + "/" + maximum
+                    + "Clip behavior controls edge quality. The Dart analyzer validates "
+                    + "a configured Dart symbol as CustomClipper<Rect>. The isolated "
+                    + "Canvas cannot execute project Dart and displays an explicit "
+                    + "preview-unavailable state. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -956,8 +962,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child clipped to the oval inscribed in this widget's bounds. "
-                    + "Clip behavior controls edge quality; a null CustomClipper keeps "
-                    + "the exact inscribed oval. Occupancy: " + count + "/" + maximum
+                    + "Clip behavior controls edge quality. The Dart analyzer validates "
+                    + "a configured Dart symbol as CustomClipper<Rect>. The isolated "
+                    + "Canvas cannot execute project Dart and displays an explicit "
+                    + "preview-unavailable state. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child clipped to this widget's rounded rectangular bounds. "
+                    + "Physical or direction-aware corner radii and clip behavior control "
+                    + "the exact edge. The Dart analyzer validates a configured Dart "
+                    + "symbol as CustomClipper<RRect>; Flutter then ignores borderRadius. "
+                    + "The isolated Canvas cannot execute project Dart and displays an "
+                    + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2322,14 +2342,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             () -> new IllegalStateException(
                                     "Built-in ClipRect property is missing its "
                                     + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "clipper" -> " The Dart analyzer validates that the selected "
+                        + "Dart symbol is assignable to CustomClipper<Rect>. "
+                        + "Current-library and package-config-declared references, "
+                        + "including zero-argument constructor or factory invocations, "
+                        + "are supported. The isolated Canvas cannot execute project Dart "
+                        + "and displays an explicit preview-unavailable state.";
+                case "clipBehavior" -> " Omission preserves Flutter's hard-edge default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected ClipRect property: " + property.name().value());
+            };
             groups.get(schema.group()).put(projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
-                    schema.description()
-                            + " Omission preserves Flutter's hard-edge default. "
-                            + "A non-null CustomClipper is intentionally outside the "
-                            + "closed Designer model."));
+                    schema.description() + boundary));
         }
     }
 
@@ -2350,14 +2378,64 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             () -> new IllegalStateException(
                                     "Built-in ClipOval property is missing its "
                                     + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "clipper" -> " The Dart analyzer validates that the selected "
+                        + "Dart symbol is assignable to CustomClipper<Rect>. "
+                        + "Current-library and package-config-declared references, "
+                        + "including zero-argument constructor or factory invocations, "
+                        + "are supported. The isolated Canvas cannot execute project Dart "
+                        + "and displays an explicit preview-unavailable state.";
+                case "clipBehavior" -> " Omission preserves Flutter's anti-alias default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected ClipOval property: " + property.name().value());
+            };
             groups.get(schema.group()).put(projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
-                    schema.description()
-                            + " Omission preserves Flutter's anti-alias default. "
-                            + "A non-null CustomClipper is intentionally outside the "
-                            + "closed Designer model."));
+                    schema.description() + boundary));
+        }
+    }
+
+    private void addClipRRectPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ClipRRectWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ClipRRectWidgetPropertySchema.Group.class);
+        for (ClipRRectWidgetPropertySchema.Group group
+                : ClipRRectWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ClipRRectWidgetPropertySchema.Definition schema =
+                    ClipRRectWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ClipRRect property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "borderRadius" -> " Omission preserves Flutter's "
+                        + "BorderRadius.zero default. Physical and directional "
+                        + "elliptical corners are supported. Flutter ignores "
+                        + "borderRadius while clipper is configured.";
+                case "clipper" -> " The Dart analyzer validates that the selected "
+                        + "Dart symbol is assignable to CustomClipper<RRect>. "
+                        + "Current-library and package-config-declared references, "
+                        + "including zero-argument constructor or factory invocations, "
+                        + "are supported. When configured, Flutter ignores borderRadius. "
+                        + "The isolated Canvas cannot execute project Dart and displays "
+                        + "an explicit preview-unavailable state.";
+                case "clipBehavior" -> " Omission preserves Flutter's "
+                        + "anti-alias default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected ClipRRect property: " + property.name().value());
+            };
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description() + boundary));
         }
     }
 

@@ -76,6 +76,8 @@ final class FlutterContainerPropertyEditorComponents {
             "flutter.container.decoration.image.colorFilter";
     static final String DECORATION_BORDER_TABLE_NAME = "flutter.container.decoration.border.table";
     static final String DECORATION_RADIUS_TABLE_NAME = "flutter.container.decoration.radius.table";
+    static final String BORDER_RADIUS_BASIS_NAME = "flutter.borderRadius.basis";
+    static final String BORDER_RADIUS_TABLE_NAME = "flutter.borderRadius.table";
     static final String DECORATION_SHADOW_TABLE_NAME = "flutter.container.decoration.shadow.table";
     static final String DECORATION_GRADIENT_TABLE_NAME = "flutter.container.decoration.gradient.table";
 
@@ -97,9 +99,194 @@ final class FlutterContainerPropertyEditorComponents {
             case BOX_CONSTRAINTS -> new ConstraintsPanel(editor, binding, environment);
             case MATRIX4 -> new MatrixPanel(editor, binding, environment);
             case BOX_DECORATION -> new DecorationPanel(editor, binding, environment);
+            case BORDER_RADIUS -> new BorderRadiusPanel(editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No Container structured editor for " + binding.editorKind());
         };
+    }
+
+    /** Standalone editor for ClipRRect's typed BorderRadiusGeometry value. */
+    private static final class BorderRadiusPanel extends DraftPanel {
+        private final JCheckBox useDefault = new JCheckBox(
+                "Use Flutter default BorderRadius.zero (omit argument)");
+        private final JComboBox<String> basis = new JComboBox<>(
+                new String[]{"Physical corners", "Directional corners"});
+        private final DefaultTableModel model = nonEditableFirstColumn(
+                new String[]{"Corner", "X radius", "Y radius"});
+        private final JTable radii = table(model, BORDER_RADIUS_TABLE_NAME);
+        private boolean preparingCommit;
+
+        BorderRadiusPanel(PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding,
+                PropertyEnv environment) {
+            super(editor, binding, environment);
+            setLayout(new BorderLayout(0, 8));
+            setPreferredSize(new Dimension(620, 280));
+            setName("flutter.borderRadius.custom");
+            getAccessibleContext().setAccessibleName("Flutter border radius editor");
+            getAccessibleContext().setAccessibleDescription(
+                    "Edits physical BorderRadius or direction-aware "
+                    + "BorderRadiusDirectional corner ellipses without raw Dart.");
+
+            JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
+            if (binding.optional()) {
+                controls.add(useDefault);
+            }
+            JLabel basisLabel = new JLabel("Basis:");
+            basisLabel.setLabelFor(basis);
+            controls.add(basisLabel);
+            controls.add(basis);
+            basis.setName(BORDER_RADIUS_BASIS_NAME);
+            basis.getAccessibleContext().setAccessibleName("Border radius basis");
+            basis.getAccessibleContext().setAccessibleDescription(
+                    "Choose physical left and right corners or directional "
+                    + "start and end corners resolved by text direction.");
+            radii.getAccessibleContext().setAccessibleDescription(
+                    "Four corner rows with finite non-negative horizontal and "
+                    + "vertical radius values.");
+            add(controls, BorderLayout.NORTH);
+            add(new JScrollPane(radii), BorderLayout.CENTER);
+
+            PropertyValue.BorderRadiusValue initial = initialValue().explicitValue()
+                    .map(PropertyValue.BorderRadiusValue.class::cast)
+                    .orElseGet(BorderRadiusPanel::zero);
+            populate(initial.geometry());
+            useDefault.setSelected(initialValue().explicitValue().isEmpty());
+
+            useDefault.addActionListener(ignored -> refresh());
+            basis.addActionListener(ignored -> {
+                if (!updating) {
+                    renameRows(model, basis.getSelectedIndex() == 0
+                            ? physicalNames() : directionalNames());
+                    refresh();
+                }
+            });
+            model.addTableModelListener(ignored -> {
+                if (!preparingCommit && !updating) {
+                    refresh();
+                }
+            });
+            updateEnabledState();
+            refresh();
+            activate();
+        }
+
+        private void populate(
+                PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry) {
+            updating = true;
+            try {
+                model.setRowCount(0);
+                boolean directional = geometry
+                        instanceof PropertyValue.BoxDecorationValue.DirectionalBorderRadius;
+                basis.setSelectedIndex(directional ? 1 : 0);
+                List<String> names = directional ? directionalNames() : physicalNames();
+                List<PropertyValue.BoxDecorationValue.Radius> values;
+                if (geometry
+                        instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius value) {
+                    values = List.of(value.topLeft(), value.topRight(),
+                            value.bottomRight(), value.bottomLeft());
+                } else {
+                    PropertyValue.BoxDecorationValue.DirectionalBorderRadius value =
+                            (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) geometry;
+                    values = List.of(value.topStart(), value.topEnd(),
+                            value.bottomEnd(), value.bottomStart());
+                }
+                for (int index = 0; index < 4; index++) {
+                    model.addRow(new Object[]{names.get(index),
+                        values.get(index).x().toPlainString(),
+                        values.get(index).y().toPlainString()});
+                }
+            } finally {
+                updating = false;
+            }
+        }
+
+        private void refresh() {
+            refresh(true);
+        }
+
+        private boolean refresh(boolean requestValidation) {
+            if (updating) {
+                return false;
+            }
+            synchronizeLiveDrafts(radii);
+            updateEnabledState();
+            if (binding.optional() && useDefault.isSelected()) {
+                clearErrors(this);
+                storeValid(FlutterPropertyCellValue.unset(), requestValidation);
+                return true;
+            }
+            try {
+                ArrayList<PropertyValue.BoxDecorationValue.Radius> values =
+                        new ArrayList<>(4);
+                for (int row = 0; row < 4; row++) {
+                    values.add(radius(
+                            nonNegative(cell(model, row, 1), "Radius X"),
+                            nonNegative(cell(model, row, 2), "Radius Y")));
+                }
+                PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry =
+                        basis.getSelectedIndex() == 0
+                        ? new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                                values.get(0), values.get(1), values.get(2), values.get(3))
+                        : new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                values.get(0), values.get(1), values.get(2), values.get(3));
+                clearErrors(this);
+                storeValid(FlutterPropertyCellValue.explicit(
+                        new PropertyValue.BorderRadiusValue(geometry)), requestValidation);
+                return true;
+            } catch (IllegalArgumentException failure) {
+                markInvalid(failure.getMessage(), radii);
+                return false;
+            }
+        }
+
+        private void updateEnabledState() {
+            boolean enabled = !binding.optional() || !useDefault.isSelected();
+            basis.setEnabled(enabled);
+            radii.setEnabled(enabled);
+        }
+
+        @Override
+        boolean prepareCommit() {
+            preparingCommit = true;
+            try {
+                if (radii.isEditing()) {
+                    int row = radii.getEditingRow();
+                    int column = radii.getEditingColumn();
+                    Object editedValue = switch (radii.getEditorComponent()) {
+                        case JTextField text -> text.getText();
+                        case JComboBox<?> combo -> combo.getSelectedItem();
+                        default -> radii.getCellEditor().getCellEditorValue();
+                    };
+                    if (!radii.getCellEditor().stopCellEditing()) {
+                        markInvalid(
+                                "Finish or correct the active radius cell before applying.",
+                                radii);
+                        return false;
+                    }
+                    model.setValueAt(editedValue, row, column);
+                }
+                return refresh(false);
+            } finally {
+                preparingCommit = false;
+            }
+        }
+
+        private static PropertyValue.BorderRadiusValue zero() {
+            PropertyValue.BoxDecorationValue.Radius zero =
+                    radius(BigDecimal.ZERO, BigDecimal.ZERO);
+            return new PropertyValue.BorderRadiusValue(
+                    new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                            zero, zero, zero, zero));
+        }
+
+        private static List<String> physicalNames() {
+            return List.of("Top left", "Top right", "Bottom right", "Bottom left");
+        }
+
+        private static List<String> directionalNames() {
+            return List.of("Top start", "Top end", "Bottom end", "Bottom start");
+        }
     }
 
     private abstract static class DraftPanel
@@ -1822,6 +2009,7 @@ final class FlutterContainerPropertyEditorComponents {
         String accessibleName = switch (name) {
             case DECORATION_BORDER_TABLE_NAME -> "BoxDecoration border sides";
             case DECORATION_RADIUS_TABLE_NAME -> "BoxDecoration corner radii";
+            case BORDER_RADIUS_TABLE_NAME -> "BorderRadius corner radii";
             case DECORATION_SHADOW_TABLE_NAME -> "Ordered BoxDecoration shadows";
             case DECORATION_GRADIENT_TABLE_NAME -> "Ordered gradient color stops";
             default -> "Structured Container values";

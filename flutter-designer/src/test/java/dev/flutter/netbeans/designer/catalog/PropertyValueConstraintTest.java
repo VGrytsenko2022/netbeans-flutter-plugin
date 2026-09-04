@@ -207,6 +207,9 @@ class PropertyValueConstraintTest {
                         PropertyValueKind.IMAGE_PROVIDER));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(
+                        PropertyValueKind.BORDER_RADIUS));
+        assertThrows(IllegalArgumentException.class,
+                () -> new PropertyValueConstraint.AnyValue(
                         PropertyValueKind.BOX_DECORATION));
         assertThrows(IllegalArgumentException.class,
                 () -> new PropertyValueConstraint.AnyValue(PropertyValueKind.CALLBACK));
@@ -267,6 +270,50 @@ class PropertyValueConstraintTest {
                 java.util.Collections.nCopies(16, BigDecimal.ZERO))));
         assertFalse(matrices.accepts(new PropertyValue.Matrix4Value(
                 java.util.Collections.nCopies(16, huge))));
+
+        PropertyValueConstraint.BorderRadiusValues borderRadii =
+                new PropertyValueConstraint.BorderRadiusValues();
+        PropertyValue.BoxDecorationValue.Radius finiteRadius =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        new BigDecimal("12.5"), new BigDecimal("8.25"));
+        assertTrue(borderRadii.accepts(new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        finiteRadius, finiteRadius, finiteRadius, finiteRadius))));
+        assertTrue(borderRadii.accepts(new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                        finiteRadius, finiteRadius, finiteRadius, finiteRadius))));
+        PropertyValue.BoxDecorationValue.Radius hugeRadius =
+                new PropertyValue.BoxDecorationValue.Radius(huge, BigDecimal.ONE);
+        assertFalse(borderRadii.accepts(new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        hugeRadius, finiteRadius, finiteRadius, finiteRadius))));
+        assertFalse(borderRadii.accepts(new PropertyValue.StringValue(
+                "BorderRadius.zero")));
+        assertEquals(
+                "physical or directional finite non-negative BorderRadiusGeometry",
+                borderRadii.description());
+
+        PropertyValueConstraint.DartObjectReferenceValues objectReferences =
+                new PropertyValueConstraint.DartObjectReferenceValues(
+                        "CustomClipper<RRect>");
+        assertEquals(PropertyValueKind.DART_OBJECT_REFERENCE,
+                objectReferences.kind());
+        assertEquals("CustomClipper<RRect>", objectReferences.expectedDartType());
+        assertTrue(objectReferences.accepts(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/rrect_clipper.dart"),
+                        "SampleClipper", Optional.of("instance"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())));
+        assertFalse(objectReferences.accepts(
+                new PropertyValue.DartExpressionValue("SampleClipper.instance")));
+        assertEquals(
+                "project Dart reference or zero-argument invocation assignable to "
+                + "CustomClipper<RRect>",
+                objectReferences.description());
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValueConstraint.DartObjectReferenceValues(
+                        "CustomClipper<RRect, Path>"));
 
         PropertyValueConstraint.BoxDecorationValues decorations =
                 new PropertyValueConstraint.BoxDecorationValues(

@@ -24,6 +24,7 @@ public sealed interface PropertyValue permits
         PropertyValue.AssetValue,
         PropertyValue.CallbackValue,
         PropertyValue.DartExpressionValue,
+        PropertyValue.DartObjectReferenceValue,
         PropertyValue.IconDataValue,
         PropertyValue.ThemeTokenValue,
         PropertyValue.PaintValue,
@@ -36,6 +37,7 @@ public sealed interface PropertyValue permits
         PropertyValue.BoxConstraintsValue,
         PropertyValue.Matrix4Value,
         PropertyValue.ImageProviderValue,
+        PropertyValue.BorderRadiusValue,
         PropertyValue.BoxDecorationValue,
         PropertyValue.NullValue {
 
@@ -675,6 +677,73 @@ public sealed interface PropertyValue permits
         }
     }
 
+    /**
+     * Closed reference to a project-declared Dart object or zero-argument
+     * invocation. An empty library URI resolves in the paired Dart library;
+     * a present URI is a canonical {@code package:} library import.
+     */
+    record DartObjectReferenceValue(
+            Optional<String> libraryUri,
+            String rootSymbol,
+            Optional<String> member,
+            Access access,
+            Optional<Boolean> constant) implements PropertyValue {
+
+        public DartObjectReferenceValue {
+            Objects.requireNonNull(libraryUri, "libraryUri");
+            Objects.requireNonNull(member, "member");
+            Objects.requireNonNull(access, "access");
+            Objects.requireNonNull(constant, "constant");
+            libraryUri = libraryUri.map(value ->
+                    ModelConstraints.projectPackageLibraryUri(
+                            value, "Dart object library URI"));
+            boolean imported = libraryUri.isPresent();
+            rootSymbol = ModelConstraints.dartIdentifier(
+                    rootSymbol, "Dart object root symbol", imported);
+            member = member.map(value -> ModelConstraints.dartIdentifier(
+                    value, "Dart object member", imported));
+            if (access == Access.REFERENCE && constant.isPresent()) {
+                throw new IllegalArgumentException(
+                        "A Dart object reference must not declare invocation constness");
+            }
+            if (access == Access.ZERO_ARGUMENT_INVOCATION && constant.isEmpty()) {
+                throw new IllegalArgumentException(
+                        "A zero-argument Dart invocation must declare constness");
+            }
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.DART_OBJECT_REFERENCE;
+        }
+
+        public enum Access {
+            REFERENCE("reference"),
+            ZERO_ARGUMENT_INVOCATION("zeroArgumentInvocation");
+
+            private final String wireName;
+
+            Access(String wireName) {
+                this.wireName = wireName;
+            }
+
+            public String wireName() {
+                return wireName;
+            }
+
+            public static Access fromWireName(String value) {
+                Objects.requireNonNull(value, "value");
+                for (Access candidate : values()) {
+                    if (candidate.wireName.equals(value)) {
+                        return candidate;
+                    }
+                }
+                throw new IllegalArgumentException(
+                        "Unknown Dart object access: " + value);
+            }
+        }
+    }
+
     /** A typed Flutter {@code Size} with normalized decimal dimensions. */
     record SizeValue(BigDecimal width, BigDecimal height)
             implements PropertyValue {
@@ -1196,6 +1265,19 @@ public sealed interface PropertyValue permits
                         values(), wireName, ImageRepeat::wireName,
                         "image repeat");
             }
+        }
+    }
+
+    /** Standalone Flutter {@code BorderRadiusGeometry}. */
+    record BorderRadiusValue(
+            BoxDecorationValue.BorderRadiusGeometry geometry) implements PropertyValue {
+        public BorderRadiusValue {
+            Objects.requireNonNull(geometry, "geometry");
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BORDER_RADIUS;
         }
     }
 

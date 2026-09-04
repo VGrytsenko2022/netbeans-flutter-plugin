@@ -811,7 +811,7 @@ class PairSaveCoordinatorIntegrationTest {
     }
 
     @Test
-    void firstSaveAfterV1MigrationReanchorsCanonicalV10PropertyHistory()
+    void firstSaveAfterV1MigrationReanchorsCanonicalV12PropertyHistory()
             throws Exception {
         SetProperty foreground = new SetProperty(
                 ROOT_ID,
@@ -819,7 +819,7 @@ class PairSaveCoordinatorIntegrationTest {
                 new PropertyValue.ThemeTokenValue(new ThemeToken(
                         "material.colorScheme.primaryFixed")));
         StagedPair c1 = stageLegacyV1RealPair(
-                "saved_history_v1_to_v10_property_migration",
+                "saved_history_v1_to_v12_property_migration",
                 foreground);
         try (DesignerCommandSessionOrchestrator orchestrator =
                 c1.orchestrator()) {
@@ -828,7 +828,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .contains("\"schemaVersion\": 1"));
             assertTrue(new String(
                     c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 10"));
+                    .contains("\"schemaVersion\": 12"));
 
             SetProperty background = new SetProperty(
                     ROOT_ID,
@@ -844,7 +844,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .encode(c1.current().decoded().document()).copyBytes();
             assertTrue(new String(
                     canonicalC0Fd, StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 10"));
+                    .contains("\"schemaVersion\": 12"));
             assertFalse(Arrays.equals(
                     c1.prepared().baselineFdBytes(), canonicalC0Fd));
 
@@ -6533,11 +6533,11 @@ class PairSaveCoordinatorIntegrationTest {
             String canonical = new String(
                     baselineFd, StandardCharsets.UTF_8);
             String legacy = canonical.replace(
-                    "\"schemaVersion\": 10",
+                    "\"schemaVersion\": 12",
                     "\"schemaVersion\": 1");
             if (legacy.equals(canonical)) {
                 throw new AssertionError(
-                        "The canonical fixture did not declare schema v10");
+                        "The canonical fixture did not declare schema v12");
             }
             baselineFd = legacy.getBytes(StandardCharsets.UTF_8);
         }
@@ -7403,7 +7403,10 @@ class PairSaveCoordinatorIntegrationTest {
                 List.of(new DartNavigationTarget(
                         "CLASS", target, 0, 1, 1, 1)),
                 true,
-                Optional.empty());
+                Optional.empty(),
+                probe.staticTypeProbe().map(staticType ->
+                        new dev.flutter.netbeans.dart.DartStaticTypeEvidence(
+                                staticType, true, Optional.empty())));
     }
 
     private static DartCandidateAnalysisResult passingAnalysis(

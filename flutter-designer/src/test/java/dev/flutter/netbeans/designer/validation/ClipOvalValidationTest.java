@@ -24,12 +24,20 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ClipOvalValidationTest {
+    private static final PropertyName CLIPPER = new PropertyName("clipper");
     private static final PropertyName CLIP_BEHAVIOR =
             new PropertyName("clipBehavior");
 
     @Test
     void acceptsOmissionEveryClosedClipModeAndAnOptionalChild() {
         assertValid(clipOval(Map.of(), WidgetSlot.SingleSlot.empty()));
+        assertValid(clipOval(
+                Map.of(CLIPPER, new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "OvalClipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true))),
+                WidgetSlot.SingleSlot.empty()));
         for (String value : List.of(
                 "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")) {
             assertValid(clipOval(
@@ -57,13 +65,13 @@ class ClipOvalValidationTest {
     }
 
     @Test
-    void rejectsCustomClipperExpressionsAndNonSingleChildren() {
+    void rejectsRawCustomClipperExpressionsAndNonSingleChildren() {
         ValidationIssue clipper = onlyError(clipOval(
-                Map.of(new PropertyName("clipper"),
+                Map.of(CLIPPER,
                         new PropertyValue.DartExpressionValue(
                                 "const UserDefinedOvalClipper()")),
                 WidgetSlot.SingleSlot.empty()));
-        assertEquals(WidgetTreeValidator.UNKNOWN_PROPERTY, clipper.code());
+        assertEquals(WidgetTreeValidator.PROPERTY_KIND, clipper.code());
         assertEquals("/root/properties/clipper", clipper.path());
 
         ValidationResult child = validate(clipOval(

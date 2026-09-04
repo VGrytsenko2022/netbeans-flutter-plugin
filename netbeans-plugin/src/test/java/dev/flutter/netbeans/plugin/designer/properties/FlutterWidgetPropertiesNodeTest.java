@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -867,6 +868,7 @@ class FlutterWidgetPropertiesNodeTest {
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
                 ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
+                ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -902,7 +904,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(737, writableCount,
+        assertEquals(742, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -913,8 +915,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
-                + "ExcludeSemantics, IndexedStack, ClipRect, and ClipOval leaves");
-        assertEquals(720, nonScaffoldWritableCount,
+                + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, and ClipRRect leaves");
+        assertEquals(725, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2618,10 +2620,11 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void clipRectProjectsOptionalClipBehaviorAndOptionalChild() throws Exception {
+    void clipRectProjectsTypedClipperClipBehaviorAndOptionalChild() throws Exception {
         WidgetDefinition definition = definition(
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value());
         StableId id = StableId.parse("bd4d317c-b6c1-43fb-83f5-1e35d5480c2f");
+        PropertyName clipperName = new PropertyName("clipper");
         PropertyName clipBehaviorName = new PropertyName("clipBehavior");
         WidgetNode widget = new WidgetNode(
                 id,
@@ -2637,16 +2640,46 @@ class FlutterWidgetPropertiesNodeTest {
         Node.PropertySet[] sets = node.getPropertySets();
         assertEquals(2 + ClipRectWidgetPropertySchema.Group.values().length,
                 sets.length);
+        Node.PropertySet delegate = propertySet(
+                node, ClipRectWidgetPropertySchema.Group.DELEGATE.setName());
         Node.PropertySet clipping = propertySet(
                 node, ClipRectWidgetPropertySchema.Group.CLIPPING.setName());
         assertAll(
+                () -> assertEquals("Delegate", delegate.getDisplayName()),
+                () -> assertEquals("Project-declared rectangular clip delegate.",
+                        delegate.getShortDescription()),
+                () -> assertEquals(List.of("clipper"),
+                        names(delegate.getProperties())),
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals("Rectangular paint clipping behavior.",
                         clipping.getShortDescription()),
                 () -> assertEquals("General", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals("General", delegate.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> clipper = cellProperty(
+                property(node, "clipper"));
+        PropertyEditor clipperEditor = clipper.getPropertyEditor();
+        clipperEditor.setValue(clipper.getValue());
+        assertAll(
+                () -> assertEquals("Clipper", clipper.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), clipper.getValue()),
+                () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        clipperEditor.getAsText()),
+                () -> assertTrue(clipperEditor.supportsCustomEditor()),
+                () -> assertTrue(clipper.supportsDefaultValue()),
+                () -> assertTrue(clipper.isDefaultValue()),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "Dart analyzer")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "CustomClipper<Rect>")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "preview-unavailable")));
 
         Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
                 property(node, "clipBehavior"));
@@ -2665,9 +2698,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(clipBehavior.getShortDescription().contains(
                         "outside the child-bounds rectangle")),
                 () -> assertTrue(clipBehavior.getShortDescription().contains(
-                        "hard-edge default")),
-                () -> assertTrue(clipBehavior.getShortDescription().contains(
-                        "CustomClipper")));
+                        "hard-edge default")));
 
         clipBehavior.setValue(FlutterPropertyCellValue.explicit(
                 new PropertyValue.EnumValue("Clip", "none")));
@@ -2677,6 +2708,20 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.EnumValue("Clip", "none")),
                 new ResetProperty(id, clipBehaviorName)), commands);
 
+        PropertyValue.DartObjectReferenceValue projectClipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        java.util.Optional.empty(),
+                        "_rectClipper",
+                        java.util.Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        java.util.Optional.empty());
+        clipper.setValue(FlutterPropertyCellValue.explicit(projectClipper));
+        assertEquals(List.of(
+                new SetProperty(id, clipBehaviorName,
+                        new PropertyValue.EnumValue("Clip", "none")),
+                new ResetProperty(id, clipBehaviorName),
+                new SetProperty(id, clipperName, projectClipper)), commands);
+
         Node.Property<?> child = property(node, "child");
         assertAll(
                 () -> assertEquals("Child", child.getDisplayName()),
@@ -2684,16 +2729,21 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(child.getShortDescription().contains(
                         "rectangular bounds")),
                 () -> assertTrue(child.getShortDescription().contains(
-                        "null CustomClipper")),
+                        "CustomClipper<Rect>")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "preview-unavailable")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
 
     @Test
-    void clipOvalProjectsOptionalClipBehaviorAndOptionalChild() throws Exception {
+    void clipOvalProjectsTypedClipperClipBehaviorAndOptionalChild() throws Exception {
         WidgetDefinition definition = definition(
                 ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value());
         StableId id = StableId.parse("74e2f52f-3dd9-46fe-a0ae-7f0ebf85bb95");
+        PropertyName clipperName = new PropertyName("clipper");
         PropertyName clipBehaviorName = new PropertyName("clipBehavior");
         WidgetNode widget = new WidgetNode(
                 id,
@@ -2709,16 +2759,46 @@ class FlutterWidgetPropertiesNodeTest {
         Node.PropertySet[] sets = node.getPropertySets();
         assertEquals(2 + ClipOvalWidgetPropertySchema.Group.values().length,
                 sets.length);
+        Node.PropertySet delegate = propertySet(
+                node, ClipOvalWidgetPropertySchema.Group.DELEGATE.setName());
         Node.PropertySet clipping = propertySet(
                 node, ClipOvalWidgetPropertySchema.Group.CLIPPING.setName());
         assertAll(
+                () -> assertEquals("Delegate", delegate.getDisplayName()),
+                () -> assertEquals("Project-declared oval clip delegate.",
+                        delegate.getShortDescription()),
+                () -> assertEquals(List.of("clipper"),
+                        names(delegate.getProperties())),
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals("Oval paint clipping behavior.",
                         clipping.getShortDescription()),
                 () -> assertEquals("General", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals("General", delegate.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> clipper = cellProperty(
+                property(node, "clipper"));
+        PropertyEditor clipperEditor = clipper.getPropertyEditor();
+        clipperEditor.setValue(clipper.getValue());
+        assertAll(
+                () -> assertEquals("Clipper", clipper.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), clipper.getValue()),
+                () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        clipperEditor.getAsText()),
+                () -> assertTrue(clipperEditor.supportsCustomEditor()),
+                () -> assertTrue(clipper.supportsDefaultValue()),
+                () -> assertTrue(clipper.isDefaultValue()),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "Dart analyzer")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "CustomClipper<Rect>")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "preview-unavailable")));
 
         Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
                 property(node, "clipBehavior"));
@@ -2737,9 +2817,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(clipBehavior.getShortDescription().contains(
                         "outside the child-bounds oval")),
                 () -> assertTrue(clipBehavior.getShortDescription().contains(
-                        "anti-alias default")),
-                () -> assertTrue(clipBehavior.getShortDescription().contains(
-                        "CustomClipper")));
+                        "anti-alias default")));
 
         clipBehavior.setValue(FlutterPropertyCellValue.explicit(
                 new PropertyValue.EnumValue("Clip", "none")));
@@ -2749,6 +2827,20 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.EnumValue("Clip", "none")),
                 new ResetProperty(id, clipBehaviorName)), commands);
 
+        PropertyValue.DartObjectReferenceValue projectClipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        java.util.Optional.empty(),
+                        "_ovalClipper",
+                        java.util.Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        java.util.Optional.empty());
+        clipper.setValue(FlutterPropertyCellValue.explicit(projectClipper));
+        assertEquals(List.of(
+                new SetProperty(id, clipBehaviorName,
+                        new PropertyValue.EnumValue("Clip", "none")),
+                new ResetProperty(id, clipBehaviorName),
+                new SetProperty(id, clipperName, projectClipper)), commands);
+
         Node.Property<?> child = property(node, "child");
         assertAll(
                 () -> assertEquals("Child", child.getDisplayName()),
@@ -2756,7 +2848,165 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertTrue(child.getShortDescription().contains(
                         "oval inscribed")),
                 () -> assertTrue(child.getShortDescription().contains(
-                        "null CustomClipper")),
+                        "CustomClipper<Rect>")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "preview-unavailable")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
+    void clipRRectProjectsTypedRadiusClipperClipBehaviorAndOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value());
+        StableId id = StableId.parse("f93b867a-a162-47c4-841f-bd22936629aa");
+        PropertyName borderRadiusName = new PropertyName("borderRadius");
+        PropertyName clipperName = new PropertyName("clipper");
+        PropertyName clipBehaviorName = new PropertyName("clipBehavior");
+        PropertyValue.BoxDecorationValue.Radius twelve =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        BigDecimal.valueOf(12), BigDecimal.valueOf(12));
+        PropertyValue.BorderRadiusValue initialRadius =
+                new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                                twelve, twelve, twelve, twelve));
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(
+                        borderRadiusName, initialRadius,
+                        clipBehaviorName,
+                        new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        assertEquals(2 + ClipRRectWidgetPropertySchema.Group.values().length,
+                node.getPropertySets().length);
+        Node.PropertySet geometry = propertySet(
+                node, ClipRRectWidgetPropertySchema.Group.GEOMETRY.setName());
+        Node.PropertySet delegate = propertySet(
+                node, ClipRRectWidgetPropertySchema.Group.DELEGATE.setName());
+        Node.PropertySet clipping = propertySet(
+                node, ClipRRectWidgetPropertySchema.Group.CLIPPING.setName());
+        assertAll(
+                () -> assertEquals("Geometry", geometry.getDisplayName()),
+                () -> assertEquals("Rounded-rectangle clipping geometry.",
+                        geometry.getShortDescription()),
+                () -> assertEquals(List.of("borderRadius"),
+                        names(geometry.getProperties())),
+                () -> assertEquals("Delegate", delegate.getDisplayName()),
+                () -> assertEquals("Project-declared rounded-rectangle clip delegate.",
+                        delegate.getShortDescription()),
+                () -> assertEquals(List.of("clipper"),
+                        names(delegate.getProperties())),
+                () -> assertEquals("Clipping", clipping.getDisplayName()),
+                () -> assertEquals(List.of("clipBehavior"),
+                        names(clipping.getProperties())),
+                () -> assertEquals("General", geometry.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals("General", delegate.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals("General", clipping.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)));
+
+        Node.Property<FlutterPropertyCellValue> borderRadius = cellProperty(
+                property(node, "borderRadius"));
+        PropertyEditor radiusEditor = borderRadius.getPropertyEditor();
+        radiusEditor.setValue(borderRadius.getValue());
+        assertAll(
+                () -> assertEquals("Border radius", borderRadius.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.explicit(initialRadius),
+                        borderRadius.getValue()),
+                () -> assertEquals("physical circular 12", radiusEditor.getAsText()),
+                () -> assertTrue(radiusEditor.supportsCustomEditor()),
+                () -> assertTrue(borderRadius.supportsDefaultValue()),
+                () -> assertFalse(borderRadius.isDefaultValue()),
+                () -> assertTrue(borderRadius.getShortDescription().contains(
+                        "directional")),
+                () -> assertTrue(borderRadius.getShortDescription().contains(
+                        "BorderRadius.zero")),
+                () -> assertTrue(borderRadius.getShortDescription().contains(
+                        "ignores borderRadius")));
+
+        PropertyValue.BoxDecorationValue.Radius one =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        BigDecimal.ONE, BigDecimal.ONE);
+        PropertyValue.BorderRadiusValue directional =
+                new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                one, one, one, one));
+        borderRadius.setValue(FlutterPropertyCellValue.explicit(directional));
+        borderRadius.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, borderRadiusName, directional),
+                new ResetProperty(id, borderRadiusName)), commands);
+
+        Node.Property<FlutterPropertyCellValue> clipper = cellProperty(
+                property(node, "clipper"));
+        PropertyEditor clipperEditor = clipper.getPropertyEditor();
+        clipperEditor.setValue(clipper.getValue());
+        assertAll(
+                () -> assertEquals("Clipper", clipper.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(),
+                        clipper.getValue()),
+                () -> assertEquals(FlutterWidgetPropertiesNode.NOT_SET,
+                        clipperEditor.getAsText()),
+                () -> assertTrue(clipperEditor.supportsCustomEditor()),
+                () -> assertTrue(clipper.supportsDefaultValue()),
+                () -> assertTrue(clipper.isDefaultValue()),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "Dart analyzer")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "CustomClipper<RRect>")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "ignores borderRadius")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(clipper.getShortDescription().contains(
+                        "preview-unavailable")));
+        PropertyValue.DartObjectReferenceValue projectClipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        java.util.Optional.empty(),
+                        "_projectClipper",
+                        java.util.Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        java.util.Optional.empty());
+        clipper.setValue(FlutterPropertyCellValue.explicit(projectClipper));
+        assertEquals(List.of(
+                new SetProperty(id, borderRadiusName, directional),
+                new ResetProperty(id, borderRadiusName),
+                new SetProperty(id, clipperName, projectClipper)), commands);
+
+        Node.Property<FlutterPropertyCellValue> clipBehavior = cellProperty(
+                property(node, "clipBehavior"));
+        assertAll(
+                () -> assertEquals(List.of(
+                        FlutterWidgetPropertiesNode.NOT_SET,
+                        "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                        List.of(clipBehavior.getPropertyEditor().getTags())),
+                () -> assertTrue(clipBehavior.getShortDescription().contains(
+                        "anti-alias default")));
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "rounded rectangular bounds")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "CustomClipper")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "ignores borderRadius")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "isolated Canvas")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "preview-unavailable")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
     }
@@ -4856,6 +5106,7 @@ class FlutterWidgetPropertiesNodeTest {
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
                 ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
+                ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
@@ -4885,7 +5136,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(48, iconPaths.size(),
+        assertEquals(49, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

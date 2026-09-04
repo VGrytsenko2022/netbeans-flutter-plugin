@@ -57,6 +57,7 @@ public record DartCandidateAnalysisRequest(
                 "candidateCapacityBudget");
         symbolProbes = List.copyOf(Objects.requireNonNull(symbolProbes, "symbolProbes"));
         HashSet<String> ids = new HashSet<>();
+        DartStaticTypeProbe sharedStaticTypeContext = null;
         for (DartSymbolProbe probe : symbolProbes) {
             Objects.requireNonNull(probe, "symbolProbes contains null");
             if (!ids.add(probe.id())) {
@@ -71,6 +72,40 @@ public record DartCandidateAnalysisRequest(
                 throw new IllegalArgumentException(
                         "symbol probe text does not match candidate: " + probe.id());
             }
+            if (probe.staticTypeProbe().isPresent()) {
+                DartStaticTypeProbe staticType = probe.staticTypeProbe().orElseThrow();
+                if (staticType.expressionEndOffset() > content.length()) {
+                    throw new IllegalArgumentException(
+                            "static-type expression is outside candidate: " + probe.id());
+                }
+                String expression = content.substring(
+                        staticType.expressionOffset(),
+                        staticType.expressionEndOffset());
+                if (expression.indexOf('\r') >= 0 || expression.indexOf('\n') >= 0) {
+                    throw new IllegalArgumentException(
+                            "static-type expression must be a single line: " + probe.id());
+                }
+                if (staticType.importInsertionOffset() > content.length()
+                        || staticType.statementInsertionOffset() > content.length()) {
+                    throw new IllegalArgumentException(
+                            "static-type insertion point is outside candidate: " + probe.id());
+                }
+                if (sharedStaticTypeContext == null) {
+                    sharedStaticTypeContext = staticType;
+                } else if (sharedStaticTypeContext.importInsertionOffset()
+                        != staticType.importInsertionOffset()
+                        || sharedStaticTypeContext.statementInsertionOffset()
+                        != staticType.statementInsertionOffset()
+                        || !sharedStaticTypeContext.expectedTypeLibraryUri().equals(
+                                staticType.expectedTypeLibraryUri())) {
+                    throw new IllegalArgumentException(
+                            "static-type probes must share one proof scope and type library");
+                }
+            }
+        }
+        if (sharedStaticTypeContext != null && version == Long.MAX_VALUE) {
+            throw new IllegalArgumentException(
+                    "typed candidate version must leave room for one proof overlay");
         }
     }
 

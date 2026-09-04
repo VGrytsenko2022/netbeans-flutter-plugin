@@ -70,6 +70,7 @@ public final class BuiltInWidgetCatalog {
             decoratedBox(),
             clipRect(),
             clipOval(),
+            clipRRect(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1259,12 +1260,19 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition clipRect() {
-        List<PropertyDefinition> properties = List.of(namedProperty(
-                "clipBehavior",
-                0,
-                false,
-                enumValues("Clip", "none", "hardEdge", "antiAlias",
-                        "antiAliasWithSaveLayer")));
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "clipper",
+                        0,
+                        false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "CustomClipper<Rect>"))),
+                namedProperty(
+                        "clipBehavior",
+                        1,
+                        false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
         if (properties.size() != ClipRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "ClipRect catalog/property schema count mismatch");
@@ -1278,16 +1286,23 @@ public final class BuiltInWidgetCatalog {
                 Set.of(),
                 palette("flutter.basic", 300, 80, "ClipRect"),
                 properties,
-                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition clipOval() {
-        List<PropertyDefinition> properties = List.of(namedProperty(
-                "clipBehavior",
-                0,
-                false,
-                enumValues("Clip", "none", "hardEdge", "antiAlias",
-                        "antiAliasWithSaveLayer")));
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "clipper",
+                        0,
+                        false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "CustomClipper<Rect>"))),
+                namedProperty(
+                        "clipBehavior",
+                        1,
+                        false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
         if (properties.size() != ClipOvalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "ClipOval catalog/property schema count mismatch");
@@ -1301,7 +1316,43 @@ public final class BuiltInWidgetCatalog {
                 Set.of(),
                 palette("flutter.basic", 300, 90, "ClipOval"),
                 properties,
-                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition clipRRect() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "borderRadius",
+                        0,
+                        false,
+                        List.of(new PropertyValueConstraint.BorderRadiusValues())),
+                namedProperty(
+                        "clipper",
+                        1,
+                        false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "CustomClipper<RRect>"))),
+                namedProperty(
+                        "clipBehavior",
+                        2,
+                        false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
+        if (properties.size()
+                != ClipRRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ClipRRect catalog/property schema count mismatch");
+        }
+        return widget(
+                ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
+                "ClipRRect",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 100, "ClipRRect"),
+                properties,
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

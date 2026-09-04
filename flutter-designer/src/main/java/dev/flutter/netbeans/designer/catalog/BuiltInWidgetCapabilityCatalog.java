@@ -53,6 +53,8 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.BOX_CONSTRAINTS,
                     PropertyValueKind.MATRIX4,
                     PropertyValueKind.IMAGE_PROVIDER,
+                    PropertyValueKind.BORDER_RADIUS,
+                    PropertyValueKind.DART_OBJECT_REFERENCE,
                     PropertyValueKind.BOX_DECORATION,
                     PropertyValueKind.NULL,
                     PropertyValueKind.CALLBACK));
@@ -70,6 +72,10 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final String IMAGE_PROVIDER_CONTRACT_FINGERPRINT =
             "imageProvider:v1:asset,exactAsset:package:exactScale:"
             + "resize(1..16384,exact,fit,allowUpscaling)";
+    private static final String BORDER_RADIUS_CONTRACT_FINGERPRINT =
+            "borderRadius:v1:physical,directional:finiteNonNegative";
+    private static final String DART_OBJECT_REFERENCE_CONTRACT_PREFIX =
+            "dartObjectReference:v1:";
     private static final List<String> REVIEWED_COLOR_THEME_TOKENS = List.of(
             "material.colorScheme.primary",
             "material.colorScheme.onPrimary",
@@ -192,6 +198,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.DecoratedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRect", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipOval", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ClipRRect", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -584,11 +591,37 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "foreground")),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ClipRect", projection(Map.ofEntries(
+                    Map.entry("clipper", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "CustomClipper<Rect>:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
                     enumProperty(
                             "clipBehavior", "Clip", "none", "hardEdge",
                             "antiAlias", "antiAliasWithSaveLayer")),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ClipOval", projection(Map.ofEntries(
+                    Map.entry("clipper", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "CustomClipper<Rect>:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ClipRRect", projection(Map.ofEntries(
+                    Map.entry("borderRadius", constrainedSchema(
+                            PropertyValueKind.BORDER_RADIUS,
+                            BORDER_RADIUS_CONTRACT_FINGERPRINT)),
+                    Map.entry("clipper", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "CustomClipper<RRect>:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
                     enumProperty(
                             "clipBehavior", "Clip", "none", "hardEdge",
                             "antiAlias", "antiAliasWithSaveLayer")),
@@ -2145,6 +2178,15 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         if (constraint instanceof PropertyValueConstraint.ImageProviderValues) {
             return IMAGE_PROVIDER_CONTRACT_FINGERPRINT;
+        }
+        if (constraint instanceof PropertyValueConstraint.BorderRadiusValues) {
+            return BORDER_RADIUS_CONTRACT_FINGERPRINT;
+        }
+        if (constraint instanceof PropertyValueConstraint.DartObjectReferenceValues values) {
+            return DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                    + values.expectedDartType()
+                    + ":currentOrPackage:root,optionalMember:reference,"
+                    + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)";
         }
         if (constraint instanceof PropertyValueConstraint.BoxDecorationValues values) {
             return boxDecorationFingerprint(values.colorThemeTokenIds());

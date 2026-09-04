@@ -374,6 +374,40 @@ void main() {
         reason: '$flexType requires a direct Row or Column children slot',
       );
     }
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.ClipRRect'), const [
+      canvasEmptyChildDropSlot,
+    ]);
+    expect(
+      canvasDropTargetAcceptsSource(
+        parentWidgetType: 'flutter.widgets.ClipRRect',
+        slotName: 'child',
+        currentChildCount: 0,
+        insertionIndex: 0,
+        source: textSource,
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: 'flutter.widgets.ClipRRect',
+          slotName: 'child',
+          currentChildCount: 0,
+          insertionIndex: 0,
+          source: CanvasPaletteDragSource(
+            token: '$flexType-clip-rrect-source',
+            widgetType: flexType,
+            traits: const {},
+          ),
+        ),
+        isFalse,
+        reason: '$flexType requires a direct Row or Column children slot',
+      );
+    }
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Stack'), const [
       canvasStackChildrenAppendDropSlot,
     ]);
@@ -689,7 +723,7 @@ void main() {
     );
   });
 
-  test('closes the 48-source by 45-destination compatibility matrix', () {
+  test('closes the 49-source by 46-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -713,6 +747,7 @@ void main() {
       'flutter.widgets.Center',
       'flutter.widgets.ClipRect',
       'flutter.widgets.ClipOval',
+      'flutter.widgets.ClipRRect',
       'flutter.widgets.ConstrainedBox',
       'flutter.widgets.UnconstrainedBox',
       'flutter.widgets.LimitedBox',
@@ -748,8 +783,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(48));
-    expect(destinations, hasLength(45));
+    expect(sourceTypes, hasLength(49));
+    expect(destinations, hasLength(46));
 
     var accepted = 0;
     var rejected = 0;
@@ -775,9 +810,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1943);
-    expect(rejected, 217);
-    expect(accepted + rejected, 2160);
+    expect(accepted, 2032);
+    expect(rejected, 222);
+    expect(accepted + rejected, 2254);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -3193,6 +3228,814 @@ void main() {
         ((point.dy - surface.top) / surface.height * 1000000).round(),
       );
       expect(drop?.parentWidgetId, clipOvalId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'renders real ClipRRect defaults, radii, clips, hit tests, semantics, and external overlays',
+    (tester) async {
+      const clipRRectId = '5582922d-9044-4e78-bba8-bb740884a49d';
+      const childId = '68d29542-ab18-41fb-a509-8db0451aed8e';
+      final semantics = tester.ensureSemantics();
+
+      Finder clipRRectFinder() => find
+          .descendant(
+            of: find.byKey(const ValueKey('canvas-widget-$clipRRectId')),
+            matching: find.byType(ClipRRect),
+          )
+          .first;
+
+      Future<({ClipRRect widget, RenderClipRRect render})> pump({
+        required Map<String, Object?> properties,
+        String textDirection = 'ltr',
+        String targetPlatform = 'windows',
+      }) async {
+        final json = _modelWithCenteredClipRRect(
+          properties: properties,
+          child: _viewSizedBoxNode(childId, width: 80, height: 60),
+          textDirection: textDirection,
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            targetPlatform;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: clipRRectId,
+            onSelected: (_) {},
+            dropHoverTarget: const CanvasDropTarget(
+              parentWidgetId: clipRRectId,
+              slotName: 'child',
+              insertionIndex: 0,
+              zone: CanvasDropZone(
+                leftMicros: 400000,
+                topMicros: 400000,
+                rightMicros: 600000,
+                bottomMicros: 600000,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+        final finder = clipRRectFinder();
+        return (
+          widget: tester.widget<ClipRRect>(finder),
+          render: tester.renderObject<RenderClipRRect>(finder),
+        );
+      }
+
+      final omitted = await pump(properties: const {});
+      expect(omitted.widget.borderRadius, BorderRadius.zero);
+      expect(omitted.widget.clipper, isNull);
+      expect(omitted.widget.clipBehavior, Clip.antiAlias);
+      expect(omitted.render.borderRadius, BorderRadius.zero);
+      expect(omitted.render.clipper, isNull);
+      expect(omitted.render.clipBehavior, Clip.antiAlias);
+      expect(omitted.render.textDirection, TextDirection.ltr);
+      expect(omitted.render.size, const Size(80, 60));
+      expect(
+        omitted.render.describeApproximatePaintClip(omitted.render.child!),
+        Offset.zero & omitted.render.size,
+      );
+      expect(
+        omitted.render,
+        paints..clipRRect(
+          rrect: BorderRadius.zero.toRRect(Offset.zero & omitted.render.size),
+        ),
+      );
+      expect(
+        omitted.render.hitTest(
+          BoxHitTestResult(),
+          position: omitted.render.size.center(Offset.zero),
+        ),
+        isTrue,
+      );
+      expect(
+        omitted.render.hitTest(
+          BoxHitTestResult(),
+          position: Offset(omitted.render.size.width + 1, 30),
+        ),
+        isFalse,
+      );
+      expect(
+        find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+        findsOneWidget,
+      );
+
+      final webOmitted = await pump(
+        properties: const {},
+        targetPlatform: 'web',
+      );
+      expect(webOmitted.widget.borderRadius, BorderRadius.zero);
+      expect(webOmitted.widget.clipBehavior, Clip.antiAlias);
+      expect(webOmitted.render.borderRadius, BorderRadius.zero);
+      expect(webOmitted.render.clipBehavior, Clip.antiAlias);
+
+      const physicalProperties = <String, Object?>{
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'physical',
+            'topLeft': {'x': 20.0, 'y': 18.0},
+            'topRight': {'x': 12.0, 'y': 10.0},
+            'bottomRight': {'x': 8.0, 'y': 6.0},
+            'bottomLeft': {'x': 4.0, 'y': 2.0},
+          },
+        },
+      };
+      const expectedPhysical = BorderRadius.only(
+        topLeft: Radius.elliptical(20, 18),
+        topRight: Radius.elliptical(12, 10),
+        bottomRight: Radius.elliptical(8, 6),
+        bottomLeft: Radius.elliptical(4, 2),
+      );
+      final physical = await pump(properties: physicalProperties);
+      expect(physical.widget.borderRadius, expectedPhysical);
+      expect(physical.render.borderRadius, expectedPhysical);
+      expect(
+        physical.render,
+        paints..clipRRect(
+          rrect: expectedPhysical.toRRect(Offset.zero & physical.render.size),
+        ),
+      );
+      expect(
+        physical.render.hitTest(
+          BoxHitTestResult(),
+          position: const Offset(1, 1),
+        ),
+        isTrue,
+        reason:
+            'Flutter ClipRRect uses box hit testing without a custom clipper',
+      );
+
+      const directionalProperties = <String, Object?>{
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'directional',
+            'topStart': {'x': 20.0, 'y': 18.0},
+            'topEnd': {'x': 12.0, 'y': 10.0},
+            'bottomEnd': {'x': 8.0, 'y': 6.0},
+            'bottomStart': {'x': 4.0, 'y': 2.0},
+          },
+        },
+      };
+      final directionalLtr = await pump(properties: directionalProperties);
+      expect(directionalLtr.widget.borderRadius, expectedPhysical);
+      expect(directionalLtr.render.borderRadius, expectedPhysical);
+      expect(directionalLtr.render.textDirection, TextDirection.ltr);
+      expect(
+        directionalLtr.render,
+        paints..clipRRect(
+          rrect: expectedPhysical.toRRect(
+            Offset.zero & directionalLtr.render.size,
+          ),
+        ),
+      );
+
+      const expectedRtl = BorderRadius.only(
+        topLeft: Radius.elliptical(12, 10),
+        topRight: Radius.elliptical(20, 18),
+        bottomRight: Radius.elliptical(4, 2),
+        bottomLeft: Radius.elliptical(8, 6),
+      );
+      final directionalRtl = await pump(
+        properties: directionalProperties,
+        textDirection: 'rtl',
+      );
+      expect(directionalRtl.widget.borderRadius, expectedRtl);
+      expect(directionalRtl.render.borderRadius, expectedRtl);
+      expect(directionalRtl.render.textDirection, TextDirection.rtl);
+      expect(
+        directionalRtl.render,
+        paints..clipRRect(
+          rrect: expectedRtl.toRRect(Offset.zero & directionalRtl.render.size),
+        ),
+      );
+
+      final selectionOutline = find.byKey(
+        const ValueKey('canvas-selection-outline-$clipRRectId'),
+      );
+      final dropOverlay = find.byKey(
+        const ValueKey('canvas-widget-insert-drop-zone'),
+      );
+      expect(selectionOutline, findsOneWidget);
+      expect(dropOverlay, findsOneWidget);
+      expect(
+        find.ancestor(of: clipRRectFinder(), matching: selectionOutline),
+        findsOneWidget,
+        reason: 'the Designer selection wrapper must remain outside ClipRRect',
+      );
+      expect(
+        find.ancestor(of: selectionOutline, matching: find.byType(ClipRRect)),
+        findsNothing,
+      );
+      expect(
+        find.ancestor(of: dropOverlay, matching: find.byType(ClipRRect)),
+        findsNothing,
+        reason: 'the surface DnD overlay must not be clipped by ClipRRect',
+      );
+
+      const clips = <String, Clip>{
+        'none': Clip.none,
+        'hardEdge': Clip.hardEdge,
+        'antiAlias': Clip.antiAlias,
+        'antiAliasWithSaveLayer': Clip.antiAliasWithSaveLayer,
+      };
+      for (final entry in clips.entries) {
+        final result = await pump(
+          properties: <String, Object?>{
+            ...physicalProperties,
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': entry.key,
+            },
+          },
+        );
+        expect(result.widget.clipper, isNull, reason: entry.key);
+        expect(result.widget.borderRadius, expectedPhysical, reason: entry.key);
+        expect(result.widget.clipBehavior, entry.value, reason: entry.key);
+        expect(result.render.clipper, isNull, reason: entry.key);
+        expect(result.render.borderRadius, expectedPhysical, reason: entry.key);
+        expect(result.render.clipBehavior, entry.value, reason: entry.key);
+        expect(
+          result.render.describeApproximatePaintClip(result.render.child!),
+          entry.value == Clip.none ? isNull : Offset.zero & result.render.size,
+          reason: entry.key,
+        );
+        if (entry.value == Clip.none) {
+          expect(result.render, isNot(paints..clipRRect()), reason: entry.key);
+        } else {
+          expect(
+            result.render,
+            paints..clipRRect(
+              rrect: expectedPhysical.toRRect(Offset.zero & result.render.size),
+            ),
+            reason: entry.key,
+          );
+        }
+        expect(
+          result.render.hitTest(
+            BoxHitTestResult(),
+            position: const Offset(1, 1),
+          ),
+          isTrue,
+          reason: '${entry.key} keeps Flutter default box hit testing',
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+          findsOneWidget,
+          reason: entry.key,
+        );
+      }
+      expect(tester.takeException(), isNull);
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'shows an explicit fail-closed preview for project rectangular clippers',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      const childId = '63d6e621-f581-4404-91c1-f7a74bdb7a0d';
+      const cases = <({String name, String id, Type renderedType})>[
+        (
+          name: 'ClipRect',
+          id: '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+          renderedType: ClipRect,
+        ),
+        (
+          name: 'ClipOval',
+          id: '91684e03-f63a-4cde-b899-7a50c888f9e7',
+          renderedType: ClipOval,
+        ),
+      ];
+
+      for (final entry in cases) {
+        for (final targetPlatform in const ['windows', 'web']) {
+          final properties = <String, Object?>{
+            'clipper': <String, Object?>{'kind': 'dartObjectReferencePresence'},
+            'clipBehavior': <String, Object?>{
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': 'none',
+            },
+          };
+          final child = _viewSizedBoxNode(childId, width: 80, height: 60);
+          final json = entry.name == 'ClipRect'
+              ? _modelWithCenteredClipRect(properties: properties, child: child)
+              : _modelWithCenteredClipOval(
+                  properties: properties,
+                  child: child,
+                );
+          (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+              targetPlatform;
+          final model = CanvasModel.decode(
+            Uint8List.fromList(utf8.encode(jsonEncode(json))),
+          );
+          await tester.pumpWidget(
+            CanvasModelApp(
+              model: model,
+              selectedWidgetId: entry.id,
+              onSelected: (_) {},
+            ),
+          );
+          await tester.pump();
+
+          final widget = find.byKey(ValueKey('canvas-widget-${entry.id}'));
+          final warning = find.byKey(
+            ValueKey('canvas-custom-clipper-preview-${entry.id}'),
+          );
+          final message =
+              'Custom ${entry.name} preview unavailable. Generated Dart uses '
+              'the configured CustomClipper<Rect>; isolated Canvas does not '
+              'execute project or dependency Dart.';
+          expect(tester.getSize(widget), const Size(80, 60));
+          expect(warning, findsOneWidget, reason: '$entry $targetPlatform');
+          expect(
+            find.bySemanticsLabel(message),
+            findsOneWidget,
+            reason: '$entry $targetPlatform',
+          );
+          expect(
+            find.descendant(
+              of: widget,
+              matching: find.byType(entry.renderedType),
+            ),
+            findsNothing,
+            reason:
+                'Canvas must not pretend to execute the project clipper '
+                'for ${entry.name} on $targetPlatform',
+          );
+          expect(
+            find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+            findsOneWidget,
+            reason: '$entry $targetPlatform',
+          );
+          expect(
+            find.byKey(ValueKey('canvas-selection-outline-${entry.id}')),
+            findsOneWidget,
+            reason: '$entry $targetPlatform',
+          );
+          expect(
+            tester.takeException(),
+            isNull,
+            reason: '$entry $targetPlatform',
+          );
+        }
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'shows an explicit fail-closed preview for a project CustomClipper<RRect>',
+    (tester) async {
+      const clipRRectId = '5582922d-9044-4e78-bba8-bb740884a49d';
+      const childId = '68d29542-ab18-41fb-a509-8db0451aed8e';
+      const message =
+          'Custom ClipRRect preview unavailable. Generated Dart uses the '
+          'configured CustomClipper<RRect>; isolated Canvas does not execute '
+          'project or dependency Dart.';
+      final semantics = tester.ensureSemantics();
+      final selections = <String>[];
+
+      for (final targetPlatform in const ['windows', 'web']) {
+        final json = _modelWithCenteredClipRRect(
+          properties: const {
+            'borderRadius': {
+              'kind': 'borderRadius',
+              'geometry': {
+                'kind': 'physical',
+                'topLeft': {'x': 24.0, 'y': 24.0},
+                'topRight': {'x': 24.0, 'y': 24.0},
+                'bottomRight': {'x': 24.0, 'y': 24.0},
+                'bottomLeft': {'x': 24.0, 'y': 24.0},
+              },
+            },
+            'clipper': {'kind': 'dartObjectReferencePresence'},
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': 'hardEdge',
+            },
+          },
+          child: _viewSizedBoxNode(childId, width: 80, height: 60),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            targetPlatform;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(utf8.encode(jsonEncode(json))),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: clipRRectId,
+            onSelected: selections.add,
+            dropHoverTarget: const CanvasDropTarget(
+              parentWidgetId: clipRRectId,
+              slotName: 'child',
+              insertionIndex: 0,
+              zone: CanvasDropZone(
+                leftMicros: 400000,
+                topMicros: 400000,
+                rightMicros: 600000,
+                bottomMicros: 600000,
+              ),
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final widget = find.byKey(const ValueKey('canvas-widget-$clipRRectId'));
+        final warning = find.byKey(
+          const ValueKey('canvas-custom-clipper-preview-$clipRRectId'),
+        );
+        expect(tester.getSize(widget), const Size(80, 60));
+        expect(warning, findsOneWidget, reason: targetPlatform);
+        expect(
+          find.text('Custom clipper\npreview unavailable'),
+          findsOneWidget,
+          reason: targetPlatform,
+        );
+        final warningText = tester.widget<Text>(
+          find.text('Custom clipper\npreview unavailable'),
+        );
+        expect(
+          warningText.style?.color,
+          Colors.black87,
+          reason: 'warning text must retain a high-contrast foreground',
+        );
+        final warningLabel = tester.widget<DecoratedBox>(
+          find
+              .ancestor(
+                of: find.text('Custom clipper\npreview unavailable'),
+                matching: find.byType(DecoratedBox),
+              )
+              .first,
+        );
+        expect(
+          (warningLabel.decoration as BoxDecoration).color,
+          Colors.amber.shade100,
+          reason: 'warning text must retain an opaque contrast surface',
+        );
+        expect(
+          find.bySemanticsLabel(message),
+          findsOneWidget,
+          reason: targetPlatform,
+        );
+        expect(find.text(message), findsNothing, reason: targetPlatform);
+        final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+        await mouse.addPointer(location: Offset.zero);
+        await mouse.moveTo(tester.getCenter(warning));
+        await tester.pump(const Duration(milliseconds: 500));
+        expect(
+          find.text(message),
+          findsOneWidget,
+          reason: 'the full reason must be visible on hover: $targetPlatform',
+        );
+        await tester.tapAt(tester.getCenter(warning));
+        await tester.pump();
+        expect(
+          selections.last,
+          clipRRectId,
+          reason: 'the warning visual must not consume Canvas selection taps',
+        );
+        await mouse.removePointer();
+        expect(
+          find.descendant(of: widget, matching: find.byType(ClipRRect)),
+          findsNothing,
+          reason:
+              'borderRadius must not be rendered when Flutter will ignore it '
+              'in favor of the project clipper ($targetPlatform)',
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('SizedBox ${RegExp.escape(childId)}')),
+          findsOneWidget,
+          reason: targetPlatform,
+        );
+        expect(
+          find.byKey(const ValueKey('canvas-selection-outline-$clipRRectId')),
+          findsOneWidget,
+          reason: targetPlatform,
+        );
+        expect(
+          find.byKey(const ValueKey('canvas-widget-insert-drop-zone')),
+          findsOneWidget,
+          reason: targetPlatform,
+        );
+        expect(tester.takeException(), isNull, reason: targetPlatform);
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'keeps empty custom-clipper nodes zero-size and puts the reason on the external target',
+    (tester) async {
+      const cases =
+          <({String name, String id, String expectedType, Type renderedType})>[
+            (
+              name: 'ClipRect',
+              id: '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+              expectedType: 'CustomClipper<Rect>',
+              renderedType: ClipRect,
+            ),
+            (
+              name: 'ClipOval',
+              id: '91684e03-f63a-4cde-b899-7a50c888f9e7',
+              expectedType: 'CustomClipper<Rect>',
+              renderedType: ClipOval,
+            ),
+            (
+              name: 'ClipRRect',
+              id: '5582922d-9044-4e78-bba8-bb740884a49d',
+              expectedType: 'CustomClipper<RRect>',
+              renderedType: ClipRRect,
+            ),
+          ];
+      final semantics = tester.ensureSemantics();
+
+      for (final entry in cases) {
+        for (final targetPlatform in const ['windows', 'web']) {
+          final properties = <String, Object?>{
+            'clipper': <String, Object?>{'kind': 'dartObjectReferencePresence'},
+          };
+          final json = switch (entry.name) {
+            'ClipRect' => _modelWithCenteredClipRect(
+              properties: properties,
+              child: null,
+              bounded: false,
+            ),
+            'ClipOval' => _modelWithCenteredClipOval(
+              properties: properties,
+              child: null,
+              bounded: false,
+            ),
+            'ClipRRect' => _modelWithCenteredClipRRect(
+              properties: properties,
+              child: null,
+              bounded: false,
+              explicitDirectionality: false,
+            ),
+            _ => throw AssertionError('Unexpected clip widget ${entry.name}'),
+          };
+          (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+              targetPlatform;
+          final model = CanvasModel.decode(
+            Uint8List.fromList(utf8.encode(jsonEncode(json))),
+          );
+          final selections = <String>[];
+          CanvasDropResolver? resolver;
+          await tester.pumpWidget(
+            CanvasModelApp(
+              model: model,
+              selectedWidgetId: null,
+              onSelected: selections.add,
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          );
+          await tester.pump();
+
+          final node = find.byKey(ValueKey('canvas-widget-${entry.id}'));
+          final target = find.byKey(
+            ValueKey('canvas-zero-size-widget-target-${entry.id}'),
+          );
+          final badge = find.byKey(
+            ValueKey('canvas-zero-size-custom-clipper-warning-${entry.id}'),
+          );
+          final message =
+              'Custom ${entry.name} preview unavailable. Generated Dart uses '
+              'the configured ${entry.expectedType}; isolated Canvas does not '
+              'execute project or dependency Dart.';
+
+          expect(
+            tester.getSize(node),
+            Size.zero,
+            reason:
+                'the external warning must not fabricate ${entry.name} layout '
+                'on $targetPlatform',
+          );
+          expect(target, findsOneWidget, reason: '$entry $targetPlatform');
+          expect(tester.getSize(target), const Size.square(36));
+          expect(badge, findsOneWidget, reason: '$entry $targetPlatform');
+          expect(tester.getSize(badge), const Size.square(20));
+          final badgeDecoration =
+              tester.widget<DecoratedBox>(badge).decoration as BoxDecoration;
+          expect(badgeDecoration.color, Colors.amber.shade100);
+          expect(badgeDecoration.border!.top.color, Colors.amber.shade800);
+
+          final externalSemantics = tester.widget<Semantics>(
+            find.byKey(
+              ValueKey('canvas-zero-size-widget-semantics-${entry.id}'),
+            ),
+          );
+          expect(externalSemantics.properties.label, contains(message));
+          final tooltip = tester.widget<Tooltip>(
+            find.ancestor(of: badge, matching: find.byType(Tooltip)),
+          );
+          expect(tooltip.message, message);
+
+          final mouse = await tester.createGesture(
+            kind: PointerDeviceKind.mouse,
+          );
+          await mouse.addPointer(location: Offset.zero);
+          await mouse.moveTo(tester.getCenter(target));
+          await tester.pump(const Duration(milliseconds: 500));
+          expect(
+            find.text(message),
+            findsOneWidget,
+            reason: 'the full reason must be visible on hover',
+          );
+          await tester.tap(target);
+          await tester.pump();
+          expect(selections.last, entry.id);
+          expect(
+            find.descendant(
+              of: node,
+              matching: find.byType(entry.renderedType),
+            ),
+            findsNothing,
+            reason: 'Canvas must not fake the configured project clipper',
+          );
+
+          final surface = tester.getRect(find.byType(CanvasDocumentView));
+          final point = tester.getRect(target).center;
+          final drop = resolver!(
+            ((point.dx - surface.left) / surface.width * 1000000).round(),
+            ((point.dy - surface.top) / surface.height * 1000000).round(),
+          );
+          expect(drop?.parentWidgetId, entry.id);
+          expect(drop?.slotName, 'child');
+          expect(drop?.insertionIndex, 0);
+          expect(drop?.zone?.isEmpty, isFalse);
+          expect(tester.takeException(), isNull);
+
+          await mouse.removePointer();
+          await tester.pumpAndSettle();
+        }
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'keeps a custom-clipper warning visible while a coincident plain node is selected',
+    (tester) async {
+      const plainId = '38f49912-8e51-4e62-bd4c-2517ecad4962';
+      const clipRectId = '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67';
+      const clipRRectId = '5582922d-9044-4e78-bba8-bb740884a49d';
+      const cyclingMessage =
+          '3 overlapping zero-size widgets. '
+          'Activate repeatedly to cycle selection.';
+      const clipRectMessage =
+          'Custom ClipRect preview unavailable. Generated Dart uses the '
+          'configured CustomClipper<Rect>; isolated Canvas does not execute '
+          'project or dependency Dart.';
+      const clipRRectMessage =
+          'Custom ClipRRect preview unavailable. Generated Dart uses the '
+          'configured CustomClipper<RRect>; isolated Canvas does not execute '
+          'project or dependency Dart.';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(jsonEncode(_modelWithOverlappingCustomClippers())),
+        ),
+      );
+      var selectedWidgetId = clipRRectId;
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: StatefulBuilder(
+            builder: (context, setState) => CanvasDocumentView(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-group-$plainId'),
+      );
+      final badge = find.byKey(
+        const ValueKey(
+          'canvas-zero-size-custom-clipper-warning-group-$plainId',
+        ),
+      );
+      final semantics = find.byKey(
+        const ValueKey('canvas-zero-size-widget-semantics-group-$plainId'),
+      );
+      expect(target, findsOneWidget);
+      expect(badge, findsOneWidget);
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.ancestor(of: badge, matching: find.byType(Tooltip)),
+            )
+            .message,
+        '$cyclingMessage $clipRRectMessage',
+        reason: 'the selected warning-bearing node must own the group reason',
+      );
+      expect(
+        tester.widget<Semantics>(semantics).properties.label,
+        '$cyclingMessage. $clipRRectMessage',
+      );
+
+      await tester.tap(target);
+      await tester.pump();
+
+      expect(selectedWidgetId, plainId);
+      expect(badge, findsOneWidget);
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.ancestor(of: badge, matching: find.byType(Tooltip)),
+            )
+            .message,
+        '$cyclingMessage $clipRectMessage',
+        reason:
+            'a selected plain node must not hide another coincident warning',
+      );
+      expect(
+        tester.widget<Semantics>(semantics).properties.label,
+        '$cyclingMessage. $clipRectMessage',
+      );
+
+      await tester.tap(target);
+      await tester.pump();
+
+      expect(selectedWidgetId, clipRectId);
+      expect(
+        tester
+            .widget<Tooltip>(
+              find.ancestor(of: badge, matching: find.byType(Tooltip)),
+            )
+            .message,
+        '$cyclingMessage $clipRectMessage',
+        reason: 'the selected ClipRect must keep its own warning reason',
+      );
+    },
+  );
+
+  testWidgets(
+    'keeps an empty zero-size ClipRRect selectable and exposes child DnD',
+    (tester) async {
+      const clipRRectId = '5582922d-9044-4e78-bba8-bb740884a49d';
+      CanvasDropResolver? resolver;
+      String? selectedWidgetId;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCenteredClipRRect(
+                properties: const {},
+                child: null,
+                bounded: false,
+                explicitDirectionality: false,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$clipRRectId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$clipRRectId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, clipRRectId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, clipRRectId);
       expect(drop?.slotName, 'child');
       expect(drop?.insertionIndex, 0);
       expect(drop?.zone?.isEmpty, isFalse);
@@ -14850,6 +15693,66 @@ Map<String, Object?> _modelWithCenteredClipOval({
   return model;
 }
 
+Map<String, Object?> _modelWithCenteredClipRRect({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+  bool bounded = true,
+  String textDirection = 'ltr',
+  bool explicitDirectionality = true,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final clipRRect = <String, Object?>{
+    'id': '5582922d-9044-4e78-bba8-bb740884a49d',
+    'type': 'flutter.widgets.ClipRRect',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  final boundedChild = bounded
+      ? <String, Object?>{
+          'id': '2feef8b0-c5e7-494a-95e7-4b91448484bb',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 80},
+            'height': {'kind': 'integer', 'value': 60},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': clipRRect},
+          },
+        }
+      : clipRRect;
+  final directionalChild = <String, Object?>{
+    'id': '967fd334-2e92-47fc-a1cd-2019ff0f9284',
+    'type': 'flutter.widgets.Directionality',
+    'properties': <String, Object?>{
+      'textDirection': {
+        'kind': 'enum',
+        'type': 'TextDirection',
+        'value': textDirection,
+      },
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': boundedChild},
+    },
+  };
+  body['child'] = <String, Object?>{
+    'id': '8083347c-b215-4d21-a00e-f17baf26c0e7',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': explicitDirectionality ? directionalChild : boundedChild,
+      },
+    },
+  };
+  return model;
+}
+
 Map<String, Object?> _modelWithCenteredClipRect({
   required Map<String, Object?> properties,
   required Map<String, Object?>? child,
@@ -16158,6 +17061,43 @@ Map<String, Object?> _modelWithEmptySizedBoxSiblings(List<String> widgetIds) {
             },
         ],
       },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithOverlappingCustomClippers() {
+  final model = _modelWithEmptySizedBoxSiblings(const [
+    '38f49912-8e51-4e62-bd4c-2517ecad4962',
+    '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+    '5582922d-9044-4e78-bba8-bb740884a49d',
+  ]);
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final column = body['child']! as Map<String, Object?>;
+  final children =
+      ((column['slots']! as Map<String, Object?>)['children']!
+              as Map<String, Object?>)['children']!
+          as List<Object?>;
+  children[1] = <String, Object?>{
+    'id': '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+    'type': 'flutter.widgets.ClipRect',
+    'properties': <String, Object?>{
+      'clipper': <String, Object?>{'kind': 'dartObjectReferencePresence'},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
+    },
+  };
+  children[2] = <String, Object?>{
+    'id': '5582922d-9044-4e78-bba8-bb740884a49d',
+    'type': 'flutter.widgets.ClipRRect',
+    'properties': <String, Object?>{
+      'clipper': <String, Object?>{'kind': 'dartObjectReferencePresence'},
+    },
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': null},
     },
   };
   return model;

@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly forty-eight
+The current capability-gated Palette and native Canvas admit exactly forty-nine
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval` and `ExcludeSemantics`.
-Forty-two definitions use reviewed const constructors. Their `General`
-Properties expose exactly 737 typed writable rows: 720 across the forty-seven
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect` and `ExcludeSemantics`.
+Forty-three definitions use reviewed const constructors. Their `General`
+Properties expose exactly 742 typed writable rows: 725 across the forty-eight
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -512,14 +512,14 @@ and Accessibility 1. Typed null advances `.fd` to v10, Catalog API to 10 and
 Canvas model to v15; NBFC framing and Canvas control/wire remain v1.
 
 [`ClipRect`](https://api.flutter.dev/flutter/widgets/ClipRect/ClipRect.html)
-appears in Basic after `DecoratedBox`. Its closed **Clip behavior** editor stores
+appears in Basic after `DecoratedBox`. Its typed **Clipper** editor and closed **Clip behavior** editor store
 only `none`, `hardEdge`, `antiAlias` or `antiAliasWithSaveLayer`; leaving it
 `<not set>` preserves Flutter's `Clip.hardEdge` default. Add at most one child
 through Slots or ordinary Palette/tree/Canvas insertion. Generated Dart and the
 native/exact-Web Canvas construct the real `ClipRect`, while selection, empty
 drop affordances and tree accessibility remain outside its paint clip. A
-non-null `CustomClipper<Rect>` requires a user-defined Dart delegate, so it is
-explicitly unsupported by the typed no-expression Designer contract.
+non-null `CustomClipper<Rect>` uses the same analyzed current-library or
+declared-package reference described below; the isolated Canvas shows the explicit unavailable preview.
 At that milestone the practical backlog was 47/92 complete with 45 remaining;
 Layout contained 31 items, Scrolling 3, Basic 8, Material 4 and Accessibility 1. The aggregate was
 41 reviewed const definitions and 736 writable rows, including 719 outside
@@ -527,19 +527,45 @@ Layout contained 31 items, Scrolling 3, Basic 8, Material 4 and Accessibility 1.
 unchanged.
 
 [`ClipOval`](https://api.flutter.dev/flutter/widgets/ClipOval/ClipOval.html)
-appears in Basic after `ClipRect`. Its closed **Clip behavior** editor stores
+appears in Basic after `ClipRect`. Its typed **Clipper** editor and closed **Clip behavior** editor store
 only `none`, `hardEdge`, `antiAlias` or `antiAliasWithSaveLayer`; leaving it
 `<not set>` preserves Flutter's `Clip.antiAlias` default. Add at most one child
 through Slots or ordinary Palette/tree/Canvas insertion. Generated Dart and the
 native/exact-Web Canvas construct the real `ClipOval`, inscribed in the child's
 layout bounds by default, while selection, empty drop affordances and tree
 accessibility remain outside its paint clip. A non-null `CustomClipper<Rect>`
-requires a user-defined Dart delegate, so it is explicitly unsupported by the
-typed no-expression Designer contract. The practical backlog is now 48/92
-complete with 44 remaining; Layout contains 31 items, Scrolling 3, Basic 9,
-Material 4 and Accessibility 1. The aggregate is 42 reviewed const definitions
+uses the same analyzed current-library or declared-package reference; the isolated
+Canvas preserves the child and shows the explicit unavailable preview. At that milestone the practical backlog was 48/92
+complete with 44 remaining; Layout contained 31 items, Scrolling 3, Basic 9,
+Material 4 and Accessibility 1. The aggregate was 42 reviewed const definitions
 and 737 writable rows, including 720 outside `Scaffold`; all schema, Catalog,
-Canvas and NBFC protocol versions remain unchanged.
+Canvas and NBFC protocol versions remained unchanged.
+
+[`ClipRRect`](https://api.flutter.dev/flutter/widgets/ClipRRect/ClipRRect.html)
+appears in Basic after `ClipOval`, at item order 100. Its structured **Border
+radius** editor supports physical `BorderRadius` and directional
+`BorderRadiusDirectional` geometry with finite, non-negative elliptical X/Y
+radii for all four corners; `<not set>` preserves `BorderRadius.zero`. Its
+closed **Clip behavior** editor stores only `none`, `hardEdge`, `antiAlias` or
+`antiAliasWithSaveLayer`; leaving it `<not set>` preserves `Clip.antiAlias`.
+Add at most one child through Slots or ordinary Palette/tree/Canvas insertion.
+Use **Clipper** to reference an existing value or zero-argument
+constructor, factory or function from the current Dart library or an imported canonical
+`package:` library declared by `.dart_tool/package_config.json`. An optional
+member and an explicit const or non-const zero-argument invocation are supported; the
+preview shows the exact emitted syntax, and Dart analysis must prove it is a
+`CustomClipper<RRect>`. For configured arguments, expose a project-owned getter,
+field/getter or zero-argument factory/function rather than entering raw code. Flutter ignores
+**Border radius** while **Clipper** is set. Generated Dart constructs the real
+`ClipRRect`; the isolated native/exact-Web Canvas does not execute project Dart,
+so it preserves the child and shows an explicit preview-unavailable warning for
+that branch instead of faking the radius. With no custom clipper, both Canvas
+routes construct the real rounded clip. Selection, empty drop affordances and
+tree accessibility remain outside its paint clip.
+The practical backlog is now 49/92 complete with 43 remaining; Layout contains
+31 items, Scrolling 3, Basic 10, Material 4 and Accessibility 1. The aggregate
+is 43 reviewed const definitions and 742 writable rows, including 725 outside
+`Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
@@ -575,7 +601,7 @@ The asset list comes only from app/package `pubspec.yaml` declarations resolved
 through `.dart_tool/package_config.json`. PNG/JPEG/GIF/WebP candidates are
 checked for safe POSIX-relative identity, root/symlink confinement, magic and
 dimensions. Canvas receives no filesystem path or callback name: Canvas model
-protocol v15 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
+protocol v17 over NBFC framing v1 negotiates `asset.imageBytes.v1` and transfers
 only referenced immutable compressed bytes under exact revision, order, size
 and SHA-256 checks. Native
 preview and the internal exact-Web runtime build the same real
@@ -587,19 +613,23 @@ without removing Container selection/layout/drop overlays. Exact-Web product
 selection is still gated; the routed Web choice remains the native-engine
 responsive layout preview.
 
-The current surface uses `.fd` schema v10, contributor Catalog API 10 and Canvas
-model protocol 15. SafeArea's exported
+The current surface uses `.fd` schema v12, contributor Catalog API 12 and Canvas
+model protocol 17. SafeArea's exported
 `EdgeInsetsValues.directionalAllowed` constraint established API 9, while the
-exact payload-free null value used by `IndexedStack.index` establishes API 10;
-API-1 through API-9 contributors fail closed. Schema v1-v9 files migrate in
-memory and are written as v10
+exact payload-free null value used by `IndexedStack.index` establishes API 10,
+and ClipRRect's top-level typed radius geometry establishes API 11, while its
+typed Dart-object reference establishes API 12; API-1 through API-11
+contributors fail closed. Schema v1-v11 files migrate in
+memory and are written as v12
 only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
 value, version 9 adds the atomic finite signed `Offset` wire value, and version
-10 adds the exact payload-free null property value.
-Forty-eight sources across forty-three insertable any-widget and two trait-bound
-slots produce 2,160 compatibility candidates: 1,943 accepted and 217
+10 adds the exact payload-free null property value; version 11 adds the
+physical/directional finite non-negative elliptical border-radius value;
+version 12 adds the closed current/package Dart-object reference.
+Forty-nine sources across forty-four insertable any-widget and two trait-bound
+slots produce 2,254 compatibility candidates: 2,032 accepted and 222
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -607,7 +637,7 @@ replacement-only and excluded from the destination matrix. SafeArea and
 Directionality use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and neither can wrap
-Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval and ExcludeSemantics
+Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect and ExcludeSemantics
 contribute optional insertable `child` destinations; IndexedStack contributes
 the insertable ordered `children` destination. NBFC framing
 and Canvas control/wire remain v1.

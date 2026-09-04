@@ -609,14 +609,17 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:6",
                     "urn:netbeans-flutter-designer:schema:fd:7",
                     "urn:netbeans-flutter-designer:schema:fd:8",
-                    "urn:netbeans-flutter-designer:schema:fd:9" ->
-                    "urn:netbeans-flutter-designer:schema:fd:10";
+                    "urn:netbeans-flutter-designer:schema:fd:9",
+                    "urn:netbeans-flutter-designer:schema:fd:10",
+                    "urn:netbeans-flutter-designer:schema:fd:11" ->
+                    "urn:netbeans-flutter-designer:schema:fd:12";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
                     "../fd-v7.schema.json", "../fd-v8.schema.json",
-                    "../fd-v9.schema.json" ->
-                    "../fd-v10.schema.json";
+                    "../fd-v9.schema.json", "../fd-v10.schema.json",
+                    "../fd-v11.schema.json" ->
+                    "../fd-v12.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1156,6 +1159,18 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Explicit null values require schema version 10.");
         }
+        if (sourceVersion < 11 && kind.equals("borderRadius")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "BorderRadius values require schema version 11.");
+        }
+        if (sourceVersion < 12 && kind.equals("dartObjectReference")) {
+            throw invalidValue(
+                    parser,
+                    pointer(base, "kind"),
+                    "Dart object reference values require schema version 12.");
+        }
         return switch (kind) {
             case "null" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind"));
@@ -1255,6 +1270,30 @@ final class FdJsonDecoder {
                 yield modelValue(
                         pointer(base, "code"),
                         () -> new PropertyValue.DartExpressionValue(code));
+            }
+            case "dartObjectReference" -> {
+                String accessName = jsonString(fields, "access", base);
+                PropertyValue.DartObjectReferenceValue.Access access = modelValue(
+                        pointer(base, "access"),
+                        () -> PropertyValue.DartObjectReferenceValue.Access
+                                .fromWireName(accessName));
+                Set<String> allowed = access
+                        == PropertyValue.DartObjectReferenceValue.Access.REFERENCE
+                        ? Set.of("kind", "libraryUri", "rootSymbol", "member", "access")
+                        : Set.of("kind", "libraryUri", "rootSymbol", "member", "access",
+                                "constant");
+                enforceAllowedFields(parser, fields, base, allowed);
+                Optional<String> libraryUri = jsonOptionalString(
+                        fields, "libraryUri", base);
+                String rootSymbol = jsonString(fields, "rootSymbol", base);
+                Optional<String> member = jsonOptionalString(fields, "member", base);
+                Optional<Boolean> constant = access
+                        == PropertyValue.DartObjectReferenceValue.Access.REFERENCE
+                        ? Optional.empty()
+                        : Optional.of(jsonBoolean(fields, "constant", base));
+                yield modelValue(base, () ->
+                        new PropertyValue.DartObjectReferenceValue(
+                                libraryUri, rootSymbol, member, access, constant));
             }
             case "iconData" -> {
                 if (sourceVersion < 4) {
@@ -1420,6 +1459,14 @@ final class FdJsonDecoder {
                 yield modelValue(base, () -> new PropertyValue.Matrix4Value(storage));
             }
             case "imageProvider" -> readImageProvider(fields, base);
+            case "borderRadius" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "geometry"));
+                PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry =
+                        readBorderRadius(
+                                requiredJson(fields, "geometry", base),
+                                pointer(base, "geometry"));
+                yield new PropertyValue.BorderRadiusValue(geometry);
+            }
             case "boxDecoration" -> {
                 Set<String> allowed = sourceVersion >= 6
                         ? Set.of(

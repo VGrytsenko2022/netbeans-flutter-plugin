@@ -121,7 +121,7 @@ optional `canvas.themeMode` is only a local preview override (`system`, `light`
 or `dark`); when absent, Canvas follows the project default. The Canvas reads
 the validated project descriptor and the verified generated-artifact hash,
 then sends the resolved id, seed, brightness, complete ColorScheme/TextTheme/
-component override tables and revision digest through model protocol v15 to the isolated
+component override tables and revision digest through model protocol v17 to the isolated
 Flutter runner. It never executes project Dart. The runner applies the same
 construction order as generated Dart before form-local widget overrides. Projects
 without a descriptor keep the legacy Material preview; a present but invalid
@@ -372,18 +372,23 @@ may still format the complete Dart document.
 ## `.fd` document contract
 
 `.fd` is UTF-8 JSON and current documents conform to
-[`flutter-designer/fd-v9.schema.json`](flutter-designer/fd-v9.schema.json).
+[`flutter-designer/fd-v11.schema.json`](flutter-designer/fd-v11.schema.json).
 The stable format name is `netbeans-flutter-designer`, and the integer
-`schemaVersion` makes migrations explicit. Versions 1 through 8 remain readable
+`schemaVersion` makes migrations explicit. Versions 1 through 10 remain readable
 through in-memory migrations; opening alone does not rewrite the file, while
-the next admitted Designer edit emits canonical version 9. A migrated v1-v5
+the next admitted Designer edit emits canonical version 11. A migrated v1-v5
 BoxDecoration has no image. Version 7 additionally permits JSON `null` as
 positive infinity for every BoxConstraints bound, including either minimum;
 older finite minima and nullable maxima migrate losslessly. Version 8 adds a
 closed atomic `Size` value with finite non-negative width and height. Version 9
-adds a closed atomic `Offset` value with signed finite `dx` and `dy`. Frozen
-v1-v8 schema resources are immutable; the v9 encoder writes the new value graph
-strictly and never down-saves a newer document.
+adds a closed atomic `Offset` value with signed finite `dx` and `dy`. Version 10
+adds the exact payload-free null property value used by `IndexedStack.index`.
+Version 11 adds the top-level physical/directional finite non-negative
+elliptical border-radius value used by `ClipRRect.borderRadius`. Version 12 adds
+the closed current-library/package-config-declared canonical-`package:` Dart-object reference used by
+all three clipping widgets' `clipper` rows. Frozen v1-v11 schema resources are immutable; the v12
+encoder writes the new value graph strictly and never down-saves a newer
+document.
 
 The checked-in version-1 [`home_page.fd`](flutter-designer/examples/home_page.fd)
 and [`home_page.dart`](flutter-designer/examples/home_page.dart) pair remains the
@@ -518,7 +523,7 @@ expand output unexpectedly.
 - conflict detection inputs and normalized region hashing;
 - pure Canvas identities, resolved render profiles, replay/admission gates,
   backend contracts, per-MultiView lifecycle controller and the bounded
-  canonical protocol-v15 projection for the forty-eight exact built-ins carrying
+  canonical protocol-v17 projection for the forty-nine exact built-ins carrying
   the Canvas capability;
 - the strict version 1 Canvas control codec/handshake gate and bounded process
   framing for control JSON, model JSON, negotiated image bytes and reserved
@@ -589,8 +594,8 @@ types are omitted with diagnostics. The NetBeans edge discovers contributors
 and passes them explicitly to the domain composer, avoiding a global
 class-loader policy in this module.
 
-The current version 9 contributor SPI requires a reverse-DNS contributor id,
-catalog `API_VERSION == 9`, and every contributed widget type id to start with
+The current version 12 contributor SPI requires a reverse-DNS contributor id,
+catalog `API_VERSION == 12`, and every contributed widget type id to start with
 `<contributorId>.`. A malformed definition, duplicate local type, foreign or
 reserved namespace, or unsupported API version rejects that contributor as one
 atomic unit.
@@ -601,7 +606,8 @@ another extension—is rejected atomically before widget-type conflicts are
 resolved, so one visual category can never be split into multiple groups.
 
 Import planning belongs to the generator rather than the catalog composer. It
-unions the selected definitions' declared requirements, removes the redundant
+unions the selected definitions' declared requirements and safe package URIs
+from typed Dart-object property references, removes the redundant
 Flutter `widgets.dart` import when the known version 1 `material.dart`
 requirement is also present, and sorts the resulting URIs lexically. Imports
 from third-party contributors remain exact and receive URI-derived stable
@@ -672,7 +678,7 @@ The NetBeans module exports only `dev.flutter.netbeans.designer.catalog` and
 depends on this plugin's NetBeans module and reuses its packaged
 `flutter-designer.jar`; bundling another copy would split SPI class identity.
 Codec, validation and NetBeans edge packages remain private. If the contributor
-API must evolve independently after version 9, it moves to a dedicated SPI NBM
+API must evolve independently after version 12, it moves to a dedicated SPI NBM
 or new package boundary instead of silently breaking this module's public
 surface. `API_VERSION == 2` was the incompatible boundary introduced for
 direction-aware edge-insets values. Typed `IconData` established the next
@@ -682,8 +688,11 @@ values established `API_VERSION == 4`; the reusable exported
 BoxConstraints bounds established `API_VERSION == 6`; the atomic Size value
 established `API_VERSION == 7`; and the atomic signed Offset value established
 `API_VERSION == 8`. SafeArea's physical-insets constraint adds the exported
-`EdgeInsetsValues.directionalAllowed` component and establishes the current
-boundary at `API_VERSION == 9`. API-1 through API-8 contributors are rejected
+`EdgeInsetsValues.directionalAllowed` component and establishes
+`API_VERSION == 9`; the exact payload-free null value establishes
+`API_VERSION == 10`; the top-level typed border-radius geometry establishes
+`API_VERSION == 11`; and the typed Dart-object reference establishes the current
+boundary at `API_VERSION == 12`. API-1 through API-11 contributors are rejected
 rather than loaded with a changed
 sealed model contract. This is not yet a permanent 1.0 compatibility promise. A runtime
 fixture NBM verifies the specification dependency, default
@@ -1056,12 +1065,12 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   target, and the first Windows native host slice is implemented. It builds
   a versioned isolated runner, creates the real Flutter child window inside a
   heavyweight AWT host in the Design MultiView, validates the exact HWND/PID
-  hierarchy and publishes one bounded validated protocol-v15 revision restricted
+  hierarchy and publishes one bounded validated protocol-v17 revision restricted
   by the exact capability gate to `Scaffold`, `AppBar`, `ElevatedButton`,
   `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`,
   `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`,
   `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-  `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`,
+  `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`,
   `Icon` and `Image`. The owning
   project's observable platform snapshot limits the toolbar to exact
   mode/target pairs: Android Phone/Tablet, iPhone/iPad, named Windows/macOS/Linux
@@ -1082,11 +1091,11 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   platform-neutral SPI, full NetBeans focus/DPI/IME/DnD/crash acceptance,
   cross-form and Linux/macOS native drag-and-drop and the broader unreviewed Designer
   workflow/property/callback contracts remain stop-ship work. Catalog-driven
-  read/write Properties are enabled only for the 737 reviewed fields of
+  read/write Properties are enabled only for the 742 reviewed fields of
   `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
   `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
   `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`,
-  `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `Container`
+  `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container`
   and `Opacity`; 17 are
   Scaffold leaves, 286 are ElevatedButton leaves, 120 are grouped AppBar
   leaves, 59 are typed Text leaves, 13 are
@@ -1100,8 +1109,8 @@ Pre-persistence loss of staged authority now clears only the exact semantic
   SizedOverflowBox two, Transform five, RotatedBox one, ListBody two,
   OverflowBar six, SafeArea six, GridView.count 21, SingleChildScrollView 10,
   ColoredBox two, Placeholder four, Directionality one, DecoratedBox two,
-  ClipRect one, ClipOval one and ExcludeSemantics one. Forty-two definitions use
-  reviewed const constructors, and 720 rows belong to the non-`Scaffold`
+  ClipRect one, ClipOval one, ClipRRect three and ExcludeSemantics one. Forty-three definitions use
+  reviewed const constructors, and 725 rows belong to the non-`Scaffold`
   definitions.
 
   ListView is the non-const static `ListView(children: ...)` contract. Its five
@@ -1544,14 +1553,14 @@ Pre-persistence loss of staged authority now clears only the exact semantic
 
   [`ClipRect`](https://api.flutter.dev/flutter/widgets/ClipRect/ClipRect.html)
   is the twenty-seventh post-core slice, in Basic at item order 80 after
-  `DecoratedBox`. Its safe pinned Flutter 3.44.8 const contract exposes one
-  optional closed `clipBehavior` row and one optional single any-widget `child`
+  `DecoratedBox`. Its safe pinned Flutter 3.44.8 const contract now exposes an
+  optional typed `clipper`, optional closed `clipBehavior` and one optional single any-widget `child`
   slot. Omission preserves `Clip.hardEdge`; the other exact values are `none`,
   `antiAlias` and `antiAliasWithSaveLayer`. Generated Dart and both Canvas
   routes construct the real widget, while selection and empty-target overlays
-  remain outside its paint clip. Non-null `CustomClipper<Rect>` is explicitly
-  unsupported because it requires a user-defined Dart delegate outside the
-  typed no-expression contract. The complete slice covers Properties,
+  remain outside its paint clip. Schema v12 represents non-null
+  `CustomClipper<Rect>` through the shared analyzed project-reference contract;
+  isolated Canvas receives presence only and shows an unavailable preview. The complete slice covers Properties,
   Palette/tree/Canvas DnD and movement, generation, validation,
   create/open/edit/save/reopen, Undo/Redo, accessibility, empty-target behavior
   and four reviewed SVGs. At that milestone the surface was 47/92 complete with 45
@@ -1562,21 +1571,49 @@ Pre-persistence loss of staged authority now clears only the exact semantic
 
   [`ClipOval`](https://api.flutter.dev/flutter/widgets/ClipOval/ClipOval.html)
   is the twenty-eighth post-core slice, in Basic at item order 90 after
-  `ClipRect`. Its safe pinned Flutter 3.44.8 const contract exposes one optional
-  closed `clipBehavior` row and one optional single any-widget `child` slot.
+  `ClipRect`. Its safe pinned Flutter 3.44.8 const contract now exposes optional
+  typed `clipper`, closed `clipBehavior` and one optional single any-widget `child` slot.
   Omission preserves `Clip.antiAlias`; the other exact values are `none`,
   `hardEdge` and `antiAliasWithSaveLayer`. Generated Dart and both Canvas routes
   construct the real widget, with the default oval inscribed in the child's
   layout bounds while selection and empty-target overlays remain outside its
-  paint clip. Non-null `CustomClipper<Rect>` is explicitly unsupported because
-  it requires a user-defined Dart delegate outside the typed no-expression
-  contract. The complete slice covers Properties, Palette/tree/Canvas DnD and
+  paint clip. Schema v12 represents non-null `CustomClipper<Rect>` through the
+  same analyzed project-reference contract; isolated Canvas receives presence
+  only and shows an unavailable preview. The complete slice covers Properties, Palette/tree/Canvas DnD and
   movement, generation, validation, create/open/edit/save/reopen, Undo/Redo,
-  accessibility, empty-target behavior and four reviewed SVGs. The current
-  surface is 48/92 complete with 44 remaining: 48 widgets, 42 reviewed const
+  accessibility, empty-target behavior and four reviewed SVGs. At that milestone the
+  surface was 48/92 complete with 44 remaining: 48 widgets, 42 reviewed const
   definitions and 737 writable rows (720 outside Scaffold), with 31 Layout,
   three Scrolling, nine Basic, four Material and one Accessibility item. All
-  schema, Catalog, Canvas and NBFC versions remain unchanged.
+  schema, Catalog, Canvas and NBFC versions remained unchanged.
+
+  [`ClipRRect`](https://api.flutter.dev/flutter/widgets/ClipRRect/ClipRRect.html)
+  is the twenty-ninth post-core slice, in Basic at item order 100 after
+  `ClipOval`. Its safe pinned Flutter 3.44.8 contract exposes optional
+  typed `borderRadius`, optional typed `clipper`, optional closed `clipBehavior` and one optional single
+  any-widget `child` slot. The radius value preserves either physical
+  `BorderRadius` or directional `BorderRadiusDirectional` geometry with finite,
+  non-negative elliptical X/Y radii for all four corners. Omission preserves
+  `BorderRadius.zero`; clip omission preserves `Clip.antiAlias`, and the other
+  exact clip values are `none`, `hardEdge` and `antiAliasWithSaveLayer`.
+  Generated Dart constructs the real widget, while selection and empty-target
+  overlays remain outside its paint clip. Non-null `CustomClipper<RRect>` uses
+  a closed typed current-library or package-config-declared canonical-`package:` reference to an
+  existing value or zero-argument constructor, factory or function, with optional member and
+  explicit const or non-const zero-argument invocation; the analyzer proves
+  assignment compatibility. The isolated
+  Canvas receives presence only, preserves the child and shows an explicit
+  preview-unavailable overlay instead of applying the `borderRadius` Flutter
+  ignores. Without a custom clipper, both Canvas routes construct the real
+  rounded clip. The
+  complete slice covers Properties, Palette/tree/Canvas DnD and movement,
+  generation, validation, create/open/edit/save/reopen, Undo/Redo,
+  accessibility, empty-target behavior and four reviewed SVGs. The current
+  surface is 49/92 complete with 43 remaining: 49 widgets, 43 reviewed const
+  definitions and 742 writable rows (725 outside Scaffold), with 31 Layout,
+  three Scrolling, ten Basic, four Material and one Accessibility item. The new
+  typed Dart-object reference advances `.fd` schema to v12, Catalog API to 12
+  and Canvas model to v17; NBFC framing/control/wire remain v1.
 
 ## Target NetBeans presentation and embedded FlutterView boundary
 
@@ -1584,16 +1621,16 @@ The designer publishes every validated widget as a
 revision-bound NetBeans Node and synchronizes one stable-ID selection in both
 directions between the Explorer/Nodes tree and Canvas. The selected Node is
 available through the standard Explorer lookup and supplies a standard
-property sheet. All forty-eight current definitions publish typed read/write catalog
+property sheet. All forty-nine current definitions publish typed read/write catalog
 properties. The active MultiView element also supplies a
-context-sensitive standard NetBeans Palette containing exactly the forty-eight
+context-sensitive standard NetBeans Palette containing exactly the forty-nine
 definitions carrying the Create capability. Palette publication alone has no
 mutation authority; the DnD capability separately admits only the
-host-authoritative forty-eight-source, 2,160-candidate insertion matrix with
-1,943 accepted and 217 rejected cells. Palette, Explorer/Nodes,
+host-authoritative forty-nine-source, 2,254-candidate insertion matrix with
+2,032 accepted and 222 rejected cells. Palette, Explorer/Nodes,
 Properties and the MultiView chrome remain native NetBeans Swing surfaces.
 
-### Writable Properties API contract (737 fields)
+### Writable Properties API contract (742 fields)
 
 The writable matrix is intentionally closed, catalog-driven and excludes
 unreviewed constructor graphs. Scaffold contributes exactly 17 independently
@@ -1658,7 +1695,7 @@ child unchanged. Runtime object references—`key`, `focusNode`, `statesControll
 `backgroundBuilder` and `foregroundBuilder`—are not serialized.
 
 Callback values are strict Dart identifiers rather than arbitrary expressions.
-Generated source may bind them, but Canvas model payload protocol v15 projects only
+Generated source may bind them, but Canvas model payload protocol v17 projects only
 `callbackPresence`; the runner creates inert typed closures and cannot receive
 or execute a project handler. Disabling the button emits null press callbacks;
 an enabled button without a press binding gets a generator-owned empty
@@ -1669,9 +1706,10 @@ milestone, so `.fd` remained schema v4; the initial Container slice raised the
 aggregate document contract to schema v5, and its completed image branch raised
 it to schema v6. ConstrainedBox's positive-infinity minima raised the contract
 to schema v7; SizedOverflowBox's atomic Size value raises it to schema v8, and
-Transform's atomic Offset value raises the contract to schema v9, and
-IndexedStack's exact payload-free null property value raises the current
-contract to schema v10.
+Transform's atomic Offset value raises the contract to schema v9,
+IndexedStack's exact payload-free null property value raises it to schema v10,
+ClipRRect's top-level typed border-radius geometry raises it to schema v11, and
+its typed Dart-object reference raises the current contract to schema v12.
 
 | Widget(s) | Property | Dart type and argument contract | Documented semantics and bounds | Properties editor |
 | --- | --- | --- | --- | --- |
@@ -2190,19 +2228,36 @@ typed null and a non-negative integer; the validator keeps every concrete value
 within the live child list while accepting effective zero or null for an empty
 list. Children remain slots rather than writable property rows.
 
-ClipRect contributes one optional closed `clipBehavior` row and one optional
+ClipRect contributes optional typed `clipper`, optional closed `clipBehavior` and one optional
 any-widget child slot. Omission preserves Flutter's `Clip.hardEdge` default;
 the child remains a slot rather than a writable property row. A non-null custom
-clipper is outside the typed catalog because it requires a user-defined Dart
-delegate.
+clipper uses the schema-v12 typed project-reference contract.
 
-ClipOval contributes one optional closed `clipBehavior` row and one optional
+ClipOval contributes optional typed `clipper`, optional closed `clipBehavior` and one optional
 any-widget child slot. Omission preserves Flutter's `Clip.antiAlias` default;
 the child remains a slot rather than a writable property row. A non-null custom
-clipper is outside the typed catalog because it requires a user-defined Dart
-delegate.
+clipper uses the same schema-v12 typed project-reference contract.
 
-These 737 fields use catalog constraints for editor selection, value admission,
+ClipRRect contributes optional typed `borderRadius`, optional typed `clipper`,
+optional closed `clipBehavior` and one optional any-widget child slot. Border radius accepts
+physical or directional geometry with finite, non-negative elliptical radii;
+omission preserves `BorderRadius.zero`. Clip omission preserves
+`Clip.antiAlias`. The child remains a slot rather than a writable property row.
+The clipper row stores only a closed current-library or package-config-declared canonical-`package:`
+root identifier, optional member and reference/zero-argument invocation mode;
+const is available only for invocation. Generation plans the import and the
+analyzer validates `CustomClipper<RRect>`. The presence-only Canvas projection
+shows an explicit project-code-preview warning and does not serialize or execute
+the reference.
+
+The analyzer result is point-in-time semantic evidence. At the post-apply bind
+the gate re-derives the ordered probe manifest, exact package-config mapping and
+real-path containment for every target. It intentionally does not claim that an
+entire transitive dependency graph cannot change concurrently after analysis;
+history replay retains candidate-bound evidence, while every new Designer
+mutation obtains a new analyzer result.
+
+These 742 fields use catalog constraints for editor selection, value admission,
 Dart generation and Canvas projection. Text strings use a bounded text editor;
 font fallbacks use a dedicated multiline one-family-per-line editor; optional
 booleans render and edit every explicit value as an accessible checked/unchecked
@@ -2463,8 +2518,8 @@ the runner continues to build with the fixed logical `MediaQuery`. The
 DnD-capable definitions below. `palette.drop.sourceAware.v1` binds the opaque
 token to the exact current canonical type and traits for hover filtering;
 negotiating or decoding either capability does not by itself enable Palette
-mutation. `host.render` describes one canonical bounded protocol-v15 model
-frame. The runner decodes only the forty-eight reviewed Canvas-capable built-in
+mutation. `host.render` describes one canonical bounded protocol-v17 model
+frame. The runner decodes only the forty-nine reviewed Canvas-capable built-in
 widget contracts and never loads project code. `CATALOG_JSON` remains reserved
 for a future versioned catalog contract. When `asset.imageBytes.v1` is
 negotiated, the model's sorted resource descriptors are followed by exact NBFC
@@ -2498,18 +2553,18 @@ Palette insertion has two UI routes that share one Java authority, catalog
 matrix, planner and mutation pipeline: the native Canvas route crosses the
 child-HWND boundary and returns an intent, while the widget-tree route targets
 one exact Explorer row. The reviewed insertion slice is deliberately closed to
-the forty-eight exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
+the forty-nine exact DnD-capable Palette definitions: `Scaffold`, `AppBar`,
 `ElevatedButton`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `Text`,
-`Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container` and `Opacity`.
-Forty-three any-widget slots expose the reusable slot contract: `Scaffold.body`,
+`Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container` and `Opacity`.
+Forty-four any-widget slots expose the reusable slot contract: `Scaffold.body`,
 `Scaffold.floatingActionButton`,
 `Column.children`, `Row.children`, `ListView.children`, `GridView.count.children`, `ListBody.children`, `OverflowBar.children`, `Wrap.children`, `Padding.child`,
 `Center.child`, `Align.child`, `FittedBox.child`, `ConstrainedBox.child`,
 `UnconstrainedBox.child`, `LimitedBox.child`, `OverflowBox.child`,
 `FractionallySizedBox.child`, `SizedBox.child`, `AspectRatio.child`,
-`ElevatedButton.child`, `Container.child`, `Opacity.child`, `ColoredBox.child`, `Placeholder.child`, `DecoratedBox.child`, `ClipRect.child`, `ClipOval.child`, `ExcludeSemantics.child`, `Baseline.child`,
+`ElevatedButton.child`, `Container.child`, `Opacity.child`, `ColoredBox.child`, `Placeholder.child`, `DecoratedBox.child`, `ClipRect.child`, `ClipOval.child`, `ClipRRect.child`, `ExcludeSemantics.child`, `Baseline.child`,
 `IntrinsicHeight.child`, `IntrinsicWidth.child`, `Offstage.child`,
 `SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `SingleChildScrollView.child`, `Stack.children`, `IndexedStack.children`,
 `AppBar.leading`, `AppBar.title`, `AppBar.actions` and
@@ -2518,11 +2573,11 @@ Forty-three any-widget slots expose the reusable slot contract: `Scaffold.body`,
 `PreferredSizeWidget` trait. Expanded and Flexible each admit only direct
 `Row.children` and `Column.children` wrapping; Spacer enters those two list
 slots by ordinary insertion. SafeArea and Directionality use generic atomic
-wrapping; each is admitted to all forty-three any-widget destinations and rejected
-by the two trait-bound destinations. The other forty-three sources enter all forty-three any-widget
+wrapping; each is admitted to all forty-four any-widget destinations and rejected
+by the two trait-bound destinations. The other forty-four sources enter all forty-four any-widget
 destinations. All occupied required wrapper child slots are replacement-only
-and excluded from the insertable matrix. This yields 2,160 candidate cells:
-exactly 1,943 admitted and 217 rejected. An empty Row,
+and excluded from the insertable matrix. This yields 2,254 candidate cells:
+exactly 2,032 admitted and 222 rejected. An empty Row,
 Column, ListView, GridView.count, ListBody or OverflowBar has no ordering
 ambiguity, so its complete bounded visible design-time rectangle resolves
 insertion index zero; after the first child, only the terminal append zone is
@@ -2536,7 +2591,7 @@ stable linear edge, while AppBar actions use their dedicated logical actions
 zone. Empty zero-size FittedBox, ConstrainedBox, UnconstrainedBox, LimitedBox and
 OverflowBox nodes, plus an empty or collapsed Baseline, IntrinsicHeight,
 IntrinsicWidth, Offstage, SingleChildScrollView, ColoredBox, Placeholder,
-DecoratedBox, ClipRect, ClipOval, ExcludeSemantics, Directionality or IndexedStack,
+DecoratedBox, ClipRect, ClipOval, ClipRRect, ExcludeSemantics, Directionality or IndexedStack,
 expose only their
 bounded Designer single-child targets; the helper geometry does not affect
 Flutter layout.
@@ -2646,8 +2701,8 @@ asynchronous grace, ending earlier on consumption; expiry, another drag, runner
 restart, Canvas close, presentation replacement or a new layout invalidates
 outstanding drag authority. The historical first public contract admitted only
 `Text` at a terminal `Row|Column.children` position or empty
-`Center.child[0]`. It is superseded by the current forty-eight-definition,
-2,160-candidate matrix with 1,943 accepted and 217 rejected cells described above,
+`Center.child[0]`. It is superseded by the current forty-nine-definition,
+2,254-candidate matrix with 2,032 accepted and 222 rejected cells described above,
 whose live assembled drop → Save → Undo → Redo → Save
 acceptance passed. This statement does not claim a separate saved-history Undo
 → Save cycle. Palette insertion outside the reviewed matrix and existing-widget
@@ -2803,28 +2858,28 @@ Group`, `Collapse Tab Group`, public `Mode.dockInto()` and direct post-removal
 callbacks also remain unguarded because RELEASE300 exports no universal
 plugin-side asynchronous pre-removal veto for those paths.
 
-The current protocol-v15 projection intentionally contains exactly the forty-eight
+The current protocol-v17 projection intentionally contains exactly the forty-nine
 Canvas-capable definitions: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `Container` and `Opacity`. It proves native hosting, bounded model
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container` and `Opacity`. It proves native hosting, bounded model
 publication,
 exact native adaptive preview profiles and stable-ID selection synchronization.
-Host-side property mutation is admitted only for the forty-eight widget types and 737
+Host-side property mutation is admitted only for the forty-nine widget types and 742
 properties listed above, including the 17-leaf Scaffold, 286-leaf
 ElevatedButton, 120-leaf AppBar, 59-leaf Text, 13-property Icon and 13-property
 Container projections plus Opacity's two, Align's three,
 FractionallySizedBox's three, Stack's four, IndexedStack's five, Expanded's one, Flexible's two,
 Spacer's one, Baseline's two, IntrinsicWidth's two, Offstage's one,
 SizedOverflowBox's two, Transform's five, RotatedBox's one, ListBody's two,
-OverflowBar's six, SafeArea's six, GridView.count's 21, SingleChildScrollView's 10, ColoredBox's two, Placeholder's four, Directionality's required text direction, DecoratedBox's decoration and position, ClipRect's optional clip behavior, ClipOval's optional clip behavior, ExcludeSemantics' optional excluding flag, Image's 22,
+OverflowBar's six, SafeArea's six, GridView.count's 21, SingleChildScrollView's 10, ColoredBox's two, Placeholder's four, Directionality's required text direction, DecoratedBox's decoration and position, ClipRect's typed clipper reference and clip behavior, ClipOval's typed clipper reference and clip behavior, ClipRRect's radius geometry, typed clipper reference and clip behavior, ExcludeSemantics' optional excluding flag, Image's 22,
 TextField's 54, ListView's 17, Wrap's nine, FittedBox's three, ConstrainedBox's
 required constraints property, UnconstrainedBox's four optional rows,
 LimitedBox's two optional limits and OverflowBox's six optional rows; the runner still receives
 no persistence authority.
 
-This forty-eight-widget slice is complete across create, open, edit, save, reopen,
+This forty-nine-widget slice is complete across create, open, edit, save, reopen,
 Undo/Redo, deterministic Dart generation, Palette/tree/Canvas insertion,
 same-tree move and exact-slot management. Unreviewed widget definitions remain
 fail-closed until each receives an equally complete independently reviewed
@@ -2841,7 +2896,7 @@ Implementation proceeds through explicit gates:
 3. [Windows lifecycle spike complete; cross-platform contract pending] Define the
     platform-neutral native-surface SPI and prove its teardown,
     resize/DPR, focus, visibility, crash and stale-callback contract.
-4. [Current forty-eight-widget slice complete] Embed the isolated Flutter runner,
+4. [Current forty-nine-widget slice complete] Embed the isolated Flutter runner,
    render one exact validated capability-gated revision and support the compatible
    Android/iOS/desktop adaptive profiles plus a native-engine Web layout
    viewport with the same revision-scoped typed asset resources and no
@@ -2850,9 +2905,9 @@ Implementation proceeds through explicit gates:
    split/clone/direct-close peer-removal bypass is closed and the assembled
    physical gate passes.
 5. [Context and bounded Properties complete] Synchronize stable-ID selection
-   with the Explorer/Nodes widget tree, publish the exact forty-eight-item Palette
+   with the Explorer/Nodes widget tree, publish the exact forty-nine-item Palette
    and expose selected-node Properties. Enable catalog-driven Set/Reset/Patch
-   for the 737 reviewed fields, including all 17 Scaffold leaves, all 286
+   for the 742 reviewed fields, including all 17 Scaffold leaves, all 286
    ElevatedButton leaves,
    all 120 reviewed AppBar leaves,
    all 59 reviewed Text leaves, both
@@ -2878,9 +2933,10 @@ Implementation proceeds through explicit gates:
    Placeholder's four optional color/stroke/fallback-size rows plus optional
    child slot, Directionality's required closed text-direction row plus required
     atomic wrapper child slot, DecoratedBox's required typed decoration and
-    optional position plus optional child slot, ClipRect's optional clip behavior
-    plus optional child slot, ClipOval's optional clip behavior plus optional
-    child slot, ExcludeSemantics' optional
+    optional position plus optional child slot, ClipRect's typed clipper reference and optional clip behavior
+    plus optional child slot, ClipOval's typed clipper reference and optional clip behavior plus optional
+    child slot, ClipRRect's optional typed radius geometry, typed clipper reference and clip behavior plus
+    optional child slot, ExcludeSemantics' optional
     excluding flag plus optional child slot,
    Image's 22,
    TextField's 54, ListView's 17 and
@@ -2894,8 +2950,8 @@ Implementation proceeds through explicit gates:
    exact revision/layout-bound intent → one-shot Java admission →
    pair-save/Undo command path described above. The first accepted vertical
    slice admitted only `Text` at terminal `Row|Column.children` or empty
-   `Center.child[0]`; the current contract is the forty-eight-source,
-   2,160-candidate compatibility matrix with 1,943 accepted and 217 rejected cells.
+   `Center.child[0]`; the current contract is the forty-nine-source,
+   2,254-candidate compatibility matrix with 2,032 accepted and 222 rejected cells.
    Its live
    assembled drop → Save → Undo → Redo → Save
    acceptance passed. This completion does not claim the separate saved-history
@@ -3026,7 +3082,7 @@ width and height rows, an optional child, real stepped intrinsic-width
 2. Structured property-editor/model contracts for contributed widgets and the
    remaining unreviewed Flutter graphs/callback shapes, plus localized
    presentation. Strict callback identifiers are implemented for Scaffold and
-   ElevatedButton. The catalog-driven provider for the current forty-eight-widget
+   ElevatedButton. The catalog-driven provider for the current forty-nine-widget
    writable-Properties slice now includes Scaffold scalars, ElevatedButton sparse
    state composites, AppBar composites, Text composites, a closed Paint subset,
    shadows, font features, font variations, IconData, semantic theme roles and
@@ -3063,7 +3119,9 @@ width and height rows, an optional child, real stepped intrinsic-width
    closed text direction, Designer-created `TextDirection.ltr` value, real
     inherited Canvas semantics and required atomic wrapper child, DecoratedBox's
     complete reviewed BoxDecoration branch, optional decoration position and
-    optional child, and ExcludeSemantics' optional excluding flag and optional
+    optional child, ClipRect's and ClipOval's typed project clipper reference and optional clip behavior,
+    ClipRRect's typed physical/directional elliptical radius geometry, typed
+    project clipper reference and optional clip behavior, and ExcludeSemantics' optional excluding flag and optional
     child with real semantics exclusion;
    built-in
    domain metadata is fixed by ADR-010 and ADR-027.
@@ -3071,7 +3129,7 @@ width and height rows, an optional child, real stepped intrinsic-width
 4. The platform-neutral native-surface SPI, Linux/macOS isolated-runner
    feasibility, remaining Windows native lifecycle acceptance, a future
    versioned catalog contract and Java → Flutter hit-test → revision-bound DnD
-   intent validation required by ADR-021. The bounded protocol-v15 capability-gated model payload,
+   intent validation required by ADR-021. The bounded protocol-v17 capability-gated model payload,
    direct native rendering, stable-ID selection bridge and bounded typed
    Properties path are already implemented. The Windows inline Text product
    slice is also implemented under ADR-036, while physical CJK IME acceptance

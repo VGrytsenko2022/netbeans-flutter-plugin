@@ -21,6 +21,100 @@ class PropertyValueTest {
     }
 
     @Test
+    void modelsStandaloneBorderRadiusGeometryAsATypedValue() {
+        PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry =
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        radius("1.0", "2.00"),
+                        radius("3", "4"),
+                        radius("5", "6"),
+                        radius("7", "8"));
+        PropertyValue.BorderRadiusValue value =
+                new PropertyValue.BorderRadiusValue(geometry);
+
+        assertEquals(PropertyValueKind.BORDER_RADIUS, value.kind());
+        assertEquals("borderRadius", value.kind().wireName());
+        assertEquals(geometry, value.geometry());
+        assertThrows(NullPointerException.class,
+                () -> new PropertyValue.BorderRadiusValue(null));
+    }
+
+    @Test
+    void modelsClosedProjectDartReferencesAndInvocationConstness() {
+        PropertyValue.DartObjectReferenceValue currentReference =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "_clipper", Optional.of("instance"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty());
+        assertEquals(PropertyValueKind.DART_OBJECT_REFERENCE,
+                currentReference.kind());
+        assertEquals("dartObjectReference", currentReference.kind().wireName());
+        assertEquals("reference", currentReference.access().wireName());
+
+        PropertyValue.DartObjectReferenceValue importedConstInvocation =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/clipping/rrect_clipper.dart"),
+                        "RoundedClipper", Optional.of("create"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+        PropertyValue.DartObjectReferenceValue currentNonConstInvocation =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "RoundedClipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(false));
+        assertEquals(Optional.of(true), importedConstInvocation.constant());
+        assertEquals(Optional.of(false), currentNonConstInvocation.constant());
+        assertEquals(
+                PropertyValue.DartObjectReferenceValue.Access
+                        .ZERO_ARGUMENT_INVOCATION,
+                PropertyValue.DartObjectReferenceValue.Access.fromWireName(
+                        "zeroArgumentInvocation"));
+
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "Clipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.of(false)));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "Clipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.empty()));
+        for (String invalidUri : List.of(
+                "dart:ui", "../clipper.dart", "package:Sample/clipper.dart",
+                "package:sample/../clipper.dart")) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new PropertyValue.DartObjectReferenceValue(
+                            Optional.of(invalidUri), "Clipper", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                            Optional.empty()), invalidUri);
+        }
+        for (String invalidIdentifier : List.of("", "9Clipper", "Clipper.bad", "class")) {
+            assertThrows(IllegalArgumentException.class, () ->
+                    new PropertyValue.DartObjectReferenceValue(
+                            Optional.empty(), invalidIdentifier, Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                            Optional.empty()), invalidIdentifier);
+        }
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/clipper.dart"), "_Clipper",
+                        Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/clipper.dart"), "Clipper",
+                        Optional.of("_instance"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty()));
+        assertThrows(IllegalArgumentException.class, () ->
+                PropertyValue.DartObjectReferenceValue.Access.fromWireName("call"));
+    }
+
+    @Test
     void exposesEverySchemaV1ValueKind() {
         List<PropertyValue> values = List.of(
                 new PropertyValue.StringValue(""),
@@ -534,6 +628,11 @@ class PropertyValueTest {
                         PropertyValue.ImageProviderValue.ProviderKind.ASSET,
                         "assets/logo.png", Optional.of("Bad-Package"),
                         Optional.empty(), Optional.empty()));
+    }
+
+    private static PropertyValue.BoxDecorationValue.Radius radius(String x, String y) {
+        return new PropertyValue.BoxDecorationValue.Radius(
+                new BigDecimal(x), new BigDecimal(y));
     }
 
     @Test

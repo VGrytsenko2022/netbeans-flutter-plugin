@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -111,6 +112,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             ClipRectWidgetPropertySchema.CLIP_RECT_TYPE;
     private static final WidgetTypeId CLIP_OVAL =
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
+    private static final WidgetTypeId CLIP_RRECT =
+            ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -1730,6 +1733,87 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void clipRRectTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(CLIP_RRECT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(CLIP_RRECT, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(CLIP_RRECT, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves BorderRadius.zero and Clip.antiAlias defaults"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ClipRRect palette authority once"));
+    }
+
+    @Test
+    void textTokenCommitsIntoEmptyClipRRectChild() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(CLIP_RRECT));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0),
+                        command.destination()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty()));
+    }
+
+    @Test
     void indexedStackTokenCommitsOmittedDefaultAndEmptyChildrenList() {
         Fixture fixture = fixture(INDEXED_STACK);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -2010,6 +2094,10 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty ClipOval",
                         document(prototype(CLIP_OVAL)),
+                        CHILD),
+                new AcceptedCase(
+                        "empty ClipRRect",
+                        document(prototype(CLIP_RRECT)),
                         CHILD));
 
         assertAll(accepted.stream().map(testCase -> () -> {

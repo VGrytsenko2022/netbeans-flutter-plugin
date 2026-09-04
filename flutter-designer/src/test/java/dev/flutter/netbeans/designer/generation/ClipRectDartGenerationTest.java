@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
@@ -60,6 +61,48 @@ class ClipRectDartGenerationTest {
                     < build.indexOf("child: const Text('Visible')"), build);
             assertFalse(build.contains("clipper:"), build);
         }
+    }
+
+    @Test
+    void emitsCurrentLibraryClipperReferenceInExactConstructorOrder() {
+        PropertyValue.DartObjectReferenceValue clipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "RectClippers", Optional.of("active"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty());
+
+        GeneratedDartRegions generated = generate(clipRect(
+                Map.of(
+                        new PropertyName("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "hardEdge"),
+                        new PropertyName("clipper"), clipper),
+                Optional.of(text("Visible"))));
+
+        String build = generated.build().payload();
+        assertTrue(build.contains("return ClipRect("), build);
+        assertFalse(build.contains("return const ClipRect("), build);
+        assertTrue(build.contains("clipper: RectClippers.active"), build);
+        assertTrue(build.indexOf("clipper:") < build.indexOf("clipBehavior:"), build);
+        assertTrue(build.indexOf("clipBehavior:") < build.indexOf("child:"), build);
+        List<GeneratedDartSymbolOccurrence> occurrences = generated
+                .symbolOccurrences().stream()
+                .filter(value -> value.modelPath()
+                        .startsWith("/root/properties/clipper/"))
+                .toList();
+        assertEquals(List.of("RectClippers", "active"), occurrences.stream()
+                .map(GeneratedDartSymbolOccurrence::symbolName).toList());
+        assertTrue(occurrences.stream().allMatch(value -> value.libraryUri()
+                .equals(DartRegionGenerator.CURRENT_PROJECT_LIBRARY_URI)));
+        GeneratedDartStaticTypeRequirement requirement = occurrences.stream()
+                .flatMap(value -> value.staticTypeRequirement().stream())
+                .findFirst().orElseThrow();
+        assertEquals("CustomClipper<Rect>", requirement.expectedDartType());
+        assertEquals("RectClippers.active", build.substring(
+                requirement.expressionOffset(),
+                requirement.expressionEndOffset()));
+        assertEquals(1, occurrences.stream()
+                .filter(value -> value.staticTypeRequirement().isPresent())
+                .count());
     }
 
     @Test

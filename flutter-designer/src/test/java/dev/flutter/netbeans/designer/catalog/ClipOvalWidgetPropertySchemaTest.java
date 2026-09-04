@@ -36,15 +36,28 @@ class ClipOvalWidgetPropertySchemaTest {
         assertEquals(new PaletteMetadata(
                         "flutter.basic", 300, 90, "ClipOval"),
                 definition.palette());
-        assertEquals(List.of("clipBehavior"), definition.properties().stream()
+        assertEquals(List.of("clipper", "clipBehavior"), definition.properties().stream()
                 .map(property -> property.name().value()).toList());
         assertEquals(ClipOvalWidgetPropertySchema.definitions().keySet().stream().toList(),
                 definition.properties().stream()
                         .map(property -> property.name().value()).toList());
 
+        PropertyDefinition clipper = definition.property(
+                new PropertyName("clipper")).orElseThrow();
+        assertEquals(DartParameter.named(0, false), clipper.parameter());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefault().isEmpty(),
+                "Omission must preserve the child-bounds oval");
+        PropertyValueConstraint.DartObjectReferenceValues clipperConstraint =
+                assertInstanceOf(
+                        PropertyValueConstraint.DartObjectReferenceValues.class,
+                        clipper.constraints().getFirst());
+        assertEquals("CustomClipper<Rect>", clipperConstraint.expectedDartType());
+
         PropertyDefinition clipBehavior = definition.property(
                 new PropertyName("clipBehavior")).orElseThrow();
-        assertEquals(DartParameter.named(0, false), clipBehavior.parameter());
+        assertEquals(DartParameter.named(1, false), clipBehavior.parameter());
         assertEquals(Set.of(PropertyValueKind.ENUM), clipBehavior.acceptedKinds());
         assertTrue(clipBehavior.creationDefault().isEmpty(),
                 "Omission must preserve Flutter's exact Clip.antiAlias default");
@@ -59,14 +72,12 @@ class ClipOvalWidgetPropertySchemaTest {
                 new PropertyValue.StringValue("Clip.antiAlias")));
 
         SlotDefinition child = definition.slot(new SlotName("child")).orElseThrow();
-        assertEquals(DartParameter.named(1, false), child.parameter());
+        assertEquals(DartParameter.named(2, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
 
-        assertTrue(definition.property(new PropertyName("clipper")).isEmpty(),
-                "A non-null CustomClipper delegate is not a closed typed value");
         assertTrue(definition.property(new PropertyName("key")).isEmpty());
     }
 
@@ -75,7 +86,7 @@ class ClipOvalWidgetPropertySchemaTest {
         assertEquals(ClipOvalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
                 ClipOvalWidgetPropertySchema.definitions().size());
         assertEquals(1, ClipOvalWidgetPropertySchema.SLOT_COUNT);
-        assertEquals(List.of("clipBehavior"),
+        assertEquals(List.of("clipper", "clipBehavior"),
                 ClipOvalWidgetPropertySchema.definitions().keySet().stream().toList());
         ClipOvalWidgetPropertySchema.Definition metadata =
                 ClipOvalWidgetPropertySchema.definitions().get("clipBehavior");
@@ -85,12 +96,17 @@ class ClipOvalWidgetPropertySchemaTest {
         assertEquals("Oval paint clipping behavior.", metadata.group().description());
         assertEquals("Clip behavior", metadata.displayName());
         assertEquals("clipBehavior", metadata.dartName());
-        assertEquals(0, metadata.dartOrder());
+        assertEquals(1, metadata.dartOrder());
         assertFalse(metadata.description().isBlank());
         assertTrue(ClipOvalWidgetPropertySchema.find(
                 new PropertyName("clipBehavior")).isPresent());
-        assertTrue(ClipOvalWidgetPropertySchema.find(
-                new PropertyName("clipper")).isEmpty());
+        ClipOvalWidgetPropertySchema.Definition clipper =
+                ClipOvalWidgetPropertySchema.find(
+                        new PropertyName("clipper")).orElseThrow();
+        assertEquals(ClipOvalWidgetPropertySchema.Group.DELEGATE, clipper.group());
+        assertEquals("clipOvalDelegate", clipper.group().setName());
+        assertEquals("Clipper", clipper.displayName());
+        assertEquals(0, clipper.dartOrder());
         assertTrue(ClipOvalWidgetPropertySchema.find(
                 new PropertyName("unknown")).isEmpty());
     }
@@ -115,9 +131,9 @@ class ClipOvalWidgetPropertySchemaTest {
     }
 
     @Test
-    void reusesExistingTypedValuesWithoutAdvancingSchemaOrTransportVersions() {
-        assertEquals(10, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(10, WidgetCatalog.API_VERSION);
-        assertEquals(15, CanvasModelPayloadCodec.VERSION);
+    void remainsCompatibleWithTheCurrentDesignerContracts() {
+        assertEquals(12, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(12, WidgetCatalog.API_VERSION);
+        assertEquals(17, CanvasModelPayloadCodec.VERSION);
     }
 }

@@ -3,11 +3,14 @@ package dev.flutter.netbeans.plugin.designer;
 import dev.flutter.netbeans.api.DartCandidateCapacityBudget;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisRequest;
 import dev.flutter.netbeans.dart.DartCandidateAnalysisResult;
+import dev.flutter.netbeans.dart.DartCandidateDiagnostic;
 import dev.flutter.netbeans.dart.DartCandidateSnapshot;
 import dev.flutter.netbeans.dart.DartCandidateWarningPolicy;
 import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
+import dev.flutter.netbeans.dart.DartStaticTypeEvidence;
+import dev.flutter.netbeans.dart.DartStaticTypeProbe;
 import dev.flutter.netbeans.designer.pair.PreparedDesignerPair;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
@@ -24,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * Pure fail-closed two-step binding of prepared analyzer and applied-live evidence.
@@ -33,6 +37,33 @@ final class PairSaveEvidenceGate {
     private static final String REQUIRED_STATELESS_WIDGET = "StatelessWidget";
     private static final String REQUIRED_WIDGET = "Widget";
     private static final String REQUIRED_BUILD_CONTEXT = "BuildContext";
+    private static final String CURRENT_PROJECT_LIBRARY_URI = "project:current";
+    private static final Pattern PROJECT_PACKAGE_LIBRARY_URI = Pattern.compile(
+            "package:[a-z][a-z0-9_]*/"
+            + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"
+            + "[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.dart");
+    private static final Pattern SAFE_DIAGNOSTIC_CODE = Pattern.compile(
+            "[A-Za-z][A-Za-z0-9_.-]{0,127}");
+    private static final Pattern SAFE_PROBE_ID = Pattern.compile(
+            "[A-Za-z0-9_:/~.-]{1,512}");
+    private static final Pattern SAFE_MODEL_PATH = Pattern.compile(
+            "/[A-Za-z0-9_~/.-]+");
+    private static final Pattern FILE_URI = Pattern.compile(
+            "(?i)(?<![A-Za-z0-9_])file:/+[^\\s,;]+");
+    private static final Pattern WINDOWS_ABSOLUTE_PATH = Pattern.compile(
+            "(?i)(?<![A-Za-z0-9_])[a-z]:[\\\\/][^\\s,;]+");
+    private static final Pattern UNC_PATH = Pattern.compile(
+            "\\\\\\\\[^\\s,;]+");
+    private static final Pattern POSIX_ABSOLUTE_PATH = Pattern.compile(
+            "(?<![A-Za-z0-9_:])/(?:[^\\s,;]+)");
+    private static final Pattern SENSITIVE_ASSIGNMENT = Pattern.compile(
+            "(?i)\\b(password|passwd|passphrase|secret|token|api[_-]?key|"
+            + "access[_-]?key|authorization)\\s*[:=]\\s*");
+    private static final Pattern SECRET_TOKEN = Pattern.compile(
+            "(?i)(?<![A-Za-z0-9])(?:sk-(?:proj-)?[A-Za-z0-9_-]{8,}|"
+            + "gh[pousr]_[A-Za-z0-9]{8,}|xox[baprs]-[A-Za-z0-9-]{8,})");
+    private static final int MAXIMUM_EXTERNAL_DETAIL_CODE_POINTS = 384;
+    private static final int MAXIMUM_EXTERNAL_SOURCE_CODE_POINTS = 2_048;
 
     private PairSaveEvidenceGate() {
     }
@@ -96,7 +127,8 @@ final class PairSaveEvidenceGate {
         }
         List<DartSymbolProbe> probes;
         try {
-            probes = GeneratedDartSymbolProbePlanner.plan(prepared, trustedReal);
+            probes = GeneratedDartSymbolProbePlanner.plan(
+                    prepared, trustedReal, projectReal);
         } catch (RuntimeException invalidManifest) {
             throw new IOException(
                     "Cannot derive exact Flutter Designer analyzer probes: "
@@ -152,6 +184,16 @@ final class PairSaveEvidenceGate {
         ArrayList<PairSaveEvidenceDiagnostic> diagnostics = new ArrayList<>();
         verifyLiveCandidate(
                 analyzed.preparedIdentity(), appliedLive, diagnostics);
+        // Analyzer navigation is filesystem-backed evidence. Re-run the full
+        // provenance checks at the post-CAS bind boundary so a target/root
+        // deleted or redirected after analysis cannot be carried into a save.
+        verifySymbolEvidence(
+                analyzed.preparedIdentity(),
+                analyzed.analysisIdentity(),
+                analyzed.requestIdentity().content(),
+                analyzed.trustedFlutterSdkRealRoot(),
+                analyzed.realProjectRoot(),
+                diagnostics);
 
         if (!diagnostics.isEmpty()) {
             return new PairSaveEvidenceResult.Rejected(diagnostics);
@@ -274,7 +316,7 @@ final class PairSaveEvidenceGate {
             add(diagnostics,
                     PairSaveEvidenceDiagnostic.Code.ANALYSIS_NOT_PASSED,
                     "analysis.status",
-                    "Pair-save evidence requires a PASSED candidate analysis result.");
+                    concreteAnalysisFailure(analysis));
         }
 
         DartCandidateSnapshot snapshot = analysis.snapshot();
@@ -336,6 +378,7 @@ final class PairSaveEvidenceGate {
                 analysis,
                 new String(candidate, StandardCharsets.UTF_8),
                 ticket.trustedFlutterSdkRealRoot(),
+                ticket.realProjectRoot(),
                 diagnostics);
     }
 
@@ -343,18 +386,37 @@ final class PairSaveEvidenceGate {
             PreparedDesignerPair prepared,
             DartCandidateAnalysisResult analysis,
             String candidate,
-            Path trustedReal,
+            Path trustedFlutterReal,
+            Path trustedProjectReal,
             List<PairSaveEvidenceDiagnostic> diagnostics) {
+        Path projectLibraryReal = null;
+        if (analysis.symbolEvidence().stream().map(DartSymbolEvidence::probe)
+                .map(DartSymbolProbe::expectedLibraryUri)
+                .anyMatch(CURRENT_PROJECT_LIBRARY_URI::equals)) {
+            projectLibraryReal = realPath(
+                    trustedProjectReal.resolve("lib"),
+                    "analysis.projectLibraryRoot",
+                    diagnostics);
+            if (projectLibraryReal != null
+                    && !projectLibraryReal.startsWith(trustedProjectReal)) {
+                add(diagnostics,
+                        PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT,
+                        "analysis.projectLibraryRoot",
+                        "The real project lib directory resolves outside the real project root.");
+                projectLibraryReal = null;
+            }
+        }
         verifyExactProbeManifest(
                 prepared,
                 analysis,
-                trustedReal,
+                trustedFlutterReal,
+                trustedProjectReal,
                 diagnostics);
         if (analysis.requestedSymbolProbes() == 0) {
             add(diagnostics,
                     PairSaveEvidenceDiagnostic.Code.ZERO_SYMBOL_PROBES,
                     "analysis.requestedSymbolProbes",
-                    "Pair-save evidence requires non-empty Flutter symbol probes.");
+                    "Pair-save evidence requires non-empty Dart symbol probes.");
         }
         if (analysis.symbolEvidence().size()
                 != analysis.requestedSymbolProbes()) {
@@ -381,26 +443,51 @@ final class PairSaveEvidenceGate {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.INCOMPLETE_SYMBOL_EVIDENCE,
                         "analysis.symbolEvidence." + probe.id(),
-                        "Every symbol probe must retain accepted analyzer evidence.");
+                        rejectedProbeMessage(evidence));
             }
             verifyOccurrence(candidate, probe, diagnostics);
-            if (!isFlutterLibraryUri(probe.expectedLibraryUri())) {
+            verifyStaticTypeEvidence(candidate, evidence, diagnostics);
+            boolean flutterLibrary = isFlutterLibraryUri(
+                    probe.expectedLibraryUri());
+            boolean currentProjectLibrary = CURRENT_PROJECT_LIBRARY_URI.equals(
+                    probe.expectedLibraryUri());
+            boolean declaredPackageLibrary = isDeclaredPackageLibraryUri(
+                    probe.expectedLibraryUri());
+            if (!flutterLibrary && !currentProjectLibrary
+                    && !declaredPackageLibrary) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.INVALID_FLUTTER_LIBRARY_URI,
                         "analysis.symbolEvidence." + probe.id(),
-                        "A pair-save symbol probe must identify a package:flutter library URI.");
+                        "A pair-save symbol probe must identify a package:flutter URI "
+                        + "or a closed current/declared project package library URI.");
             }
 
             Path expectedRootReal = realPath(
                     probe.expectedTargetRoot(),
                     "analysis.symbolEvidence." + probe.id() + ".expectedTargetRoot",
                     diagnostics);
-            if (trustedReal != null && expectedRootReal != null
-                    && !expectedRootReal.startsWith(trustedReal)) {
+            Path authorizedRoot = flutterLibrary
+                    ? trustedFlutterReal
+                    : currentProjectLibrary
+                            ? projectLibraryReal
+                            : declaredPackageLibrary ? expectedRootReal : null;
+            boolean trustedExpectedRoot = expectedRootReal != null
+                    && authorizedRoot != null
+                    && (flutterLibrary
+                            ? expectedRootReal.startsWith(authorizedRoot)
+                            : currentProjectLibrary
+                                    ? expectedRootReal.equals(authorizedRoot)
+                                    : expectedRootReal.equals(authorizedRoot));
+            if ((flutterLibrary || currentProjectLibrary
+                    || declaredPackageLibrary) && !trustedExpectedRoot) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT,
                         "analysis.symbolEvidence." + probe.id(),
-                        "The probe's real target root is outside the trusted Flutter SDK root.");
+                        flutterLibrary
+                                ? "The probe's real target root is outside the trusted Flutter SDK root."
+                                : currentProjectLibrary
+                                        ? "The current-library probe's real target root is not the trusted project lib directory."
+                                        : "The declared-package probe has no real package library root.");
             }
 
             if (evidence.targets().size() != 1) {
@@ -415,8 +502,8 @@ final class PairSaveEvidenceGate {
                         "analysis.symbolEvidence." + probe.id() + ".target",
                         diagnostics);
                 if (targetReal != null
-                        && ((trustedReal != null
-                                && !targetReal.startsWith(trustedReal))
+                        && ((authorizedRoot != null
+                                && !targetReal.startsWith(authorizedRoot))
                             || (expectedRootReal != null
                                 && !targetReal.startsWith(expectedRootReal)))) {
                     add(diagnostics,
@@ -472,14 +559,16 @@ final class PairSaveEvidenceGate {
     private static void verifyExactProbeManifest(
             PreparedDesignerPair prepared,
             DartCandidateAnalysisResult analysis,
-            Path trustedReal,
+            Path trustedFlutterReal,
+            Path trustedProjectReal,
             List<PairSaveEvidenceDiagnostic> diagnostics) {
-        if (trustedReal == null) {
+        if (trustedFlutterReal == null || trustedProjectReal == null) {
             return;
         }
         List<DartSymbolProbe> expected;
         try {
-            expected = GeneratedDartSymbolProbePlanner.plan(prepared, trustedReal);
+            expected = GeneratedDartSymbolProbePlanner.plan(
+                    prepared, trustedFlutterReal, trustedProjectReal);
         } catch (RuntimeException invalidManifest) {
             add(diagnostics,
                     PairSaveEvidenceDiagnostic.Code
@@ -518,6 +607,241 @@ final class PairSaveEvidenceGate {
         }
     }
 
+    private static void verifyStaticTypeEvidence(
+            String candidate,
+            DartSymbolEvidence evidence,
+            List<PairSaveEvidenceDiagnostic> diagnostics) {
+        DartSymbolProbe symbol = evidence.probe();
+        if (symbol.staticTypeProbe().isEmpty()) {
+            if (evidence.staticTypeEvidence().isPresent()) {
+                add(diagnostics,
+                        PairSaveEvidenceDiagnostic.Code
+                                .INCOMPLETE_STATIC_TYPE_EVIDENCE,
+                        "analysis.symbolEvidence." + symbol.id()
+                                + ".staticTypeEvidence",
+                        "Untyped symbol evidence must not carry a detached static-type proof.");
+            }
+            return;
+        }
+        DartStaticTypeProbe probe = symbol.staticTypeProbe().orElseThrow();
+        long expressionEnd = (long) probe.expressionOffset()
+                + probe.expressionLength();
+        if (expressionEnd > candidate.length()
+                || probe.statementInsertionOffset() > probe.expressionOffset()
+                || probe.importInsertionOffset() > probe.statementInsertionOffset()) {
+            add(diagnostics,
+                    PairSaveEvidenceDiagnostic.Code.INVALID_SYMBOL_OCCURRENCE,
+                    "analysis.symbolEvidence." + symbol.id()
+                            + ".staticTypeExpression",
+                    "The static-type probe does not identify a bounded expression in the exact candidate.");
+        }
+        DartStaticTypeEvidence staticType = evidence.staticTypeEvidence()
+                .orElse(null);
+        if (staticType == null
+                || !staticType.probe().equals(probe)
+                || !staticType.accepted()) {
+            String reason = staticType == null
+                    ? "The analyzer returned no static-type proof."
+                    : boundedExternalDetail(
+                            staticType.rejectionReason().orElse(null),
+                            "The analyzer rejected the static-type proof.");
+            add(diagnostics,
+                    PairSaveEvidenceDiagnostic.Code
+                            .INCOMPLETE_STATIC_TYPE_EVIDENCE,
+                    "analysis.symbolEvidence." + symbol.id()
+                            + ".staticTypeEvidence",
+                    "Dart object reference at model path "
+                    + probeModelPath(symbol)
+                    + " (probe " + safeProbeId(symbol) + ") must have exact non-null "
+                    + probe.expectedDartType() + ": " + reason);
+        }
+    }
+
+    private static String concreteAnalysisFailure(
+            DartCandidateAnalysisResult analysis) {
+        DartCandidateDiagnostic diagnostic = analysis.diagnostics().stream()
+                .filter(DartCandidateDiagnostic::blocking)
+                .findFirst()
+                .orElse(null);
+        if (diagnostic != null) {
+            String code = diagnostic.code()
+                    .filter(SAFE_DIAGNOSTIC_CODE.asMatchPredicate())
+                    .map(value -> " [" + value + "]")
+                    .orElse("");
+            return "Dart analyzer rejected the candidate at line "
+                    + diagnostic.startLine() + ", column "
+                    + diagnostic.startColumn() + code + ": "
+                    + boundedExternalDetail(
+                            diagnostic.message(),
+                            "The analyzer returned no usable diagnostic detail.");
+        }
+        DartSymbolEvidence evidence = analysis.symbolEvidence().stream()
+                .filter(value -> !value.accepted())
+                .findFirst()
+                .orElse(null);
+        if (evidence != null) {
+            return rejectedProbeMessage(evidence);
+        }
+        if (analysis.issue().isPresent()) {
+            var issue = analysis.issue().orElseThrow();
+            return "Dart analyzer could not establish save evidence ["
+                    + issue.code() + "]: "
+                    + boundedExternalDetail(
+                            issue.message(),
+                            "No usable analyzer failure detail was returned.");
+        }
+        return "Pair-save evidence requires a PASSED candidate analysis result.";
+    }
+
+    private static String rejectedProbeMessage(DartSymbolEvidence evidence) {
+        DartSymbolProbe probe = evidence.probe();
+        String expected = probe.staticTypeProbe()
+                .map(value -> "exact non-null " + value.expectedDartType())
+                .orElseGet(() -> expectedLibraryDescription(probe));
+        return "Dart analyzer rejected model path " + probeModelPath(probe)
+                + " (probe " + safeProbeId(probe) + ", expected " + expected
+                + "): " + boundedExternalDetail(
+                        evidence.rejectionReason().orElse(null),
+                        "No concrete symbol rejection reason was returned.");
+    }
+
+    private static String probeModelPath(DartSymbolProbe probe) {
+        String id = probe.id();
+        String marker = ":property-reference:";
+        int start = id.indexOf(marker);
+        int end = id.lastIndexOf(':');
+        String modelPath = start >= 0 && end > start + marker.length()
+                ? id.substring(start + marker.length(), end) : "";
+        return SAFE_MODEL_PATH.matcher(modelPath).matches()
+                && (modelPath.equals("/root")
+                    || modelPath.startsWith("/root/"))
+                ? boundedCodePoints(modelPath, 512, false)
+                : "[unavailable]";
+    }
+
+    private static String safeProbeId(DartSymbolProbe probe) {
+        return SAFE_PROBE_ID.matcher(probe.id()).matches()
+                ? probe.id() : "[unavailable]";
+    }
+
+    private static String expectedLibraryDescription(DartSymbolProbe probe) {
+        String libraryUri = probe.expectedLibraryUri();
+        return isFlutterLibraryUri(libraryUri)
+                || CURRENT_PROJECT_LIBRARY_URI.equals(libraryUri)
+                || isDeclaredPackageLibraryUri(libraryUri)
+                ? "library " + libraryUri
+                : "the declared Dart library";
+    }
+
+    /**
+     * Normalizes external analyzer text before it crosses into mutation UI.
+     * Only a small single-line prefix is retained; absolute paths and common
+     * credential forms discard their complete suffix so path segments or
+     * secret material cannot survive a partial replacement.
+     */
+    private static String boundedExternalDetail(
+            String value,
+            String fallback) {
+        if (value == null || value.isEmpty()) {
+            return fallback;
+        }
+        StringBuilder compact = new StringBuilder(
+                Math.min(value.length(), MAXIMUM_EXTERNAL_SOURCE_CODE_POINTS));
+        int sourceIndex = 0;
+        int sourceCodePoints = 0;
+        boolean pendingSpace = false;
+        while (sourceIndex < value.length()
+                && sourceCodePoints < MAXIMUM_EXTERNAL_SOURCE_CODE_POINTS) {
+            int codePoint = value.codePointAt(sourceIndex);
+            sourceIndex += Character.charCount(codePoint);
+            sourceCodePoints++;
+            if (Character.isISOControl(codePoint)
+                    || Character.isWhitespace(codePoint)
+                    || Character.isSpaceChar(codePoint)
+                    || Character.getType(codePoint) == Character.FORMAT
+                    || codePoint >= Character.MIN_SURROGATE
+                    && codePoint <= Character.MAX_SURROGATE) {
+                pendingSpace = compact.length() > 0;
+                continue;
+            }
+            if (pendingSpace) {
+                compact.append(' ');
+                pendingSpace = false;
+            }
+            compact.appendCodePoint(codePoint);
+        }
+        String normalized = compact.toString().strip();
+        if (normalized.isEmpty()) {
+            return fallback;
+        }
+
+        int pathOffset = firstFilesystemPathOffset(normalized);
+        java.util.regex.Matcher sensitive = SENSITIVE_ASSIGNMENT.matcher(
+                normalized);
+        java.util.regex.Matcher token = SECRET_TOKEN.matcher(normalized);
+        int sensitiveOffset = sensitive.find() ? sensitive.start() : -1;
+        int tokenOffset = token.find() ? token.start() : -1;
+        int firstHazard = firstNonNegative(
+                pathOffset, sensitiveOffset, tokenOffset);
+        if (firstHazard >= 0) {
+            String safePrefix = normalized.substring(0, firstHazard)
+                    .stripTrailing();
+            String replacement;
+            if (firstHazard == pathOffset) {
+                replacement = "[path]";
+            } else if (firstHazard == sensitiveOffset) {
+                replacement = sensitive.group(1) + "=[redacted]";
+            } else {
+                replacement = "[redacted secret]";
+            }
+            normalized = safePrefix.isEmpty()
+                    ? replacement : safePrefix + " " + replacement;
+            sourceIndex = value.length();
+        }
+        return boundedCodePoints(
+                normalized,
+                MAXIMUM_EXTERNAL_DETAIL_CODE_POINTS,
+                sourceIndex < value.length());
+    }
+
+    private static int firstFilesystemPathOffset(String value) {
+        int first = -1;
+        for (Pattern pattern : List.of(
+                FILE_URI,
+                WINDOWS_ABSOLUTE_PATH,
+                UNC_PATH,
+                POSIX_ABSOLUTE_PATH)) {
+            java.util.regex.Matcher matcher = pattern.matcher(value);
+            if (matcher.find() && (first < 0 || matcher.start() < first)) {
+                first = matcher.start();
+            }
+        }
+        return first;
+    }
+
+    private static int firstNonNegative(int... values) {
+        int first = -1;
+        for (int value : values) {
+            if (value >= 0 && (first < 0 || value < first)) {
+                first = value;
+            }
+        }
+        return first;
+    }
+
+    private static String boundedCodePoints(
+            String value,
+            int maximum,
+            boolean alreadyTruncated) {
+        int codePoints = value.codePointCount(0, value.length());
+        if (codePoints <= maximum && !alreadyTruncated) {
+            return value;
+        }
+        int retained = Math.min(codePoints, maximum - 1);
+        int end = value.offsetByCodePoints(0, retained);
+        return value.substring(0, end).stripTrailing() + '\u2026';
+    }
+
     private static boolean isFlutterLibraryUri(String value) {
         try {
             URI uri = new URI(value);
@@ -541,6 +865,14 @@ final class PairSaveEvidenceGate {
         } catch (URISyntaxException ex) {
             return false;
         }
+    }
+
+    private static boolean isDeclaredPackageLibraryUri(String value) {
+        return !value.startsWith("package:flutter/")
+                && PROJECT_PACKAGE_LIBRARY_URI.matcher(value).matches()
+                && !value.contains("//")
+                && !value.contains("/./")
+                && !value.contains("/../");
     }
 
     private static Path realPath(

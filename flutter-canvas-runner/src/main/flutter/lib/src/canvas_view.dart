@@ -19,6 +19,32 @@ bool _ignoreInlineTextCommit(
   bool compositionObserved,
 ) => false;
 
+String _customClipperPreviewUnavailableMessage({
+  required String widgetName,
+  required String expectedType,
+}) =>
+    'Custom $widgetName preview unavailable. Generated Dart uses the '
+    'configured $expectedType; isolated Canvas does not execute project '
+    'or dependency Dart.';
+
+String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
+  if (node.properties['clipper']?.kind != 'dartObjectReferencePresence') {
+    return null;
+  }
+  final expectedType = switch (node.type) {
+    'flutter.widgets.ClipRect' ||
+    'flutter.widgets.ClipOval' => 'CustomClipper<Rect>',
+    'flutter.widgets.ClipRRect' => 'CustomClipper<RRect>',
+    _ => null,
+  };
+  return expectedType == null
+      ? null
+      : _customClipperPreviewUnavailableMessage(
+          widgetName: _displayType(node.type),
+          expectedType: expectedType,
+        );
+}
+
 final Uint8List _unavailableImageBytes = base64Decode(
   'iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA'
   'AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/'
@@ -383,6 +409,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                         child: _ZeroSizedWidgetTarget(
                           widgetIds: target.widgetIds,
                           widgetTypes: target.widgetTypes,
+                          previewUnavailableMessages:
+                              target.previewUnavailableMessages,
                           selectedWidgetId: widget.selectedWidgetId,
                           dark: dark,
                           onSelected: _selectWidget,
@@ -504,6 +532,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             widgetTypes: List.unmodifiable([
               for (final node in target.value) node.type,
             ]),
+            previewUnavailableMessages: List.unmodifiable([
+              for (final node in target.value)
+                _customClipperPreviewUnavailableMessageForNode(node),
+            ]),
           ),
       ];
       if (_sameTargets(_zeroSizedWidgetTargets, targets)) {
@@ -538,6 +570,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == canvasDirectionalityWidgetType ||
         node.type == 'flutter.widgets.Placeholder' ||
         node.type == 'flutter.widgets.ClipOval' ||
+        node.type == 'flutter.widgets.ClipRRect' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
@@ -587,7 +620,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final rightTarget = right[targetIndex];
       if (leftTarget.rect != rightTarget.rect ||
           leftTarget.widgetIds.length != rightTarget.widgetIds.length ||
-          leftTarget.widgetTypes.length != rightTarget.widgetTypes.length) {
+          leftTarget.widgetTypes.length != rightTarget.widgetTypes.length ||
+          leftTarget.previewUnavailableMessages.length !=
+              rightTarget.previewUnavailableMessages.length) {
         return false;
       }
       for (
@@ -598,7 +633,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         if (leftTarget.widgetIds[widgetIndex] !=
                 rightTarget.widgetIds[widgetIndex] ||
             leftTarget.widgetTypes[widgetIndex] !=
-                rightTarget.widgetTypes[widgetIndex]) {
+                rightTarget.widgetTypes[widgetIndex] ||
+            leftTarget.previewUnavailableMessages[widgetIndex] !=
+                rightTarget.previewUnavailableMessages[widgetIndex]) {
           return false;
         }
       }
@@ -2341,6 +2378,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.OverflowBox' => _overflowBox(),
       'flutter.widgets.Placeholder' => _placeholder(context),
       'flutter.widgets.ClipOval' => _clipOval(),
+      'flutter.widgets.ClipRRect' => _clipRRect(context),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
@@ -4184,15 +4222,112 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
-  Widget _clipRect() => ClipRect(
-    clipBehavior: _clipBehavior() ?? Clip.hardEdge,
-    child: _single('child'),
-  );
+  Widget _clipRect() {
+    if (node.properties['clipper']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipRect',
+        expectedType: 'CustomClipper<Rect>',
+      );
+    }
+    return ClipRect(
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      child: _single('child'),
+    );
+  }
 
-  Widget _clipOval() => ClipOval(
-    clipBehavior: _clipBehavior() ?? Clip.antiAlias,
-    child: _single('child'),
-  );
+  Widget _clipOval() {
+    if (node.properties['clipper']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipOval',
+        expectedType: 'CustomClipper<Rect>',
+      );
+    }
+    return ClipOval(
+      clipBehavior: _clipBehavior() ?? Clip.antiAlias,
+      child: _single('child'),
+    );
+  }
+
+  Widget _clipRRect(BuildContext context) {
+    if (node.properties['clipper']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipRRect',
+        expectedType: 'CustomClipper<RRect>',
+      );
+    }
+    final radius = node.properties['borderRadius']?.value;
+    return ClipRRect(
+      borderRadius: radius is CanvasBorderRadiusGeometryValue
+          ? _borderRadius(radius).resolve(Directionality.of(context))
+          : BorderRadius.zero,
+      clipBehavior: _clipBehavior() ?? Clip.antiAlias,
+      child: _single('child'),
+    );
+  }
+
+  Widget _customClipperPreviewUnavailable({
+    required String widgetName,
+    required String expectedType,
+  }) {
+    final message = _customClipperPreviewUnavailableMessage(
+      widgetName: widgetName,
+      expectedType: expectedType,
+    );
+    return Stack(
+      fit: StackFit.passthrough,
+      clipBehavior: Clip.none,
+      children: [
+        _single('child') ?? const SizedBox.shrink(),
+        Positioned.fill(
+          child: Tooltip(
+            message: message,
+            excludeFromSemantics: true,
+            child: IgnorePointer(
+              child: Semantics(
+                key: ValueKey('canvas-custom-clipper-preview-${node.id}'),
+                container: true,
+                label: message,
+                child: ExcludeSemantics(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.22),
+                      border: Border.all(
+                        color: Colors.amber.shade800,
+                        width: 1,
+                      ),
+                    ),
+                    child: Center(
+                      child: DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Colors.amber.shade100,
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                        child: const Padding(
+                          padding: EdgeInsets.all(3),
+                          child: Text(
+                            'Custom clipper\npreview unavailable',
+                            maxLines: 2,
+                            overflow: TextOverflow.ellipsis,
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              color: Colors.black87,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                              height: 1.05,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
 
   Widget _opacity() => Opacity(
     opacity: _number('opacity')!,
@@ -5346,24 +5481,29 @@ class _ZeroSizedWidgetTargetGroup {
     required this.rect,
     required this.widgetIds,
     required this.widgetTypes,
+    required this.previewUnavailableMessages,
   });
 
   final Rect rect;
   final List<String> widgetIds;
   final List<String> widgetTypes;
+  final List<String?> previewUnavailableMessages;
 }
 
 class _ZeroSizedWidgetTarget extends StatelessWidget {
   const _ZeroSizedWidgetTarget({
     required this.widgetIds,
     required this.widgetTypes,
+    required this.previewUnavailableMessages,
     required this.selectedWidgetId,
     required this.dark,
     required this.onSelected,
-  });
+  }) : assert(widgetIds.length == widgetTypes.length),
+       assert(widgetIds.length == previewUnavailableMessages.length);
 
   final List<String> widgetIds;
   final List<String> widgetTypes;
+  final List<String?> previewUnavailableMessages;
   final String? selectedWidgetId;
   final bool dark;
   final ValueChanged<String> onSelected;
@@ -5383,6 +5523,24 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       : '${widgetIds.length} overlapping zero-size widgets. '
             'Activate repeatedly to cycle selection.';
 
+  String? get _previewUnavailableMessage {
+    final selectedIndex = selectedWidgetId == null
+        ? -1
+        : widgetIds.indexOf(selectedWidgetId!);
+    if (selectedIndex >= 0) {
+      final selectedMessage = previewUnavailableMessages[selectedIndex];
+      if (selectedMessage != null) {
+        return selectedMessage;
+      }
+    }
+    for (final message in previewUnavailableMessages) {
+      if (message != null) {
+        return message;
+      }
+    }
+    return null;
+  }
+
   void _activate() {
     final selectedIndex = selectedWidgetId == null
         ? -1
@@ -5395,34 +5553,88 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final previewUnavailableMessage = _previewUnavailableMessage;
+    Widget visual = CustomPaint(
+      key: ValueKey('canvas-zero-size-widget-outline-$_keySuffix'),
+      foregroundPainter: _CanvasWidgetOutlinePainter(
+        selected: _selected,
+        inflateEmptyLinearContainer: false,
+        visualScale: 1,
+        unselectedColor: dark
+            ? const Color(0x99b0b8c1)
+            : const Color(0x9974808a),
+      ),
+      child: const SizedBox.expand(),
+    );
+    if (previewUnavailableMessage != null) {
+      visual = Stack(
+        fit: StackFit.expand,
+        children: [
+          visual,
+          IgnorePointer(
+            child: Align(
+              alignment: Alignment.topRight,
+              child: SizedBox.square(
+                dimension: 20,
+                child: DecoratedBox(
+                  key: ValueKey(
+                    'canvas-zero-size-custom-clipper-warning-$_keySuffix',
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    border: Border.all(color: Colors.amber.shade800),
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                  child: const Center(
+                    child: Text(
+                      '!',
+                      style: TextStyle(
+                        color: Colors.black87,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w700,
+                        height: 1,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      );
+    }
     final interaction = MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         key: ValueKey('canvas-zero-size-widget-target-$_keySuffix'),
         behavior: HitTestBehavior.opaque,
         onTap: _activate,
-        child: CustomPaint(
-          key: ValueKey('canvas-zero-size-widget-outline-$_keySuffix'),
-          foregroundPainter: _CanvasWidgetOutlinePainter(
-            selected: _selected,
-            inflateEmptyLinearContainer: false,
-            visualScale: 1,
-            unselectedColor: dark
-                ? const Color(0x99b0b8c1)
-                : const Color(0x9974808a),
-          ),
-          child: const SizedBox.expand(),
-        ),
+        child: visual,
       ),
     );
+    final baseLabel = _grouped
+        ? _cyclingMessage
+        : '${_displayType(widgetTypes.single)} ${widgetIds.single}';
+    final semanticsLabel = previewUnavailableMessage == null
+        ? baseLabel
+        : '$baseLabel. $previewUnavailableMessage';
+    final tooltipMessage = switch ((_grouped, previewUnavailableMessage)) {
+      (true, final String warning) => '$_cyclingMessage $warning',
+      (true, null) => _cyclingMessage,
+      (false, final String warning) => warning,
+      (false, null) => null,
+    };
     return Semantics(
-      label: _grouped
-          ? _cyclingMessage
-          : '${_displayType(widgetTypes.single)} ${widgetIds.single}',
+      key: ValueKey('canvas-zero-size-widget-semantics-$_keySuffix'),
+      label: semanticsLabel,
       selected: _selected,
-      child: _grouped
-          ? Tooltip(message: _cyclingMessage, child: interaction)
-          : interaction,
+      child: tooltipMessage == null
+          ? interaction
+          : Tooltip(
+              message: tooltipMessage,
+              excludeFromSemantics: true,
+              child: interaction,
+            ),
     );
   }
 }

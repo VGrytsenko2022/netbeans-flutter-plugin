@@ -11,20 +11,26 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Validates exact Dart candidates in isolated native analyzer overlays.
@@ -34,8 +40,18 @@ import java.util.function.Consumer;
  * evidence rather than permission to save a file.</p>
  */
 public final class DartCandidateAnalyzer {
+    private static final String INVALID_ASSIGNMENT = "invalid_assignment";
+    private static final String STATIC_TYPE_PROOF_OPTIONS = """
+            analyzer:
+              language:
+                strict-casts: true
+              errors:
+                invalid_assignment: error
+            """;
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final ProtocolVersion MINIMUM_PROTOCOL = new ProtocolVersion(1, 40, 0);
+    private static final Pattern CLOSED_EXPECTED_TYPE = Pattern.compile(
+            "([A-Za-z][A-Za-z0-9_]*)(?:<([A-Za-z][A-Za-z0-9_]*)>)?");
     private static final ScheduledExecutorService WATCHDOG =
             Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
 
@@ -196,6 +212,7 @@ public final class DartCandidateAnalyzer {
                         Optional.empty());
             } else {
                 evidence = analyzeSymbols(session, request);
+                evidence = analyzeStaticTypes(request, evidence, operation);
                 boolean rejected = evidence.stream().anyMatch(value -> !value.accepted());
                 result = new DartCandidateAnalysisResult(
                         rejected
@@ -382,6 +399,375 @@ public final class DartCandidateAnalyzer {
             evidence.add(parseSymbolEvidence(response.result(), probe));
         }
         return List.copyOf(evidence);
+    }
+
+    /**
+     * Completes the original call-site assignability proof without trusting
+     * human-readable hover strings. The error-free original overlay proves
+     * assignability to Flutter's real nullable parameter. A separate analyzer
+     * context owns strict-casts options and adds an exact non-null typed local
+     * initializer for every expression. The initializer preserves downward
+     * inference for generic zero-argument constructors and factories while
+     * rejecting dynamic, nullable, null, and wrong generic instantiations.
+     * Neither analyzer context is accepted in isolation.
+     */
+    private List<DartSymbolEvidence> analyzeStaticTypes(
+            DartCandidateAnalysisRequest request,
+            List<DartSymbolEvidence> navigationEvidence,
+            Operation operation)
+            throws ProtocolFailure, AnalysisFailure, IOException {
+        List<DartSymbolEvidence> typed = navigationEvidence.stream()
+                .filter(evidence -> evidence.probe().staticTypeProbe().isPresent())
+                .toList();
+        if (typed.isEmpty()) {
+            return navigationEvidence;
+        }
+
+        StaticTypeWitnessOverlay witness = staticTypeWitnessOverlay(request, typed);
+        List<DartCandidateDiagnostic> proofDiagnostics =
+                analyzeStaticTypeDiagnostics(request, witness, operation);
+
+        Set<StaticTypeProofControl> satisfiedControls = new HashSet<>();
+        Set<String> rejected = new HashSet<>();
+        boolean globalFailure = false;
+        for (DartCandidateDiagnostic diagnostic : proofDiagnostics) {
+            boolean controlDiagnostic = false;
+            for (StaticTypeProofControl control : witness.controls()) {
+                if (!overlaps(diagnostic.offset(), diagnostic.length(),
+                        control.startOffset(), control.endOffset())) {
+                    continue;
+                }
+                controlDiagnostic = true;
+                if (diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR
+                        && diagnostic.code().filter(code -> code.equalsIgnoreCase(
+                                control.expectedDiagnosticCode())).isPresent()) {
+                    satisfiedControls.add(control);
+                } else if (diagnostic.severity()
+                        == DartCandidateDiagnosticSeverity.ERROR) {
+                    globalFailure = true;
+                }
+            }
+            if (controlDiagnostic
+                    || diagnostic.severity() != DartCandidateDiagnosticSeverity.ERROR) {
+                continue;
+            }
+            boolean attributed = false;
+            for (StaticTypeWitnessEntry entry : witness.entries()) {
+                if (overlaps(diagnostic.offset(), diagnostic.length(),
+                        entry.startOffset(), entry.endOffset())
+                        || overlaps(diagnostic.offset(), diagnostic.length(),
+                                entry.originalExpressionStartOffset(),
+                                entry.originalExpressionEndOffset())) {
+                    rejected.add(entry.probeId());
+                    attributed = true;
+                }
+            }
+            if (!attributed) {
+                globalFailure = true;
+            }
+        }
+        boolean proofControlsFailed = satisfiedControls.size()
+                != witness.controls().size();
+        if (proofControlsFailed) {
+            globalFailure = true;
+        }
+        if (globalFailure) {
+            typed.forEach(evidence -> rejected.add(evidence.probe().id()));
+        }
+
+        Map<String, DartStaticTypeEvidence> staticEvidence = new HashMap<>();
+        for (DartSymbolEvidence evidence : typed) {
+            DartStaticTypeProbe probe = evidence.probe()
+                    .staticTypeProbe().orElseThrow();
+            boolean accepted = !rejected.contains(evidence.probe().id());
+            staticEvidence.put(evidence.probe().id(), new DartStaticTypeEvidence(
+                    probe,
+                    accepted,
+                    accepted ? Optional.empty() : Optional.of(
+                            proofControlsFailed
+                                    ? "Analyzer strict-casts proof control was suppressed "
+                                    + "or demoted; the static type is untrusted."
+                                    : globalFailure
+                                    ? "Analyzer could not isolate a valid static-type proof overlay."
+                                    : "The expression is not statically assignable to non-null "
+                                    + probe.expectedDartType() + ".")));
+        }
+
+        ArrayList<DartSymbolEvidence> combined = new ArrayList<>(
+                navigationEvidence.size());
+        for (DartSymbolEvidence evidence : navigationEvidence) {
+            DartStaticTypeEvidence staticType = staticEvidence.get(
+                    evidence.probe().id());
+            if (staticType == null) {
+                combined.add(evidence);
+                continue;
+            }
+            boolean accepted = evidence.accepted() && staticType.accepted();
+            Optional<String> rejectionReason = evidence.accepted()
+                    ? staticType.rejectionReason()
+                    : evidence.rejectionReason();
+            combined.add(new DartSymbolEvidence(
+                    evidence.probe(),
+                    evidence.targets(),
+                    accepted,
+                    rejectionReason,
+                    Optional.of(staticType)));
+        }
+        return List.copyOf(combined);
+    }
+
+    private List<DartCandidateDiagnostic> analyzeStaticTypeDiagnostics(
+            DartCandidateAnalysisRequest request,
+            StaticTypeWitnessOverlay witness,
+            Operation operation)
+            throws IOException, ProtocolFailure, AnalysisFailure {
+        DartAnalyzerProtocolSession proofSession = new DartAnalyzerProtocolSession(
+                dartExecutable,
+                request.projectRoot(),
+                stderrConsumer,
+                limits,
+                processFactory);
+        operation.attach(proofSession);
+        Path optionsFile = request.dartFile().getParent()
+                .resolve("analysis_options.yaml").normalize();
+        boolean optionsAdded = false;
+        boolean prioritySet = false;
+        boolean candidateAdded = false;
+        try {
+            String connectedVersion = proofSession.awaitConnected();
+            ProtocolVersion parsed = ProtocolVersion.parse(connectedVersion);
+            if (parsed.compareTo(MINIMUM_PROTOCOL) < 0) {
+                throw new AnalysisFailure(
+                        DartCandidateAnalysisStatus.UNAVAILABLE,
+                        DartCandidateAnalysisIssueCode.PROTOCOL_UNSUPPORTED,
+                        "Dart static-type proof protocol " + connectedVersion
+                        + " is older than required 1.40.0.");
+            }
+
+            ObjectNode optionsOverlay = JSON.createObjectNode()
+                    .put("type", "add")
+                    .put("content", STATIC_TYPE_PROOF_OPTIONS)
+                    .put("version", 1);
+            ObjectNode optionFiles = JSON.createObjectNode();
+            optionFiles.set(optionsFile.toString(), optionsOverlay);
+            requireSuccess(proofSession.request(
+                    "analysis.updateContent",
+                    JSON.createObjectNode().set("files", optionFiles)),
+                    "Install proof-owned strict-casts options");
+            optionsAdded = true;
+
+            ObjectNode roots = JSON.createObjectNode();
+            roots.set("included", array(request.projectRoot().toString()));
+            roots.set("excluded", JSON.createArrayNode());
+            requireSuccess(proofSession.request(
+                    "analysis.setAnalysisRoots", roots),
+                    "Set static-type proof analyzer roots");
+            requireSuccess(proofSession.request(
+                    "analysis.setPriorityFiles",
+                    JSON.createObjectNode().set(
+                            "files", array(request.dartFile().toString()))),
+                    "Set static-type proof priority file");
+            prioritySet = true;
+
+            ObjectNode candidateOverlay = JSON.createObjectNode()
+                    .put("type", "add")
+                    .put("content", witness.content())
+                    .put("version", Math.addExact(request.version(), 1));
+            ObjectNode candidateFiles = JSON.createObjectNode();
+            candidateFiles.set(request.dartFile().toString(), candidateOverlay);
+            requireSuccess(proofSession.request(
+                    "analysis.updateContent",
+                    JSON.createObjectNode().set("files", candidateFiles)),
+                    "Install static-type proof candidate");
+            candidateAdded = true;
+
+            Response errorsResponse = proofSession.request(
+                    "analysis.getErrors",
+                    JSON.createObjectNode().put(
+                            "file", request.dartFile().toString()));
+            requireSuccess(errorsResponse, "Analyze static-type proof candidate");
+            DartCandidateAnalysisRequest proofRequest =
+                    new DartCandidateAnalysisRequest(
+                            request.projectRoot(),
+                            request.dartFile(),
+                            witness.content(),
+                            Math.addExact(request.version(), 1),
+                            DartCandidateHashes.sha256(
+                                    DartCandidateHashes.strictUtf8(witness.content())),
+                            DartCandidateWarningPolicy.ALLOW,
+                            List.of(),
+                            request.candidateCapacityBudget());
+            return parseDiagnostics(errorsResponse.result(), proofRequest);
+        } finally {
+            if (!operation.cancelled() && proofSession.isAlive()) {
+                ObjectNode removals = JSON.createObjectNode();
+                if (candidateAdded) {
+                    removals.set(request.dartFile().toString(),
+                            JSON.createObjectNode().put("type", "remove"));
+                }
+                if (optionsAdded) {
+                    removals.set(optionsFile.toString(),
+                            JSON.createObjectNode().put("type", "remove"));
+                }
+                if (!removals.isEmpty()) {
+                    requireSuccess(proofSession.request(
+                            "analysis.updateContent",
+                            JSON.createObjectNode().set("files", removals)),
+                            "Remove static-type proof overlays");
+                }
+                if (prioritySet) {
+                    requireSuccess(proofSession.request(
+                            "analysis.setPriorityFiles",
+                            JSON.createObjectNode().set(
+                                    "files", JSON.createArrayNode())),
+                            "Clear static-type proof priority file");
+                }
+                requireSuccess(proofSession.request(
+                        "server.shutdown", null),
+                        "Shut down static-type proof analyzer");
+            }
+            operation.detach(proofSession);
+            proofSession.close();
+        }
+    }
+
+    private StaticTypeWitnessOverlay staticTypeWitnessOverlay(
+            DartCandidateAnalysisRequest request,
+            List<DartSymbolEvidence> typed) throws AnalysisFailure {
+        DartStaticTypeProbe context = typed.getFirst().probe()
+                .staticTypeProbe().orElseThrow();
+        DartIgnoreForFileMasker.Result masked =
+                DartIgnoreForFileMasker.mask(request.content());
+        String alias = unusedProofAlias(request.content());
+        String importLine = "import '" + context.expectedTypeLibraryUri()
+                + "' as " + alias + ";\n";
+        String controlExpectedType = qualifiedExpectedType(
+                context.expectedDartType(), alias);
+        StringBuilder statements = new StringBuilder();
+        ArrayList<StaticTypeProofControl> relativeControls = new ArrayList<>();
+        statements.append("    dynamic ")
+                .append(alias)
+                .append("Dynamic() => null;\n");
+        int assignabilityControlStart = statements.length();
+        statements.append("    final ")
+                .append(controlExpectedType)
+                .append(' ')
+                .append(alias)
+                .append("Control = ")
+                .append(alias)
+                .append("Dynamic();\n");
+        relativeControls.add(new StaticTypeProofControl(
+                INVALID_ASSIGNMENT,
+                assignabilityControlStart,
+                statements.length()));
+        ArrayList<StaticTypeWitnessEntry> relativeEntries = new ArrayList<>();
+        int witnessIndex = 0;
+        for (DartSymbolEvidence evidence : typed) {
+            DartStaticTypeProbe probe = evidence.probe()
+                    .staticTypeProbe().orElseThrow();
+            String expression = request.content().substring(
+                    probe.expressionOffset(), probe.expressionEndOffset());
+            String expectedType = qualifiedExpectedType(
+                    probe.expectedDartType(), alias);
+            int start = statements.length();
+            statements.append("    final ")
+                    .append(expectedType)
+                    .append(' ')
+                    .append(alias)
+                    .append("Value")
+                    .append(witnessIndex++)
+                    .append(" = ")
+                    .append(expression)
+                    .append(";\n");
+            relativeEntries.add(new StaticTypeWitnessEntry(
+                    evidence.probe().id(),
+                    start,
+                    statements.length(),
+                    probe.expressionOffset(),
+                    probe.expressionEndOffset()));
+        }
+
+        long witnessLength = (long) request.content().length()
+                + importLine.length() + statements.length();
+        if (witnessLength > Integer.MAX_VALUE
+                || witnessLength > (long) limits.maxCandidateBytes()
+                + limits.maxDiagnosticTextChars()) {
+            throw new AnalysisFailure(
+                    DartCandidateAnalysisStatus.UNAVAILABLE,
+                    DartCandidateAnalysisIssueCode.CANDIDATE_TOO_LARGE,
+                    "Static-type proof overlay exceeds its bounded candidate allowance.");
+        }
+        int importOffset = context.importInsertionOffset();
+        int statementOffset = context.statementInsertionOffset();
+        String source = masked.content();
+        String content = source.substring(0, importOffset)
+                + importLine
+                + source.substring(importOffset, statementOffset)
+                + statements
+                + source.substring(statementOffset);
+        int proofUtf8Size = DartCandidateHashes.strictUtf8(content).length;
+        if ((long) proofUtf8Size > (long) limits.maxCandidateBytes()
+                + limits.maxDiagnosticTextChars()) {
+            throw new AnalysisFailure(
+                    DartCandidateAnalysisStatus.UNAVAILABLE,
+                    DartCandidateAnalysisIssueCode.CANDIDATE_TOO_LARGE,
+                    "Static-type proof overlay exceeds its bounded UTF-8 allowance.");
+        }
+        int statementStart = Math.addExact(statementOffset, importLine.length());
+        List<StaticTypeWitnessEntry> entries = relativeEntries.stream()
+                .map(entry -> new StaticTypeWitnessEntry(
+                        entry.probeId(),
+                        Math.addExact(statementStart, entry.startOffset()),
+                        Math.addExact(statementStart, entry.endOffset()),
+                        Math.addExact(entry.originalExpressionStartOffset(),
+                                importLine.length() + statements.length()),
+                        Math.addExact(entry.originalExpressionEndOffset(),
+                                importLine.length() + statements.length())))
+                .toList();
+        List<StaticTypeProofControl> controls = relativeControls.stream()
+                .map(control -> new StaticTypeProofControl(
+                        control.expectedDiagnosticCode(),
+                        Math.addExact(statementStart, control.startOffset()),
+                        Math.addExact(statementStart, control.endOffset())))
+                .toList();
+        return new StaticTypeWitnessOverlay(content, entries, controls);
+    }
+
+    private String unusedProofAlias(String content) throws AnalysisFailure {
+        String prefix = "_nbfdStaticTypeProof";
+        for (int suffix = 0; suffix <= limits.maxSymbolProbes(); suffix++) {
+            String candidate = prefix + suffix;
+            if (!content.contains(candidate)) {
+                return candidate;
+            }
+        }
+        throw new AnalysisFailure(
+                DartCandidateAnalysisStatus.UNAVAILABLE,
+                DartCandidateAnalysisIssueCode.RESPONSE_LIMIT,
+                "Cannot allocate a bounded collision-free static-type proof import alias.");
+    }
+
+    private static String qualifiedExpectedType(String value, String alias)
+            throws AnalysisFailure {
+        Matcher matcher = CLOSED_EXPECTED_TYPE.matcher(value);
+        if (!matcher.matches()) {
+            throw malformed("Static-type probe contains an invalid expected type.");
+        }
+        String result = alias + '.' + matcher.group(1);
+        if (matcher.group(2) != null) {
+            result += '<' + alias + '.' + matcher.group(2) + '>';
+        }
+        return result;
+    }
+
+    private static boolean overlaps(
+            int diagnosticOffset,
+            int diagnosticLength,
+            int rangeStart,
+            int rangeEnd) {
+        long diagnosticEnd = (long) diagnosticOffset
+                + Math.max(1, diagnosticLength);
+        return diagnosticOffset < rangeEnd && rangeStart < diagnosticEnd;
     }
 
     private DartSymbolEvidence parseSymbolEvidence(
@@ -677,8 +1063,8 @@ public final class DartCandidateAnalyzer {
         private final DartCandidateAnalysisRequest request;
         private final CompletableFuture<DartCandidateAnalysisResult> completion =
                 new CompletableFuture<>();
-        private final AtomicReference<DartAnalyzerProtocolSession> session =
-                new AtomicReference<>();
+        private final Set<DartAnalyzerProtocolSession> sessions =
+                ConcurrentHashMap.newKeySet();
         private final AtomicBoolean cancelled = new AtomicBoolean();
         private final AtomicBoolean terminal = new AtomicBoolean();
         private volatile ScheduledFuture<?> watchdog;
@@ -709,21 +1095,21 @@ public final class DartCandidateAnalyzer {
             }
             finish(stale(request.snapshot(), DartCandidateAnalysisIssueCode.CANCELLED,
                     "Candidate analysis was cancelled.", request.symbolProbes().size()));
-            stopSession();
+            stopSessions();
             return true;
         }
 
         void attach(DartAnalyzerProtocolSession value) {
-            if (!session.compareAndSet(null, value)) {
-                throw new IllegalStateException("analyzer session already attached");
-            }
+            sessions.add(Objects.requireNonNull(value, "value"));
             if (terminal.get()) {
-                stopSession();
+                value.cancelOutstanding();
+                Thread.ofVirtual().name("dart-candidate-analysis-stop")
+                        .start(value::close);
             }
         }
 
         void detach(DartAnalyzerProtocolSession value) {
-            session.compareAndSet(value, null);
+            sessions.remove(value);
         }
 
         boolean cancelled() {
@@ -738,7 +1124,7 @@ public final class DartCandidateAnalyzer {
             if (terminal.compareAndSet(false, true)) {
                 completion.complete(DartCandidateAnalyzer.timeout(
                         request.snapshot(), request.symbolProbes().size()));
-                stopSession();
+                stopSessions();
             }
         }
 
@@ -752,13 +1138,12 @@ public final class DartCandidateAnalyzer {
             }
         }
 
-        private void stopSession() {
-            DartAnalyzerProtocolSession current = session.get();
-            if (current == null) {
-                return;
+        private void stopSessions() {
+            for (DartAnalyzerProtocolSession current : List.copyOf(sessions)) {
+                current.cancelOutstanding();
+                Thread.ofVirtual().name("dart-candidate-analysis-stop")
+                        .start(current::close);
             }
-            current.cancelOutstanding();
-            Thread.ofVirtual().name("dart-candidate-analysis-stop").start(current::close);
         }
     }
 
@@ -773,6 +1158,54 @@ public final class DartCandidateAnalyzer {
             super(message);
             this.status = Objects.requireNonNull(status, "status");
             this.code = Objects.requireNonNull(code, "code");
+        }
+    }
+
+    private record StaticTypeWitnessOverlay(
+            String content,
+            List<StaticTypeWitnessEntry> entries,
+            List<StaticTypeProofControl> controls) {
+        private StaticTypeWitnessOverlay {
+            Objects.requireNonNull(content, "content");
+            entries = List.copyOf(Objects.requireNonNull(entries, "entries"));
+            controls = List.copyOf(Objects.requireNonNull(controls, "controls"));
+            if (controls.size() != 1) {
+                throw new IllegalArgumentException(
+                        "static-type proof requires its strict-casts control");
+            }
+        }
+    }
+
+    private record StaticTypeProofControl(
+            String expectedDiagnosticCode,
+            int startOffset,
+            int endOffset) {
+        private StaticTypeProofControl {
+            Objects.requireNonNull(expectedDiagnosticCode,
+                    "expectedDiagnosticCode");
+            if (expectedDiagnosticCode.isBlank()
+                    || startOffset < 0 || endOffset <= startOffset) {
+                throw new IllegalArgumentException(
+                        "static-type proof control must have a code and non-empty range");
+            }
+        }
+    }
+
+    private record StaticTypeWitnessEntry(
+            String probeId,
+            int startOffset,
+            int endOffset,
+            int originalExpressionStartOffset,
+            int originalExpressionEndOffset) {
+        private StaticTypeWitnessEntry {
+            Objects.requireNonNull(probeId, "probeId");
+            if (startOffset < 0 || endOffset <= startOffset
+                    || originalExpressionStartOffset < 0
+                    || originalExpressionEndOffset
+                    <= originalExpressionStartOffset) {
+                throw new IllegalArgumentException(
+                        "static-type witness ranges must be non-empty");
+            }
         }
     }
 

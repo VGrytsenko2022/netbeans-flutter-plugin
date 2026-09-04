@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
@@ -69,6 +70,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.DecoratedBox",
             "flutter.widgets.ClipRect",
             "flutter.widgets.ClipOval",
+            "flutter.widgets.ClipRRect",
             "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
@@ -118,6 +120,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.DecoratedBox",
             "flutter.widgets.ClipRect",
             "flutter.widgets.ClipOval",
+            "flutter.widgets.ClipRRect",
             "flutter.widgets.ExcludeSemantics");
 
     @Test
@@ -129,7 +132,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortyEightSourcesAndFortyFiveInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyNineSourcesAndFortySixInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -152,9 +155,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(48, sources.size());
-        assertEquals(45, destinations.size());
-        assertEquals(43, destinations.stream()
+        assertEquals(49, sources.size());
+        assertEquals(46, destinations.size());
+        assertEquals(44, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -162,9 +165,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(2160, candidates);
-        assertEquals(1943, accepted);
-        assertEquals(217, candidates - accepted);
+        assertEquals(2254, candidates);
+        assertEquals(2032, accepted);
+        assertEquals(222, candidates - accepted);
     }
 
     @Test
@@ -455,7 +458,43 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void clipRectHasExactClosedClipBehaviorAndOptionalChildProjection() {
+    void dartObjectReferenceFingerprintCoversBothInvocationConstnessValues() {
+        WidgetDefinition definition = definition("flutter.widgets.ClipRRect");
+        PropertyValueConstraint constraint = definition
+                .property(new PropertyName("clipper"))
+                .orElseThrow()
+                .constraints()
+                .stream()
+                .filter(value -> value.kind()
+                        == PropertyValueKind.DART_OBJECT_REFERENCE)
+                .findFirst()
+                .orElseThrow();
+        String fingerprint = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition)
+                .orElseThrow()
+                .propertyContracts()
+                .get(new PropertyName("clipper"))
+                .constraintFingerprints()
+                .get(PropertyValueKind.DART_OBJECT_REFERENCE);
+
+        assertEquals(
+                "dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)",
+                fingerprint);
+        for (boolean constant : List.of(false, true)) {
+            assertTrue(constraint.accepts(
+                    new PropertyValue.DartObjectReferenceValue(
+                            Optional.empty(), "RoundedClipper", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access
+                                    .ZERO_ARGUMENT_INVOCATION,
+                            Optional.of(constant))),
+                    () -> "fingerprint must admit invocation constant=" + constant);
+        }
+    }
+
+    @Test
+    void clipRectHasExactTypedClipperClipBehaviorAndOptionalChildProjection() {
         WidgetDefinition definition = definition("flutter.widgets.ClipRect");
 
         assertEquals(Set.of(
@@ -469,6 +508,19 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(ClipRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
                 projection.propertyContracts().size());
         assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var clipper = projection.propertyContracts()
+                .get(new PropertyName("clipper"));
+        assertFalse(clipper.required());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)",
+                clipper.constraintFingerprints()
+                        .get(PropertyValueKind.DART_OBJECT_REFERENCE));
 
         var clipBehavior = projection.propertyContracts()
                 .get(new PropertyName("clipBehavior"));
@@ -490,12 +542,15 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "P|clipBehavior|enum|0|-|-|enum:enum:"
                 + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
                 + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
+                + "dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)\n"
                 + "S|child|single|0|0|1|any\n"), contract);
-        assertFalse(projection.properties().containsKey(new PropertyName("clipper")));
     }
 
     @Test
-    void clipOvalHasExactClosedClipBehaviorAndOptionalChildProjection() {
+    void clipOvalHasExactTypedClipperClipBehaviorAndOptionalChildProjection() {
         WidgetDefinition definition = definition("flutter.widgets.ClipOval");
 
         assertEquals(Set.of(
@@ -509,6 +564,19 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertEquals(ClipOvalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
                 projection.propertyContracts().size());
         assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var clipper = projection.propertyContracts()
+                .get(new PropertyName("clipper"));
+        assertFalse(clipper.required());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)",
+                clipper.constraintFingerprints()
+                        .get(PropertyValueKind.DART_OBJECT_REFERENCE));
 
         var clipBehavior = projection.propertyContracts()
                 .get(new PropertyName("clipBehavior"));
@@ -530,8 +598,82 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "P|clipBehavior|enum|0|-|-|enum:enum:"
                 + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
                 + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
+                + "dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)\n"
                 + "S|child|single|0|0|1|any\n"), contract);
-        assertFalse(projection.properties().containsKey(new PropertyName("clipper")));
+    }
+
+    @Test
+    void clipRRectHasExactTypedRadiusClipBehaviorAndOptionalChildProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.ClipRRect");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ClipRRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var borderRadius = projection.propertyContracts()
+                .get(new PropertyName("borderRadius"));
+        assertFalse(borderRadius.required());
+        assertEquals(Set.of(PropertyValueKind.BORDER_RADIUS),
+                borderRadius.acceptedKinds());
+        assertTrue(borderRadius.creationDefaultFingerprint().isEmpty());
+        assertTrue(borderRadius.numericBounds().isEmpty());
+        assertEquals(
+                "borderRadius:v1:physical,directional:finiteNonNegative",
+                borderRadius.constraintFingerprints()
+                        .get(PropertyValueKind.BORDER_RADIUS));
+
+        var clipper = projection.propertyContracts()
+                .get(new PropertyName("clipper"));
+        assertFalse(clipper.required());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefaultFingerprint().isEmpty());
+        assertTrue(clipper.numericBounds().isEmpty());
+        assertEquals(
+                "dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)",
+                clipper.constraintFingerprints()
+                        .get(PropertyValueKind.DART_OBJECT_REFERENCE));
+
+        var clipBehavior = projection.propertyContracts()
+                .get(new PropertyName("clipBehavior"));
+        assertFalse(clipBehavior.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), clipBehavior.acceptedKinds());
+        assertTrue(clipBehavior.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none",
+                clipBehavior.constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.ClipRRect\n"
+                + "P|borderRadius|borderRadius|0|-|-|borderRadius:"
+                + "borderRadius:v1:physical,directional:finiteNonNegative\n"
+                + "P|clipBehavior|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
+                + "dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)\n"
+                + "S|child|single|0|0|1|any\n"), contract);
     }
 
     @Test

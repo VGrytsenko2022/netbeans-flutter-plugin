@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 15;
+    public static final int VERSION = 17;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -391,6 +391,11 @@ public final class CanvasModelPayloadCodec {
                 writeImageProviderFields(json, provider, context);
                 json.writeEndObject();
             }
+            case PropertyValue.BorderRadiusValue borderRadius -> {
+                json.writeStringField("kind", "borderRadius");
+                json.writeFieldName("geometry");
+                writeBorderRadius(json, borderRadius.geometry());
+            }
             case PropertyValue.BoxDecorationValue decoration ->
                 writeBoxDecoration(json, decoration, context);
             case PropertyValue.AssetValue ignored -> throw unsupported(value);
@@ -399,6 +404,10 @@ public final class CanvasModelPayloadCodec {
                 // boundary. The isolated runner only receives the fact that a
                 // reviewed callback reference is configured.
                 json.writeStringField("kind", "callbackPresence");
+            case PropertyValue.DartObjectReferenceValue ignored ->
+                // Project library and symbol identities never cross the Canvas
+                // boundary. The isolated runner receives only presence.
+                json.writeStringField("kind", "dartObjectReferencePresence");
             case PropertyValue.DartExpressionValue ignored -> throw unsupported(value);
         }
         json.writeEndObject();

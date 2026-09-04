@@ -5,11 +5,16 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
@@ -17,6 +22,15 @@ import org.junit.jupiter.api.io.TempDir;
 
 /** Optional no-write candidate-overlay smoke test against an explicit real SDK. */
 class DartCandidateAnalyzerRealSdkTest {
+    private static final ObjectMapper JSON = new ObjectMapper();
+    private static final Map<String, String> FLUTTER_3448_HOSTED_PACKAGES =
+            new LinkedHashMap<>(Map.of(
+                    "characters", "1.4.1",
+                    "collection", "1.19.1",
+                    "material_color_utilities", "0.13.0",
+                    "meta", "1.18.0",
+                    "vector_math", "2.2.0"));
+
     @TempDir
     Path workspace;
 
@@ -69,13 +83,598 @@ class DartCandidateAnalyzerRealSdkTest {
         assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
     }
 
+    @Test
+    void validatesProjectClipRRectReferencesAndRejectsInvalidClippers()
+            throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("project"));
+        Path dependencyRoot = Files.createDirectories(
+                workspace.resolve("clipper_dependency"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        Path dependencyLibrary = Files.createDirectories(
+                dependencyRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedLibrary = dependencyLibrary.resolve("clippers.dart");
+        Files.writeString(importedLibrary, """
+                import 'package:flutter/widgets.dart';
+
+                class ImportedRRectClipper extends CustomClipper<RRect> {
+                  const ImportedRRectClipper.compact();
+
+                  @override
+                  RRect getClip(Size size) => RRect.zero;
+
+                  @override
+                  bool shouldReclip(covariant ImportedRRectClipper oldClipper) => false;
+                }
+                """, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = """
+                import 'package:flutter/widgets.dart';
+
+                Widget diskVersion() => const SizedBox.shrink();
+                """;
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(
+                executable,
+                line -> {
+                    synchronized (stderr) {
+                        stderr.add(line);
+                    }
+                });
+
+        String valid = clipperCandidate("""
+                Widget buildCurrent() => ClipRRect(clipper: currentClipper);
+                Widget buildRect() => ClipRect(clipper: currentRectClipper);
+                Widget buildGenericCtor() => ClipRRect(
+                  clipper: GenericCtorClipper(),
+                );
+                Widget buildGenericFactory() => const ClipRRect(
+                  clipper: GenericFactoryClipper(),
+                );
+                Widget buildImported() => const ClipRRect(
+                  clipper: const project_clippers.ImportedRRectClipper.compact(),
+                );
+                """);
+        int currentOffset = valid.indexOf("currentClipper", valid.indexOf("clipper:"));
+        int importedOffset = valid.indexOf(
+                "ImportedRRectClipper", valid.indexOf("project_clippers."));
+        int memberOffset = valid.indexOf("compact", importedOffset);
+        int rectOffset = valid.indexOf("currentRectClipper", valid.indexOf("ClipRect"));
+        String genericCtorExpression = "GenericCtorClipper()";
+        int genericCtorOffset = valid.indexOf(
+                genericCtorExpression, valid.indexOf("buildGenericCtor"));
+        String genericFactoryExpression = "GenericFactoryClipper()";
+        int genericFactoryOffset = valid.indexOf(
+                genericFactoryExpression, valid.indexOf("buildGenericFactory"));
+        String importedExpression =
+                "const project_clippers.ImportedRRectClipper.compact()";
+        int importedExpressionOffset = valid.indexOf(importedExpression);
+        List<DartSymbolProbe> validProbes = List.of(
+                typedProbe("current-reference", currentOffset, "currentClipper",
+                        "project:current", lib,
+                        currentOffset, "currentClipper".length(),
+                        valid, "CustomClipper<RRect>"),
+                typedProbe("current-rect-reference", rectOffset,
+                        "currentRectClipper", "project:current", lib,
+                        rectOffset, "currentRectClipper".length(),
+                        valid, "CustomClipper<Rect>"),
+                typedProbe("generic-ctor", genericCtorOffset,
+                        "GenericCtorClipper", "project:current", lib,
+                        genericCtorOffset, genericCtorExpression.length(),
+                        valid, "CustomClipper<RRect>"),
+                typedProbe("generic-factory", genericFactoryOffset,
+                        "GenericFactoryClipper", "project:current", lib,
+                        genericFactoryOffset, genericFactoryExpression.length(),
+                        valid, "CustomClipper<RRect>"),
+                probe("imported-root", importedOffset, "ImportedRRectClipper",
+                        "package:clipper_dependency/clippers.dart",
+                        dependencyLibrary),
+                typedProbe("imported-member", memberOffset, "compact",
+                        "package:clipper_dependency/clippers.dart",
+                        dependencyLibrary,
+                        importedExpressionOffset, importedExpression.length(),
+                        valid, "CustomClipper<RRect>"));
+
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 10, validProbes)));
+
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(),
+                () -> passed + " stderr=" + stderr);
+        assertEquals(6, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream()
+                .allMatch(DartSymbolEvidence::accepted));
+        assertEquals(List.of(file.toRealPath(), file.toRealPath(),
+                        file.toRealPath(), file.toRealPath(),
+                        importedLibrary.toRealPath(),
+                        importedLibrary.toRealPath()),
+                passed.symbolEvidence().stream()
+                        .map(evidence -> evidence.targets().getFirst().file())
+                        .toList());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+
+        String validWithUnrelatedIgnore = "// ignore_for_file: unused_element\n"
+                + clipperCandidate(
+                        "Widget buildIgnoredButValid() => "
+                        + "ClipRRect(clipper: currentClipper);\n");
+        int ignoredValidOffset = validWithUnrelatedIgnore.indexOf(
+                "currentClipper", validWithUnrelatedIgnore.indexOf("clipper:"));
+        DartCandidateAnalysisResult ignoredButValid = await(analyzer.analyze(request(
+                projectRoot,
+                file,
+                validWithUnrelatedIgnore,
+                18,
+                List.of(typedProbe(
+                        "ignored-but-valid",
+                        ignoredValidOffset,
+                        "currentClipper",
+                        "project:current",
+                        lib,
+                        ignoredValidOffset,
+                        "currentClipper".length(),
+                        validWithUnrelatedIgnore,
+                        "CustomClipper<RRect>")))));
+        assertEquals(DartCandidateAnalysisStatus.PASSED,
+                ignoredButValid.status(),
+                () -> ignoredButValid + " stderr=" + stderr);
+
+        for (String expression : List.of(
+                "dynamicClipper", "nullableClipper", "dynamicRectClipper")) {
+            String invalid = clipperCandidate(
+                    "Widget buildInvalid() => "
+                    + (expression.endsWith("RectClipper")
+                            ? "ClipRect" : "ClipRRect")
+                    + "(clipper: " + expression + ");\n");
+            int expressionOffset = invalid.indexOf(
+                    expression, invalid.indexOf("clipper:"));
+            String expectedType = expression.endsWith("RectClipper")
+                    ? "CustomClipper<Rect>" : "CustomClipper<RRect>";
+            DartSymbolProbe invalidProbe = typedProbe(
+                    "invalid-" + expression,
+                    expressionOffset,
+                    expression,
+                    "project:current",
+                    lib,
+                    expressionOffset,
+                    expression.length(),
+                    invalid,
+                    expectedType);
+
+            DartCandidateAnalysisResult staticRejected = await(analyzer.analyze(request(
+                    projectRoot, file, invalid, 20 + expression.length(),
+                    List.of(invalidProbe))));
+
+            assertEquals(DartCandidateAnalysisStatus.REJECTED,
+                    staticRejected.status(),
+                    () -> expression + ": " + staticRejected + " stderr=" + stderr);
+            assertTrue(staticRejected.diagnostics().stream()
+                    .noneMatch(DartCandidateDiagnostic::blocking),
+                    () -> expression + " must reach the proof overlay: "
+                    + staticRejected.diagnostics());
+            DartSymbolEvidence invalidEvidence = staticRejected
+                    .symbolEvidence().getFirst();
+            assertTrue(invalidEvidence.targets().size() == 1
+                    && invalidEvidence.staticTypeEvidence().isPresent());
+            assertFalse(invalidEvidence.staticTypeEvidence()
+                    .orElseThrow().accepted());
+        }
+
+        String sealedWitnessOnly = clipperCandidate("""
+                bool sealedWitnessOnly() => switch (sealedFamilyClipper) {
+                  CustomClipper<RRect>() => true,
+                };
+                """);
+        DartCandidateAnalysisResult witnessAlone = await(analyzer.analyze(request(
+                projectRoot, file, sealedWitnessOnly, 30, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, witnessAlone.status(),
+                () -> witnessAlone + " stderr=" + stderr);
+
+        List<String> invalidExpressions = List.of(
+                "const NotAClipper()",
+                "MissingClipper",
+                "const RequiredRRectClipper()",
+                "sealedFamilyClipper");
+        long version = 11;
+        for (String expression : invalidExpressions) {
+            String invalid = clipperCandidate(
+                    "Widget buildInvalid() => ClipRRect(clipper: "
+                    + expression + ");\n");
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, invalid, version++, List.of())));
+
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(),
+                    () -> expression + ": " + rejected + " stderr=" + stderr);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic ->
+                    diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR
+                    && diagnostic.blocking()),
+                    () -> expression + ": " + rejected.diagnostics());
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+
+        String sourceSuppressed = "// ignore_for_file: "
+                + "argument_type_not_assignable, invalid_assignment\n"
+                + clipperCandidate(
+                        "Widget buildSuppressed() => "
+                        + "ClipRRect(clipper: dynamicClipper);\n");
+        assertSuppressedStaticProofIsRejected(
+                analyzer,
+                projectRoot,
+                file,
+                lib,
+                sourceSuppressed,
+                "dynamicClipper",
+                80,
+                stderr);
+
+        String requiredSuppressed = "// ignore_for_file: "
+                + "not_enough_positional_arguments\n"
+                + clipperCandidate(
+                        "Widget buildSuppressed() => ClipRRect("
+                        + "clipper: const RequiredRRectClipper(),\n"
+                        + ");\n");
+        assertSuppressedStaticProofIsRejected(
+                analyzer,
+                projectRoot,
+                file,
+                lib,
+                requiredSuppressed,
+                "const RequiredRRectClipper()",
+                82,
+                stderr);
+
+        String invalidConstSuppressed = "// ignore_for_file: const_with_non_const\n"
+                + clipperCandidate(
+                        "Widget buildSuppressed() => ClipRRect("
+                        + "clipper: const NonConstRRectClipper(),\n"
+                        + ");\n");
+        assertSuppressedStaticProofIsRejected(
+                analyzer,
+                projectRoot,
+                file,
+                lib,
+                invalidConstSuppressed,
+                "const NonConstRRectClipper()",
+                83,
+                stderr);
+
+        String hostileOptions = """
+                analyzer:
+                  errors:
+                    argument_type_not_assignable: ignore
+                    invalid_assignment: ignore
+                """;
+        Path hostileOptionsFile = projectRoot.resolve("analysis_options.yaml");
+        Files.writeString(hostileOptionsFile, hostileOptions,
+                StandardCharsets.UTF_8);
+        String optionsSuppressed = clipperCandidate(
+                "Widget buildSuppressed() => "
+                + "ClipRRect(clipper: dynamicClipper);\n");
+        assertSuppressedStaticProofIsRejected(
+                analyzer,
+                projectRoot,
+                file,
+                lib,
+                optionsSuppressed,
+                "dynamicClipper",
+                81,
+                stderr);
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(hostileOptions,
+                Files.readString(hostileOptionsFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    private static void assertSuppressedStaticProofIsRejected(
+            DartCandidateAnalyzer analyzer,
+            Path projectRoot,
+            Path file,
+            Path projectLibrary,
+            String candidate,
+            String expression,
+            long version,
+            List<String> stderr) throws Exception {
+        int expressionOffset = candidate.indexOf(
+                expression, candidate.indexOf("clipper:"));
+        String symbol = rootSymbol(expression);
+        int symbolOffset = candidate.indexOf(symbol, expressionOffset);
+        DartSymbolProbe probe = typedProbe(
+                "suppressed-invalid",
+                symbolOffset,
+                symbol,
+                "project:current",
+                projectLibrary,
+                expressionOffset,
+                expression.length(),
+                candidate,
+                "CustomClipper<RRect>");
+
+        DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                projectRoot, file, candidate, version, List.of(probe))));
+
+        assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(),
+                () -> rejected + " stderr=" + stderr);
+        DartStaticTypeEvidence staticEvidence = rejected.symbolEvidence()
+                .getFirst().staticTypeEvidence().orElseThrow();
+        assertFalse(staticEvidence.accepted());
+        assertFalse(staticEvidence.rejectionReason().orElseThrow().isBlank(),
+                () -> staticEvidence.toString());
+    }
+
+    private static String rootSymbol(String expression) {
+        String value = expression.startsWith("const ")
+                ? expression.substring("const ".length()) : expression;
+        int end = value.indexOf('(');
+        return end < 0 ? value : value.substring(0, end);
+    }
+
+    private static String clipperCandidate(String buildMethods) {
+        return """
+                import 'package:flutter/widgets.dart';
+                import 'package:clipper_dependency/clippers.dart' as project_clippers;
+
+                int Object() => 0;
+
+                class CurrentRRectClipper extends CustomClipper<RRect> {
+                  const CurrentRRectClipper();
+
+                  @override
+                  RRect getClip(Size size) => RRect.zero;
+
+                  @override
+                  bool shouldReclip(covariant CurrentRRectClipper oldClipper) => false;
+                }
+
+                class RequiredRRectClipper extends CustomClipper<RRect> {
+                  const RequiredRRectClipper(this.radius);
+
+                  final double radius;
+
+                  @override
+                  RRect getClip(Size size) => RRect.zero;
+
+                  @override
+                  bool shouldReclip(covariant RequiredRRectClipper oldClipper) => false;
+                }
+
+                class NonConstRRectClipper extends CustomClipper<RRect> {
+                  NonConstRRectClipper();
+
+                  @override
+                  RRect getClip(Size size) => RRect.zero;
+
+                  @override
+                  bool shouldReclip(covariant NonConstRRectClipper oldClipper) => false;
+                }
+
+                class CurrentRectClipper extends CustomClipper<Rect> {
+                  const CurrentRectClipper();
+
+                  @override
+                  Rect getClip(Size size) => Offset.zero & size;
+
+                  @override
+                  bool shouldReclip(covariant CurrentRectClipper oldClipper) => false;
+                }
+
+                class GenericCtorClipper<T> extends CustomClipper<T> {
+                  const GenericCtorClipper();
+
+                  @override
+                  T getClip(Size size) => throw UnimplementedError();
+
+                  @override
+                  bool shouldReclip(covariant GenericCtorClipper<T> oldClipper) => false;
+                }
+
+                abstract class GenericFactoryClipper<T> extends CustomClipper<T> {
+                  const GenericFactoryClipper._();
+                  const factory GenericFactoryClipper() =
+                      GenericFactoryClipperImpl<T>;
+                }
+
+                class GenericFactoryClipperImpl<T>
+                    extends GenericFactoryClipper<T> {
+                  const GenericFactoryClipperImpl() : super._();
+
+                  @override
+                  T getClip(Size size) => throw UnimplementedError();
+
+                  @override
+                  bool shouldReclip(
+                    covariant GenericFactoryClipperImpl<T> oldClipper,
+                  ) => false;
+                }
+
+                sealed class ClosedRRectFamily {
+                  const ClosedRRectFamily();
+                }
+
+                final class ClosedRRectMember extends CurrentRRectClipper
+                    implements ClosedRRectFamily {
+                  const ClosedRRectMember();
+                }
+
+                class NotAClipper {
+                  const NotAClipper();
+                }
+
+                const currentClipper = CurrentRRectClipper();
+                const currentRectClipper = CurrentRectClipper();
+                dynamic dynamicClipper = currentClipper;
+                CustomClipper<RRect>? nullableClipper = currentClipper;
+                dynamic dynamicRectClipper = currentRectClipper;
+                ClosedRRectFamily sealedFamilyClipper = const ClosedRRectMember();
+
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+
+                """ + buildMethods;
+    }
+
+    private static DartSymbolProbe probe(
+            String id,
+            int offset,
+            String symbol,
+            String libraryUri,
+            Path expectedRoot) {
+        return new DartSymbolProbe(
+                id,
+                offset,
+                symbol.length(),
+                symbol,
+                libraryUri,
+                expectedRoot.toAbsolutePath().normalize(),
+                Optional.empty());
+    }
+
+    private static DartSymbolProbe typedProbe(
+            String id,
+            int offset,
+            String symbol,
+            String libraryUri,
+            Path expectedRoot,
+            int expressionOffset,
+            int expressionLength,
+            String candidate,
+            String expectedDartType) {
+        int statementInsertion = candidate.indexOf(
+                "  // analyzer static-type proof insertion");
+        if (statementInsertion < 0) {
+            throw new IllegalArgumentException("candidate has no proof scope");
+        }
+        return new DartSymbolProbe(
+                id,
+                offset,
+                symbol.length(),
+                symbol,
+                libraryUri,
+                expectedRoot.toAbsolutePath().normalize(),
+                Optional.empty(),
+                Optional.of(new DartStaticTypeProbe(
+                        expressionOffset,
+                        expressionLength,
+                        0,
+                        statementInsertion,
+                        expectedDartType,
+                        "package:flutter/widgets.dart")));
+    }
+
+    private void writeFlutterPackageConfig(
+            Path projectRoot,
+            Path dependencyRoot,
+            Path flutterSdk) throws Exception {
+        Path pubCache = configuredPubCache();
+        ObjectNode config = JSON.createObjectNode();
+        config.put("configVersion", 2);
+        ArrayNode packages = config.putArray("packages");
+        addPackage(packages, "clipper_probe", projectRoot, "3.10");
+        addPackage(packages, "clipper_dependency", dependencyRoot, "3.10");
+        addPackage(packages, "flutter", flutterSdk.resolve("packages/flutter"),
+                "3.10");
+        addPackage(packages, "sky_engine",
+                flutterSdk.resolve("bin/cache/pkg/sky_engine"), "3.10");
+        for (Map.Entry<String, String> entry
+                : FLUTTER_3448_HOSTED_PACKAGES.entrySet()) {
+            Path root = pubCache.resolve("hosted/pub.dev")
+                    .resolve(entry.getKey() + '-' + entry.getValue());
+            assumeTrue(Files.isDirectory(root),
+                    "Flutter 3.44.8 dependency is absent from the configured pub cache: "
+                    + root);
+            addPackage(packages, entry.getKey(), root, "3.4");
+        }
+        Path dartTool = Files.createDirectories(
+                projectRoot.resolve(".dart_tool"));
+        Files.writeString(
+                dartTool.resolve("package_config.json"),
+                JSON.writerWithDefaultPrettyPrinter().writeValueAsString(config),
+                StandardCharsets.UTF_8);
+        Files.writeString(projectRoot.resolve("pubspec.yaml"), """
+                name: clipper_probe
+                environment:
+                  sdk: ^3.10.0
+                dependencies:
+                  flutter:
+                    sdk: flutter
+                  clipper_dependency:
+                    path: ../clipper_dependency
+                """, StandardCharsets.UTF_8);
+    }
+
+    private static void addPackage(
+            ArrayNode packages,
+            String name,
+            Path root,
+            String languageVersion) {
+        assumeTrue(Files.isDirectory(root), "Dart package root is absent: " + root);
+        ObjectNode value = packages.addObject();
+        value.put("name", name);
+        value.put("rootUri", root.toAbsolutePath().normalize().toUri().toString());
+        value.put("packageUri", "lib/");
+        value.put("languageVersion", languageVersion);
+    }
+
+    private static Path configuredFlutter3448Sdk() throws Exception {
+        String configured = System.getProperty("flutter.sdk", "").trim();
+        assumeTrue(!configured.isEmpty(), "set -Dflutter.sdk=<path-to-flutter-3.44.8>");
+        Path sdk = Path.of(configured).toAbsolutePath().normalize();
+        assumeTrue(Files.isDirectory(sdk.resolve("packages/flutter/lib")),
+                "Flutter framework library does not exist: " + sdk);
+        Path version = sdk.resolve("bin/cache/flutter.version.json");
+        assumeTrue(Files.isRegularFile(version),
+                "Flutter version metadata does not exist: " + version);
+        assertEquals("3.44.8",
+                JSON.readTree(Files.readAllBytes(version))
+                        .path("flutterVersion").asText(),
+                "This contract proof must run against pinned Flutter 3.44.8");
+        return sdk;
+    }
+
+    private static Path configuredPubCache() {
+        String explicit = System.getProperty("pub.cache", "").trim();
+        if (!explicit.isEmpty()) {
+            Path value = Path.of(explicit).toAbsolutePath().normalize();
+            assumeTrue(Files.isDirectory(value), "Configured pub cache is absent: " + value);
+            return value;
+        }
+        String environment = System.getenv("PUB_CACHE");
+        if (environment != null && !environment.isBlank()) {
+            Path value = Path.of(environment).toAbsolutePath().normalize();
+            assumeTrue(Files.isDirectory(value), "PUB_CACHE is absent: " + value);
+            return value;
+        }
+        String localAppData = System.getenv("LOCALAPPDATA");
+        if (localAppData != null && !localAppData.isBlank()) {
+            Path value = Path.of(localAppData, "Pub", "Cache")
+                    .toAbsolutePath().normalize();
+            if (Files.isDirectory(value)) {
+                return value;
+            }
+        }
+        Path value = Path.of(System.getProperty("user.home"), ".pub-cache")
+                .toAbsolutePath().normalize();
+        assumeTrue(Files.isDirectory(value), "Default pub cache is absent: " + value);
+        return value;
+    }
+
     private DartCandidateAnalysisRequest request(
             Path file,
             String content,
             long version,
             List<DartSymbolProbe> probes) {
+        return request(workspace, file, content, version, probes);
+    }
+
+    private static DartCandidateAnalysisRequest request(
+            Path projectRoot,
+            Path file,
+            String content,
+            long version,
+            List<DartSymbolProbe> probes) {
         return new DartCandidateAnalysisRequest(
-                workspace.toAbsolutePath().normalize(),
+                projectRoot.toAbsolutePath().normalize(),
                 file.toAbsolutePath().normalize(),
                 content,
                 version,

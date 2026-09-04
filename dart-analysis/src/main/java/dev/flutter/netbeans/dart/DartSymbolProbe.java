@@ -21,7 +21,20 @@ public record DartSymbolProbe(
         String expectedSymbolName,
         String expectedLibraryUri,
         Path expectedTargetRoot,
-        Optional<String> expectedTargetKind) {
+        Optional<String> expectedTargetKind,
+        Optional<DartStaticTypeProbe> staticTypeProbe) {
+
+    public DartSymbolProbe(
+            String id,
+            int offset,
+            int length,
+            String expectedSymbolName,
+            String expectedLibraryUri,
+            Path expectedTargetRoot,
+            Optional<String> expectedTargetKind) {
+        this(id, offset, length, expectedSymbolName, expectedLibraryUri,
+                expectedTargetRoot, expectedTargetKind, Optional.empty());
+    }
 
     public DartSymbolProbe {
         id = requireText(id, "id");
@@ -38,6 +51,16 @@ public record DartSymbolProbe(
         expectedTargetKind = Objects.requireNonNull(
                 expectedTargetKind, "expectedTargetKind")
                 .map(value -> requireText(value, "expectedTargetKind"));
+        staticTypeProbe = Objects.requireNonNull(
+                staticTypeProbe, "staticTypeProbe");
+        staticTypeProbe.ifPresent(probe -> {
+            if (probe.expressionOffset() > offset
+                    || Math.addExact(offset, length)
+                    > probe.expressionEndOffset()) {
+                throw new IllegalArgumentException(
+                        "static-type expression must contain its terminal symbol probe");
+            }
+        });
     }
 
     private static String requireText(String value, String name) {

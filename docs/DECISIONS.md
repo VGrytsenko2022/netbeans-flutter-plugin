@@ -30,10 +30,11 @@ historical `Placeholder` surface, ADR-071 records the historical
 `Directionality` surface, ADR-072 records the historical `DecoratedBox`
 surface, ADR-073 establishes the historical `ExcludeSemantics` surface,
 ADR-074 establishes the historical `IndexedStack` surface, ADR-075 establishes
-the historical `ClipRect` surface, and ADR-076 establishes the current
-`ClipOval` surface: 737 typed rows across forty-eight widgets, forty-two
-const-constructor definitions and 2,160 Palette/DnD candidates, including
-1,943 accepted and 217 rejected cells. The 720-field
+the historical `ClipRect` surface, ADR-076 establishes the historical
+`ClipOval` surface, and ADR-077 establishes the current `ClipRRect` surface:
+742 typed rows across forty-nine widgets, forty-three const-constructor
+definitions and 2,254 Palette/DnD candidates, including 2,032 accepted and 222
+rejected cells. The 725-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -43,7 +44,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-076 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-077 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -118,9 +119,11 @@ established `API_VERSION == 7`; and ADR-061's atomic signed Offset value
 established `API_VERSION == 8`. ADR-069 adds the exported
 `EdgeInsetsValues.directionalAllowed` component needed to distinguish
 SafeArea's concrete physical `EdgeInsets` parameter from broader
-`EdgeInsetsGeometry` parameters and establishes the current
-`API_VERSION == 9`. API-1 through API-8 contributors fail closed before their
-definitions are loaded. This is not yet a permanent 1.0
+`EdgeInsetsGeometry` parameters and established `API_VERSION == 9`.
+`NullValue` established API 10, top-level typed border-radius geometry
+established API 11, and ADR-077's typed Dart-object reference establishes the
+current `API_VERSION == 12`. API-1 through API-11 contributors fail closed
+before their definitions are loaded. This is not yet a permanent 1.0
 compatibility promise. Further incompatible evolution should move the SPI to a
 dedicated module/new package boundary rather than silently breaking extensions
 behind an existing API version.
@@ -292,14 +295,14 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-071 make 710 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-077 make 725 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
 120 grouped AppBar leaves, 286 ElevatedButton leaves and the required
 `AspectRatio.aspectRatio` value, all 13 `Container` constructor properties,
 the two Opacity properties, three Align properties, three FractionallySizedBox
-properties, four Stack properties, one Expanded property, 22 Image properties,
+properties, four Stack properties, five IndexedStack properties, one Expanded property, 22 Image properties,
 54 TextField properties, 17 ListView properties, nine Wrap properties, three
 FittedBox properties, the required ConstrainedBox constraints property, four
 UnconstrainedBox properties, two LimitedBox properties, six OverflowBox
@@ -318,7 +321,10 @@ ColoredBox's required theme-aware color, optional anti-aliasing and optional
 child slot, SafeArea's six optional properties plus required child slot, and
 Placeholder's four optional appearance/fallback properties plus optional child,
 and Directionality's required `textDirection` plus its required child assembled
-by the generic atomic wrapper workflow.
+by the generic atomic wrapper workflow, DecoratedBox's two properties,
+ExcludeSemantics' optional excluding flag, ClipRect's and ClipOval's optional
+clip behavior, and ClipRRect's typed radius geometry, typed project Dart-object
+reference and optional clip behavior.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -371,20 +377,21 @@ the historical forty-four-source, 1,804-candidate matrix (1,607 accepted and
 1,890-candidate matrix (1,688 accepted and 202 rejected), ADR-074 established
 the historical forty-six-source, 1,978-candidate matrix (1,771 accepted and 207
 rejected), ADR-075 established the historical forty-seven-source,
-2,068-candidate matrix (1,856 accepted and 212 rejected), and ADR-076
-establishes the current forty-eight-source, 2,160-candidate matrix (1,943
-accepted and 217 rejected).
+2,068-candidate matrix (1,856 accepted and 212 rejected), ADR-076 established
+the historical forty-eight-source, 2,160-candidate matrix (1,943 accepted and
+217 rejected), and ADR-077 establishes the current forty-nine-source,
+2,254-candidate matrix (2,032 accepted and 222 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v15 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v17 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ExcludeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -398,12 +405,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-eight-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-nine-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty-eight Create-capable definitions, and the DnD-capable set uses the
-reviewed 2,160-cell candidate matrix across forty-three insertable any-widget and two
-trait-bound destination slots; 1,943 cells are accepted and 217 rejected.
+those forty-nine Create-capable definitions, and the DnD-capable set uses the
+reviewed 2,254-cell candidate matrix across forty-four insertable any-widget and two
+trait-bound destination slots; 2,032 cells are accepted and 222 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -411,7 +418,7 @@ Directionality use the same generic atomic required-child wrapper mode, with
 tree root/non-root and Canvas non-root-only targets; neither can wrap Expanded,
 Flexible or Spacer.
 Canvas model
-protocol v15's
+protocol v17's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
 screenshot or framebuffer-pixel stream.
@@ -2075,7 +2082,7 @@ generation, Properties, Canvas model/view/drop, DnD/slot/move commands and
 their closed-contract tests share this exact definition.
 
 OverflowBox adds six non-Scaffold rows, one ordinary source and one any-widget
-destination to ADR-052. The current surface is 659 writable rows across 26
+destination to ADR-052. At that milestone the surface was 659 writable rows across 26
 widgets, 642 outside Scaffold and 21 const-constructor definitions. Twenty-six
 sources across 25 any-widget and two trait-bound destinations form 702
 candidates. The new target admits every old source except Expanded; the new
@@ -2270,7 +2277,7 @@ or collapsed node retains real framework layout while a bounded,
 non-layout-affecting Designer target supplies selection and empty-child drop.
 
 IntrinsicHeight adds no writable rows, one ordinary source and one insertable
-any-widget destination to ADR-056. The current surface remains 664 writable
+any-widget destination to ADR-056. At that milestone the surface had 664 writable
 rows, with 647 outside Scaffold, across 30 widgets and 25 const-constructor
 definitions. Thirty sources across 27 any-widget plus two trait-bound
 destinations form 870 candidates. The new IntrinsicHeight destination accepts
@@ -2477,7 +2484,7 @@ constructor identity; their resulting effects remain expressible through the
 editable Matrix4.
 
 Transform adds five writable rows, one ordinary source and one insertable
-any-widget destination to ADR-060. The current surface contains 674 writable
+any-widget destination to ADR-060. At that milestone the surface contained 674 writable
 rows, with 657 outside Scaffold, across 34 widgets and 29 const-constructor
 definitions. Thirty-four sources across 31 any-widget plus two trait-bound
 destinations form 1,122 candidates. The new destination accepts 30 old
@@ -3128,18 +3135,18 @@ v15. NBFC framing plus Canvas control/wire remain v1.
 Accepted. The fixed practical inventory now admits canonical
 `flutter.widgets.ClipRect` in Basic at item order 80 after `DecoratedBox`. The
 definition maps to the const `ClipRect` constructor from
-`package:flutter/widgets.dart`, exposes the optional closed `clipBehavior`
-property and one optional single any-widget `child` slot, and excludes only the
-common `key` plus the unsafe non-null custom-clipper branch. A new Palette node
+`package:flutter/widgets.dart`, now exposes optional typed `clipper`, optional
+closed `clipBehavior` and one optional single any-widget `child` slot, and
+excludes only the common `key`. The original Palette node
 stores no property and no child, preserving Flutter's `Clip.hardEdge` default by
 constructor omission. The property editor admits exactly `Clip.none`,
 `Clip.hardEdge`, `Clip.antiAlias` and `Clip.antiAliasWithSaveLayer`.
 
 The SDK exposes `CustomClipper<Rect>` as an abstract user extension point and no
-public concrete delegate suitable for a bounded catalog value. The Designer
-therefore does not publish a null-only `clipper` row and does not accept an
-opaque Dart expression. Supporting that branch requires a separately reviewed
-typed declaration/reference contract.
+public concrete delegate suitable for a bounded literal catalog value. The
+initial v10 slice therefore omitted the row instead of accepting opaque Dart.
+ADR-077's schema-v12 typed declaration/reference contract now supersedes that
+limitation for `ClipRect.clipper`.
 
 Generated Dart and native/exact-Web Canvas construct the real `ClipRect` with
 the exact effective clip behavior and optional child. Paint, hit testing and
@@ -3153,7 +3160,7 @@ four reviewed 16/32 px light/dark SVGs.
 `ClipRect` adds one writable row, one source and one insertable any-widget
 destination. At the new destination the 46 previous sources add 43 accepted
 cells and three ParentData rejections; the new source adds 42 accepted
-any-widget cells and two rejected trait-bound cells. The resulting surface has
+any-widget cells and two rejected trait-bound cells. At this ADR-075 milestone the resulting surface had
 736 writable rows, 719 outside Scaffold, across 47 widgets and 41 reviewed
 const-constructor definitions. Forty-seven sources across 42 any-widget and two
 trait-bound destinations form 2,068 candidates: 1,856 accepted and 212
@@ -3171,18 +3178,18 @@ v15, and NBFC framing plus Canvas control/wire v1 unchanged.
 Accepted. The fixed practical inventory now admits canonical
 `flutter.widgets.ClipOval` in Basic at item order 90 after `ClipRect`. The
 definition maps to the const `ClipOval` constructor from
-`package:flutter/widgets.dart`, exposes the optional closed `clipBehavior`
-property and one optional single any-widget `child` slot, and excludes only the
-common `key` plus the unsafe non-null custom-clipper branch. A new Palette node
+`package:flutter/widgets.dart`, now exposes optional typed `clipper`, optional
+closed `clipBehavior` and one optional single any-widget `child` slot, and
+excludes only the common `key`. The original Palette node
 stores no property and no child, preserving Flutter's `Clip.antiAlias` default
 by constructor omission. The property editor admits exactly `Clip.none`,
 `Clip.hardEdge`, `Clip.antiAlias` and `Clip.antiAliasWithSaveLayer`.
 
 The SDK exposes `CustomClipper<Rect>` as an abstract user extension point and no
-public concrete delegate suitable for a bounded catalog value. The Designer
-therefore does not publish a null-only `clipper` row and does not accept an
-opaque Dart expression. Supporting that branch requires a separately reviewed
-typed declaration/reference contract.
+public concrete delegate suitable for a bounded literal catalog value. The
+initial v10 slice therefore omitted the row instead of accepting opaque Dart.
+ADR-077's schema-v12 typed declaration/reference contract now supersedes that
+limitation for `ClipOval.clipper`.
 
 Generated Dart and native/exact-Web Canvas construct the real `ClipOval` with
 the exact effective clip behavior and optional child. Without a custom clipper,
@@ -3197,14 +3204,87 @@ four reviewed 16/32 px light/dark SVGs.
 `ClipOval` adds one writable row, one source and one insertable any-widget
 destination. At the new destination the 47 previous sources add 44 accepted
 cells and three ParentData rejections; the new source adds 43 accepted
-any-widget cells and two rejected trait-bound cells. The resulting surface has
+any-widget cells and two rejected trait-bound cells. At this ADR-076 milestone the resulting surface had
 737 writable rows, 720 outside Scaffold, across 48 widgets and 42 reviewed
 const-constructor definitions. Forty-eight sources across 43 any-widget and two
 trait-bound destinations form 2,160 candidates: 1,943 accepted and 217
 rejected. Layout contains 31 Palette items, Scrolling three, Basic nine,
 Material four and Accessibility one.
 
-The practical Designer backlog is now 48/92 complete, with 44 remaining; the
-next missing item in the fixed priority order is `ClipRRect`. Existing value
-and transport shapes keep `.fd` schema v10, contributor Catalog API 10, Canvas
-model v15, and NBFC framing plus Canvas control/wire v1 unchanged.
+At the ADR-076 milestone the practical Designer backlog was 48/92 complete,
+with 44 remaining; the next missing item in the fixed priority order was
+`ClipRRect`. Existing value and transport shapes kept `.fd` schema v10,
+contributor Catalog API 10, Canvas model v15, and NBFC framing plus Canvas
+control/wire v1 unchanged.
+
+## ADR-077 — ClipRRect is a complete typed rounded-rectangle clipping slice
+
+Accepted. The fixed practical inventory now admits canonical
+`flutter.widgets.ClipRRect` in Basic at item order 100 after `ClipOval`. The
+definition maps to the const `ClipRRect` constructor from
+`package:flutter/widgets.dart`, exposes optional typed `borderRadius`, optional
+typed `clipper`, optional closed `clipBehavior` and one optional single
+any-widget `child` slot, and excludes only the common `key`. A
+new Palette node stores no property and no child, preserving Flutter's
+`BorderRadius.zero` and `Clip.antiAlias` defaults by constructor omission. The
+clip editor admits exactly `Clip.none`, `Clip.hardEdge`, `Clip.antiAlias` and
+`Clip.antiAliasWithSaveLayer`.
+
+The new top-level border-radius value retains either physical `BorderRadius` or
+directional `BorderRadiusDirectional` geometry. Each of the four logical or
+physical corners stores an elliptical X/Y `Radius`; every component must be
+finite and non-negative. This is a closed value graph, not an arbitrary Dart
+expression. The SDK exposes `CustomClipper<RRect>` as an abstract user extension
+point and no public concrete delegate suitable for the bounded catalog. The
+Designer therefore admits that constructor branch through a closed
+`DartObjectReferenceValue`, not by trying to serialize an implementation.
+The same value closes the previously deferred `ClipRect.clipper` and
+`ClipOval.clipper` branches with expected type `CustomClipper<Rect>`.
+The value identifies either the current paired Dart library or one canonical
+package-config-declared `package:` library, one root identifier, an optional member, and either an
+existing-value reference or a zero-argument constructor, factory or function invocation. A
+`const` flag exists only for the invocation form. Identifiers and library URIs
+are syntactically constrained, generated imports are deterministic, and normal
+Dart candidate analysis must prove the emitted value assignable to
+`CustomClipper<RRect>` before Save can commit. Configured arguments remain fully
+available through a user-owned field/getter or zero-argument factory/function; raw
+argument text never enters `.fd`.
+
+This semantic evidence is deliberately point-in-time. The post-apply bind
+re-derives the exact probe manifest, package-config mapping and real target-root
+containment, but it does not hash the complete transitive Dart dependency graph.
+An external dependency changed concurrently after analysis therefore does not
+become a false freshness claim; retained Undo/Redo evidence remains identity
+bound to the analyzed candidate and a later new Designer mutation is analyzed
+again.
+
+Generated Dart constructs the real `ClipRRect` with the exact effective clipper,
+radius geometry, clip behavior and optional child; it omits the enclosing const
+when a non-const reference requires that. Flutter ignores `borderRadius` when a
+non-null clipper is supplied. The isolated native/exact-Web Canvas receives only
+`dartObjectReferencePresence`, never the library or symbol, because it does not
+compile or execute project Dart. In that branch it preserves the child and
+shows an explicit accessible preview-unavailable overlay instead of presenting
+a false standard radius clip. Without a custom clipper, both Canvas routes
+construct the real widget and Flutter owns paint, hit testing and application
+semantics. Designer selection outlines, empty-node targets and drag affordances
+remain transient overlays outside the clip. The complete slice covers both
+typed Properties editors, Slots, Palette/tree/Canvas creation and movement,
+deterministic generation, analyzer validation, Save/reopen and further editing,
+chronological Undo/Redo, accessibility and four reviewed 16/32 px light/dark
+SVGs.
+
+`ClipRRect` adds three writable rows, one source and one insertable any-widget
+destination. At the new destination the 48 previous sources add 45 accepted
+cells and three ParentData rejections; the new source adds 44 accepted
+any-widget cells and two rejected trait-bound cells across all destinations.
+The resulting surface has 742 writable rows, 725 outside Scaffold, across 49
+widgets and 43 reviewed const-constructor definitions. Forty-nine sources
+across 44 any-widget and two trait-bound destinations form 2,254 candidates:
+2,032 accepted and 222 rejected. Layout contains 31 Palette items, Scrolling
+three, Basic ten, Material four and Accessibility one.
+
+The practical Designer backlog is now 49/92 complete, with 43 remaining. The
+new typed Dart-object reference advances `.fd` schema to v12,
+contributor Catalog API to 12 and Canvas model to v17. NBFC framing plus Canvas
+control/wire remain v1.

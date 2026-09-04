@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
@@ -30,6 +31,7 @@ import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.validation.ValidationLimits;
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -99,6 +101,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             ClipRectWidgetPropertySchema.CLIP_RECT_TYPE;
     private static final WidgetTypeId CLIP_OVAL =
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
+    private static final WidgetTypeId CLIP_RRECT =
+            ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -553,6 +557,53 @@ class FlutterDesignerWidgetMovePlannerTest {
                         command.destination()),
                 () -> assertEquals(
                         new PropertyValue.EnumValue("Clip", "hardEdge"),
+                        widget.properties().get(new PropertyName("clipBehavior"))),
+                () -> assertEquals(child, ((WidgetSlot.SingleSlot)
+                        widget.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
+    void completedClipRRectMovesWithBorderRadiusClipBehaviorChildAndIdsPreserved() {
+        PropertyValue.BorderRadiusValue borderRadius = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(12), BigDecimal.valueOf(8)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(10), BigDecimal.valueOf(6)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(4), BigDecimal.valueOf(2)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.ONE, BigDecimal.valueOf(3))));
+        WidgetNode child = validText(D_ID, "rounded-clipped child");
+        WidgetNode widget = new WidgetNode(
+                A_ID,
+                CLIP_RRECT,
+                Map.of(
+                        new PropertyName("borderRadius"), borderRadius,
+                        new PropertyName("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(widget.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertEquals(borderRadius,
+                        widget.properties().get(new PropertyName("borderRadius"))),
+                () -> assertEquals(
+                        new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer"),
                         widget.properties().get(new PropertyName("clipBehavior"))),
                 () -> assertEquals(child, ((WidgetSlot.SingleSlot)
                         widget.slots().get(CHILD)).child().orElseThrow()));
@@ -1291,6 +1342,26 @@ class FlutterDesignerWidgetMovePlannerTest {
         WidgetNode source = validText(A_ID, "move into ClipOval");
         WidgetNode empty = WidgetNodePrototypeFactory.create(
                 definition(CLIP_OVAL), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyClipRRectChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into ClipRRect");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(CLIP_RRECT), B_ID);
         DesignerDocument document = document(listParent(
                 ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
 

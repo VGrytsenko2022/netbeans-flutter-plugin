@@ -103,7 +103,7 @@ final class FlutterPropertyEditorComponents {
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
-                    BOX_DECORATION -> true;
+                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE -> true;
             default -> false;
         };
     }
@@ -130,7 +130,8 @@ final class FlutterPropertyEditorComponents {
                     .customEditor(editor, binding, environment);
             case ICON_DATA -> new MaterialIconDataCustomEditor(
                     editor, binding, environment);
-            case ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION ->
+            case ALIGNMENT_GEOMETRY, BOX_CONSTRAINTS, MATRIX4, BOX_DECORATION,
+                    BORDER_RADIUS ->
                 FlutterContainerPropertyEditorComponents.customEditor(
                         editor, binding, environment);
             case SIZE -> FlutterSizePropertyEditorComponents.customEditor(
@@ -139,6 +140,9 @@ final class FlutterPropertyEditorComponents {
                     editor, binding, environment);
             case IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.customEditor(
                     editor, binding, environment);
+            case DART_OBJECT_REFERENCE ->
+                FlutterDartObjectReferenceEditorComponent.customEditor(
+                        editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No custom editor for " + binding.editorKind());
         };

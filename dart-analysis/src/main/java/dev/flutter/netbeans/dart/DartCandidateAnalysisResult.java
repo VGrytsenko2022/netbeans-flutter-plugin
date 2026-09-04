@@ -44,11 +44,16 @@ public record DartCandidateAnalysisResult(
                 DartCandidateDiagnostic::blocking);
         boolean rejectedSymbol = symbolEvidence.stream().anyMatch(
                 evidence -> !evidence.accepted());
+        boolean incompleteStaticTypeEvidence = symbolEvidence.stream().anyMatch(
+                evidence -> evidence.probe().staticTypeProbe().isPresent()
+                && (evidence.staticTypeEvidence().isEmpty()
+                || !evidence.staticTypeEvidence().orElseThrow().accepted()));
         if (status == DartCandidateAnalysisStatus.PASSED) {
             if (analyzerProtocolVersion.isEmpty()
                     || issue.isPresent()
                     || blockingDiagnostic
                     || rejectedSymbol
+                    || incompleteStaticTypeEvidence
                     || symbolEvidence.size() != requestedSymbolProbes) {
                 throw new IllegalArgumentException("PASSED result lacks complete passing evidence");
             }

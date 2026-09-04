@@ -12,19 +12,21 @@ import java.util.Optional;
  * Reviewed Designer projection of {@code ClipOval} in Flutter 3.44.8.
  *
  * <p>The framework {@code key} is deliberately excluded. A non-null
- * {@code CustomClipper<Rect>} is also outside the closed Designer model because
- * Flutter exposes no public concrete delegate and managed Dart regions do not
- * own class declarations. Omitting {@code clipper} therefore keeps the exact
- * child-bounds oval. The remaining optional {@code clipBehavior} argument and
- * optional child are represented without arbitrary Dart expressions.</p>
+ * {@code CustomClipper<Rect>} is represented only by the closed project-Dart
+ * reference/zero-argument-invocation contract. Omitting {@code clipper} keeps
+ * the exact child-bounds oval. The remaining optional {@code clipBehavior}
+ * argument and optional child are represented without arbitrary Dart
+ * expressions.</p>
  */
 public final class ClipOvalWidgetPropertySchema {
     public static final WidgetTypeId CLIP_OVAL_TYPE =
             new WidgetTypeId("flutter.widgets.ClipOval");
-    public static final int CONSTRUCTOR_PROPERTY_COUNT = 1;
+    public static final int CONSTRUCTOR_PROPERTY_COUNT = 2;
     public static final int SLOT_COUNT = 1;
 
     public enum Group {
+        DELEGATE("clipOvalDelegate", "Delegate",
+                "Project-declared oval clip delegate."),
         CLIPPING("clipOvalClipping", "Clipping",
                 "Oval paint clipping behavior.");
 
@@ -51,7 +53,7 @@ public final class ClipOvalWidgetPropertySchema {
         }
     }
 
-    /** Metadata for the one reviewed public constructor property. */
+    /** Metadata for the two reviewed public constructor properties. */
     public record Definition(
             Group group,
             String displayName,
@@ -80,15 +82,18 @@ public final class ClipOvalWidgetPropertySchema {
         return Optional.ofNullable(DEFINITIONS.get(name.value()));
     }
 
-    /** Returns the reviewed property in Flutter constructor order. */
+    /** Returns the reviewed properties in Flutter constructor order. */
     public static Map<String, Definition> definitions() {
         LinkedHashMap<String, Definition> values = new LinkedHashMap<>();
-        add(values, "clipBehavior", "Clip behavior",
-                "How paint outside the child-bounds oval is clipped.", 0);
+        add(values, "clipper", Group.DELEGATE, "Clipper",
+                "Project Dart reference or zero-argument invocation assignable to CustomClipper<Rect>.",
+                0);
+        add(values, "clipBehavior", Group.CLIPPING, "Clip behavior",
+                "How paint outside the child-bounds oval is clipped.", 1);
         if (values.size() != CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "ClipOval schema must expose exactly "
-                    + CONSTRUCTOR_PROPERTY_COUNT + " property; actual=" + values.size());
+                    + CONSTRUCTOR_PROPERTY_COUNT + " properties; actual=" + values.size());
         }
         return Collections.unmodifiableMap(values);
     }
@@ -96,11 +101,12 @@ public final class ClipOvalWidgetPropertySchema {
     private static void add(
             Map<String, Definition> values,
             String name,
+            Group group,
             String displayName,
             String description,
             int dartOrder) {
         if (values.putIfAbsent(name,
-                new Definition(Group.CLIPPING, displayName, description,
+                new Definition(group, displayName, description,
                         name, dartOrder)) != null) {
             throw new IllegalStateException("Duplicate ClipOval property schema: " + name);
         }

@@ -29,13 +29,13 @@ class FdV10NullValueCodecTest {
     private final FdDocumentCodec codec = new FdDocumentCodec();
 
     @Test
-    void canonicalV10EncodesExplicitNullAsAnExactTaggedObject() throws Exception {
+    void canonicalCurrentSchemaEncodesExplicitNullAsAnExactTaggedObject() throws Exception {
         OriginalFdBytes encoded = codec.encode(document(Map.of(
                 INDEX, new PropertyValue.NullValue())));
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 10"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v10.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 12"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v12.schema.json\""), json);
         String exactNull = "\"index\": {\n        \"kind\": \"null\"\n      }";
         assertTrue(json.contains(exactNull), json);
         assertFalse(json.substring(json.indexOf("\"index\""),
@@ -44,7 +44,7 @@ class FdV10NullValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(encoded));
-        assertEquals(10, decoded.sourceSchemaVersion());
+        assertEquals(12, decoded.sourceSchemaVersion());
         assertFalse(decoded.migrated());
         assertEquals(new PropertyValue.NullValue(),
                 decoded.document().root().properties().get(INDEX));
@@ -59,8 +59,8 @@ class FdV10NullValueCodecTest {
                 StandardCharsets.UTF_8);
 
         assertInvalid(current
-                        .replace("\"schemaVersion\": 10", "\"schemaVersion\": 9")
-                        .replace("../fd-v10.schema.json", "../fd-v9.schema.json"),
+                        .replace("\"schemaVersion\": 12", "\"schemaVersion\": 9")
+                        .replace("../fd-v12.schema.json", "../fd-v9.schema.json"),
                 "/root/properties/index/kind");
         assertInvalid(current.replace(
                         "\"kind\": \"null\"",
@@ -77,19 +77,19 @@ class FdV10NullValueCodecTest {
         String current = new String(codec.encode(document(Map.of())).copyBytes(),
                 StandardCharsets.UTF_8);
         String legacy = current
-                .replace("\"schemaVersion\": 10", "\"schemaVersion\": 9")
-                .replace("../fd-v10.schema.json", "../fd-v9.schema.json");
+                .replace("\"schemaVersion\": 12", "\"schemaVersion\": 9")
+                .replace("../fd-v12.schema.json", "../fd-v9.schema.json");
 
         FdDecodeResult.Current migrated = assertInstanceOf(
                 FdDecodeResult.Current.class,
                 codec.decode(legacy.getBytes(StandardCharsets.UTF_8)));
         assertEquals(9, migrated.sourceSchemaVersion());
         assertTrue(migrated.migrated());
-        assertEquals(Optional.of("../fd-v10.schema.json"),
+        assertEquals(Optional.of("../fd-v12.schema.json"),
                 migrated.document().schemaReference());
         assertFalse(migrated.document().root().properties().containsKey(INDEX));
         assertTrue(new String(codec.encode(migrated.document()).copyBytes(),
-                StandardCharsets.UTF_8).contains("\"schemaVersion\": 10"));
+                StandardCharsets.UTF_8).contains("\"schemaVersion\": 12"));
     }
 
     private void assertInvalid(String json, String pointer) throws Exception {
@@ -112,7 +112,7 @@ class FdV10NullValueCodecTest {
                 Extensions.empty());
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v10.schema.json"),
+                Optional.of("../fd-v12.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "indexed_stack_page.dart", "IndexedStackPage",

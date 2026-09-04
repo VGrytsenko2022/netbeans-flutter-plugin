@@ -7,38 +7,70 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`ClipRRect`](https://api.flutter.dev/flutter/widgets/ClipRRect/ClipRRect.html)
+  vertical slice fills the next gap in the fixed practical 92-widget inventory,
+  in Basic at item order 100 after `ClipOval`. The closed Flutter 3.44.8
+  Designer contract exposes optional typed `borderRadius` with physical or
+  directional finite, non-negative elliptical corner radii; omission preserves
+  `BorderRadius.zero`. Optional `clipBehavior` admits the four exact `Clip`
+  values and preserves `Clip.antiAlias` when omitted, and one optional single
+  any-widget `child` completes the supported constructor surface. Optional
+  `clipper` stores a closed typed reference to an existing project value or a
+  zero-argument constructor, factory or function in the current Dart library or an imported
+  `package:` library declared by the project's package config; an optional public member and `const` invocation are
+  supported without admitting raw Dart. Generated Dart adds the deterministic
+  import and the normal analyzer proves assignment to `CustomClipper<RRect>`.
+  The same typed-reference, persistence, analyzer and presence-only Canvas
+  contract now closes `ClipRect.clipper` and `ClipOval.clipper` as
+  `CustomClipper<Rect>` rather than leaving those earlier slices partial.
+  When configured, Flutter ignores `borderRadius`; the isolated Canvas therefore
+  preserves the child and shows an explicit project-code-preview warning instead
+  of displaying a false standard clip. With no custom clipper, native/exact-Web
+  Canvas constructs the real `ClipRRect`, while Designer selection and DnD
+  affordances remain outside its paint clip. Typed Properties, its structured
+  radius editor and typed Dart-object-reference editor,
+  Palette/tree/Canvas DnD and movement, exact-slot editing, Save/reopen and
+  further editing, Undo/Redo, accessibility and four reviewed light/dark 16/32
+  px SVGs share the same contract. The catalog now contains 49 widgets, 43
+  reviewed const constructors and 742 writable rows, including 725 across the
+  48 non-`Scaffold` definitions. Forty-nine sources across 44 insertable
+  any-widget and two trait-bound destinations form 2,254 candidates: 2,032
+  accepted and 222 rejected. Layout contains 31 items, Scrolling 3, Basic 10,
+  Material 4 and Accessibility 1; the practical backlog is 49/92 complete with
+  43 remaining. The typed Dart-object reference advances `.fd`
+  schema to v12, contributor Catalog API to 12 and Canvas model to v17; NBFC
+  framing and Canvas control/wire remain v1.
+- The accepted const
   [`ClipOval`](https://api.flutter.dev/flutter/widgets/ClipOval/ClipOval.html)
   vertical slice fills the next gap in the fixed practical 92-widget inventory,
   at Basic order 90 after `ClipRect`. The closed Flutter 3.44.8 Designer
   contract exposes optional `clipBehavior`, preserving Flutter's
   `Clip.antiAlias` default when omitted, plus one optional any-widget `child`.
-  Flutter provides no public concrete `CustomClipper<Rect>` implementation, so
-  a non-null `clipper` remains explicitly outside the typed Designer contract
-  instead of admitting an opaque Dart expression or presenting a misleading
-  null-only editor. Generated Dart and native/exact-Web Canvas construct the
+  The initial v10 milestone excluded non-null `CustomClipper<Rect>` instead of
+  admitting an opaque Dart expression; the shared schema-v12 typed-reference
+  contract now supports it. Generated Dart and native/exact-Web Canvas construct the
   real `ClipOval`; with no custom clipper, the oval is inscribed in the child's
   layout bounds. Clip behavior, empty and populated selection/drop geometry,
   typed Properties, Palette/tree/Canvas DnD and movement, exact-slot editing,
   Save/reopen and further editing, Undo/Redo, accessibility and four reviewed
-  light/dark 16/32 px SVGs share the same closed contract. The catalog now
+  light/dark 16/32 px SVGs share the same closed contract. At that milestone the catalog
   contains 48 widgets, 42 reviewed const constructors and 737 writable rows,
   including 720 across the 47 non-`Scaffold` definitions. Forty-eight sources
   across 43 insertable any-widget and two trait-bound destinations form 2,160
   candidates: 1,943 accepted and 217 rejected. Layout contains 31 items,
   Scrolling 3, Basic 9, Material 4 and Accessibility 1; the practical backlog
-  is 48/92 complete with 44 remaining. Existing encodings keep `.fd` schema at
+  was 48/92 complete with 44 remaining. Existing encodings kept `.fd` schema at
   v10, contributor Catalog API at 10 and Canvas model at v15; NBFC framing and
-  Canvas control/wire remain v1.
+  Canvas control/wire remained v1.
 - The accepted const
   [`ClipRect`](https://api.flutter.dev/flutter/widgets/ClipRect/ClipRect.html)
   vertical slice fills the next gap in the fixed practical 92-widget inventory,
   at Basic order 80 after `DecoratedBox`. The closed Flutter 3.44.8 Designer
   contract exposes optional `clipBehavior`, preserving Flutter's
   `Clip.hardEdge` default when omitted, plus one optional any-widget `child`.
-  Flutter provides no public concrete `CustomClipper<Rect>` implementation, so
-  a non-null `clipper` remains explicitly outside the typed Designer contract
-  instead of admitting an opaque Dart expression or presenting a misleading
-  null-only editor. Generated Dart and native/exact-Web Canvas construct the
+  The initial v10 milestone excluded non-null `CustomClipper<Rect>` instead of
+  admitting an opaque Dart expression; the shared schema-v12 typed-reference
+  contract now supports it. Generated Dart and native/exact-Web Canvas construct the
   real `ClipRect`; with no custom clipper, its rectangle is exactly the child's
   layout size. Clip behavior, empty and populated selection/drop geometry,
   typed Properties, Palette/tree/Canvas DnD and movement, exact-slot editing,

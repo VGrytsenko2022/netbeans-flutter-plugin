@@ -20,7 +20,21 @@ public record GeneratedDartSymbolOccurrence(
         String symbolName,
         String libraryUri,
         String modelPath,
-        Optional<StableId> widgetId) {
+        Optional<StableId> widgetId,
+        Optional<GeneratedDartStaticTypeRequirement> staticTypeRequirement) {
+
+    public GeneratedDartSymbolOccurrence(
+            String id,
+            DartManagedRegionId region,
+            int offset,
+            int length,
+            String symbolName,
+            String libraryUri,
+            String modelPath,
+            Optional<StableId> widgetId) {
+        this(id, region, offset, length, symbolName, libraryUri, modelPath,
+                widgetId, Optional.empty());
+    }
 
     public GeneratedDartSymbolOccurrence {
         id = requireText(id, "id");
@@ -36,6 +50,8 @@ public record GeneratedDartSymbolOccurrence(
             throw new IllegalArgumentException("modelPath must be an absolute JSON pointer");
         }
         widgetId = Objects.requireNonNull(widgetId, "widgetId");
+        staticTypeRequirement = Objects.requireNonNull(
+                staticTypeRequirement, "staticTypeRequirement");
         if (length != symbolName.length()) {
             throw new IllegalArgumentException(
                     "symbol occurrence length must equal the UTF-16 symbol-name length");
@@ -58,7 +74,8 @@ public record GeneratedDartSymbolOccurrence(
                 symbolName,
                 libraryUri,
                 modelPath,
-                widgetId);
+                widgetId,
+                staticTypeRequirement.map(requirement -> requirement.shifted(delta)));
     }
 
     private static String requireText(String value, String name) {

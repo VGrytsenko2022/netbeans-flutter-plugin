@@ -693,7 +693,7 @@ accepted architecture is documented in
   Canvas hover, while Java repeats the canonical planner before mutation.
 - [x] Supersede the AppBar milestone with the complete `ElevatedButton`
   vertical slice. The slice originally landed on Canvas payload protocol v8
-  (the current aggregate model is v9); deterministic generation and the
+  (the current aggregate model is v17); deterministic generation and the
   native runner share 286 typed leaves: seven direct behavior/callback fields,
   five 54-leaf default/disabled/pressed/hovered/focused style groups and nine
   common layout/feedback fields. Callback values are strict Dart identifiers;
@@ -993,8 +993,8 @@ accepted architecture is documented in
   outlines through surface overlay geometry instead of an invalid outer
   render-object wrapper. Complete Properties, creation, Palette/tree/Canvas
   DnD, same-tree movement, deterministic generation, Save/reopen, Undo/Redo,
-  reviewed light/dark SVG icons and focused contract tests. The current surface
-  is 28 widgets, 23 const definitions and 662 rows (645 outside Scaffold), with
+  reviewed light/dark SVG icons and focused contract tests. At that milestone the surface
+  was 28 widgets, 23 const definitions and 662 rows (645 outside Scaffold), with
   20 Layout items. Twenty-eight sources across the unchanged 25 insertable
   any-widget plus two trait destinations form 756 candidates: 633 accepted and
   123 rejected. The practical 92-widget backlog is 28/92 complete with 64
@@ -1130,7 +1130,7 @@ accepted architecture is documented in
   generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
   SVG icons and focused contract tests. The named `.rotate`, `.translate`,
   `.scale` and `.flip` convenience constructors remain explicitly outside this
-  slice. The current surface is 34 widgets, 29 const definitions and 674 rows
+  slice. At that milestone the surface was 34 widgets, 29 const definitions and 674 rows
   (657 outside Scaffold), with 26 Layout items. Thirty-four sources across 31
   insertable any-widget plus two trait destinations form 1,122 candidates: 969
   accepted and 153 rejected. The practical 92-widget backlog is 34/92 complete
@@ -1149,7 +1149,7 @@ accepted architecture is documented in
   the exact stored value. Complete property and exact-slot editing,
   Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
   Save/reopen and further signed editing, Undo/Redo, reviewed light/dark SVG
-  icons and focused contract tests. The current surface is 35 widgets, 30 const
+  icons and focused contract tests. At that milestone the surface was 35 widgets, 30 const
   definitions and 675 rows (658 outside Scaffold), with 27 Layout items.
   Thirty-five sources across 32 insertable any-widget plus two trait
   destinations form 1,190 candidates: 1,032 accepted and 158 rejected. The
@@ -1170,7 +1170,7 @@ accepted architecture is documented in
   directionality. Complete property and exact-list-slot editing,
   Palette/tree/Canvas DnD, same-tree movement/reordering, deterministic
   generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
-  SVG icons and focused contract tests. The current surface is 36 widgets, 31
+  SVG icons and focused contract tests. At that milestone the surface was 36 widgets, 31
   const definitions and 677 rows (660 outside Scaffold), with 28 Layout items.
   Thirty-six sources across 33 insertable any-widget plus two trait destinations
   form 1,260 candidates: 1,097 accepted and 163 rejected. The practical
@@ -1195,7 +1195,7 @@ accepted architecture is documented in
   follow `overflowDirection`. Complete property and exact-list-slot editing,
   Palette/tree/Canvas DnD, same-tree movement/reordering, deterministic
   generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
-  SVG icons and focused contract tests. The current surface is 37 widgets, 32
+  SVG icons and focused contract tests. At that milestone the surface was 37 widgets, 32
   const definitions and 683 rows (666 outside Scaffold), with 29 Layout items.
   Thirty-seven sources across 34 insertable any-widget plus two trait
   destinations form 1,332 candidates: 1,164 accepted and 168 rejected. The
@@ -1241,7 +1241,7 @@ accepted architecture is documented in
   contracts. Preserve the real widget's deliberate two-axis shrink-wrapping:
   do not apply the ListView/GridView generated bounded-viewport guard, and use
   only a non-layout-affecting Canvas target for an empty or zero-size node. The
-  current surface is 39 widgets, 33 const definitions and 714 rows (697 outside
+  surface at that milestone was 39 widgets, 33 const definitions and 714 rows (697 outside
   Scaffold). Thirty-nine sources across 36 insertable any-widget plus two trait
   destinations form 1,482 candidates: 1,304 accepted and 178 rejected. Layout
   remains at 29 items, Scrolling contains 3, and the practical 92-widget
@@ -1261,7 +1261,7 @@ accepted architecture is documented in
   deterministic generation, Save/reopen and further editing, Undo/Redo, native
   and exact-Web Canvas, four reviewed SVGs and focused contracts. Keep only a
   non-layout-affecting 36x36 Canvas target for an empty zero-size node and never
-  persist it. The current surface is 40 widgets, 34 const definitions and 716
+  persist it. At that milestone the surface was 40 widgets, 34 const definitions and 716
   rows (699 outside Scaffold). Forty sources across 37 insertable any-widget
   plus two trait destinations form 1,560 candidates: 1,377 accepted and 183
   rejected. Layout remains at 29 items, Scrolling at 3, Basic contains 4, and the
@@ -1402,9 +1402,9 @@ accepted architecture is documented in
   Palette/tree/Canvas DnD and movement, deterministic const Dart generation,
   Save/reopen and further editing, Undo/Redo, real native/exact-Web clipping,
   accessibility, empty-target handling and four reviewed SVGs. Keep Designer
-  selection and DnD affordances outside the paint clip. Explicitly exclude
-  non-null `CustomClipper<Rect>` because the SDK provides no concrete public
-  delegate and the Designer does not admit arbitrary Dart expressions. The
+  selection and DnD affordances outside the paint clip. The initial v10 slice
+  excluded non-null `CustomClipper<Rect>`; schema v12 now closes that branch
+  with the shared typed Dart-object reference instead of arbitrary expressions. The
   resulting surface is 47 widgets, 41 const definitions and 736 rows (719
   outside Scaffold). Forty-seven sources across 42 insertable any-widget plus
   two trait destinations form 2,068 candidates: 1,856 accepted and 212
@@ -1422,16 +1422,47 @@ accepted architecture is documented in
   Palette/tree/Canvas DnD and movement, deterministic const Dart generation,
   Save/reopen and further editing, Undo/Redo, real native/exact-Web oval
   clipping, accessibility, empty-target handling and four reviewed SVGs. Keep
-  Designer selection and DnD affordances outside the paint clip. Explicitly
-  exclude non-null `CustomClipper<Rect>` because the SDK provides no concrete
-  public delegate and the Designer does not admit arbitrary Dart expressions.
-  The resulting surface is 48 widgets, 42 const definitions and 737 rows (720
+  Designer selection and DnD affordances outside the paint clip. The initial
+  v10 slice excluded non-null `CustomClipper<Rect>`; schema v12 now closes that
+  branch with the shared typed Dart-object reference instead of arbitrary expressions.
+  At that milestone the resulting surface was 48 widgets, 42 const definitions and 737 rows (720
   outside Scaffold). Forty-eight sources across 43 insertable any-widget plus
   two trait destinations form 2,160 candidates: 1,943 accepted and 217
-  rejected. Layout contains 31 items, Scrolling 3, Basic 9, Material 4 and
-  Accessibility 1; the practical backlog is 48/92 complete with 44 remaining.
+  rejected. Layout contained 31 items, Scrolling 3, Basic 9, Material 4 and
+  Accessibility 1; the practical backlog was 48/92 complete with 44 remaining.
   `.fd` schema v10, Catalog API 10, Canvas model v15 and NBFC
-  framing/control/wire v1 remain unchanged.
+  framing/control/wire v1 remained unchanged.
+- [x] Complete const
+  [`ClipRRect`](https://api.flutter.dev/flutter/widgets/ClipRRect/ClipRRect.html)
+  as the next fixed practical-inventory slice, in Basic at item order 100 after
+  `ClipOval`. Expose the safe Flutter 3.44.8 non-`key` constructor surface:
+  optional typed `borderRadius`, optional typed `clipper`, optional closed
+  `clipBehavior` and one optional single any-widget `child` slot. Support physical `BorderRadius` and
+  directional `BorderRadiusDirectional` with finite, non-negative elliptical
+  radii for all four corners. Preserve `BorderRadius.zero` and
+  `Clip.antiAlias` by omission and admit the other three exact `Clip` values.
+  Complete the structured typed Properties editor, Palette/tree/Canvas DnD and
+  movement, deterministic Dart generation, Save/reopen and further
+  editing, Undo/Redo, real native/exact-Web standard rounded clipping, accessibility,
+  empty-target handling and four reviewed SVGs. Keep Designer selection and DnD
+  affordances outside the paint clip. Represent a non-null
+  `CustomClipper<RRect>` as a closed current-library or canonical package-config-declared `package:`
+  Dart-object reference to an existing value or zero-argument
+  constructor, factory or function, with an optional member and an explicit
+  const or non-const zero-argument invocation. Validate the
+  generated assignment with the analyzer and never persist raw Dart. Since the
+  isolated Canvas cannot execute project code, transmit presence only and show
+  an explicit accessible preview-unavailable state without faking the ignored
+  `borderRadius`. Apply the same typed-reference, analyzer, persistence and
+  presence-only Canvas contract to `ClipRect.clipper` and `ClipOval.clipper`,
+  so all three clipping widgets are complete. The resulting surface is 49 widgets, 43 const definitions and
+  742 rows (725 outside
+  Scaffold). Forty-nine sources across 44 insertable any-widget plus two trait
+  destinations form 2,254 candidates: 2,032 accepted and 222 rejected. Layout
+  contains 31 items, Scrolling 3, Basic 10, Material 4 and Accessibility 1; the
+  practical backlog is 49/92 complete with 43 remaining. The typed Dart-object
+  reference advances `.fd` schema to v12, Catalog API to 12 and Canvas model to
+  v17; NBFC framing/control/wire remain v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1449,8 +1480,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The next missing item in the fixed priority order is
-  `ClipRRect`. The current typed Properties slice spans all forty-eight
+  vertical slices. The current typed Properties slice spans all forty-nine
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

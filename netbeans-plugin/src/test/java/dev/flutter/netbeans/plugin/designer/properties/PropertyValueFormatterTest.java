@@ -150,6 +150,35 @@ class PropertyValueFormatterTest {
                                 borderSide(), borderSide(), borderSide(), borderSide())),
                         Optional.empty(), List.of(), Optional.empty(), Optional.empty(),
                         PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)));
+        PropertyValue.BoxDecorationValue.Radius radiusEight =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        BigDecimal.valueOf(8), BigDecimal.valueOf(8));
+        assertEquals("physical circular 8", PropertyValueFormatter.format(
+                new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                                radiusEight, radiusEight, radiusEight, radiusEight))));
+        assertEquals("directional corners [1×2, 3×4, 5×6, 7×8]",
+                PropertyValueFormatter.format(new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                radius(1, 2), radius(3, 4),
+                                radius(5, 6), radius(7, 8)))));
+        assertEquals("_localClipper.instance", PropertyValueFormatter.format(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(),
+                        "_localClipper",
+                        Optional.of("instance"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())));
+        assertEquals(
+                "const RoundedClipper.compact() @ package:app/clippers.dart",
+                PropertyValueFormatter.format(
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of("package:app/clippers.dart"),
+                                "RoundedClipper",
+                                Optional.of("compact"),
+                                PropertyValue.DartObjectReferenceValue.Access
+                                        .ZERO_ARGUMENT_INVOCATION,
+                                Optional.of(true))));
     }
 
     @Test
@@ -174,6 +203,19 @@ class PropertyValueFormatterTest {
     }
 
     @Test
+    void formatsSharedClipperInvocationWithoutInventingConstOrMember() {
+        assertEquals("RoundedClipper() @ package:app/rect_clippers.dart",
+                PropertyValueFormatter.format(
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of("package:app/rect_clippers.dart"),
+                                "RoundedClipper",
+                                Optional.empty(),
+                                PropertyValue.DartObjectReferenceValue.Access
+                                        .ZERO_ARGUMENT_INVOCATION,
+                                Optional.of(false))));
+    }
+
+    @Test
     void rejectsNullInsteadOfConfusingItWithAnUnsetProperty() {
         assertThrows(NullPointerException.class, () -> PropertyValueFormatter.format(null));
     }
@@ -182,5 +224,10 @@ class PropertyValueFormatterTest {
         return new PropertyValue.BoxDecorationValue.BorderSide(
                 new ColorSource.Literal(0xFF000000L), BigDecimal.ONE,
                 PropertyValue.BoxDecorationValue.BorderStyle.SOLID, BigDecimal.ZERO);
+    }
+
+    private static PropertyValue.BoxDecorationValue.Radius radius(int x, int y) {
+        return new PropertyValue.BoxDecorationValue.Radius(
+                BigDecimal.valueOf(x), BigDecimal.valueOf(y));
     }
 }

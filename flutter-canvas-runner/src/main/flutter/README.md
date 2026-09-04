@@ -4,7 +4,7 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v15 may additionally carry
+screenshots or framebuffer pixels. Model protocol v17 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
 
@@ -80,13 +80,17 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v15 carries the resolved project-theme id, seed, brightness,
+Model protocol v17 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
-closed 36-leaf component-color table. The
+closed 36-leaf component-color table. Version 17 adds the presence-only typed
+project Dart-object reference used by all three clipping widgets' `clipper` rows; version 16 added the top-level
+physical/directional finite non-negative elliptical border-radius value used by
+`ClipRRect`; version 15 added the exact payload-free null used by
+`IndexedStack.index`. The
 runner applies the same seed → `ColorScheme.copyWith` → `ThemeData.from` →
 `TextTheme.copyWith` → component-theme order as generated Dart before applying
 form-local widget properties. It preserves physical `EdgeInsets` versus text-direction-aware
@@ -236,9 +240,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-48 reviewed Canvas widgets. Palette insertion evaluates 2,160 exact
-source/destination cells across 48 draggable sources and 45 insertable reviewed
-slots; 1,943 are accepted and 217 cells are rejected. Expanded and Flexible are
+49 reviewed Canvas widgets. Palette insertion evaluates 2,254 exact
+source/destination cells across 49 draggable sources and 46 insertable reviewed
+slots; 2,032 are accepted and 222 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -531,11 +535,11 @@ construct the real Flutter SizedOverflowBox. Its own requested size is
 constrained by the parent, while the child receives the original incoming
 constraints and may paint outside according to alignment; hit testing remains
 inside the parent's bounds. A true zero-sized result retains a bounded 36 x 36
-non-layout-affecting Designer selection/drop target. The aggregate catalog now
-has 33 widgets, 28 reviewed const constructors and 669 writable properties,
+non-layout-affecting Designer selection/drop target. At that milestone the aggregate catalog had
+33 widgets, 28 reviewed const constructors and 669 writable properties,
 including 652 outside Scaffold. Thirty-three sources across 30 insertable
 any-widget and two trait destinations form 1,056 candidates: 908 accepted and
-148 rejected. The practical Material/Base Designer backlog is 33/92 complete
+148 rejected. The practical Material/Base Designer backlog was 33/92 complete
 with 59 remaining, and the Palette Layout category contains 25 items. The new
 closed atomic Size wire value advances `.fd` to schema v8, Catalog API to 7 and
 Canvas model to v13; NBFC framing/control/wire v1 remain unchanged.
@@ -563,8 +567,8 @@ an axis-aligned bounding-box corner. Surface hover feedback is still outside
 the transformed subtree. Only a true
 zero-size result receives the bounded 36 x 36 non-layout-affecting Designer
 selection/drop target. The named rotate, translate, scale and flip convenience
-constructors are intentionally outside this slice. The aggregate catalog now
-has 34 widgets; 34 sources across 33 insertable destinations form 1,122 cells,
+constructors are intentionally outside this slice. At that milestone the aggregate catalog had
+34 widgets; 34 sources across 33 insertable destinations formed 1,122 cells,
 with 969 accepted and 153 rejected. Canvas model protocol is v14; NBFC framing,
 control and wire remain v1.
 
@@ -581,9 +585,9 @@ quarter turns therefore exchange the child's width and height during layout,
 negative values rotate counter-clockwise, and multiples of four preserve its
 orientation. Empty or truly zero-size instances receive only the bounded
 Designer selection/drop target, while populated instances expose the real child
-geometry and the optional `child` drop slot. The aggregate catalog now has 35
+geometry and the optional `child` drop slot. At that milestone the aggregate catalog had 35
 widgets; 35 sources across 34 insertable destinations form 1,190 cells, with
-1,032 accepted and 158 rejected. The practical Material/Base backlog is 35/92
+1,032 accepted and 158 rejected. The practical Material/Base backlog was 35/92
 complete with 57 remaining, and Layout contains 27 items. Canvas model protocol
 remains v14; NBFC framing, control and wire remain v1.
 
@@ -600,9 +604,9 @@ host the real widget inside an axis-matched design-time viewport. That guard is
 Canvas-only and never changes the model or generated application source. An
 empty ListBody exposes its bounded rectangle at insertion index zero; a populated
 instance exposes only its visual terminal append edge, resolved from main axis,
-reversal and ambient `Directionality`. The aggregate catalog now has 36 widgets;
+reversal and ambient `Directionality`. At that milestone the aggregate catalog had 36 widgets;
 36 sources across 35 insertable destinations form 1,260 cells, with 1,097
-accepted and 163 rejected. The practical Material/Base backlog is 36/92
+accepted and 163 rejected. The practical Material/Base backlog was 36/92
 complete with 56 remaining, and Layout contains 28 items. Canvas model protocol
 remains v14; NBFC framing, control and wire remain v1.
 
@@ -621,9 +625,9 @@ target; neither guard changes the model or generated application source. The rea
 a horizontal row while child widths plus spacing fit and a vertical overflow
 column otherwise. DnD resolves fitting-row order through explicit or ambient
 LTR/RTL direction and overflow-column order through `overflowDirection`. The
-aggregate catalog now has 37 widgets; 37 sources across 36 insertable
+aggregate catalog at that milestone had 37 widgets; 37 sources across 36 insertable
 destinations form 1,332 cells, with 1,164 accepted and 168 rejected. The
-practical Material/Base backlog is 37/92 complete with 55 remaining, and Layout
+practical Material/Base backlog was 37/92 complete with 55 remaining, and Layout
 contains 29 items. Canvas model protocol remains v14; NBFC framing, control and
 wire remain v1.
 
@@ -669,7 +673,7 @@ owns axis/reverse/directionality behavior and deliberately shrink-wraps the
 widget in both axes, so the ListView/GridView bounded-viewport guard is not
 applied. Canvas retains only a non-layout-affecting 36x36 selection/drop target
 when the real empty or zero-size widget has no usable bounds. The aggregate
-catalog now has 39 widgets; 39 sources across 38 insertable destinations form
+catalog at that milestone had 39 widgets; 39 sources across 38 insertable destinations formed
 1,482 cells, with 1,304 accepted and 178 rejected. Canvas model protocol remains
 v14; NBFC framing, control and wire remain v1.
 
@@ -839,25 +843,48 @@ Exact typed null advances `.fd` to v10, Canvas model protocol to v15 and Catalog
 API to v10; NBFC framing, control and wire remain v1.
 
 `ClipRect` is decoded as the real const Flutter 3.44.8 widget. Its optional
-`clipBehavior` accepts only the four exact `Clip` values and defaults to
+`clipper` accepts only `dartObjectReferencePresence`; its optional `clipBehavior` accepts only the four exact `Clip` values and defaults to
 `Clip.hardEdge` when omitted; its optional single child participates in normal
-catalog insertion. A non-null custom clipper is rejected because it requires a
-user-defined delegate outside the bounded model. Native and exact-Web routes
-apply the real layout, paint, hit-test and semantics behavior. Selection and
-empty-target feedback remain transient Designer overlays outside the clip.
+catalog insertion. With no clipper presence, native and exact-Web routes
+apply the real layout, paint, hit-test and semantics behavior. With presence,
+the runner preserves the child and shows an accessible preview-unavailable overlay without
+pretending to execute project Dart. Selection and
+empty-target feedback remain transient Designer overlays outside the clip. If
+the child is omitted and the real node is therefore zero-size, the external
+36x36 Designer target carries the visible warning, full tooltip and semantics
+reason without fabricating Flutter layout geometry.
 
 `ClipOval` is decoded as the real const Flutter 3.44.8 widget. Its optional
-`clipBehavior` accepts only the four exact `Clip` values and defaults to
+`clipper` accepts only `dartObjectReferencePresence`; its optional `clipBehavior` accepts only the four exact `Clip` values and defaults to
 `Clip.antiAlias` when omitted; its optional single child participates in normal
-catalog insertion. A non-null custom clipper is rejected because it requires a
-user-defined delegate outside the bounded model. Native and exact-Web routes
+catalog insertion. With no clipper presence, native and exact-Web routes
 apply the real oval layout, paint, hit-test and semantics behavior, with the
 default oval inscribed in the child's layout bounds. Selection and empty-target
-feedback remain transient Designer overlays outside the clip.
+feedback remain transient Designer overlays outside the clip. With presence,
+the runner preserves the child and shows the same accessible unavailable preview;
+an empty node exposes that reason on its external 36x36 Designer target.
 
-The aggregate catalog now has 48 widgets and 42 reviewed const definitions,
-with 737 writable rows (720 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, nine Basic, four Material and one Accessibility item; the
-backlog is 48/92 complete with 44 remaining. The 48 sources across 45
-insertable destinations form 2,160 cells, with 1,943 accepted and 217 rejected.
-Existing schema, Catalog, Canvas and NBFC protocol versions remain unchanged.
+`ClipRRect` is decoded as the real Flutter 3.44.8 widget. Its optional
+`borderRadius` accepts physical `BorderRadius` or directional
+`BorderRadiusDirectional` with finite, non-negative elliptical X/Y values for
+all four corners and defaults to `BorderRadius.zero` when omitted. Its optional
+`clipper` accepts only `dartObjectReferencePresence`; the runner never receives
+the library URI, symbol, member or invocation details and never executes project
+Dart. When presence is set, it preserves the child and renders an explicit
+accessible preview-unavailable overlay without applying `borderRadius`, which
+Flutter ignores for a non-null custom clipper. Its optional `clipBehavior`
+accepts only the four exact `Clip` values and defaults to `Clip.antiAlias` when
+omitted; its optional single child participates in normal catalog insertion.
+Without clipper presence, native and exact-Web routes construct the real widget
+and apply its layout, paint, hit-test and semantics behavior. Selection and
+empty-target feedback remain transient Designer overlays outside the clip; an
+empty custom-clipper node remains zero-size while that external target carries
+the warning and complete reason.
+
+The aggregate catalog now has 49 widgets and 43 reviewed const definitions,
+with 742 writable rows (725 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, ten Basic, four Material and one Accessibility item; the
+backlog is 49/92 complete with 43 remaining. The 49 sources across 46
+insertable destinations form 2,254 cells, with 2,032 accepted and 222 rejected.
+The typed Dart-object reference advances `.fd` schema to v12, Catalog API to 12
+and Canvas model protocol to v17; NBFC framing, control and wire remain v1.

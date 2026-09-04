@@ -150,6 +150,14 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxDecorationValues.class::isInstance)) {
             editorKind = EditorKind.BOX_DECORATION;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BORDER_RADIUS))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.BorderRadiusValues.class::isInstance)) {
+            editorKind = EditorKind.BORDER_RADIUS;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
+            editorKind = EditorKind.DART_OBJECT_REFERENCE;
         } else {
             return Optional.empty();
         }
@@ -183,7 +191,9 @@ final class FlutterTypedPropertyEditors {
         BOX_CONSTRAINTS,
         MATRIX4,
         IMAGE_PROVIDER,
-        BOX_DECORATION
+        BOX_DECORATION,
+        BORDER_RADIUS,
+        DART_OBJECT_REFERENCE
     }
 
     record Binding(
@@ -286,7 +296,8 @@ final class FlutterTypedPropertyEditors {
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
-                        MATRIX4, IMAGE_PROVIDER, BOX_DECORATION ->
+                        MATRIX4, IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
+                        DART_OBJECT_REFERENCE ->
                     new StructuredEditor(this);
             };
         }

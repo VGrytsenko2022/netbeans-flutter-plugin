@@ -14,7 +14,16 @@ public record DartSymbolEvidence(
         DartSymbolProbe probe,
         List<DartNavigationTarget> targets,
         boolean accepted,
-        Optional<String> rejectionReason) {
+        Optional<String> rejectionReason,
+        Optional<DartStaticTypeEvidence> staticTypeEvidence) {
+
+    public DartSymbolEvidence(
+            DartSymbolProbe probe,
+            List<DartNavigationTarget> targets,
+            boolean accepted,
+            Optional<String> rejectionReason) {
+        this(probe, targets, accepted, rejectionReason, Optional.empty());
+    }
 
     public DartSymbolEvidence {
         Objects.requireNonNull(probe, "probe");
@@ -29,6 +38,18 @@ public record DartSymbolEvidence(
                     }
                     return reason.strip();
                 });
+        staticTypeEvidence = Objects.requireNonNull(
+                staticTypeEvidence, "staticTypeEvidence");
+        staticTypeEvidence.ifPresent(evidence -> {
+            if (!probe.staticTypeProbe().equals(Optional.of(evidence.probe()))) {
+                throw new IllegalArgumentException(
+                        "static-type evidence does not match the symbol probe");
+            }
+            if (!evidence.accepted() && accepted) {
+                throw new IllegalArgumentException(
+                        "symbol evidence cannot pass with rejected static-type evidence");
+            }
+        });
         if (accepted != rejectionReason.isEmpty()) {
             throw new IllegalArgumentException(
                     "accepted evidence must have no rejection reason and rejected evidence must have one");

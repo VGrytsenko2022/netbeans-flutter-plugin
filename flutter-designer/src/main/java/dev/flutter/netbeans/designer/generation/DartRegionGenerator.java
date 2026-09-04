@@ -65,6 +65,7 @@ public final class DartRegionGenerator {
             "package:vector_math/vector_math_64.dart";
     private static final String DART_CONVERT_IMPORT = "dart:convert";
     private static final String DART_UI_IMPORT = "dart:ui";
+    public static final String CURRENT_PROJECT_LIBRARY_URI = "project:current";
     private static final String UNRESOLVED_IMAGE_BASE64 =
             "iVBORw0KGgoAAAANSUhEUgAAAAgAAAAICAYAAADED76LAAAAAXNSR0IArs4c6QAA"
             + "AARnQU1BAACxjwv8YQUAAAAJcEhZcwAADsMAAA7DAcdvqGQAAAAeSURBVChTY/"
@@ -235,6 +236,7 @@ public final class DartRegionGenerator {
 
     private GenerationContext createContext(WidgetNode root, WidgetCatalog catalog) {
         TreeMap<String, WidgetDefinition> usedDefinitions = new TreeMap<>();
+        TreeSet<String> valueImportUris = new TreeSet<>();
         boolean requiresMaterialTheme = false;
         boolean requiresServices = false;
         boolean requiresGestures = false;
@@ -254,6 +256,12 @@ public final class DartRegionGenerator {
                     "Validated widget type '" + current.node().type().value()
                     + "' disappeared from the generation catalog.")));
             usedDefinitions.putIfAbsent(definition.typeId().value(), definition);
+            current.node().properties().values().stream()
+                    .filter(PropertyValue.DartObjectReferenceValue.class::isInstance)
+                    .map(PropertyValue.DartObjectReferenceValue.class::cast)
+                    .map(PropertyValue.DartObjectReferenceValue::libraryUri)
+                    .flatMap(Optional::stream)
+                    .forEach(valueImportUris::add);
             requiresMaterialTheme |= current.node().properties().values().stream()
                     .anyMatch(DartRegionGenerator::requiresMaterialTheme);
             requiresServices |= current.node().type().equals(
@@ -299,7 +307,8 @@ public final class DartRegionGenerator {
         }
 
         ImportPlanner planner = ImportPlanner.create(
-                usedDefinitions.values(), limits.maxImports(), requiresMaterialTheme,
+                usedDefinitions.values(), valueImportUris, limits.maxImports(),
+                requiresMaterialTheme,
                 requiresServices, requiresGestures, requiresRendering,
                 requiresDartConvert, requiresDartUi);
         return new GenerationContext(catalog, planner.plan(), planner, 0);
@@ -5262,6 +5271,22 @@ public final class DartRegionGenerator {
                     + "' contains an opaque Dart expression; generation profile "
                     + PROFILE_ID + " rejects expressions instead of parsing or rewriting them."));
         }
+        if (value instanceof PropertyValue.DartObjectReferenceValue reference) {
+            PropertyValueConstraint.DartObjectReferenceValues constraint =
+                    definition.constraints().stream()
+                            .filter(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)
+                            .map(PropertyValueConstraint.DartObjectReferenceValues.class::cast)
+                            .findFirst()
+                            .orElseThrow(() -> catalogInconsistency(
+                            path, widgetId,
+                            "A Dart object reference has no expected static-type constraint."));
+            return renderDartObjectReference(
+                    reference,
+                    constraint.expectedDartType(),
+                    path,
+                    widgetId,
+                    context);
+        }
         if (value instanceof PropertyValue.NullValue) {
             return scalar("null", true, path, widgetId, context);
         }
@@ -5301,6 +5326,11 @@ public final class DartRegionGenerator {
         }
         if (value instanceof PropertyValue.ImageProviderValue imageProvider) {
             return renderImageProvider(imageProvider, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.BorderRadiusValue borderRadius) {
+            return renderBorderRadius(
+                    borderRadius.geometry(), valueIndent,
+                    path + "/geometry", widgetId, context);
         }
         if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             return renderBoxDecoration(
@@ -5427,6 +5457,72 @@ public final class DartRegionGenerator {
                 Optional.of(DartManagedRegionId.BUILD),
                 "Generation profile " + PROFILE_ID + " does not recognize property value kind "
                 + value.kind().wireName() + "."));
+    }
+
+    private RenderedValue renderDartObjectReference(
+            PropertyValue.DartObjectReferenceValue value,
+            String expectedDartType,
+            String path,
+            StableId widgetId,
+            GenerationContext context) {
+        String constantPrefix = value.constant().orElse(false) ? "const " : "";
+        String rootText;
+        int rootNameOffset;
+        String libraryUri;
+        if (value.libraryUri().isPresent()) {
+            RenderedSymbol root = context.planner().renderedSymbol(
+                    value.libraryUri().orElseThrow(), value.rootSymbol());
+            rootText = root.text();
+            rootNameOffset = root.nameOffset();
+            libraryUri = root.libraryUri();
+        } else {
+            rootText = value.rootSymbol();
+            rootNameOffset = 0;
+            libraryUri = CURRENT_PROJECT_LIBRARY_URI;
+        }
+
+        StringBuilder rendered = new StringBuilder(constantPrefix).append(rootText);
+        int rootOffset = constantPrefix.length() + rootNameOffset;
+        int[] memberOffset = {-1};
+        value.member().ifPresent(member -> {
+            rendered.append('.');
+            memberOffset[0] = rendered.length();
+            rendered.append(member);
+        });
+        if (value.access()
+                == PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION) {
+            rendered.append("()");
+        }
+        GeneratedDartStaticTypeRequirement staticTypeRequirement =
+                new GeneratedDartStaticTypeRequirement(
+                        0, rendered.length(), expectedDartType);
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        occurrences.add(occurrence(
+                "widget:" + widgetId + ":property-reference:" + path + ":root",
+                rootOffset,
+                value.rootSymbol(),
+                libraryUri,
+                path + "/rootSymbol",
+                Optional.of(widgetId),
+                value.member().isEmpty()
+                        ? Optional.of(staticTypeRequirement) : Optional.empty()));
+        value.member().ifPresent(member -> occurrences.add(occurrence(
+                "widget:" + widgetId + ":property-reference:" + path + ":member",
+                memberOffset[0],
+                member,
+                libraryUri,
+                path + "/member",
+                Optional.of(widgetId),
+                Optional.of(staticTypeRequirement))));
+        return scalar(
+                rendered.toString(),
+                value.access()
+                        == PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION
+                        && value.constant().orElseThrow(),
+                path,
+                widgetId,
+                context,
+                occurrences);
     }
 
     private RenderedValue renderIconData(
@@ -5715,6 +5811,26 @@ public final class DartRegionGenerator {
                 libraryUri,
                 modelPath,
                 widgetId);
+    }
+
+    private static GeneratedDartSymbolOccurrence occurrence(
+            String id,
+            int offset,
+            String symbolName,
+            String libraryUri,
+            String modelPath,
+            Optional<StableId> widgetId,
+            Optional<GeneratedDartStaticTypeRequirement> staticTypeRequirement) {
+        return new GeneratedDartSymbolOccurrence(
+                id,
+                DartManagedRegionId.BUILD,
+                offset,
+                symbolName.length(),
+                symbolName,
+                libraryUri,
+                modelPath,
+                widgetId,
+                staticTypeRequirement);
     }
 
     private static void shiftInto(
@@ -6029,6 +6145,7 @@ public final class DartRegionGenerator {
 
         static ImportPlanner create(
                 Iterable<WidgetDefinition> definitions,
+                Iterable<String> valueImportUris,
                 int maximumImports,
                 boolean requiresMaterialTheme,
                 boolean requiresServices,
@@ -6038,6 +6155,9 @@ public final class DartRegionGenerator {
                 boolean requiresDartUi) {
             TreeSet<String> uris = new TreeSet<>();
             uris.add(requiresMaterialTheme ? MATERIAL_IMPORT : WIDGETS_IMPORT);
+            for (String uri : valueImportUris) {
+                uris.add(uri);
+            }
             if (requiresDartConvert) {
                 uris.add(DART_CONVERT_IMPORT);
             }

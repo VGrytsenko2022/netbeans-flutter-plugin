@@ -88,6 +88,174 @@ class DartCandidateAnalyzerTest {
     }
 
     @Test
+    void requiresAnalyzerOnlyNonNullStaticTypeProofForTypedSymbols()
+            throws Exception {
+        String candidate = """
+                const marker = '// ignore_for_file: invalid_assignment';
+                // ignore_for_file: invalid_assignment
+                void build() {
+                  print('candidate');
+                }
+                """;
+        int symbolOffset = candidate.indexOf("print");
+        int statementInsertion = candidate.indexOf("  print");
+
+        Fixture accepted = fixture(
+                Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+        Files.writeString(accepted.dartFile, "void build() {}\n",
+                StandardCharsets.UTF_8);
+        Path sdkRoot = Files.createDirectories(
+                temporaryDirectory.resolve("sdk/lib"));
+        DartStaticTypeProbe staticType = new DartStaticTypeProbe(
+                symbolOffset,
+                "print".length(),
+                0,
+                statementInsertion,
+                "CustomClipper<RRect>",
+                "package:flutter/widgets.dart");
+        DartSymbolProbe typedProbe = new DartSymbolProbe(
+                "typed.print",
+                symbolOffset,
+                "print".length(),
+                "print",
+                "dart:core",
+                sdkRoot,
+                Optional.of("FUNCTION"),
+                Optional.of(staticType));
+
+        DartCandidateAnalysisResult passed = await(accepted.analyzer.analyze(request(
+                accepted,
+                candidate,
+                41,
+                DartCandidateWarningPolicy.ALLOW,
+                List.of(typedProbe))));
+
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status());
+        assertTrue(passed.symbolEvidence().getFirst()
+                .staticTypeEvidence().orElseThrow().accepted());
+        List<JsonNode> additions = accepted.factory.processes().stream()
+                .flatMap(process -> process.requests().stream())
+                .filter(value -> "analysis.updateContent".equals(
+                        value.path("method").asText()))
+                .map(value -> value.path("params").path("files")
+                        .path(accepted.dartFile.toString()))
+                .filter(value -> "add".equals(value.path("type").asText()))
+                .toList();
+        assertEquals(2, additions.size());
+        String witness = additions.get(1).path("content").asText();
+        assertTrue(witness.contains(
+                "import 'package:flutter/widgets.dart' as _nbfdStaticTypeProof0;"),
+                witness);
+        assertTrue(witness.contains(
+                "'// ignore_for_file: invalid_assignment'"), witness);
+        assertEquals(witness.indexOf("ignore_for_file"),
+                witness.lastIndexOf("ignore_for_file"), witness);
+        assertTrue(witness.contains(
+                "dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
+        assertTrue(witness.contains(
+                "final _nbfdStaticTypeProof0.CustomClipper<"
+                + "_nbfdStaticTypeProof0.RRect> "
+                + "_nbfdStaticTypeProof0Value0 = print;"), witness);
+        assertEquals(42, additions.get(1).path("version").asLong());
+        assertEquals(2, accepted.factory.processes().size());
+        ScriptedProcess proofProcess = accepted.factory.processes().get(1);
+        assertEquals(List.of(
+                "analysis.updateContent",
+                "analysis.setAnalysisRoots",
+                "analysis.setPriorityFiles",
+                "analysis.updateContent",
+                "analysis.getErrors",
+                "analysis.updateContent",
+                "analysis.setPriorityFiles",
+                "server.shutdown"), proofProcess.methods());
+        JsonNode optionsOverlay = proofProcess.requests().getFirst()
+                .path("params").path("files")
+                .path(accepted.dartFile.getParent()
+                        .resolve("analysis_options.yaml").toString());
+        assertEquals("add", optionsOverlay.path("type").asText());
+        assertTrue(optionsOverlay.path("content").asText()
+                .contains("strict-casts: true"));
+        assertEquals(List.of("add", "add", "remove", "remove"),
+                proofProcess.overlayTypes());
+
+        Fixture rejected = fixture(
+                Mode.STATIC_TYPE_ERROR,
+                limits(Duration.ofSeconds(3), 1024 * 1024));
+        Files.writeString(rejected.dartFile, "void build() {}\n",
+                StandardCharsets.UTF_8);
+        DartSymbolProbe rejectedProbe = new DartSymbolProbe(
+                "typed.print",
+                symbolOffset,
+                "print".length(),
+                "print",
+                "dart:core",
+                sdkRoot,
+                Optional.of("FUNCTION"),
+                Optional.of(staticType));
+
+        DartCandidateAnalysisResult failed = await(rejected.analyzer.analyze(request(
+                rejected,
+                candidate,
+                42,
+                DartCandidateWarningPolicy.ALLOW,
+                List.of(rejectedProbe))));
+
+        assertEquals(DartCandidateAnalysisStatus.REJECTED, failed.status());
+        assertFalse(failed.symbolEvidence().getFirst().accepted());
+        assertFalse(failed.symbolEvidence().getFirst()
+                .staticTypeEvidence().orElseThrow().accepted());
+        assertTrue(failed.symbolEvidence().getFirst().rejectionReason()
+                .orElseThrow().contains("non-null CustomClipper<RRect>"));
+    }
+
+    @Test
+    void rejectsTypedEvidenceWhenEitherProofDiagnosticIsSuppressedOrDemoted()
+            throws Exception {
+        String candidate = "void build() {\n  print('candidate');\n}\n";
+        int symbolOffset = candidate.indexOf("print");
+        int statementInsertion = candidate.indexOf("  print");
+        Path sdkRoot = Files.createDirectories(
+                temporaryDirectory.resolve("sdk/lib"));
+
+        for (Mode mode : List.of(
+                Mode.SUPPRESSED_PROOF_CONTROL,
+                Mode.DEMOTED_PROOF_CONTROL)) {
+            Fixture fixture = fixture(
+                    mode, limits(Duration.ofSeconds(3), 1024 * 1024));
+            Files.writeString(fixture.dartFile, "void build() {}\n",
+                    StandardCharsets.UTF_8);
+            DartStaticTypeProbe staticType = new DartStaticTypeProbe(
+                    symbolOffset,
+                    "print".length(),
+                    0,
+                    statementInsertion,
+                    "CustomClipper<RRect>",
+                    "package:flutter/widgets.dart");
+            DartSymbolProbe probe = new DartSymbolProbe(
+                    "typed.print",
+                    symbolOffset,
+                    "print".length(),
+                    "print",
+                    "dart:core",
+                    sdkRoot,
+                    Optional.of("FUNCTION"),
+                    Optional.of(staticType));
+
+            DartCandidateAnalysisResult result = await(fixture.analyzer.analyze(
+                    request(fixture, candidate, 51 + mode.ordinal(),
+                            DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, result.status(),
+                    () -> mode + ": " + result);
+            DartStaticTypeEvidence evidence = result.symbolEvidence().getFirst()
+                    .staticTypeEvidence().orElseThrow();
+            assertFalse(evidence.accepted());
+            assertTrue(evidence.rejectionReason().orElseThrow()
+                    .contains("suppressed or demoted"));
+        }
+    }
+
+    @Test
     void analyzerErrorRejectsAndStillRemovesOverlayAndPriority() throws Exception {
         Fixture fixture = fixture(Mode.ERROR, limits(Duration.ofSeconds(3), 1024 * 1024));
         String candidate = "void main() { final value = ; }\n";
@@ -454,12 +622,16 @@ class DartCandidateAnalyzerTest {
         OVERSIZED,
         HANG,
         PROCESS_EXIT,
-        WRONG_TARGET
+        WRONG_TARGET,
+        STATIC_TYPE_ERROR,
+        SUPPRESSED_PROOF_CONTROL,
+        DEMOTED_PROOF_CONTROL
     }
 
     private static final class RecordingFactory
             implements DartAnalyzerProtocolSession.ProcessFactory {
         private final ScriptedProcess process;
+        private final List<ScriptedProcess> processes = new ArrayList<>();
         private List<String> command;
         private Path workingDirectory;
 
@@ -468,11 +640,21 @@ class DartCandidateAnalyzerTest {
         }
 
         @Override
-        public Process start(List<String> command, Path workingDirectory) {
+        public synchronized Process start(
+                List<String> command,
+                Path workingDirectory) throws IOException {
             this.command = List.copyOf(command);
             this.workingDirectory = workingDirectory;
-            process.startServer();
-            return process;
+            ScriptedProcess started = processes.isEmpty()
+                    ? process
+                    : new ScriptedProcess(process.mode, process.targetRoot);
+            processes.add(started);
+            started.startServer();
+            return started;
+        }
+
+        synchronized List<ScriptedProcess> processes() {
+            return List.copyOf(processes);
         }
     }
 
@@ -489,6 +671,7 @@ class DartCandidateAnalyzerTest {
         private final AtomicBoolean alive = new AtomicBoolean(true);
         private final AtomicInteger destroyCalls = new AtomicInteger();
         private final CountDownLatch getErrorsSeen = new CountDownLatch(1);
+        private final AtomicInteger getErrorsCalls = new AtomicInteger();
         private Thread serverThread;
 
         ScriptedProcess(Mode mode, Path targetRoot) throws IOException {
@@ -547,6 +730,7 @@ class DartCandidateAnalyzerTest {
                     requests.add(request.deepCopy());
                     String method = request.path("method").asText();
                     if ("analysis.getErrors".equals(method)) {
+                        getErrorsCalls.incrementAndGet();
                         getErrorsSeen.countDown();
                         if (mode == Mode.HANG) {
                             continue;
@@ -593,26 +777,57 @@ class DartCandidateAnalyzerTest {
 
         private void errors(JsonNode request) throws IOException {
             ArrayNode errors = JSON.createArrayNode();
-            if (mode == Mode.ERROR || mode == Mode.WARNING) {
+            String file = request.path("params").path("file").asText();
+            String content = latestOverlayContent(file);
+            boolean proofOverlay = content.contains("_nbfdStaticTypeProof");
+            if (proofOverlay) {
+                int assignabilityControl = content.indexOf(
+                        "Control =");
+                if (mode != Mode.SUPPRESSED_PROOF_CONTROL) {
+                    addDiagnostic(errors, file, assignabilityControl,
+                            mode == Mode.DEMOTED_PROOF_CONTROL
+                                    ? "WARNING" : "ERROR",
+                            "invalid_assignment",
+                            "A value of type 'dynamic' can't be assigned to the variable type.");
+                }
+                if (mode == Mode.STATIC_TYPE_ERROR) {
+                    addDiagnostic(errors, file, content.indexOf("Value0 ="),
+                            "ERROR", "invalid_assignment",
+                            "A value has the wrong static type.");
+                }
+            } else if (mode == Mode.ERROR || mode == Mode.WARNING) {
                 boolean error = mode == Mode.ERROR;
-                String file = latestDartFile();
-                ObjectNode location = JSON.createObjectNode()
-                        .put("file", file)
-                        .put("offset", error ? 30 : 20)
-                        .put("length", 1)
-                        .put("startLine", 1)
-                        .put("startColumn", error ? 31 : 21)
-                        .put("endLine", 1)
-                        .put("endColumn", error ? 32 : 22);
-                errors.add(JSON.createObjectNode()
-                        .put("severity", error ? "ERROR" : "WARNING")
-                        .put("type", error ? "SYNTACTIC_ERROR" : "STATIC_WARNING")
-                        .put("message", error ? "Expected an identifier." : "Unused local variable.")
-                        .put("code", error ? "missing_identifier" : "unused_local_variable")
-                        .set("location", location));
+                addDiagnostic(errors, file, error ? 30 : 20,
+                        error ? "ERROR" : "WARNING",
+                        error ? "missing_identifier" : "unused_local_variable",
+                        error ? "Expected an identifier." : "Unused local variable.");
             }
             ObjectNode result = JSON.createObjectNode().set("errors", errors);
             respond(request, result);
+        }
+
+        private static void addDiagnostic(
+                ArrayNode errors,
+                String file,
+                int offset,
+                String severity,
+                String code,
+                String message) {
+            boolean error = "ERROR".equals(severity);
+            ObjectNode location = JSON.createObjectNode()
+                    .put("file", file)
+                    .put("offset", offset)
+                    .put("length", 1)
+                    .put("startLine", 1)
+                    .put("startColumn", offset + 1)
+                    .put("endLine", 1)
+                    .put("endColumn", offset + 2);
+            errors.add(JSON.createObjectNode()
+                    .put("severity", severity)
+                    .put("type", error ? "COMPILE_TIME_ERROR" : "STATIC_WARNING")
+                    .put("message", message)
+                    .put("code", code)
+                    .set("location", location));
         }
 
         private void navigation(JsonNode request) throws IOException {
@@ -647,6 +862,23 @@ class DartCandidateAnalyzerTest {
                     .findFirst().orElseThrow()
                     .path("params").path("files").propertyStream()
                     .findFirst().orElseThrow().getKey();
+        }
+
+        private String latestOverlayContent(String file) {
+            List<JsonNode> snapshot = requests();
+            for (int index = snapshot.size() - 1; index >= 0; index--) {
+                JsonNode request = snapshot.get(index);
+                if (!"analysis.updateContent".equals(
+                        request.path("method").asText())) {
+                    continue;
+                }
+                JsonNode overlay = request.path("params").path("files")
+                        .path(file);
+                if (overlay.has("content")) {
+                    return overlay.path("content").asText();
+                }
+            }
+            throw new IllegalStateException("no content overlay");
         }
 
         private void acknowledge(JsonNode request) throws IOException {

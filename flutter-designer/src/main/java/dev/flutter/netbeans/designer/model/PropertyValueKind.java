@@ -12,6 +12,7 @@ public enum PropertyValueKind {
     ASSET("asset"),
     CALLBACK("callback"),
     DART_EXPRESSION("dartExpression"),
+    DART_OBJECT_REFERENCE("dartObjectReference"),
     ICON_DATA("iconData"),
     THEME_TOKEN("themeToken"),
     PAINT("paint"),
@@ -24,6 +25,7 @@ public enum PropertyValueKind {
     BOX_CONSTRAINTS("boxConstraints"),
     MATRIX4("matrix4"),
     IMAGE_PROVIDER("imageProvider"),
+    BORDER_RADIUS("borderRadius"),
     BOX_DECORATION("boxDecoration"),
     NULL("null");
 

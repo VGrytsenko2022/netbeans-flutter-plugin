@@ -29,6 +29,8 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.BoxConstraintsValues,
         PropertyValueConstraint.Matrix4Values,
         PropertyValueConstraint.ImageProviderValues,
+        PropertyValueConstraint.BorderRadiusValues,
+        PropertyValueConstraint.DartObjectReferenceValues,
         PropertyValueConstraint.BoxDecorationValues,
         PropertyValueConstraint.IntegerRange,
         PropertyValueConstraint.DoubleRange,
@@ -60,6 +62,8 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.BOX_CONSTRAINTS
                     || kind == PropertyValueKind.MATRIX4
                     || kind == PropertyValueKind.IMAGE_PROVIDER
+                    || kind == PropertyValueKind.BORDER_RADIUS
+                    || kind == PropertyValueKind.DART_OBJECT_REFERENCE
                     || kind == PropertyValueKind.BOX_DECORATION
                     || kind == PropertyValueKind.ICON_DATA
                     || kind == PropertyValueKind.CALLBACK) {
@@ -311,6 +315,82 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "asset-only ImageProvider with optional bounded ResizeImage";
+        }
+    }
+
+    /** Accepts physical or directional finite non-negative border radii. */
+    record BorderRadiusValues() implements PropertyValueConstraint {
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.BORDER_RADIUS;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            if (!(value instanceof PropertyValue.BorderRadiusValue borderRadius)) {
+                return false;
+            }
+            PropertyValue.BoxDecorationValue.BorderRadiusGeometry geometry =
+                    borderRadius.geometry();
+            if (geometry
+                    instanceof PropertyValue.BoxDecorationValue.PhysicalBorderRadius physical) {
+                return acceptsRadius(physical.topLeft())
+                        && acceptsRadius(physical.topRight())
+                        && acceptsRadius(physical.bottomRight())
+                        && acceptsRadius(physical.bottomLeft());
+            }
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius directional =
+                    (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) geometry;
+            return acceptsRadius(directional.topStart())
+                    && acceptsRadius(directional.topEnd())
+                    && acceptsRadius(directional.bottomEnd())
+                    && acceptsRadius(directional.bottomStart());
+        }
+
+        @Override
+        public String description() {
+            return "physical or directional finite non-negative BorderRadiusGeometry";
+        }
+
+        private static boolean acceptsRadius(
+                PropertyValue.BoxDecorationValue.Radius radius) {
+            return DartNumericLiterals.isRepresentableDouble(radius.x())
+                    && DartNumericLiterals.isRepresentableDouble(radius.y());
+        }
+    }
+
+    /**
+     * Accepts a closed project-Dart object reference whose assignability to
+     * the expected Dart type is proved by candidate analysis before save.
+     */
+    record DartObjectReferenceValues(String expectedDartType)
+            implements PropertyValueConstraint {
+        private static final Pattern EXPECTED_TYPE = Pattern.compile(
+                "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*>)?");
+
+        public DartObjectReferenceValues {
+            Objects.requireNonNull(expectedDartType, "expectedDartType");
+            if (expectedDartType.length() > 128
+                    || !EXPECTED_TYPE.matcher(expectedDartType).matches()) {
+                throw new IllegalArgumentException(
+                        "Expected Dart type must use the closed simple/generic form");
+            }
+        }
+
+        @Override
+        public PropertyValueKind kind() {
+            return PropertyValueKind.DART_OBJECT_REFERENCE;
+        }
+
+        @Override
+        public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.DartObjectReferenceValue;
+        }
+
+        @Override
+        public String description() {
+            return "project Dart reference or zero-argument invocation assignable to "
+                    + expectedDartType;
         }
     }
 

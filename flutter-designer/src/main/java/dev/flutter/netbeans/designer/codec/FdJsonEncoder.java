@@ -410,6 +410,19 @@ final class FdJsonEncoder {
             context.stringField("handler", callbackValue.handler(), pointer + "/handler");
         } else if (value instanceof PropertyValue.DartExpressionValue expressionValue) {
             context.stringField("code", expressionValue.code(), pointer + "/code");
+        } else if (value instanceof PropertyValue.DartObjectReferenceValue reference) {
+            writeOptionalStringField(
+                    "libraryUri", reference.libraryUri(), pointer, context);
+            context.stringField(
+                    "rootSymbol", reference.rootSymbol(), pointer + "/rootSymbol");
+            writeOptionalStringField("member", reference.member(), pointer, context);
+            context.stringField(
+                    "access", reference.access().wireName(), pointer + "/access");
+            if (reference.constant().isPresent()) {
+                context.booleanField(
+                        "constant", reference.constant().orElseThrow(),
+                        pointer + "/constant");
+            }
         } else if (value instanceof PropertyValue.IconDataValue iconData) {
             context.fieldName("codePoint", pointer + "/codePoint");
             if (iconData.codePoint().isPresent()) {
@@ -508,6 +521,9 @@ final class FdJsonEncoder {
             context.endArray(pointer + "/storage");
         } else if (value instanceof PropertyValue.ImageProviderValue imageProvider) {
             writeImageProviderFields(imageProvider, pointer, context);
+        } else if (value instanceof PropertyValue.BorderRadiusValue borderRadius) {
+            context.fieldName("geometry", pointer + "/geometry");
+            writeBorderRadius(borderRadius.geometry(), pointer + "/geometry", context);
         } else if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             writeBoxDecoration(decoration, pointer, context);
         } else {

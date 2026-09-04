@@ -15,7 +15,7 @@ class DesignerDocumentTest {
         StableId documentId = StableId.parse("2f04ce87-876a-4f35-8a7c-2fba3e135c7e");
         WidgetNode root = widget("35ca8ca5-c5ec-4fe1-8982-dfc036e3c6ce");
         DesignerDocument document = new DesignerDocument(
-                Optional.of("../fd-v10.schema.json"),
+                Optional.of("../fd-v12.schema.json"),
                 documentId,
                 source(),
                 Optional.of(CanvasPreferences.empty()),
@@ -23,8 +23,8 @@ class DesignerDocumentTest {
                 Extensions.empty());
 
         assertEquals("netbeans-flutter-designer", document.format());
-        assertEquals(10, document.schemaVersion());
-        assertEquals(Optional.of("../fd-v10.schema.json"), document.schemaReference());
+        assertEquals(12, document.schemaVersion());
+        assertEquals(Optional.of("../fd-v12.schema.json"), document.schemaReference());
         assertSame(root, document.root());
         assertEquals(Optional.of(CanvasPreferences.empty()), document.canvas());
     }

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 15;
+const canvasModelProtocolVersion = 17;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -944,7 +944,9 @@ class CanvasValue {
     _expect(kind is String, 'Canvas property kind must be a string: $path');
     _expect(
       spec.kinds.contains(kind) ||
-          (kind == 'callbackPresence' && spec.kinds.contains('callback')),
+          (kind == 'callbackPresence' && spec.kinds.contains('callback')) ||
+          (kind == 'dartObjectReferencePresence' &&
+              spec.kinds.contains('dartObjectReference')),
       'Canvas property kind is not allowed at $path.',
     );
     switch (kind) {
@@ -971,6 +973,9 @@ class CanvasValue {
         );
         return CanvasValue(kind as String, object['value']! as bool);
       case 'callbackPresence':
+        _exactKeys(object, path, const {'kind'});
+        return CanvasValue(kind as String, true);
+      case 'dartObjectReferencePresence':
         _exactKeys(object, path, const {'kind'});
         return CanvasValue(kind as String, true);
       case 'null':
@@ -1128,6 +1133,12 @@ class CanvasValue {
         return CanvasValue(
           kind as String,
           _decodeBoxDecoration(object, spec, path),
+        );
+      case 'borderRadius':
+        _exactKeys(object, path, const {'kind', 'geometry'});
+        return CanvasValue(
+          kind as String,
+          _decodeBorderRadius(object['geometry'], '$path/geometry'),
         );
       default:
         throw FormatException('Unsupported Canvas property kind at $path.');
@@ -3038,6 +3049,7 @@ class _PropertySpec {
     this.themeTokens = const {},
     this.edgeInsetsNonNegative = false,
     this.materialIconsOnly = false,
+    this.dartObjectExpectedType,
   });
   final Set<String> kinds;
   final bool required;
@@ -3053,6 +3065,7 @@ class _PropertySpec {
   final Set<String> themeTokens;
   final bool edgeInsetsNonNegative;
   final bool materialIconsOnly;
+  final String? dartObjectExpectedType;
 }
 
 class _NumericBounds {
@@ -3292,6 +3305,7 @@ const _clipBehaviorProperty = _PropertySpec(
   enumType: 'Clip',
   enumValues: {'none', 'hardEdge', 'antiAlias', 'antiAliasWithSaveLayer'},
 );
+const _borderRadiusProperty = _PropertySpec({'borderRadius'});
 const _borderStyleProperty = _PropertySpec(
   {'enum'},
   enumLibraryUri: _widgetsLibraryUri,
@@ -4175,11 +4189,31 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     {'child': _optionalSingleSlot},
   ),
   'flutter.widgets.ClipOval': _WidgetSpec(
-    {'clipBehavior': _clipBehaviorProperty},
+    {
+      'clipper': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'CustomClipper<Rect>'),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.ClipRRect': _WidgetSpec(
+    {
+      'borderRadius': _borderRadiusProperty,
+      'clipper': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'CustomClipper<RRect>'),
+      'clipBehavior': _clipBehaviorProperty,
+    },
     {'child': _optionalSingleSlot},
   ),
   'flutter.widgets.ClipRect': _WidgetSpec(
-    {'clipBehavior': _clipBehaviorProperty},
+    {
+      'clipper': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'CustomClipper<Rect>'),
+      'clipBehavior': _clipBehaviorProperty,
+    },
     {'child': _optionalSingleSlot},
   ),
   'flutter.widgets.Container': _WidgetSpec(
@@ -5480,9 +5514,16 @@ P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|d
 S|child|single|0|0|1|any
 W|flutter.widgets.ClipOval
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|child|single|0|0|1|any
+W|flutter.widgets.ClipRRect
+P|borderRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
 S|child|single|0|0|1|any
 W|flutter.widgets.ClipRect
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
 S|child|single|0|0|1|any
 W|flutter.widgets.ColoredBox
 P|color|color,themeToken|1|color:0xFF2196F3|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
@@ -6008,6 +6049,19 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
         'matchTextDirection,scale,opacity,filterQuality,invertColors,'
         'isAntiAlias:centerSliceFit(except:cover,none):theme='
         '${tokens.join(',')}';
+  }
+  if (kind == 'borderRadius') {
+    return 'borderRadius:v1:physical,directional:finiteNonNegative';
+  }
+  if (kind == 'dartObjectReference') {
+    final expectedType = spec.dartObjectExpectedType;
+    _expect(
+      expectedType != null && expectedType.isNotEmpty,
+      'Canvas Dart-object-reference schema is missing its expected type.',
+    );
+    return 'dartObjectReference:v1:$expectedType:'
+        'currentOrPackage:root,optionalMember:reference,'
+        'zeroArgumentInvocation:requiredConstnessBoolean(false,true)';
   }
   if (kind == 'callback') {
     return 'callbackReference';

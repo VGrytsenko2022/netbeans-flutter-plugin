@@ -32,15 +32,28 @@ class ClipRectWidgetPropertySchemaTest {
         assertEquals(new PaletteMetadata(
                         "flutter.basic", 300, 80, "ClipRect"),
                 definition.palette());
-        assertEquals(List.of("clipBehavior"), definition.properties().stream()
+        assertEquals(List.of("clipper", "clipBehavior"), definition.properties().stream()
                 .map(property -> property.name().value()).toList());
         assertEquals(ClipRectWidgetPropertySchema.definitions().keySet().stream().toList(),
                 definition.properties().stream()
                         .map(property -> property.name().value()).toList());
 
+        PropertyDefinition clipper = definition.property(
+                new PropertyName("clipper")).orElseThrow();
+        assertEquals(DartParameter.named(0, false), clipper.parameter());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefault().isEmpty(),
+                "Omission must preserve the child-bounds clip");
+        PropertyValueConstraint.DartObjectReferenceValues clipperConstraint =
+                assertInstanceOf(
+                        PropertyValueConstraint.DartObjectReferenceValues.class,
+                        clipper.constraints().getFirst());
+        assertEquals("CustomClipper<Rect>", clipperConstraint.expectedDartType());
+
         PropertyDefinition clipBehavior = definition.property(
                 new PropertyName("clipBehavior")).orElseThrow();
-        assertEquals(DartParameter.named(0, false), clipBehavior.parameter());
+        assertEquals(DartParameter.named(1, false), clipBehavior.parameter());
         assertEquals(Set.of(PropertyValueKind.ENUM), clipBehavior.acceptedKinds());
         assertTrue(clipBehavior.creationDefault().isEmpty(),
                 "Omission must preserve Flutter's exact Clip.hardEdge default");
@@ -55,14 +68,13 @@ class ClipRectWidgetPropertySchemaTest {
                 new PropertyValue.StringValue("Clip.hardEdge")));
 
         SlotDefinition child = definition.slot(new SlotName("child")).orElseThrow();
-        assertEquals(DartParameter.named(1, false), child.parameter());
+        assertEquals(DartParameter.named(2, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());
         assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
 
-        assertTrue(definition.property(new PropertyName("clipper")).isEmpty(),
-                "A non-null CustomClipper delegate is not a closed typed value");
+        assertTrue(definition.property(new PropertyName("key")).isEmpty());
     }
 
     @Test
@@ -70,27 +82,32 @@ class ClipRectWidgetPropertySchemaTest {
         assertEquals(ClipRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
                 ClipRectWidgetPropertySchema.definitions().size());
         assertEquals(1, ClipRectWidgetPropertySchema.SLOT_COUNT);
-        assertEquals(List.of("clipBehavior"),
+        assertEquals(List.of("clipper", "clipBehavior"),
                 ClipRectWidgetPropertySchema.definitions().keySet().stream().toList());
         ClipRectWidgetPropertySchema.Definition metadata =
                 ClipRectWidgetPropertySchema.definitions().get("clipBehavior");
         assertEquals(ClipRectWidgetPropertySchema.Group.CLIPPING, metadata.group());
         assertEquals("Clip behavior", metadata.displayName());
         assertEquals("clipBehavior", metadata.dartName());
-        assertEquals(0, metadata.dartOrder());
+        assertEquals(1, metadata.dartOrder());
         assertFalse(metadata.description().isBlank());
         assertTrue(ClipRectWidgetPropertySchema.find(
                 new PropertyName("clipBehavior")).isPresent());
-        assertTrue(ClipRectWidgetPropertySchema.find(
-                new PropertyName("clipper")).isEmpty());
+        ClipRectWidgetPropertySchema.Definition clipper =
+                ClipRectWidgetPropertySchema.find(
+                        new PropertyName("clipper")).orElseThrow();
+        assertEquals(ClipRectWidgetPropertySchema.Group.DELEGATE, clipper.group());
+        assertEquals("clipRectDelegate", clipper.group().setName());
+        assertEquals("Clipper", clipper.displayName());
+        assertEquals(0, clipper.dartOrder());
         assertTrue(ClipRectWidgetPropertySchema.find(
                 new PropertyName("unknown")).isEmpty());
     }
 
     @Test
-    void reusesExistingTypedValuesWithoutAdvancingSchemaOrTransportVersions() {
-        assertEquals(10, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(10, WidgetCatalog.API_VERSION);
-        assertEquals(15, CanvasModelPayloadCodec.VERSION);
+    void remainsCompatibleWithTheCurrentDesignerContracts() {
+        assertEquals(12, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(12, WidgetCatalog.API_VERSION);
+        assertEquals(17, CanvasModelPayloadCodec.VERSION);
     }
 }

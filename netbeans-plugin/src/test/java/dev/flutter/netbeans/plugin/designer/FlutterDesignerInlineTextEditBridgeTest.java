@@ -578,7 +578,10 @@ class FlutterDesignerInlineTextEditBridgeTest {
                         1,
                         1)),
                 true,
-                Optional.empty());
+                Optional.empty(),
+                probe.staticTypeProbe().map(staticType ->
+                        new dev.flutter.netbeans.dart.DartStaticTypeEvidence(
+                                staticType, true, Optional.empty())));
     }
 
     private static StyledDocument openGuardedSourceDocument(

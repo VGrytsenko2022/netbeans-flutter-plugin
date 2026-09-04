@@ -356,6 +356,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.OverflowBox' ||
       'flutter.widgets.Placeholder' ||
       'flutter.widgets.ClipOval' ||
+      'flutter.widgets.ClipRRect' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||
       'flutter.widgets.Container' ||

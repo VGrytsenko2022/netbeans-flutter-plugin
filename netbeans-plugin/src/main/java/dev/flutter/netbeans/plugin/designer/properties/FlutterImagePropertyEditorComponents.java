@@ -45,6 +45,8 @@ final class FlutterImagePropertyEditorComponents {
                     assetChoices(environment),
                     "Image.image",
                     FlutterImageProviderEditorComponent.DIRECT_PREFIX,
+                    FlutterImageProviderEditorComponent.EmptySelectionPolicy
+                            .PRESERVE_INITIAL_UNRESOLVED,
                     this::refresh);
             PropertyValue.ImageProviderValue initial = initialValue().explicitValue()
                     .map(PropertyValue.ImageProviderValue.class::cast)

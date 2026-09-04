@@ -57,6 +57,7 @@ import javax.swing.JTabbedPane;
 import javax.swing.JTable;
 import javax.swing.JTextArea;
 import javax.swing.JTextField;
+import javax.swing.ListCellRenderer;
 import javax.swing.SwingConstants;
 import javax.swing.SwingUtilities;
 import javax.swing.table.TableCellRenderer;
@@ -813,8 +814,22 @@ class FlutterPropertyEditorComponentsTest {
             assertEquals(2, asset.getItemCount(),
                     "the reserved unresolved provider must not become an asset choice");
             assertNull(asset.getSelectedItem());
+            assertEquals(
+                    FlutterImageProviderEditorComponent.UNRESOLVED_SELECTION_TEXT,
+                    renderedNullSelectionText(asset));
+            for (int index = 0; index < asset.getItemCount(); index++) {
+                FlutterImageAssetChoices.Choice choice = assertInstanceOf(
+                        FlutterImageAssetChoices.Choice.class,
+                        asset.getItemAt(index));
+                assertFalse(PropertyValue.ImageProviderValue
+                        .asset(choice.assetName()).isUnresolved());
+            }
             assertFalse(provider.isEnabled());
+            assertTrue(status.getText().contains(
+                    "Keeping the editable image placeholder"));
             assertTrue(status.getText().contains("Choose one of 2"));
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
 
             asset.setSelectedIndex(1);
             assertTrue(provider.isEnabled());
@@ -827,6 +842,156 @@ class FlutterPropertyEditorComponentsTest {
             assertFalse(committed.isUnresolved());
             assertEquals("assets/panel.webp", committed.assetName());
             assertEquals(java.util.Optional.of("ui_kit"), committed.packageName());
+            return null;
+        });
+    }
+
+    @Test
+    void unresolvedImageEditorWithoutAssetsShowsAndRetainsPlaceholder()
+            throws Exception {
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(),
+                java.util.Optional.of(
+                        "The current pubspec declares no safe image asset."));
+        PropertyEditor editor = binding(
+                property("flutter.widgets.Image", "image")).createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(
+                PropertyValue.ImageProviderValue.unresolved()));
+        FeatureDescriptor descriptor = descriptor(
+                "Image", "Required Image.image provider editor.");
+        descriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, choices);
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> asset = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".asset");
+            JComboBox<?> provider = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".provider");
+            JLabel status = findNamed(
+                    panel,
+                    JLabel.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".assetStatus");
+
+            assertEquals(0, asset.getItemCount(),
+                    "the unresolved sentinel must remain outside the asset model");
+            assertNull(asset.getSelectedItem());
+            assertEquals(
+                    FlutterImageProviderEditorComponent.UNRESOLVED_SELECTION_TEXT,
+                    renderedNullSelectionText(asset));
+            assertFalse(asset.isEnabled());
+            assertFalse(provider.isEnabled());
+            assertTrue(status.getText().contains(
+                    "Keeping the editable image placeholder"));
+            assertTrue(status.getText().contains("pubspec"));
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.ImageProviderValue committed = assertInstanceOf(
+                    PropertyValue.ImageProviderValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            assertTrue(committed.isUnresolved());
+            assertEquals(PropertyValue.ImageProviderValue.unresolved(), committed);
+            return null;
+        });
+    }
+
+    @Test
+    void unavailableInventoryRetainsStoredResolvedImageProvider() throws Exception {
+        PropertyValue.ImageProviderValue initial =
+                PropertyValue.ImageProviderValue.asset("assets/removed.png");
+        PropertyEditor editor = binding(
+                property("flutter.widgets.Image", "image")).createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(initial));
+        FeatureDescriptor descriptor = descriptor(
+                "Image", "Required Image.image provider editor.");
+        descriptor.setValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE,
+                new FlutterImageAssetChoices(
+                        List.of(),
+                        java.util.Optional.of(
+                                "The declared image inventory is temporarily unavailable.")));
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> asset = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".asset");
+            JLabel status = findNamed(
+                    panel,
+                    JLabel.class,
+                    FlutterImageProviderEditorComponent.DIRECT_PREFIX + ".assetStatus");
+
+            assertEquals(1, asset.getItemCount());
+            assertNotNull(asset.getSelectedItem());
+            assertTrue(status.getText().contains("stored image asset remains selected"));
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            PropertyValue.ImageProviderValue committed = assertInstanceOf(
+                    PropertyValue.ImageProviderValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            assertEquals(initial, committed);
+            assertFalse(committed.isUnresolved());
+            return null;
+        });
+    }
+
+    @Test
+    void decorationImageWithoutAssetsStillRejectsEnablingImage() throws Exception {
+        PropertyValue.BoxDecorationValue initial = decoration(
+                java.util.Optional.empty(), java.util.Optional.empty());
+        PropertyEditor editor = decorationEditor(initial);
+        FeatureDescriptor descriptor = descriptor(
+                "Decoration", "Typed Container DecorationImage editor.");
+        descriptor.setValue(
+                FlutterImageAssetChoices.FEATURE_ATTRIBUTE,
+                new FlutterImageAssetChoices(
+                        List.of(),
+                        java.util.Optional.of(
+                                "The current pubspec declares no safe image asset.")));
+        PropertyEnv environment = PropertyEnv.create(descriptor);
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTabbedPane tabs = findNamed(
+                    panel,
+                    JTabbedPane.class,
+                    FlutterContainerPropertyEditorComponents.DECORATION_TABS_NAME);
+            Component imagePanel = tabs.getComponentAt(tabs.indexOfTab("Image"));
+            JCheckBox enabled = findNamed(
+                    imagePanel,
+                    JCheckBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_ENABLED_NAME);
+            JComboBox<?> asset = findNamed(
+                    imagePanel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents
+                            .DECORATION_IMAGE_ASSET_NAME);
+
+            assertFalse(enabled.isSelected());
+            assertEquals(0, asset.getItemCount());
+            enabled.doClick();
+
+            assertTrue(enabled.isSelected());
+            assertFalse(asset.isEnabled());
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "DecorationImage must not acquire the direct-Image placeholder");
             return null;
         });
     }
@@ -2687,6 +2852,14 @@ class FlutterPropertyEditorComponentsTest {
             }
         }
         throw new AssertionError("Missing combo item " + label);
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private static String renderedNullSelectionText(JComboBox<?> combo) {
+        ListCellRenderer renderer = combo.getRenderer();
+        Component component = renderer.getListCellRendererComponent(
+                new JList<>(), null, -1, false, false);
+        return assertInstanceOf(JLabel.class, component).getText();
     }
 
     private static PropertyDefinition property(String widgetType, String name) {

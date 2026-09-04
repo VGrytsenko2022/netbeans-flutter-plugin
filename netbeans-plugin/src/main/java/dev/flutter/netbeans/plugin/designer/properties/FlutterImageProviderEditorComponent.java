@@ -26,9 +26,17 @@ import javax.swing.event.DocumentListener;
  */
 final class FlutterImageProviderEditorComponent extends JPanel {
     static final String DIRECT_PREFIX = "flutter.image.imageProvider";
+    static final String UNRESOLVED_SELECTION_TEXT =
+            "<choose asset> — keep editable placeholder";
+
+    enum EmptySelectionPolicy {
+        PRESERVE_INITIAL_UNRESOLVED,
+        REQUIRE_DECLARED_ASSET
+    }
 
     private final FlutterImageAssetChoices assetChoices;
     private final String target;
+    private final EmptySelectionPolicy emptySelectionPolicy;
     private final Runnable changed;
     private final JComboBox<FlutterImageAssetChoices.Choice> asset =
             new JComboBox<>();
@@ -43,14 +51,18 @@ final class FlutterImageProviderEditorComponent extends JPanel {
     private final JCheckBox allowUpscaling = new JCheckBox("Allow upscaling");
     private final JLabel inventoryStatus = new JLabel();
     private boolean updating;
+    private boolean populatedUnresolved;
 
     FlutterImageProviderEditorComponent(
             FlutterImageAssetChoices assetChoices,
             String target,
             String componentPrefix,
+            EmptySelectionPolicy emptySelectionPolicy,
             Runnable changed) {
         this.assetChoices = Objects.requireNonNull(assetChoices, "assetChoices");
         this.target = requireText(target, "target");
+        this.emptySelectionPolicy = Objects.requireNonNull(
+                emptySelectionPolicy, "emptySelectionPolicy");
         String prefix = requireText(componentPrefix, "componentPrefix");
         this.changed = Objects.requireNonNull(changed, "changed");
 
@@ -77,7 +89,10 @@ final class FlutterImageProviderEditorComponent extends JPanel {
                 "Declared Flutter image asset");
         asset.getAccessibleContext().setAccessibleDescription(
                 "Chooses a concrete image declared by the application or a "
-                + "resolved Dart package; arbitrary paths are not accepted.");
+                + "resolved Dart package; arbitrary paths are not accepted."
+                + (preservesInitialUnresolved()
+                        ? " With no selection, the editable image placeholder is retained."
+                        : " A declared asset selection is required when the image is enabled."));
         provider.getAccessibleContext().setAccessibleName(
                 "Flutter image provider kind");
         provider.getAccessibleContext().setAccessibleDescription(
@@ -112,6 +127,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
             case EXACT -> "Exact dimensions";
             case FIT -> "Fit within dimensions";
         });
+        displayAssetWithPlaceholder(asset, preservesInitialUnresolved());
         assetChoices.choices().forEach(asset::addItem);
 
         int row = 0;
@@ -130,6 +146,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
 
     void populate(PropertyValue.ImageProviderValue value) {
         Objects.requireNonNull(value, "value");
+        populatedUnresolved = value.isUnresolved();
         updating = true;
         try {
             if (value.isUnresolved()) {
@@ -177,6 +194,7 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         if (assetChoices.choices().isEmpty()) {
             return;
         }
+        populatedUnresolved = false;
         updating = true;
         try {
             asset.setSelectedItem(assetChoices.choices().getFirst());
@@ -200,6 +218,9 @@ final class FlutterImageProviderEditorComponent extends JPanel {
         FlutterImageAssetChoices.Choice choice =
                 (FlutterImageAssetChoices.Choice) asset.getSelectedItem();
         if (choice == null) {
+            if (preservesInitialUnresolved() && populatedUnresolved) {
+                return PropertyValue.ImageProviderValue.unresolved();
+            }
             throw new IllegalArgumentException(
                     "Choose a declared Flutter image asset. Target: " + target
                     + ". Reason: " + unavailableReason());
@@ -282,14 +303,32 @@ final class FlutterImageProviderEditorComponent extends JPanel {
     }
 
     private void updateInventoryStatus() {
-        String status = assetChoices.choices().isEmpty()
-                ? "Asset selection unavailable for " + target + ": "
-                + unavailableReason()
-                : asset.getSelectedItem() == null
-                ? "Choose one of " + assetChoices.choices().size()
-                + " declared image asset choice(s) for " + target + '.'
-                : assetChoices.choices().size()
-                + " declared image asset choice(s) are available for " + target + '.';
+        String status;
+        if (asset.getSelectedItem() == null) {
+            if (preservesInitialUnresolved()) {
+                status = assetChoices.choices().isEmpty()
+                        ? "Keeping the editable image placeholder for " + target
+                        + ". No declared image asset can replace it: "
+                        + unavailableReason()
+                        : "Keeping the editable image placeholder for " + target
+                        + ". Choose one of " + assetChoices.choices().size()
+                        + " declared image asset choice(s) to replace it.";
+            } else {
+                status = assetChoices.choices().isEmpty()
+                        ? "Asset selection unavailable for " + target + ": "
+                        + unavailableReason()
+                        : "Choose one of " + assetChoices.choices().size()
+                        + " declared image asset choice(s) for " + target + '.';
+            }
+        } else if (assetChoices.choices().isEmpty()) {
+            status = "The stored image asset remains selected for " + target
+                    + ", but the declared asset inventory is unavailable: "
+                    + unavailableReason();
+        } else {
+            status = assetChoices.choices().size()
+                    + " declared image asset choice(s) are available for "
+                    + target + '.';
+        }
         inventoryStatus.setText(status);
         inventoryStatus.getAccessibleContext().setAccessibleDescription(status);
     }
@@ -384,6 +423,30 @@ final class FlutterImageProviderEditorComponent extends JPanel {
             }
             return component;
         });
+    }
+
+    private static void displayAssetWithPlaceholder(
+            JComboBox<FlutterImageAssetChoices.Choice> combo,
+            boolean allowUnresolvedPlaceholder) {
+        ListCellRenderer<? super FlutterImageAssetChoices.Choice> renderer =
+                combo.getRenderer();
+        combo.setRenderer((list, value, index, selected, focus) -> {
+            Component component = renderer.getListCellRendererComponent(
+                    list, value, index, selected, focus);
+            if (component instanceof JLabel label) {
+                label.setText(value == null
+                        ? allowUnresolvedPlaceholder
+                                ? UNRESOLVED_SELECTION_TEXT
+                                : "<choose declared asset>"
+                        : value.toString());
+            }
+            return component;
+        });
+    }
+
+    private boolean preservesInitialUnresolved() {
+        return emptySelectionPolicy
+                == EmptySelectionPolicy.PRESERVE_INITIAL_UNRESOLVED;
     }
 
     private static String requireText(String value, String name) {

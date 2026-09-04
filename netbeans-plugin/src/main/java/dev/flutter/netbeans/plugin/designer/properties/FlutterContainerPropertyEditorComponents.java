@@ -763,6 +763,8 @@ final class FlutterContainerPropertyEditorComponents {
                     assetChoices,
                     "DecorationImage.image",
                     "flutter.container.decoration.image",
+                    FlutterImageProviderEditorComponent.EmptySelectionPolicy
+                            .REQUIRE_DECLARED_ASSET,
                     this::refresh);
             configureImageRenderers();
             imageFilterColor = new ColorSourceEditor(

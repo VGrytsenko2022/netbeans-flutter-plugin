@@ -377,9 +377,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   accepted Add stores a reserved unresolved provider, presents `<choose asset>`
   in Properties and uses a built-in Canvas/generated-Dart placeholder. The
   placeholder survives Save/reopen and remains editable without ever becoming a
-  fake project `AssetImage` path. When choices are available, Add still selects
-  the deterministic first sorted declared asset, and commit resolves the latest
-  inventory for race safety. Four center-slice
+  fake project `AssetImage` path. Its custom editor now renders the empty
+  selection explicitly as `<choose asset> — keep editable placeholder`; `OK`
+  preserves that valid incomplete state, while `Container.DecorationImage`
+  still requires a real declared asset when enabled. When choices are available,
+  Add still selects the deterministic first sorted declared asset, and commit
+  resolves the latest inventory for race safety. Four center-slice
   coordinates are all-or-none, form a strict non-empty rectangle and reject
   `BoxFit.cover` or `BoxFit.none`; Canvas and generated Dart share the same
   provider and decode bounds.

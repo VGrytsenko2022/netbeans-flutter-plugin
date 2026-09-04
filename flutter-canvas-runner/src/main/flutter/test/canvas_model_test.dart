@@ -819,6 +819,144 @@ void main() {
     );
   });
 
+  test('decodes the exact ClipRect clip and optional-child contract', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+        'flutter.widgets.ClipRect',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      '3bb165aa-21d8-497c-8e95-0c5c960588b0',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Clipped child'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'clipBehavior': {
+            'kind': 'enum',
+            'type': 'Clip',
+            'value': 'antiAliasWithSaveLayer',
+          },
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.ClipRect');
+    expect(decoded.properties.keys, const ['clipBehavior']);
+    expect(
+      (decoded.properties['clipBehavior']!.value as CanvasEnumValue).value,
+      'antiAliasWithSaveLayer',
+    );
+    expect(decoded.slot('child')!.child!.id, child['id']);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child'), isNull);
+    final explicitEmpty = _decode(model(slots: {'child': _single(null)})).root;
+    expect(explicitEmpty.slot('child')!.child, isNull);
+  });
+
+  test('rejects every unsupported ClipRect property and slot branch', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '4fcae2d8-2c48-4c9d-b3f0-62bf0d89ef67',
+        'flutter.widgets.ClipRect',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'clipBehavior': {
+          'kind': 'enum',
+          'type': 'FilterQuality',
+          'value': 'none',
+        },
+      },
+      const {
+        'clipBehavior': {'kind': 'string', 'value': 'hardEdge'},
+      },
+      const {
+        'clipper': {'kind': 'string', 'value': 'custom'},
+      },
+      const {
+        'futureProperty': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(model(slots: {'futureSlot': _single(null)})),
+      throwsFormatException,
+    );
+    final expanded = _node(
+      '1768d247-784b-4b80-a1e8-7130143e827b',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            '6d6baf79-6265-427c-8f42-e08cb6cbefbc',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Flex-only child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(model(slots: {'child': _single(expanded)})),
+      throwsFormatException,
+      reason: 'a ParentData child cannot be reparented under ClipRect',
+    );
+  });
+
+  test('ClipRect reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ClipRect\n');
+    final end = contract.indexOf('W|flutter.widgets.ColoredBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ClipRect\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test(
     'decodes finite, unbounded, expanding, and mixed ConstrainedBox axes',
     () {

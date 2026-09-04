@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
@@ -510,6 +511,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.equals(
                 widget.type())) {
             addIndexedStackPropertySets(sheet, hasSlotTab);
+        } else if (ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.equals(
+                widget.type())) {
+            addClipRectPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -932,6 +936,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             return "Optional child composited with the required BoxDecoration. "
                     + "Position paints that decoration behind or in front of the child. "
                     + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child clipped to this widget's rectangular bounds. "
+                    + "Clip behavior controls edge quality; a null CustomClipper keeps "
+                    + "the exact child-bounds rectangle. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2277,6 +2290,34 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 + "-1 as a sentinel.";
             default -> "Explicit IndexedStack value for " + propertyName.value() + ".";
         };
+    }
+
+    private void addClipRectPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ClipRectWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ClipRectWidgetPropertySchema.Group.class);
+        for (ClipRectWidgetPropertySchema.Group group
+                : ClipRectWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ClipRectWidgetPropertySchema.Definition schema =
+                    ClipRectWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ClipRect property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()
+                            + " Omission preserves Flutter's hard-edge default. "
+                            + "A non-null CustomClipper is intentionally outside the "
+                            + "closed Designer model."));
+        }
     }
 
     private void addPlaceholderPropertySets(Sheet sheet, boolean hasSlotTab) {

@@ -68,6 +68,7 @@ public final class BuiltInWidgetCatalog {
             placeholder(),
             directionality(),
             decoratedBox(),
+            clipRect(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1254,6 +1255,29 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 240, "SafeArea"),
                 properties,
                 List.of(singleSlot("child", 6, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition clipRect() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "clipBehavior",
+                0,
+                false,
+                enumValues("Clip", "none", "hardEdge", "antiAlias",
+                        "antiAliasWithSaveLayer")));
+        if (properties.size() != ClipRectWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ClipRect catalog/property schema count mismatch");
+        }
+        return widget(
+                ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
+                "ClipRect",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 80, "ClipRect"),
+                properties,
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

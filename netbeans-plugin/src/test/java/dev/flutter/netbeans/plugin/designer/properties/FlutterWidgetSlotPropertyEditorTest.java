@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -1077,6 +1078,71 @@ class FlutterWidgetSlotPropertyEditorTest {
             child.setValue(staged);
             assertEquals(List.of(add), submitted,
                     "one accepted ExcludeSemantics child dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
+    void clipRectOptionalChildUsesTheGenericTransactionalAddFlow()
+            throws Exception {
+        WidgetDefinition definition = CATALOG
+                .find(ClipRectWidgetPropertySchema.CLIP_RECT_TYPE)
+                .orElseThrow();
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                id("46bc62aa-a4d8-4f79-bf00-4da17593b4d8"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(widget),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                widget,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            assertEquals(List.of("No change", "Add new widget"), labels(action));
+            selectLabel(action, "Add new widget");
+            assertEquals(List.of("Text"), labels(addType));
+            selectLabel(addType, "Text");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(widget.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted ClipRect child dialog consumes one revision lease");
             return null;
         });
     }

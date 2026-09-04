@@ -20,6 +20,7 @@ import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -170,6 +171,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("position");
     private static final PropertyName EXCLUDING = new PropertyName("excluding");
     private static final PropertyName INDEX = new PropertyName("index");
+    private static final PropertyName CLIP_BEHAVIOR =
+            new PropertyName("clipBehavior");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -4087,6 +4090,207 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(candidateFd)).document();
             assertEquals(finalExcludeSemantics,
                     findModelWidget(saved.root(), excludeSemanticsId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteClipRectSaveReopenEditUndoRedoAndSaveRemainExact()
+            throws Exception {
+        StableId clipRectId = StableId.parse(
+                "8a8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a8a");
+        WidgetTypeId clipRectType =
+                ClipRectWidgetPropertySchema.CLIP_RECT_TYPE;
+        PropertyValue.EnumValue explicitAntiAlias =
+                new PropertyValue.EnumValue("Clip", "antiAlias");
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_rect_append", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const ClipRect("));
+                        assertFalse(request.content().contains("clipBehavior:"),
+                                "omission must preserve Flutter's hard-edge default");
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            clipRectType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> clipRectId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal ClipRect insertion");
+
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ClipRect to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRectId));
+            WidgetNode clipRect = findModelWidget(
+                    added.document().orElseThrow().root(), clipRectId);
+            assertAll(
+                    () -> assertTrue(clipRect.properties().isEmpty()),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            clipRect.slots().get(CHILD)).child().isEmpty()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_rect_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedClipRect = findModelWidget(
+                    reopened.document().orElseThrow().root(), clipRectId);
+            assertTrue(reopenedClipRect.properties().isEmpty());
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(clipRectType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedClipRect,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> clipBehavior =
+                    cellProperty(propertiesNode, "clipBehavior");
+            java.beans.PropertyEditor clipEditor =
+                    clipBehavior.getPropertyEditor();
+            clipEditor.setValue(clipBehavior.getValue());
+            assertAll(
+                    () -> assertTrue(clipBehavior.canWrite(),
+                            "reopened ClipRect must retain its enum editor"),
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.unset(),
+                            clipBehavior.getValue()),
+                    () -> assertEquals(List.of(
+                            "<not set>", "none", "hardEdge", "antiAlias",
+                            "antiAliasWithSaveLayer"),
+                            List.of(clipEditor.getTags())),
+                    () -> assertEquals("Empty", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const ClipRect("));
+                        assertTrue(request.content().contains(
+                                "clipBehavior: Clip.antiAlias"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    clipRectId,
+                                    CLIP_BEHAVIOR,
+                                    explicitAntiAlias),
+                            "ClipRect.clipBehavior")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot editedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRectId));
+            assertEquals(explicitAntiAlias, findModelWidget(
+                    editedSnapshot.document().orElseThrow().root(),
+                    clipRectId).properties().get(CLIP_BEHAVIOR));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            editedSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRectId));
+            assertFalse(findModelWidget(
+                    undone.document().orElseThrow().root(),
+                    clipRectId).properties().containsKey(CLIP_BEHAVIOR));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRectId));
+            WidgetNode finalClipRect = findModelWidget(
+                    redone.document().orElseThrow().root(), clipRectId);
+            assertAll(
+                    () -> assertEquals(explicitAntiAlias,
+                            finalClipRect.properties().get(CLIP_BEHAVIOR)),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            finalClipRect.slots().get(CHILD))
+                            .child().isEmpty()),
+                    () -> assertEquals(1, analyses.get(),
+                            "Undo/Redo replays the exact analyzed pair"));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(finalClipRect,
+                    findModelWidget(saved.root(), clipRectId));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

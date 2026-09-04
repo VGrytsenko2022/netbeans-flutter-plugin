@@ -119,6 +119,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Placeholder",
                 "flutter.widgets.Directionality",
                 "flutter.widgets.DecoratedBox",
+                "flutter.widgets.ClipRect",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)

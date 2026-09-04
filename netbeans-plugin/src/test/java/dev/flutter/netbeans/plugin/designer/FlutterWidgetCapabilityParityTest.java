@@ -25,13 +25,14 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(46, javaTypes.size(),
+        assertEquals(47, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
                 + "SingleChildScrollView, SafeArea, ColoredBox, Placeholder, and "
-                + "Directionality, DecoratedBox, ExcludeSemantics and IndexedStack");
+                + "Directionality, DecoratedBox, ExcludeSemantics, IndexedStack and "
+                + "ClipRect");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -67,6 +68,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.Directionality"));
         assertTrue(javaTypes.contains("flutter.widgets.DecoratedBox"));
         assertTrue(javaTypes.contains("flutter.widgets.ExcludeSemantics"));
+        assertTrue(javaTypes.contains("flutter.widgets.ClipRect"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(javaTypes, widgetTypes(block(
@@ -149,6 +151,8 @@ class FlutterWidgetCapabilityParityTest {
                 "DecoratedBox.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.ExcludeSemantics"),
                 "ExcludeSemantics.child is an ordinary optional any-widget insertion target");
+        assertTrue(javaContainers.contains("flutter.widgets.ClipRect"),
+                "ClipRect.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
                 "Baseline.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicHeight"),

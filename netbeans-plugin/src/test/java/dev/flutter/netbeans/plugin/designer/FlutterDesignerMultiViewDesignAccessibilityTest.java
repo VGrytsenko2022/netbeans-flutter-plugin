@@ -795,6 +795,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.Placeholder",
                     "flutter.widgets.Directionality",
                     "flutter.widgets.DecoratedBox",
+                    "flutter.widgets.ClipRect",
                     "flutter.widgets.ExcludeSemantics"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(

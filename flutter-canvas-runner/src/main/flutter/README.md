@@ -236,9 +236,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-46 reviewed Canvas widgets. Palette insertion evaluates 1,978 exact
-source/destination cells across 46 draggable sources and 43 insertable reviewed
-slots; 1,771 are accepted and 207 cells are rejected. Expanded and Flexible are
+47 reviewed Canvas widgets. Palette insertion evaluates 2,068 exact
+source/destination cells across 47 draggable sources and 44 insertable reviewed
+slots; 1,856 are accepted and 212 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -830,10 +830,25 @@ index is revalidated against the live child list, including Flutter's empty-list
 index-zero exception. The full rendered rectangle supplies overlapping-list DnD;
 an empty zero-size node retains only the bounded transient Designer target.
 
-The aggregate catalog now has 46 widgets and 40 reviewed const definitions,
-with 735 writable rows (718 outside Scaffold). Palette contains 31 Layout,
+At that milestone the aggregate catalog had 46 widgets and 40 reviewed const definitions,
+with 735 writable rows (718 outside Scaffold). Palette contained 31 Layout,
 three Scrolling, seven Basic, four Material and one Accessibility item; the
-backlog is 46/92 complete with 46 remaining. The 46 sources across 43
-insertable destinations form 1,978 cells, with 1,771 accepted and 207 rejected.
+backlog was 46/92 complete with 46 remaining. The 46 sources across 43
+insertable destinations formed 1,978 cells, with 1,771 accepted and 207 rejected.
 Exact typed null advances `.fd` to v10, Canvas model protocol to v15 and Catalog
 API to v10; NBFC framing, control and wire remain v1.
+
+`ClipRect` is decoded as the real const Flutter 3.44.8 widget. Its optional
+`clipBehavior` accepts only the four exact `Clip` values and defaults to
+`Clip.hardEdge` when omitted; its optional single child participates in normal
+catalog insertion. A non-null custom clipper is rejected because it requires a
+user-defined delegate outside the bounded model. Native and exact-Web routes
+apply the real layout, paint, hit-test and semantics behavior. Selection and
+empty-target feedback remain transient Designer overlays outside the clip.
+
+The aggregate catalog now has 47 widgets and 41 reviewed const definitions,
+with 736 writable rows (719 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, eight Basic, four Material and one Accessibility item; the
+backlog is 47/92 complete with 45 remaining. The 47 sources across 44
+insertable destinations form 2,068 cells, with 1,856 accepted and 212 rejected.
+Existing schema, Catalog, Canvas and NBFC protocol versions remain unchanged.

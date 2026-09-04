@@ -1282,6 +1282,202 @@ void main() {
     );
   });
 
+  test(
+    'decodes the exact optional OverflowBar contract and ordered children',
+    () {
+      Map<String, Object?> model({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '765940f9-e63f-46d8-8837-07c52904c9b9',
+          'flutter.widgets.OverflowBar',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final first = _node(
+        '1120bc37-90cf-4980-8ee5-611c0ca6b876',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'First'},
+        },
+      );
+      final second = _node(
+        'e02c34d9-1ca6-4373-b074-79b3a8052ce8',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Second'},
+        },
+      );
+      final decoded = _decode(
+        model(
+          properties: const {
+            'spacing': {'kind': 'double', 'value': -2.5},
+            'alignment': {
+              'kind': 'enum',
+              'type': 'MainAxisAlignment',
+              'value': 'spaceEvenly',
+            },
+            'overflowSpacing': {'kind': 'double', 'value': -1.25},
+            'overflowAlignment': {
+              'kind': 'enum',
+              'type': 'OverflowBarAlignment',
+              'value': 'center',
+            },
+            'overflowDirection': {
+              'kind': 'enum',
+              'type': 'VerticalDirection',
+              'value': 'up',
+            },
+            'textDirection': {
+              'kind': 'enum',
+              'type': 'TextDirection',
+              'value': 'rtl',
+            },
+          },
+          slots: {
+            'children': _list([first, second]),
+          },
+        ),
+      ).root;
+
+      expect(decoded.type, 'flutter.widgets.OverflowBar');
+      expect(decoded.properties['spacing']!.value, -2.5);
+      expect(decoded.properties['overflowSpacing']!.value, -1.25);
+      for (final entry in const {
+        'alignment': ('MainAxisAlignment', 'spaceEvenly'),
+        'overflowAlignment': ('OverflowBarAlignment', 'center'),
+        'overflowDirection': ('VerticalDirection', 'up'),
+        'textDirection': ('TextDirection', 'rtl'),
+      }.entries) {
+        final value = decoded.properties[entry.key]!.value as CanvasEnumValue;
+        expect(value.type, entry.value.$1, reason: entry.key);
+        expect(value.value, entry.value.$2, reason: entry.key);
+      }
+      expect(decoded.slot('children')!.children.map((child) => child.id), [
+        first['id'],
+        second['id'],
+      ]);
+
+      final omitted = _decode(model()).root;
+      expect(omitted.properties, isEmpty);
+      expect(omitted.slot('children'), isNull);
+
+      final explicitEmpty = _decode(
+        model(slots: {'children': _list(const [])}),
+      ).root;
+      expect(explicitEmpty.slot('children')!.children, isEmpty);
+    },
+  );
+
+  test('rejects values outside the reviewed OverflowBar projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '765940f9-e63f-46d8-8837-07c52904c9b9',
+        'flutter.widgets.OverflowBar',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'spacing': {'kind': 'integer', 'value': 2},
+      },
+      const {
+        'alignment': {
+          'kind': 'enum',
+          'type': 'MainAxisAlignment',
+          'value': 'baseline',
+        },
+      },
+      const {
+        'overflowAlignment': {
+          'kind': 'enum',
+          'type': 'MainAxisAlignment',
+          'value': 'start',
+        },
+      },
+      const {
+        'overflowDirection': {
+          'kind': 'enum',
+          'type': 'VerticalDirection',
+          'value': 'sideways',
+        },
+      },
+      const {
+        'textDirection': {
+          'kind': 'enum',
+          'type': 'TextDirection',
+          'value': 'auto',
+        },
+      },
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'children': _single(null)})),
+      throwsFormatException,
+    );
+
+    final finiteJson = jsonEncode(
+      model(
+        properties: const {
+          'overflowSpacing': {'kind': 'double', 'value': 987654321.125},
+        },
+      ),
+    );
+    final nonFiniteJson = finiteJson.replaceFirst('987654321.125', '1e309');
+    expect(
+      () => CanvasModel.decode(Uint8List.fromList(utf8.encode(nonFiniteJson))),
+      throwsFormatException,
+    );
+  });
+
+  test('OverflowBar reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.OverflowBar\n');
+    final end = contract.indexOf('W|flutter.widgets.OverflowBox\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.OverflowBar\n'
+      'P|alignment|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'MainAxisAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start\n'
+      'P|overflowAlignment|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'OverflowBarAlignment:center,end,start\n'
+      'P|overflowDirection|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'VerticalDirection:down,up\n'
+      'P|overflowSpacing|double|0|-|double:*:1:*:1|'
+      'double:range:*:1:*:1\n'
+      'P|spacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1\n'
+      'P|textDirection|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'TextDirection:ltr,rtl\n'
+      'S|children|list|0|0|10000|any\n',
+    );
+  });
+
   test('decodes the complete optional OverflowBox contract and child', () {
     Map<String, Object?> model({
       Map<String, Object?> properties = const {},
@@ -4636,7 +4832,7 @@ void main() {
   test('Opacity reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Opacity\n');
-    final end = contract.indexOf('W|flutter.widgets.OverflowBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.OverflowBar\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

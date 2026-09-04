@@ -86,6 +86,10 @@ class DesignerCommandSessionTest {
     private static final PropertyName QUARTER_TURNS = property("quarterTurns");
     private static final PropertyName MAIN_AXIS = property("mainAxis");
     private static final PropertyName REVERSE = property("reverse");
+    private static final PropertyName SPACING = property("spacing");
+    private static final PropertyName OVERFLOW_SPACING = property("overflowSpacing");
+    private static final PropertyName OVERFLOW_ALIGNMENT = property("overflowAlignment");
+    private static final PropertyName OVERFLOW_DIRECTION = property("overflowDirection");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -1214,6 +1218,139 @@ class DesignerCommandSessionTest {
                         editedAfterReopen.current().dartCandidateBytes(),
                         StandardCharsets.UTF_8)
                 .contains("reverse: true"));
+    }
+
+    @Test
+    void overflowBarFullSurfaceChildrenUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Anchor")));
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.OverflowBar")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.ListSlot) prototype.slots().get(CHILDREN))
+                .children().isEmpty());
+
+        DesignerCommandSession current = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), prototype));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 0),
+                text(SECOND_ID, "Second action")));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 1),
+                text(THIRD_ID, "First action")));
+        current = applied(current, new MoveWidget(
+                THIRD_ID, new WidgetPlacement(WRAPPER_ID, CHILDREN, 0)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, SPACING,
+                new PropertyValue.DoubleValue(new BigDecimal("-3.5"))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, ALIGNMENT,
+                new PropertyValue.EnumValue("MainAxisAlignment", "spaceEvenly")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, OVERFLOW_SPACING,
+                new PropertyValue.DoubleValue(new BigDecimal("7.25"))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, OVERFLOW_ALIGNMENT,
+                new PropertyValue.EnumValue("OverflowBarAlignment", "end")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, OVERFLOW_DIRECTION,
+                new PropertyValue.EnumValue("VerticalDirection", "up")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, TEXT_DIRECTION,
+                new PropertyValue.EnumValue("TextDirection", "rtl")));
+
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID,
+                        SPACING,
+                        new PropertyValue.IntegerValue(BigInteger.ONE)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID,
+                        OVERFLOW_ALIGNMENT,
+                        new PropertyValue.EnumValue(
+                                "OverflowBarAlignment", "stretch")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                current, new ResetProperty(WRAPPER_ID, ALIGNMENT));
+        WidgetNode finalOverflowBar = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(List.of(THIRD_ID, SECOND_ID),
+                ((WidgetSlot.ListSlot) finalOverflowBar.slots().get(CHILDREN))
+                        .children().stream().map(WidgetNode::id).toList());
+        assertFalse(finalOverflowBar.properties().containsKey(ALIGNMENT));
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("-3.5")),
+                finalOverflowBar.properties().get(SPACING));
+        assertEquals(new PropertyValue.EnumValue("OverflowBarAlignment", "end"),
+                finalOverflowBar.properties().get(OVERFLOW_ALIGNMENT));
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const OverflowBar("), dart);
+        assertTrue(dart.contains("spacing: -3.5"), dart);
+        assertFalse(dart.contains("alignment: MainAxisAlignment"), dart);
+        assertTrue(dart.contains("overflowSpacing: 7.25"), dart);
+        assertTrue(dart.contains(
+                "overflowAlignment: OverflowBarAlignment.end"), dart);
+        assertTrue(dart.contains("overflowDirection: VerticalDirection.up"), dart);
+        assertTrue(dart.contains("textDirection: TextDirection.rtl"), dart);
+        assertTrue(dart.indexOf("const Text('First action')")
+                < dart.indexOf("const Text('Second action')"), dart);
+        assertTrue(dart.indexOf("spacing: -3.5")
+                < dart.indexOf("overflowSpacing: 7.25"), dart);
+        assertTrue(dart.indexOf("overflowSpacing: 7.25")
+                < dart.indexOf("overflowAlignment: OverflowBarAlignment.end"), dart);
+        assertTrue(dart.indexOf("textDirection: TextDirection.rtl")
+                < dart.indexOf("children: [", dart.indexOf("const OverflowBar(")), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.EnumValue(
+                        "MainAxisAlignment", "spaceEvenly"),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(ALIGNMENT));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBar\""), fd);
+        assertTrue(fd.contains("\"value\": \"end\""), fd);
+        assertTrue(fd.contains("\"value\": -3.5"), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID,
+                        ALIGNMENT,
+                        new PropertyValue.EnumValue(
+                                "MainAxisAlignment", "center")));
+        assertEquals(new PropertyValue.EnumValue("MainAxisAlignment", "center"),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(ALIGNMENT));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("alignment: MainAxisAlignment.center"));
     }
 
     @Test

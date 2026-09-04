@@ -84,6 +84,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             type("flutter.widgets.RotatedBox");
     private static final WidgetTypeId LIST_BODY =
             type("flutter.widgets.ListBody");
+    private static final WidgetTypeId OVERFLOW_BAR =
+            type("flutter.widgets.OverflowBar");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -1125,6 +1127,92 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void overflowBarTokenCommitsOmittedDefaultsAndEmptyOrderedChildren() {
+        Fixture fixture = fixture(OVERFLOW_BAR);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(OVERFLOW_BAR, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(OVERFLOW_BAR, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves Flutter's zero spacing, start, down, "
+                                + "and ambient direction defaults"),
+                () -> assertEquals(
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the OverflowBar palette authority once"));
+    }
+
+    @Test
+    void textTokenAppendsToOverflowBarInExactSourceOrder() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(withSlot(
+                prototype(OVERFLOW_BAR),
+                CHILDREN,
+                new WidgetSlot.ListSlot(List.of(
+                        text(FIRST_ID, "existing child")))));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(1, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.destination().parentId()),
+                () -> assertEquals(CHILDREN, command.destination().slotName()),
+                () -> assertEquals(1, command.destination().index(),
+                        "terminal insertion preserves OverflowBar source order"),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(TEXT, command.widget().type()));
+    }
+
+    @Test
     void textTokenAppendsAFullNodeAtTheFrontOfStackPaintOrder() {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -1228,6 +1316,10 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty ListBody",
                         document(prototype(LIST_BODY)),
+                        CHILDREN),
+                new AcceptedCase(
+                        "empty OverflowBar",
+                        document(prototype(OVERFLOW_BAR)),
                         CHILDREN));
 
         assertAll(accepted.stream().map(testCase -> () -> {

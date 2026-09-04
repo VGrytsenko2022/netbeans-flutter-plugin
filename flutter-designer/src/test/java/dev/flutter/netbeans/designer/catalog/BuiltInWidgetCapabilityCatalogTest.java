@@ -54,6 +54,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
+            "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -91,6 +92,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
+            "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -105,7 +107,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtySixSourcesAndThirtyFiveInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtySevenSourcesAndThirtySixInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -128,9 +130,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(36, sources.size());
-        assertEquals(35, destinations.size());
-        assertEquals(33, destinations.stream()
+        assertEquals(37, sources.size());
+        assertEquals(36, destinations.size());
+        assertEquals(34, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -138,9 +140,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1260, candidates);
-        assertEquals(1097, accepted);
-        assertEquals(163, candidates - accepted);
+        assertEquals(1332, candidates);
+        assertEquals(1164, accepted);
+        assertEquals(168, candidates - accepted);
     }
 
     @Test
@@ -1043,6 +1045,65 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void overflowBarHasStaticEditableCapabilitiesAndExactV14Projection() {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBar");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("spacing"),
+                        new PropertyName("alignment"),
+                        new PropertyName("overflowSpacing"),
+                        new PropertyName("overflowAlignment"),
+                        new PropertyName("overflowDirection"),
+                        new PropertyName("textDirection")),
+                projection.properties().keySet());
+
+        for (String name : List.of("spacing", "overflowSpacing")) {
+            var spacing = projection.propertyContracts().get(new PropertyName(name));
+            assertFalse(spacing.required(), name);
+            assertEquals(Set.of(PropertyValueKind.DOUBLE),
+                    spacing.acceptedKinds(), name);
+            assertTrue(spacing.creationDefaultFingerprint().isEmpty(), name);
+            assertEquals("*:1:*:1", spacing.numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+            assertEquals("range:*:1:*:1",
+                    spacing.constraintFingerprints().get(PropertyValueKind.DOUBLE), name);
+        }
+
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("alignment")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":MainAxisAlignment:center,end,spaceAround,"
+                        + "spaceBetween,spaceEvenly,start"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("overflowAlignment")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":OverflowBarAlignment:center,end,start"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("overflowDirection")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":VerticalDirection:down,up"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("textDirection")).constraintFingerprints()
+                .get(PropertyValueKind.ENUM)
+                .endsWith(":TextDirection:ltr,rtl"));
+
+        assertEquals(Set.of(new SlotName("children")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10_000),
+                projection.slotContracts().get(new SlotName("children")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1675,6 +1736,26 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
                 + "Axis:horizontal,vertical\n"
                 + "P|reverse|boolean|0|-|-|boolean:any\n"
+                + "S|children|list|0|0|10000|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.OverflowBar\n"
+                + "P|alignment|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "MainAxisAlignment:center,end,spaceAround,spaceBetween,"
+                + "spaceEvenly,start\n"
+                + "P|overflowAlignment|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "OverflowBarAlignment:center,end,start\n"
+                + "P|overflowDirection|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "VerticalDirection:down,up\n"
+                + "P|overflowSpacing|double|0|-|double:*:1:*:1|"
+                + "double:range:*:1:*:1\n"
+                + "P|spacing|double|0|-|double:*:1:*:1|"
+                + "double:range:*:1:*:1\n"
+                + "P|textDirection|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "TextDirection:ltr,rtl\n"
                 + "S|children|list|0|0|10000|any\n"));
     }
 

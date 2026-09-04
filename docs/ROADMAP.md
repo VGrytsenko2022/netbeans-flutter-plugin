@@ -1177,6 +1177,31 @@ accepted architecture is documented in
   92-widget backlog is 36/92 complete with 56 remaining. `.fd` stays at schema
   v9, Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire remains
   v1.
+- [x] Complete const
+  [`OverflowBar`](https://api.flutter.dev/flutter/widgets/OverflowBar/OverflowBar.html)
+  as the seventeenth post-core Palette vertical slice at Layout order 230,
+  immediately after ListBody. Its complete non-`key` Flutter 3.44.8 constructor
+  surface exposes optional finite signed `spacing`, nullable
+  `MainAxisAlignment alignment`, finite signed `overflowSpacing`,
+  `OverflowBarAlignment overflowAlignment`, `VerticalDirection
+  overflowDirection`, nullable `TextDirection textDirection`, and one ordered
+  any-widget `children` list. Detached prototypes omit all six properties and
+  begin empty. Generate the real bare OverflowBar; for a nonempty node, bound an
+  otherwise unbounded Canvas preview width only when `alignment` is non-null,
+  retain natural width for null alignment, and retain a 36x36 empty
+  selection/drop target. Never persist or generate those guards. Resolve
+  insertion and move geometry from the real rendered mode: fitting horizontal
+  rows follow effective LTR/RTL direction, while vertical overflow columns
+  follow `overflowDirection`. Complete property and exact-list-slot editing,
+  Palette/tree/Canvas DnD, same-tree movement/reordering, deterministic
+  generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
+  SVG icons and focused contract tests. The current surface is 37 widgets, 32
+  const definitions and 683 rows (666 outside Scaffold), with 29 Layout items.
+  Thirty-seven sources across 34 insertable any-widget plus two trait
+  destinations form 1,332 candidates: 1,164 accepted and 168 rejected. The
+  practical 92-widget backlog is 37/92 complete with 55 remaining. `.fd` stays
+  at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1194,8 +1219,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after ListBody has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-six
+  vertical slices. No specific widget after OverflowBar has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty-seven
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

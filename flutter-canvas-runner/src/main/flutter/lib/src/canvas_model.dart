@@ -4285,6 +4285,48 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.OverflowBar': _WidgetSpec(
+    {
+      'spacing': _PropertySpec({
+        'double',
+      }, numericBounds: _unboundedDoubleBounds),
+      'alignment': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'MainAxisAlignment',
+        enumValues: {
+          'start',
+          'end',
+          'center',
+          'spaceBetween',
+          'spaceAround',
+          'spaceEvenly',
+        },
+      ),
+      'overflowSpacing': _PropertySpec({
+        'double',
+      }, numericBounds: _unboundedDoubleBounds),
+      'overflowAlignment': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'OverflowBarAlignment',
+        enumValues: {'start', 'end', 'center'},
+      ),
+      'overflowDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'VerticalDirection',
+        enumValues: {'up', 'down'},
+      ),
+      'textDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'TextDirection',
+        enumValues: {'rtl', 'ltr'},
+      ),
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.ListView': _WidgetSpec(
     {
       'scrollDirection': _PropertySpec(
@@ -5304,6 +5346,14 @@ W|flutter.widgets.Opacity
 P|alwaysIncludeSemantics|boolean|0|-|-|boolean:any
 P|opacity|double|1|double:1|double:0:1:1:1|double:range:0:1:1:1
 S|child|single|0|0|1|any
+W|flutter.widgets.OverflowBar
+P|alignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:MainAxisAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
+P|overflowAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:OverflowBarAlignment:center,end,start
+P|overflowDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
+P|overflowSpacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|spacing|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
+S|children|list|0|0|10000|any
 W|flutter.widgets.OverflowBox
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|fit|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:OverflowBoxFit:deferToChild,max

@@ -803,6 +803,49 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void overflowBarFamilyUsesExactReviewedRowToColumnGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "overflowbar.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=3, rx=.6, width=4, x=3, y=3.5]",
+                "rect[height=3, rx=.6, width=5, x=8, y=3.5]",
+                "path[d=M8 7.5v1.2m-1.2-1.1L8 8.8l1.2-1.2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1]",
+                "rect[height=3, rx=.6, width=6, x=3, y=9.5]",
+                "rect[height=3, rx=.6, width=3, x=10, y=9.5]"), light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=6, rx=1.2, width=8, x=6, y=7]",
+                "rect[height=6, rx=1.2, width=10, x=16, y=7]",
+                "path[d=M16 15v2.4m-2.4-2.2 2.4 2.4 2.4-2.4, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=2]",
+                "rect[height=6, rx=1.2, width=12, x=6, y=19]",
+                "rect[height=6, rx=1.2, width=6, x=20, y=19]"), light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#42A5F5]",
+                "rect[fill=#1565C0]",
+                "path[fill=none, stroke=#D97706]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#26C6DA]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#64B5F6]",
+                "rect[fill=#29B6F6]",
+                "path[fill=none, stroke=#FFB74D]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#80DEEA]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "wrap.svg";
@@ -1206,6 +1249,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Transform", ICON_ROOT + "transform.svg");
         expected.put("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg");
         expected.put("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg");
+        expected.put("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);

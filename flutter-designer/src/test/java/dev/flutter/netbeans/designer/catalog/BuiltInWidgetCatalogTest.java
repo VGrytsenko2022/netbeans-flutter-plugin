@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtySixTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtySevenTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -59,6 +59,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ListView",
                 "flutter.widgets.Offstage",
                 "flutter.widgets.Opacity",
+                "flutter.widgets.OverflowBar",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
                 "flutter.widgets.RotatedBox",
@@ -75,8 +76,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(36, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(31, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(37, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(32, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -89,10 +90,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(677, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(683, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(660, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(666, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -126,6 +127,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.ListView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Offstage", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Opacity", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.OverflowBar", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.OverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
@@ -196,6 +198,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
                 new DartSymbolReference(MATERIAL_IMPORT, "MaterialTapTargetSize"),
                 new DartSymbolReference(SERVICES_IMPORT, "MaxLengthEnforcement"),
+                new DartSymbolReference(WIDGETS_IMPORT, "OverflowBarAlignment"),
                 new DartSymbolReference(RENDERING_IMPORT, "OverflowBoxFit"),
                 new DartSymbolReference(
                         WIDGETS_IMPORT, "ScrollViewKeyboardDismissBehavior"),
@@ -253,11 +256,12 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
+                "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"), typeIds(palette));
-        assertEquals(28, palette.stream()
+        assertEquals(29, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
@@ -313,6 +317,12 @@ class BuiltInWidgetCatalogTest {
         for (String optional : List.of("mainAxis", "reverse")) {
             assertTrue(property(catalog, "flutter.widgets.ListBody", optional)
                     .creationDefault().isEmpty(), "ListBody." + optional);
+        }
+        for (String optional : List.of(
+                "spacing", "alignment", "overflowSpacing", "overflowAlignment",
+                "overflowDirection", "textDirection")) {
+            assertTrue(property(catalog, "flutter.widgets.OverflowBar", optional)
+                    .creationDefault().isEmpty(), "OverflowBar." + optional);
         }
         for (String optional : List.of(
                 "origin", "alignment", "transformHitTests", "filterQuality")) {
@@ -1799,6 +1809,61 @@ class BuiltInWidgetCatalogTest {
     }
 
     @Test
+    void overflowBarExposesExactFlutter344ConstEditableSurface() {
+        WidgetDefinition overflowBar = definition("flutter.widgets.OverflowBar");
+
+        assertEquals("OverflowBar", overflowBar.dartClassName());
+        assertTrue(overflowBar.namedConstructor().isEmpty());
+        assertTrue(overflowBar.constConstructor());
+        assertEquals(WIDGETS_IMPORT, overflowBar.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), overflowBar.importUris());
+        assertTrue(overflowBar.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                        "flutter.layout", 200, 230, "OverflowBar"),
+                overflowBar.palette());
+        assertEquals(List.of(
+                        "spacing", "alignment", "overflowSpacing",
+                        "overflowAlignment", "overflowDirection", "textDirection"),
+                overflowBar.properties().stream()
+                        .map(value -> value.name().value()).toList());
+
+        for (int order : List.of(0, 2)) {
+            PropertyDefinition spacing = overflowBar.properties().get(order);
+            assertEquals(DartParameter.named(order, false), spacing.parameter());
+            assertEquals(Set.of(PropertyValueKind.DOUBLE), spacing.acceptedKinds());
+            assertTrue(spacing.creationDefault().isEmpty());
+            PropertyValueConstraint.DoubleRange range = assertInstanceOf(
+                    PropertyValueConstraint.DoubleRange.class,
+                    spacing.constraints().getFirst());
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("-12.5"))));
+            assertTrue(range.accepts(new PropertyValue.DoubleValue(
+                    new BigDecimal("12.5"))));
+        }
+
+        assertEnumProperty(overflowBar.properties().get(1), 1,
+                "MainAxisAlignment",
+                List.of("start", "end", "center", "spaceBetween",
+                        "spaceAround", "spaceEvenly"));
+        assertEnumProperty(overflowBar.properties().get(3), 3,
+                "OverflowBarAlignment", List.of("start", "end", "center"));
+        assertEnumProperty(overflowBar.properties().get(4), 4,
+                "VerticalDirection", List.of("up", "down"));
+        assertEnumProperty(overflowBar.properties().get(5), 5,
+                "TextDirection", List.of("rtl", "ltr"));
+
+        SlotDefinition children = overflowBar.slot(
+                new SlotName("children")).orElseThrow();
+        assertEquals(DartParameter.named(6, false), children.parameter());
+        assertEquals(SlotCardinality.LIST, children.cardinality());
+        assertEquals(0, children.minChildren());
+        assertEquals(10_000, children.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, children.acceptance());
+        assertTrue(children.acceptance().accepts(
+                definition("flutter.widgets.Text")));
+    }
+
+    @Test
     void textFieldExposesExactConstLeafSurfaceAndReviewedScalarDomains() {
         WidgetDefinition field = definition("flutter.material.TextField");
 
@@ -2049,6 +2114,22 @@ class BuiltInWidgetCatalogTest {
                 .anyMatch(value -> value.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO))));
         assertTrue(property.constraints().stream()
                 .anyMatch(value -> value.accepts(new PropertyValue.DoubleValue(BigDecimal.ZERO))));
+    }
+
+    private static void assertEnumProperty(
+            PropertyDefinition property,
+            int parameterOrder,
+            String dartType,
+            List<String> values) {
+        assertEquals(DartParameter.named(parameterOrder, false), property.parameter());
+        assertEquals(Set.of(PropertyValueKind.ENUM), property.acceptedKinds());
+        assertTrue(property.creationDefault().isEmpty());
+        PropertyValueConstraint.EnumValues constraint = assertInstanceOf(
+                PropertyValueConstraint.EnumValues.class,
+                property.constraints().getFirst());
+        assertEquals(new DartSymbolReference(WIDGETS_IMPORT, dartType),
+                constraint.dartType());
+        assertEquals(values, constraint.values());
     }
 
     private static void assertNonNegativeNumberProperty(

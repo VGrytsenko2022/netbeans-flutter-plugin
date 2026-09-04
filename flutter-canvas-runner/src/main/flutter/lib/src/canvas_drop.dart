@@ -160,8 +160,8 @@ enum CanvasDropZonePlacement {
   /// The complete rendered parent is the insertion target.
   fullNode,
 
-  /// Only the visual terminal edge of a linear Row, Column, ListBody, or
-  /// ListView is exposed.
+  /// Only the visual terminal edge of a linear Row, Column, ListBody,
+  /// ListView, or adaptive OverflowBar is exposed.
   terminalList,
 
   /// The rendered bounds of one existing direct list child.
@@ -301,7 +301,8 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.Column' ||
       'flutter.widgets.Row' ||
       'flutter.widgets.ListBody' ||
-      'flutter.widgets.ListView' => const [canvasChildrenAppendDropSlot],
+      'flutter.widgets.ListView' ||
+      'flutter.widgets.OverflowBar' => const [canvasChildrenAppendDropSlot],
       'flutter.widgets.Wrap' => const [canvasWrapChildrenAppendDropSlot],
       'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
       'flutter.widgets.Align' ||

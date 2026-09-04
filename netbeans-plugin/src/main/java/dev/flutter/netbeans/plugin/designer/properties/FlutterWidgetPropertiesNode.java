@@ -75,6 +75,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.RotatedBox");
     private static final WidgetTypeId LIST_BODY_TYPE =
             new WidgetTypeId("flutter.widgets.ListBody");
+    private static final WidgetTypeId OVERFLOW_BAR_TYPE =
+            new WidgetTypeId("flutter.widgets.OverflowBar");
     private static final PropertyName OFFSTAGE_PROPERTY =
             new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
@@ -831,6 +833,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
+        if (OVERFLOW_BAR_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children laid out in one horizontal row while their total width "
+                    + "including Spacing fits. When it does not fit, Flutter lays out the same "
+                    + "children in a vertical overflow column. Text direction controls horizontal "
+                    + "placement; Overflow direction controls vertical placement without changing "
+                    + "the stored source order. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
         if (EXPANDED_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child expanded with FlexFit.tight along the direct Row or "
@@ -873,6 +886,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean transform = TRANSFORM_TYPE.equals(widget.type());
         boolean rotatedBox = ROTATED_BOX_TYPE.equals(widget.type());
         boolean listBody = LIST_BODY_TYPE.equals(widget.type());
+        boolean overflowBar = OVERFLOW_BAR_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -924,6 +938,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                         + "and exact ordered children for the selected ListBody "
                                         + "widget; the main axis must be unbounded and the cross "
                                         + "axis bounded."
+                        : overflowBar
+                                ? "Responsive horizontal-row or vertical-overflow layout, "
+                                        + "spacing, alignment, direction, and exact ordered "
+                                        + "children for the selected OverflowBar widget."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -1053,6 +1071,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(),
                         listBodyPropertyDisplayName(property.name()),
                         listBodyPropertyDescription(property.name())));
+            } else if (overflowBar) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        overflowBarPropertyDisplayName(property.name()),
+                        overflowBarPropertyDescription(property.name())));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -1267,6 +1291,49 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 + "value with ambient LTR/RTL Directionality; vertical placement changes "
                 + "between down and up without changing the stored source order.";
             default -> "Explicit ListBody value for " + propertyName.value() + ".";
+        };
+    }
+
+    private static String overflowBarPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "overflowSpacing" -> "Overflow spacing";
+            case "overflowAlignment" -> "Overflow alignment";
+            case "overflowDirection" -> "Overflow direction";
+            case "textDirection" -> "Text direction";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String overflowBarPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "spacing" ->
+                "Finite signed logical-pixel gap added between children while they fit in "
+                + "one horizontal row. Omission preserves Flutter's 0.0 default. For the "
+                + "spaceAround, spaceBetween, and spaceEvenly alignments, Flutter uses this "
+                + "value only when deciding whether the row overflows.";
+            case "alignment" ->
+                "Optional MainAxisAlignment for the horizontal row when all children fit. "
+                + "Omission makes the row only as wide as its children and Spacing; an "
+                + "explicit value expands it to the available width. This value is ignored "
+                + "after the layout switches to the vertical overflow column.";
+            case "overflowSpacing" ->
+                "Finite signed logical-pixel gap added vertically between children after "
+                + "their horizontal row exceeds the available width. Omission preserves "
+                + "Flutter's 0.0 default; this value is unused while the row fits.";
+            case "overflowAlignment" ->
+                "Horizontal alignment of each child inside the vertical overflow column: "
+                + "start, end, or center. Start and end resolve against the explicit or "
+                + "ambient Text direction. Omission preserves Flutter's start default; this "
+                + "value is unused while the horizontal row fits.";
+            case "overflowDirection" ->
+                "Visual order of children in the vertical overflow column. Down places the "
+                + "first stored child at the top; up places it at the bottom. Omission "
+                + "preserves Flutter's down default and never changes stored source order.";
+            case "textDirection" ->
+                "Optional LTR or RTL override for horizontal child order and for resolving "
+                + "start/end Overflow alignment. Omission preserves ambient Directionality; "
+                + "this value is not read from the theme.";
+            default -> "Explicit OverflowBar value for " + propertyName.value() + ".";
         };
     }
 

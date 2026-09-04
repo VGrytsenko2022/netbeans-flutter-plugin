@@ -76,6 +76,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             type("flutter.widgets.SizedOverflowBox");
     private static final WidgetTypeId TRANSFORM = type("flutter.widgets.Transform");
     private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
+    private static final WidgetTypeId OVERFLOW_BAR =
+            type("flutter.widgets.OverflowBar");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -319,6 +321,83 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(
                 new PropertyValue.BooleanValue(true),
                 listBody.properties().get(new PropertyName("reverse")));
+    }
+
+    @Test
+    void onOverflowBarAppendsTheCompleteSubtreeAtExactSourceOrder() {
+        WidgetNode nestedText = validText(D_ID, "nested");
+        WidgetNode source = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(nestedText)));
+        WidgetNode overflowBar = new WidgetNode(
+                B_ID,
+                OVERFLOW_BAR,
+                Map.of(
+                        new PropertyName("alignment"),
+                        new PropertyValue.EnumValue(
+                                "MainAxisAlignment", "spaceBetween"),
+                        new PropertyName("overflowDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up")),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(
+                        List.of(validText(C_ID, "existing child")))));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, overflowBar)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.On(B_ID));
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(result);
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(B_ID, CHILDREN, 1)),
+                accepted.command(),
+                "OverflowBar On-drop must append in exact children source order");
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+        assertEquals(
+                new PropertyValue.EnumValue(
+                        "MainAxisAlignment", "spaceBetween"),
+                overflowBar.properties().get(new PropertyName("alignment")));
+        assertEquals(
+                new PropertyValue.EnumValue("VerticalDirection", "up"),
+                overflowBar.properties().get(
+                        new PropertyName("overflowDirection")));
+    }
+
+    @Test
+    void explicitOverflowBarReorderUsesPostRemovalSourceIndex() {
+        WidgetNode first = validText(A_ID, "first");
+        WidgetNode second = validText(B_ID, "second");
+        WidgetNode third = validText(C_ID, "third");
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                OVERFLOW_BAR,
+                CHILDREN,
+                List.of(first, second, third)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.IntoSlot(
+                        ROOT_ID, CHILDREN, 2));
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(ROOT_ID, CHILDREN, 2)),
+                accepted(result).command(),
+                "source-aware reorder removes the child before resolving its "
+                        + "final OverflowBar index");
+        assertAcceptedCommandApplies(document, BUILT_INS, first, result);
     }
 
     @Test

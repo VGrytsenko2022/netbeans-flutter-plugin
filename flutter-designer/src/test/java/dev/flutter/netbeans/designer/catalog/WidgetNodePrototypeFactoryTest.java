@@ -664,6 +664,58 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsOverflowBarWithFlutterOwnedDefaultsAndAllTypedOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBar");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.OverflowBar"), prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.ListSlot.class,
+                prototype.slots().get(new SlotName("children"))).children().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("spacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("-4.5")),
+                        new PropertyName("alignment"),
+                        new PropertyValue.EnumValue("MainAxisAlignment", "spaceEvenly"),
+                        new PropertyName("overflowSpacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("6.25")),
+                        new PropertyName("overflowAlignment"),
+                        new PropertyValue.EnumValue("OverflowBarAlignment", "end"),
+                        new PropertyName("overflowDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up"),
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")));
+        assertEquals(6, configured.properties().size());
+        assertEquals(new PropertyValue.DoubleValue(new BigDecimal("-4.5")),
+                configured.properties().get(new PropertyName("spacing")));
+        assertEquals(new PropertyValue.EnumValue("OverflowBarAlignment", "end"),
+                configured.properties().get(new PropertyName("overflowAlignment")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("overflowAlignment"),
+                                new PropertyValue.EnumValue(
+                                        "OverflowBarAlignment", "stretch"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("spacing"),
+                                new PropertyValue.IntegerValue(BigInteger.ONE))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

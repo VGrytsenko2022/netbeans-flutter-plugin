@@ -1334,6 +1334,104 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsOverflowBarFlutterDefaultsFullSurfaceAndOrderedChildren() {
+        WidgetNode defaults = overflowBar(
+                "overflowBarDefaults", Map.of(), List.of());
+        WidgetNode configured = overflowBar(
+                "overflowBarConfigured",
+                Map.of(
+                        name("spacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("-3.5")),
+                        name("alignment"),
+                        new PropertyValue.EnumValue(
+                                "MainAxisAlignment", "spaceEvenly"),
+                        name("overflowSpacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("7.25")),
+                        name("overflowAlignment"),
+                        new PropertyValue.EnumValue("OverflowBarAlignment", "end"),
+                        name("overflowDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up"),
+                        name("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")),
+                List.of(text("overflowBarFirst"), text("overflowBarSecond")));
+
+        assertTrue(validator().validate(
+                document(defaults), BuiltInWidgetCatalog.getDefault()).valid());
+        assertTrue(validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault()).valid());
+    }
+
+    @Test
+    void overflowBarRejectsWrongKindsEnumsAndUnknownPropertyAtExactPaths() {
+        ValidationIssue spacing = onlyIssue(
+                validator().validate(
+                        document(overflowBar(
+                                "overflowBarWrongSpacing",
+                                Map.of(name("spacing"),
+                                        new PropertyValue.IntegerValue(BigInteger.ONE)),
+                                List.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/spacing", spacing.path());
+
+        for (Map.Entry<String, PropertyValue.EnumValue> invalid : Map.of(
+                "alignment",
+                new PropertyValue.EnumValue("MainAxisAlignment", "stretch"),
+                "overflowAlignment",
+                new PropertyValue.EnumValue("OverflowBarAlignment", "stretch"),
+                "overflowDirection",
+                new PropertyValue.EnumValue("VerticalDirection", "sideways"),
+                "textDirection",
+                new PropertyValue.EnumValue("TextDirection", "auto"))
+                .entrySet()) {
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(overflowBar(
+                                    "overflowBarWrong-" + invalid.getKey(),
+                                    Map.of(name(invalid.getKey()), invalid.getValue()),
+                                    List.of())),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/" + invalid.getKey(), issue.path());
+        }
+
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(overflowBar(
+                                "overflowBarUnknown",
+                                Map.of(name("clipBehavior"),
+                                        new PropertyValue.EnumValue("Clip", "none")),
+                                List.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/clipBehavior", unknown.path());
+    }
+
+    @Test
+    void overflowBarChildrenEnforceGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("overflowBarExpanded", Map.of(),
+                        text("overflowBarExpandedText")),
+                flexible("overflowBarFlexible", Map.of(),
+                        text("overflowBarFlexibleText")),
+                spacer("overflowBarSpacer", Map.of()))) {
+            WidgetNode overflowBar = overflowBar(
+                    "overflowBar-" + restricted.type().value(),
+                    Map.of(),
+                    List.of(restricted));
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(overflowBar), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/children/children/0", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.OverflowBar.children"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -3140,6 +3238,14 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             List<WidgetNode> children) {
         return node(idSeed, "flutter.widgets.ListBody", properties, Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(children)));
+    }
+
+    private static WidgetNode overflowBar(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            List<WidgetNode> children) {
+        return node(idSeed, "flutter.widgets.OverflowBar", properties, Map.of(
                 slotName("children"), new WidgetSlot.ListSlot(children)));
     }
 

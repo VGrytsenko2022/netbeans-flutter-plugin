@@ -106,6 +106,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
+                "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -672,6 +673,58 @@ class CanvasModelPayloadCodecTest {
                 "\"reverse\":{\"kind\":\"boolean\",\"value\":true}"), json);
         int first = json.indexOf("eb28269c-0422-4376-8b55-c022e8dba1df");
         int second = json.indexOf("22aa2516-fab4-4294-a3cd-7ec8513f438b");
+        assertTrue(first >= 0 && first < second, json);
+    }
+
+    @Test
+    void projectsOverflowBarFullSurfaceAndOrderedChildrenWithoutChangingProtocolV14()
+            throws Exception {
+        WidgetNode overflowBar = new WidgetNode(
+                id("6f2b8f33-99c6-49db-aede-b12defe4fe82"),
+                type("flutter.widgets.OverflowBar"),
+                Map.of(
+                        new PropertyName("spacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("-3.5")),
+                        new PropertyName("alignment"),
+                        new PropertyValue.EnumValue(
+                                "MainAxisAlignment", "spaceEvenly"),
+                        new PropertyName("overflowSpacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("8.25")),
+                        new PropertyName("overflowAlignment"),
+                        new PropertyValue.EnumValue(
+                                "OverflowBarAlignment", "end"),
+                        new PropertyName("overflowDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up"),
+                        new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl")),
+                Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of(
+                        text("8494d57f-c4b2-4884-a6f6-389f410a7b0e", "First"),
+                        text("ea94db4d-3b30-49f4-a779-89ec95325a85", "Second")))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), overflowBar))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.OverflowBar\""), json);
+        assertTrue(json.contains(
+                "\"spacing\":{\"kind\":\"double\",\"value\":-3.5}"), json);
+        assertTrue(json.contains(
+                "\"alignment\":{\"kind\":\"enum\","
+                + "\"type\":\"MainAxisAlignment\",\"value\":\"spaceEvenly\"}"), json);
+        assertTrue(json.contains(
+                "\"overflowSpacing\":{\"kind\":\"double\",\"value\":8.25}"), json);
+        assertTrue(json.contains(
+                "\"overflowAlignment\":{\"kind\":\"enum\","
+                + "\"type\":\"OverflowBarAlignment\",\"value\":\"end\"}"), json);
+        assertTrue(json.contains(
+                "\"overflowDirection\":{\"kind\":\"enum\","
+                + "\"type\":\"VerticalDirection\",\"value\":\"up\"}"), json);
+        assertTrue(json.contains(
+                "\"textDirection\":{\"kind\":\"enum\","
+                + "\"type\":\"TextDirection\",\"value\":\"rtl\"}"), json);
+        int first = json.indexOf("8494d57f-c4b2-4884-a6f6-389f410a7b0e");
+        int second = json.indexOf("ea94db4d-3b30-49f4-a779-89ec95325a85");
         assertTrue(first >= 0 && first < second, json);
     }
 

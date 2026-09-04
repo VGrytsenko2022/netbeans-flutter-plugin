@@ -7,6 +7,35 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.OverflowBar`](https://api.flutter.dev/flutter/widgets/OverflowBar/OverflowBar.html)
+  vertical slice is the seventeenth post-core Palette addition, at Layout order
+  230 immediately after ListBody. Its complete pinned Flutter 3.44.8 non-`key`
+  contract exposes optional finite signed `spacing`, nullable
+  `MainAxisAlignment alignment`, finite signed `overflowSpacing`,
+  `OverflowBarAlignment overflowAlignment`, `VerticalDirection
+  overflowDirection`, nullable `TextDirection textDirection`, and one ordered
+  any-widget `children` list. Detached prototypes omit all six properties and
+  begin with an empty list, preserving Flutter's `0.0`, null, `0.0`, `start`,
+  `down` and ambient-direction defaults. Generated Dart remains a bare real
+  `OverflowBar`. For a nonempty node, native and exact-Web Canvas construct that
+  widget inside a presentation-only finite-width guard only when the incoming
+  width is unbounded and `alignment` is non-null; null alignment retains
+  Flutter's natural width. They retain a 36x36 empty selection/drop target;
+  neither guard is persisted or generated. Canvas insertion and movement follow
+  the actual rendered mode:
+  horizontal order uses effective LTR/RTL direction, while a vertical overflow
+  column uses `overflowDirection`. Exact property and list-slot editing,
+  Palette/tree/Canvas DnD, same-tree movement/reordering, deterministic
+  generation, Save/reopen and further editing, Undo/Redo and reviewed light/dark
+  SVG icons share one closed contract. The catalog now contains 37 widgets, 32
+  reviewed const constructors and 683 writable rows, including 666 across the
+  36 non-`Scaffold` definitions. Thirty-seven sources across 34 insertable
+  any-widget and two trait-bound destinations form 1,332 DnD candidates: 1,164
+  accepted and 168 rejected. Layout contains 29 items, and the practical
+  92-widget backlog is 37/92 complete with 55 remaining. `.fd` stays at schema
+  v9, Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire remain
+  v1.
+- The accepted const
   [`flutter.widgets.ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html)
   vertical slice is the sixteenth post-core Palette addition, at Layout order
   220 immediately after RotatedBox. Its complete pinned Flutter 3.44.8

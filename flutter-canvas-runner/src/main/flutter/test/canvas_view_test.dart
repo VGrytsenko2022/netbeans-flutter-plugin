@@ -248,6 +248,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ListBody'), const [
       canvasChildrenAppendDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.OverflowBar'), const [
+      canvasChildrenAppendDropSlot,
+    ]);
     expect(
       canvasStackChildrenAppendDropSlot.zonePlacement,
       CanvasDropZonePlacement.fullNode,
@@ -334,7 +337,7 @@ void main() {
     );
   });
 
-  test('closes the 36-source by 35-destination compatibility matrix', () {
+  test('closes the 37-source by 36-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -369,6 +372,7 @@ void main() {
       'flutter.widgets.Image',
       'flutter.widgets.ListBody',
       'flutter.widgets.ListView',
+      'flutter.widgets.OverflowBar',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
       'flutter.widgets.Text',
@@ -381,8 +385,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(36));
-    expect(destinations, hasLength(35));
+    expect(sourceTypes, hasLength(37));
+    expect(destinations, hasLength(36));
 
     var accepted = 0;
     var rejected = 0;
@@ -408,9 +412,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1097);
-    expect(rejected, 163);
-    expect(accepted + rejected, 1260);
+    expect(accepted, 1164);
+    expect(rejected, 168);
+    expect(accepted + rejected, 1332);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -5433,6 +5437,478 @@ void main() {
         expect(
           actualMoveEdge,
           closeTo(expectedMoveEdge, 2),
+          reason: entry.toString(),
+        );
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
+
+  testWidgets('renders real OverflowBar defaults and every exact argument', (
+    tester,
+  ) async {
+    const overflowBarId = '765940f9-e63f-46d8-8837-07c52904c9b9';
+    final children = [
+      _viewTextNode('1120bc37-90cf-4980-8ee5-611c0ca6b876', 'First action'),
+      _viewTextNode('e02c34d9-1ca6-4373-b074-79b3a8052ce8', 'OK'),
+    ];
+
+    Future<void> pump(Map<String, Object?> properties) async {
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: CanvasModel.decode(
+            Uint8List.fromList(
+              utf8.encode(
+                jsonEncode(
+                  _modelWithOverflowBar(
+                    width: 300,
+                    properties: properties,
+                    children: children,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+    }
+
+    await pump(const {});
+    final node = find.byKey(const ValueKey('canvas-widget-$overflowBarId'));
+    OverflowBar overflowBar() => tester.widget<OverflowBar>(
+      find.descendant(of: node, matching: find.byType(OverflowBar)).first,
+    );
+    expect(overflowBar().spacing, 0);
+    expect(overflowBar().alignment, isNull);
+    expect(overflowBar().overflowSpacing, 0);
+    expect(overflowBar().overflowAlignment, OverflowBarAlignment.start);
+    expect(overflowBar().overflowDirection, VerticalDirection.down);
+    expect(overflowBar().textDirection, isNull);
+    expect(overflowBar().children, hasLength(2));
+    expect(tester.takeException(), isNull);
+
+    await pump(const {
+      'spacing': {'kind': 'double', 'value': -4.5},
+      'alignment': {
+        'kind': 'enum',
+        'type': 'MainAxisAlignment',
+        'value': 'spaceEvenly',
+      },
+      'overflowSpacing': {'kind': 'double', 'value': -2.25},
+      'overflowAlignment': {
+        'kind': 'enum',
+        'type': 'OverflowBarAlignment',
+        'value': 'center',
+      },
+      'overflowDirection': {
+        'kind': 'enum',
+        'type': 'VerticalDirection',
+        'value': 'up',
+      },
+      'textDirection': {
+        'kind': 'enum',
+        'type': 'TextDirection',
+        'value': 'rtl',
+      },
+    });
+    expect(overflowBar().spacing, -4.5);
+    expect(overflowBar().alignment, MainAxisAlignment.spaceEvenly);
+    expect(overflowBar().overflowSpacing, -2.25);
+    expect(overflowBar().overflowAlignment, OverflowBarAlignment.center);
+    expect(overflowBar().overflowDirection, VerticalDirection.up);
+    expect(overflowBar().textDirection, TextDirection.rtl);
+    expect(overflowBar().children, hasLength(2));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'keeps OverflowBar finite in bounded, Row, and Column placements',
+    (tester) async {
+      const overflowBarId = '765940f9-e63f-46d8-8837-07c52904c9b9';
+      const cases = <String?>[
+        null,
+        'flutter.widgets.Row',
+        'flutter.widgets.Column',
+      ];
+      for (final parentType in cases) {
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(
+                utf8.encode(
+                  jsonEncode(
+                    _modelWithOverflowBar(
+                      width: 300,
+                      parentType: parentType,
+                      properties: const {
+                        'alignment': {
+                          'kind': 'enum',
+                          'type': 'MainAxisAlignment',
+                          'value': 'spaceBetween',
+                        },
+                      },
+                      children: [
+                        _viewTextNode(
+                          '1120bc37-90cf-4980-8ee5-611c0ca6b876',
+                          'A deliberately wide first action',
+                        ),
+                        _viewTextNode(
+                          'e02c34d9-1ca6-4373-b074-79b3a8052ce8',
+                          'Second action',
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final finder = find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$overflowBarId')),
+          matching: find.byType(OverflowBar),
+        );
+        final render = tester.renderObject<RenderBox>(finder.first);
+        final size = tester.getSize(finder.first);
+        expect(render.constraints.hasBoundedWidth, isTrue, reason: parentType);
+        expect(size.width.isFinite, isTrue, reason: parentType);
+        expect(size.height.isFinite, isTrue, reason: parentType);
+        if (parentType == 'flutter.widgets.Row') {
+          expect(render.constraints.maxWidth, lessThanOrEqualTo(240));
+        }
+        expect(tester.takeException(), isNull, reason: parentType);
+      }
+    },
+  );
+
+  testWidgets(
+    'keeps null-aligned OverflowBar natural and horizontal in an unbounded Row',
+    (tester) async {
+      const overflowBarId = '765940f9-e63f-46d8-8837-07c52904c9b9';
+      const firstId = '1120bc37-90cf-4980-8ee5-611c0ca6b876';
+      const secondId = 'e02c34d9-1ca6-4373-b074-79b3a8052ce8';
+      CanvasDropResolver? resolver;
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: CanvasModel.decode(
+            Uint8List.fromList(
+              utf8.encode(
+                jsonEncode(
+                  _modelWithOverflowBar(
+                    width: 300,
+                    parentType: 'flutter.widgets.Row',
+                    properties: const {},
+                    children: [
+                      _viewTextNode(firstId, 'Wide action'),
+                      _viewTextNode(secondId, 'Continue'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          selectedWidgetId: null,
+          onSelected: (_) {},
+          onDropResolverChanged: (value) => resolver = value,
+        ),
+      );
+      await tester.pump();
+
+      final bar = find.byKey(const ValueKey('canvas-widget-$overflowBarId'));
+      final overflowBar = find.descendant(
+        of: bar,
+        matching: find.byType(OverflowBar),
+      );
+      final render = tester.renderObject<RenderBox>(overflowBar.first);
+      final barRect = tester.getRect(bar);
+      final firstRect = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$firstId')),
+      );
+      final secondRect = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      expect(render.constraints.hasBoundedWidth, isFalse);
+      expect(render.size.width, greaterThan(240));
+      expect(firstRect.left, closeTo(barRect.left, 0.01));
+      expect(secondRect.left, closeTo(firstRect.right, 0.01));
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      int micros(double value, double origin, double extent) =>
+          ((value - origin) / extent * 1000000).round();
+      final drop = resolver!(
+        micros(barRect.right - 1, surface.left, surface.width),
+        micros(barRect.center.dy, surface.top, surface.height),
+      );
+      expect(drop?.parentWidgetId, overflowBarId);
+      expect(drop?.slotName, 'children');
+      expect(drop?.insertionIndex, 2);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'keeps empty OverflowBar concrete, selectable, and appendable in Row and Column',
+    (tester) async {
+      const overflowBarId = '765940f9-e63f-46d8-8837-07c52904c9b9';
+      for (final parentType in const [
+        'flutter.widgets.Row',
+        'flutter.widgets.Column',
+      ]) {
+        String? selectedWidgetId;
+        CanvasDropResolver? resolver;
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithOverflowBar(
+                  width: 300,
+                  parentType: parentType,
+                  properties: const {
+                    'alignment': {
+                      'kind': 'enum',
+                      'type': 'MainAxisAlignment',
+                      'value': 'spaceAround',
+                    },
+                  },
+                  children: const [],
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) => CanvasModelApp(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final node = find.byKey(const ValueKey('canvas-widget-$overflowBarId'));
+        final size = tester.getSize(node);
+        expect(size, const Size(36, 36), reason: parentType);
+        await tester.tap(node);
+        await tester.pump();
+        expect(selectedWidgetId, overflowBarId, reason: parentType);
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final point = tester.getRect(node).center;
+        final drop = resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+        expect(drop?.parentWidgetId, overflowBarId, reason: parentType);
+        expect(drop?.slotName, 'children', reason: parentType);
+        expect(drop?.insertionIndex, 0, reason: parentType);
+        expect(drop?.zone?.isEmpty, isFalse, reason: parentType);
+        expect(tester.takeException(), isNull, reason: parentType);
+      }
+    },
+  );
+
+  testWidgets(
+    'resolves OverflowBar fit and overflow append and move edges for LTR RTL up and down',
+    (tester) async {
+      const overflowBarId = '765940f9-e63f-46d8-8837-07c52904c9b9';
+      const firstId = '1120bc37-90cf-4980-8ee5-611c0ca6b876';
+      const secondId = 'e02c34d9-1ca6-4373-b074-79b3a8052ce8';
+      const cases =
+          <
+            ({
+              bool overflow,
+              TextDirection direction,
+              VerticalDirection vertical,
+            })
+          >[
+            (
+              overflow: false,
+              direction: TextDirection.ltr,
+              vertical: VerticalDirection.down,
+            ),
+            (
+              overflow: false,
+              direction: TextDirection.rtl,
+              vertical: VerticalDirection.up,
+            ),
+            (
+              overflow: true,
+              direction: TextDirection.ltr,
+              vertical: VerticalDirection.down,
+            ),
+            (
+              overflow: true,
+              direction: TextDirection.rtl,
+              vertical: VerticalDirection.down,
+            ),
+            (
+              overflow: true,
+              direction: TextDirection.ltr,
+              vertical: VerticalDirection.up,
+            ),
+            (
+              overflow: true,
+              direction: TextDirection.rtl,
+              vertical: VerticalDirection.up,
+            ),
+          ];
+
+      for (final entry in cases) {
+        final properties = <String, Object?>{
+          // Keep the overflow cases deterministic under the Canvas preview's
+          // fit-to-surface scale: the real Flutter criterion must overflow
+          // even when the surrounding preview can offer the full test width.
+          'spacing': {'kind': 'double', 'value': entry.overflow ? 400.0 : 8.0},
+          'overflowSpacing': {'kind': 'double', 'value': 6.0},
+          'overflowAlignment': {
+            'kind': 'enum',
+            'type': 'OverflowBarAlignment',
+            'value': 'start',
+          },
+          'overflowDirection': {
+            'kind': 'enum',
+            'type': 'VerticalDirection',
+            'value': entry.vertical == VerticalDirection.up ? 'up' : 'down',
+          },
+          'textDirection': {
+            'kind': 'enum',
+            'type': 'TextDirection',
+            'value': entry.direction == TextDirection.rtl ? 'rtl' : 'ltr',
+          },
+        };
+        CanvasDropResolver? dropResolver;
+        CanvasMovePreviewResolver? moveResolver;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(
+                utf8.encode(
+                  jsonEncode(
+                    _modelWithOverflowBar(
+                      width: entry.overflow ? 50 : 240,
+                      properties: properties,
+                      children: [
+                        _viewTextNode(firstId, 'Wide action'),
+                        _viewTextNode(secondId, 'OK'),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => dropResolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        );
+        await tester.pump();
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final barRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$overflowBarId')),
+        );
+        final firstRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$firstId')),
+        );
+        final secondRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$secondId')),
+        );
+        if (entry.overflow) {
+          expect(
+            entry.vertical == VerticalDirection.up
+                ? firstRect.top > secondRect.top
+                : firstRect.top < secondRect.top,
+            isTrue,
+            reason:
+                '$entry; bar=$barRect; first=$firstRect; second=$secondRect',
+          );
+          if (entry.direction == TextDirection.rtl) {
+            expect(firstRect.right, closeTo(barRect.right, 0.01));
+            expect(secondRect.right, closeTo(barRect.right, 0.01));
+          } else {
+            expect(firstRect.left, closeTo(barRect.left, 0.01));
+            expect(secondRect.left, closeTo(barRect.left, 0.01));
+          }
+        } else {
+          expect(
+            entry.direction == TextDirection.rtl
+                ? firstRect.left > secondRect.left
+                : firstRect.left < secondRect.left,
+            isTrue,
+            reason: entry.toString(),
+          );
+        }
+
+        final terminalPoint = entry.overflow
+            ? Offset(
+                barRect.center.dx,
+                entry.vertical == VerticalDirection.up
+                    ? barRect.top + 1
+                    : barRect.bottom - 1,
+              )
+            : Offset(
+                entry.direction == TextDirection.rtl
+                    ? barRect.left + 1
+                    : barRect.right - 1,
+                barRect.center.dy,
+              );
+        int micros(double value, double origin, double extent) =>
+            ((value - origin) / extent * 1000000).round();
+        final terminal = dropResolver!(
+          micros(terminalPoint.dx, surface.left, surface.width),
+          micros(terminalPoint.dy, surface.top, surface.height),
+        );
+        expect(
+          terminal?.parentWidgetId,
+          overflowBarId,
+          reason: entry.toString(),
+        );
+        expect(terminal?.slotName, 'children', reason: entry.toString());
+        expect(terminal?.insertionIndex, 2, reason: entry.toString());
+        expect(terminal?.zone?.isEmpty, isFalse, reason: entry.toString());
+
+        final move = moveResolver!(firstId, overflowBarId, 'children', 1);
+        expect(move?.parentWidgetId, overflowBarId, reason: entry.toString());
+        expect(move?.slotName, 'children', reason: entry.toString());
+        expect(move?.insertionIndex, 1, reason: entry.toString());
+        expect(move?.zone?.isEmpty, isFalse, reason: entry.toString());
+        final zone = move!.zone!;
+        final actualMoveEdge = entry.overflow
+            ? (zone.topMicros + zone.bottomMicros) ~/ 2
+            : (zone.leftMicros + zone.rightMicros) ~/ 2;
+        final physicalEdge = entry.overflow
+            ? (entry.vertical == VerticalDirection.up
+                  ? secondRect.top
+                  : secondRect.bottom)
+            : (entry.direction == TextDirection.rtl
+                  ? secondRect.left
+                  : secondRect.right);
+        final clampedEdge = entry.overflow
+            ? physicalEdge.clamp(barRect.top + 6, barRect.bottom - 6)
+            : physicalEdge.clamp(barRect.left + 6, barRect.right - 6);
+        final expectedMoveEdge = entry.overflow
+            ? micros(clampedEdge, surface.top, surface.height)
+            : micros(clampedEdge, surface.left, surface.width);
+        expect(
+          actualMoveEdge,
+          // The Canvas surface may scale its preview. At a clamped outer edge
+          // the resolver's six logical pixels therefore become a few global
+          // pixels before normalization; keep the assertion tighter than the
+          // twelve-pixel insertion marker while allowing that transform.
+          closeTo(expectedMoveEdge, 4000),
           reason: entry.toString(),
         );
         expect(tester.takeException(), isNull, reason: entry.toString());
@@ -11370,6 +11846,79 @@ Map<String, Object?> _modelWithListBody({
   return model;
 }
 
+Map<String, Object?> _modelWithOverflowBar({
+  required num width,
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  String? parentType,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final overflowBar = <String, Object?>{
+    'id': '765940f9-e63f-46d8-8837-07c52904c9b9',
+    'type': 'flutter.widgets.OverflowBar',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final content = parentType == null
+      ? <String, Object?>{
+          'id': '3d80adae-3c10-4a2c-9b76-46179ea53b13',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {
+              'kind': width is int ? 'integer' : 'double',
+              'value': width,
+            },
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': overflowBar},
+          },
+        }
+      : <String, Object?>{
+          'id': 'c971dca8-1238-45e6-913f-65579d142c5e',
+          'type': parentType,
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[overflowBar],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '31684f33-2e10-4fc6-9658-77cf0fe7eb55',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '384718a1-ddea-40a0-82ca-d7cb4ebaf865',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': content},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
 Map<String, Object?> _modelWithListView({
   required Map<String, Object?> properties,
   required List<Map<String, Object?>> children,
@@ -11441,6 +11990,15 @@ Map<String, Object?> _viewSizedBoxNode(
   'slots': <String, Object?>{
     'child': <String, Object?>{'kind': 'single', 'child': null},
   },
+};
+
+Map<String, Object?> _viewTextNode(String id, String data) => <String, Object?>{
+  'id': id,
+  'type': 'flutter.widgets.Text',
+  'properties': <String, Object?>{
+    'data': {'kind': 'string', 'value': data},
+  },
+  'slots': <String, Object?>{},
 };
 
 Map<String, Object?> _modelWithCenteredOpacity({

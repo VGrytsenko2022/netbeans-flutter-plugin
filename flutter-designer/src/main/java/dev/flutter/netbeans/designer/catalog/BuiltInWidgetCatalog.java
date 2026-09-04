@@ -57,6 +57,7 @@ public final class BuiltInWidgetCatalog {
             transform(),
             rotatedBox(),
             listBody(),
+            overflowBar(),
             listView(),
             image(),
             elevatedButton(),
@@ -1135,6 +1136,32 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("reverse", 1, false,
                                 any(PropertyValueKind.BOOLEAN))),
                 List.of(listSlot("children", 2, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition overflowBar() {
+        return widget(
+                "flutter.widgets.OverflowBar",
+                "OverflowBar",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 230, "OverflowBar"),
+                List.of(
+                        namedProperty("spacing", 0, false, finiteDoubles()),
+                        namedProperty("alignment", 1, false,
+                                enumValues(
+                                        "MainAxisAlignment", "start", "end", "center",
+                                        "spaceBetween", "spaceAround", "spaceEvenly")),
+                        namedProperty("overflowSpacing", 2, false, finiteDoubles()),
+                        namedProperty("overflowAlignment", 3, false,
+                                enumValues(
+                                        "OverflowBarAlignment", "start", "end", "center")),
+                        namedProperty("overflowDirection", 4, false,
+                                enumValues("VerticalDirection", "up", "down")),
+                        namedProperty("textDirection", 5, false,
+                                enumValues("TextDirection", "rtl", "ltr"))),
+                List.of(listSlot("children", 6, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

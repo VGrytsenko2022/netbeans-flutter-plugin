@@ -71,6 +71,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
+            "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
@@ -79,8 +80,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(36, CATALOG.definitions().size());
-        assertEquals(31, CATALOG.definitions().stream()
+        assertEquals(37, CATALOG.definitions().size());
+        assertEquals(32, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -99,9 +100,9 @@ class FlutterDesignerPaletteTest {
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody"),
+                "RotatedBox", "ListBody", "OverflowBar"),
                 itemLabels(categories[1]));
-        assertEquals(28, itemLabels(categories[1]).size());
+        assertEquals(29, itemLabels(categories[1]).size());
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
 
@@ -129,7 +130,7 @@ class FlutterDesignerPaletteTest {
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody"),
+                "RotatedBox", "ListBody", "OverflowBar"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView"), itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image"), itemLabels(categories[3]));
@@ -779,6 +780,39 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void overflowBarPaletteSelectionExplainsResponsiveLayoutDefaultsAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.OverflowBar";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        230,
+                        "OverflowBar"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("OverflowBar", node.getDisplayName());
+        assertEquals(
+                "Lay out an ordered child list in one horizontal row while it fits, then "
+                + "switch the same children to a vertical overflow column when their total "
+                + "width exceeds the available width. Palette creation preserves Flutter’s "
+                + "zero spacing, start overflow alignment, downward overflow direction, "
+                + "and ambient text direction defaults.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void imagePaletteSelectionExplainsRequiredDeclaredAssetCreation()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Image";
@@ -1109,7 +1143,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void thirtySixCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtySevenCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1128,7 +1162,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(36, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(37, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

@@ -451,6 +451,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(listBody));
     }
 
+    @Test
+    void overflowBarIsAnOrdinaryInsertableWidgetWithRestrictedAnyWidgetChildren() {
+        WidgetDefinition overflowBar = definition("flutter.widgets.OverflowBar");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(overflowBar).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), overflowBar));
+        assertTrue(WidgetPlacementRules.accepts(
+                overflowBar, slot(overflowBar, "children"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    overflowBar,
+                    slot(overflowBar, "children"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.OverflowBar.children"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(overflowBar));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(overflowBar));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(overflowBar));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

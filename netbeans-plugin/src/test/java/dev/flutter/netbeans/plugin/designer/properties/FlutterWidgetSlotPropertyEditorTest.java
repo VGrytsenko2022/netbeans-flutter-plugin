@@ -1947,6 +1947,87 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void overflowBarChildrenAddsAtExactTerminalSourceOrderIndex()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBar");
+        WidgetNode first = text(
+                id("d4e7c61b-a44b-4039-ad00-cb78268913aa"), "first");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition,
+                id("a519e6d7-ae44-4e36-93dc-8f528f6ad77b"));
+        WidgetNode overflowBar = new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first))),
+                Extensions.empty());
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                overflowBar,
+                definition,
+                ignored -> { },
+                new FlutterWidgetSlotEditorContext(
+                        document(overflowBar),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))),
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+
+            assertEquals(1, current.getModel().getSize());
+            assertEquals("1 widget", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals(List.of(), labels(position),
+                    "OverflowBar additions preserve terminal constructor order");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(overflowBar.id(), add.ownerId());
+            assertEquals(CHILDREN, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(1, add.index(),
+                    "OverflowBar append follows the current last child");
+
+            children.setValue(staged);
+            children.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted OverflowBar children dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
     void flexibleChildIsReplacementOnlyAndDirectFlexSlotsNeverOfferAddFlexible()
             throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");

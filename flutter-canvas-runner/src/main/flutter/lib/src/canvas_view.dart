@@ -546,6 +546,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Wrap' ||
         node.type == 'flutter.widgets.ListBody' ||
+        node.type == 'flutter.widgets.OverflowBar' ||
         node.type == 'flutter.widgets.ListView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
@@ -1038,14 +1039,23 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (children.isEmpty) {
       return parentRect;
     }
+    final overflowBarVertical =
+        parentNode.type == 'flutter.widgets.OverflowBar' &&
+        _isOverflowBarVertical(parentNode, parentBox);
     final horizontal =
         parentNode.type == 'flutter.widgets.Row' ||
         parentNode.type == 'flutter.material.AppBar' ||
         _isHorizontalListBody(parentNode) ||
-        _isHorizontalListView(parentNode);
+        _isHorizontalListView(parentNode) ||
+        (parentNode.type == 'flutter.widgets.OverflowBar' &&
+            !overflowBarVertical);
     final reverse = switch (parentNode.type) {
       'flutter.widgets.ListBody' => _isVisuallyReversedListBody(parentNode),
       'flutter.widgets.ListView' => _isVisuallyReversedListView(parentNode),
+      'flutter.widgets.OverflowBar' =>
+        overflowBarVertical
+            ? _enumValue(parentNode, 'overflowDirection') == 'up'
+            : _resolvedTextDirection(parentNode) == TextDirection.rtl,
       _ =>
         horizontal
             ? _resolvedTextDirection(parentNode) == TextDirection.rtl
@@ -1351,7 +1361,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (lastRect == null) {
       return Rect.zero;
     }
+    final overflowBarVertical =
+        node.type == 'flutter.widgets.OverflowBar' &&
+        _isOverflowBarVertical(node, parentBox);
     if (node.type == 'flutter.widgets.Column' ||
+        overflowBarVertical ||
         (node.type == 'flutter.widgets.ListBody' &&
             !_isHorizontalListBody(node)) ||
         (node.type == 'flutter.widgets.ListView' &&
@@ -1359,6 +1373,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final upward = switch (node.type) {
         'flutter.widgets.ListBody' ||
         'flutter.widgets.ListView' => _booleanValue(node, 'reverse') == true,
+        'flutter.widgets.OverflowBar' =>
+          _enumValue(node, 'overflowDirection') == 'up',
         _ => _enumValue(node, 'verticalDirection') == 'up',
       };
       final band = _minimumTerminalBand.clamp(1.0, parent.height);
@@ -1418,6 +1434,26 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static bool _isHorizontalListBody(CanvasNode node) =>
       node.type == 'flutter.widgets.ListBody' &&
       _enumValue(node, 'mainAxis') == 'horizontal';
+
+  bool _isOverflowBarVertical(CanvasNode node, RenderBox parentBox) {
+    final children = node.slot('children')?.children ?? const <CanvasNode>[];
+    if (children.isEmpty || !parentBox.size.width.isFinite) {
+      return false;
+    }
+    var actualWidth = _numberValue(node, 'spacing') ?? 0.0;
+    actualWidth *= children.length - 1;
+    for (final child in children) {
+      final childBox = _renderBox(_nodeKeys[child.id]);
+      if (childBox == null || !childBox.size.width.isFinite) {
+        return false;
+      }
+      actualWidth += childBox.size.width;
+    }
+    // This is the exact branch used by Flutter's _RenderOverflowBar:
+    // children and spacing remain a row at equality, and become a column only
+    // when their combined width is strictly greater than the available width.
+    return actualWidth > parentBox.size.width;
+  }
 
   bool _isVisuallyReversedListBody(CanvasNode node) {
     final reversed = _booleanValue(node, 'reverse') == true;
@@ -2077,6 +2113,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Wrap' => _wrap(),
       'flutter.widgets.ListBody' => _listBody(),
+      'flutter.widgets.OverflowBar' => _overflowBar(),
       'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
@@ -3012,6 +3049,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           node.type == 'flutter.widgets.Column' ||
           node.type == 'flutter.widgets.Wrap' ||
           node.type == 'flutter.widgets.ListBody' ||
+          node.type == 'flutter.widgets.OverflowBar' ||
           node.type == 'flutter.widgets.ListView') &&
       (node.slot('children')?.children.isEmpty ?? false);
 
@@ -3088,6 +3126,42 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           );
         }
         return viewport;
+      },
+    );
+  }
+
+  Widget _overflowBar() {
+    Widget buildOverflowBar() => OverflowBar(
+      spacing: _number('spacing') ?? 0.0,
+      alignment: _overflowBarMainAxisAlignment(),
+      overflowSpacing: _number('overflowSpacing') ?? 0.0,
+      overflowAlignment: _overflowBarAlignment(),
+      overflowDirection: _enum('overflowDirection') == 'up'
+          ? VerticalDirection.up
+          : VerticalDirection.down,
+      textDirection: _textDirection(),
+      children: _children('children'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final empty = node.slot('children')?.children.isEmpty ?? true;
+        if (!empty &&
+            (constraints.hasBoundedWidth ||
+                _overflowBarMainAxisAlignment() == null)) {
+          return buildOverflowBar();
+        }
+        // RenderOverflowBar needs a finite width whenever a non-null
+        // alignment expands the horizontal layout. The cap is Canvas-only:
+        // generated Dart retains the user's bare OverflowBar constructor.
+        return ConstrainedBox(
+          constraints: BoxConstraints(
+            minWidth: empty ? 36 : 0,
+            minHeight: empty ? 36 : 0,
+            maxWidth: constraints.hasBoundedWidth ? double.infinity : 240,
+          ),
+          child: buildOverflowBar(),
+        );
       },
     );
   }
@@ -4498,6 +4572,24 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         'spaceAround' => MainAxisAlignment.spaceAround,
         'spaceEvenly' => MainAxisAlignment.spaceEvenly,
         _ => MainAxisAlignment.start,
+      };
+
+  MainAxisAlignment? _overflowBarMainAxisAlignment() =>
+      switch (_enum('alignment')) {
+        'start' => MainAxisAlignment.start,
+        'end' => MainAxisAlignment.end,
+        'center' => MainAxisAlignment.center,
+        'spaceBetween' => MainAxisAlignment.spaceBetween,
+        'spaceAround' => MainAxisAlignment.spaceAround,
+        'spaceEvenly' => MainAxisAlignment.spaceEvenly,
+        _ => null,
+      };
+
+  OverflowBarAlignment _overflowBarAlignment() =>
+      switch (_enum('overflowAlignment')) {
+        'end' => OverflowBarAlignment.end,
+        'center' => OverflowBarAlignment.center,
+        _ => OverflowBarAlignment.start,
       };
 
   MainAxisSize _mainAxisSize() =>

@@ -705,6 +705,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
+                "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -742,7 +743,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(677, writableCount,
+        assertEquals(683, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -750,9 +751,10 @@ class FlutterWidgetPropertiesNodeTest {
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
-                + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, ListView, "
+                + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
+                + "OverflowBar, ListView, "
                 + "and Image leaves");
-        assertEquals(660, nonScaffoldWritableCount,
+        assertEquals(666, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1729,6 +1731,144 @@ class FlutterWidgetPropertiesNodeTest {
                         "requires unbounded space along its main axis")),
                 () -> assertTrue(children.getShortDescription().contains(
                         "stored source order")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "Occupancy: 0/10000")));
+    }
+
+    @Test
+    void overflowBarProjectsEveryResponsivePropertyAndExactOrderedChildrenContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.OverflowBar");
+        StableId id = StableId.parse("f85a0266-0e4d-4de4-b727-02b50e537617");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(
+                        "spacing", "alignment", "overflowSpacing", "overflowAlignment",
+                        "overflowDirection", "textDirection"),
+                names(properties.getProperties()));
+        assertEquals(
+                "Responsive horizontal-row or vertical-overflow layout, spacing, alignment, "
+                + "direction, and exact ordered children for the selected OverflowBar widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> spacing = cellProperty(
+                property(node, "spacing"));
+        assertAll(
+                () -> assertEquals("Spacing", spacing.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), spacing.getValue()),
+                () -> assertTrue(spacing.getShortDescription().contains("Finite signed")),
+                () -> assertTrue(spacing.getShortDescription().contains("0.0 default")),
+                () -> assertTrue(spacing.getShortDescription().contains(
+                        "only when deciding whether the row overflows")));
+        PropertyEditor spacingEditor = spacing.getPropertyEditor();
+        spacingEditor.setAsText("-4.5");
+        spacing.setValue(cell(spacingEditor));
+        assertThrows(IllegalArgumentException.class,
+                () -> spacingEditor.setAsText("NaN"));
+
+        Node.Property<FlutterPropertyCellValue> alignment = cellProperty(
+                property(node, "alignment"));
+        assertAll(
+                () -> assertEquals("Alignment", alignment.getDisplayName()),
+                () -> assertEquals(List.of(
+                                "<not set>", "start", "end", "center", "spaceBetween",
+                                "spaceAround", "spaceEvenly"),
+                        List.of(alignment.getPropertyEditor().getTags())),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "only as wide as its children")),
+                () -> assertTrue(alignment.getShortDescription().contains(
+                        "ignored after the layout switches")));
+        PropertyEditor alignmentEditor = alignment.getPropertyEditor();
+        alignmentEditor.setAsText("spaceBetween");
+        alignment.setValue(cell(alignmentEditor));
+
+        Node.Property<FlutterPropertyCellValue> overflowSpacing = cellProperty(
+                property(node, "overflowSpacing"));
+        assertAll(
+                () -> assertEquals("Overflow spacing", overflowSpacing.getDisplayName()),
+                () -> assertTrue(overflowSpacing.getShortDescription().contains(
+                        "Finite signed")),
+                () -> assertTrue(overflowSpacing.getShortDescription().contains(
+                        "unused while the row fits")));
+        PropertyEditor overflowSpacingEditor = overflowSpacing.getPropertyEditor();
+        overflowSpacingEditor.setAsText("6.25");
+        overflowSpacing.setValue(cell(overflowSpacingEditor));
+
+        Node.Property<FlutterPropertyCellValue> overflowAlignment = cellProperty(
+                property(node, "overflowAlignment"));
+        assertAll(
+                () -> assertEquals("Overflow alignment",
+                        overflowAlignment.getDisplayName()),
+                () -> assertEquals(List.of("<not set>", "start", "end", "center"),
+                        List.of(overflowAlignment.getPropertyEditor().getTags())),
+                () -> assertTrue(overflowAlignment.getShortDescription().contains(
+                        "explicit or ambient Text direction")),
+                () -> assertTrue(overflowAlignment.getShortDescription().contains(
+                        "start default")));
+        PropertyEditor overflowAlignmentEditor = overflowAlignment.getPropertyEditor();
+        overflowAlignmentEditor.setAsText("end");
+        overflowAlignment.setValue(cell(overflowAlignmentEditor));
+
+        Node.Property<FlutterPropertyCellValue> overflowDirection = cellProperty(
+                property(node, "overflowDirection"));
+        assertAll(
+                () -> assertEquals("Overflow direction",
+                        overflowDirection.getDisplayName()),
+                () -> assertEquals(List.of("<not set>", "up", "down"),
+                        List.of(overflowDirection.getPropertyEditor().getTags())),
+                () -> assertTrue(overflowDirection.getShortDescription().contains(
+                        "first stored child at the top")),
+                () -> assertTrue(overflowDirection.getShortDescription().contains(
+                        "never changes stored source order")));
+        PropertyEditor overflowDirectionEditor = overflowDirection.getPropertyEditor();
+        overflowDirectionEditor.setAsText("up");
+        overflowDirection.setValue(cell(overflowDirectionEditor));
+
+        Node.Property<FlutterPropertyCellValue> textDirection = cellProperty(
+                property(node, "textDirection"));
+        assertAll(
+                () -> assertEquals("Text direction", textDirection.getDisplayName()),
+                () -> assertEquals(List.of("<not set>", "rtl", "ltr"),
+                        List.of(textDirection.getPropertyEditor().getTags())),
+                () -> assertTrue(textDirection.getShortDescription().contains(
+                        "ambient Directionality")),
+                () -> assertTrue(textDirection.getShortDescription().contains(
+                        "not read from the theme")));
+        PropertyEditor textDirectionEditor = textDirection.getPropertyEditor();
+        textDirectionEditor.setAsText("rtl");
+        textDirection.setValue(cell(textDirectionEditor));
+
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("spacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("-4.5"))),
+                new SetProperty(id, new PropertyName("alignment"),
+                        new PropertyValue.EnumValue(
+                                "MainAxisAlignment", "spaceBetween")),
+                new SetProperty(id, new PropertyName("overflowSpacing"),
+                        new PropertyValue.DoubleValue(new BigDecimal("6.25"))),
+                new SetProperty(id, new PropertyName("overflowAlignment"),
+                        new PropertyValue.EnumValue("OverflowBarAlignment", "end")),
+                new SetProperty(id, new PropertyName("overflowDirection"),
+                        new PropertyValue.EnumValue("VerticalDirection", "up")),
+                new SetProperty(id, new PropertyName("textDirection"),
+                        new PropertyValue.EnumValue("TextDirection", "rtl"))),
+                commands);
+
+        Node.Property<?> children = property(node, "children");
+        assertAll(
+                () -> assertEquals("Children", children.getDisplayName()),
+                () -> assertEquals("Empty", children.getValue()),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "one horizontal row")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "vertical overflow column")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "without changing the stored source order")),
                 () -> assertTrue(children.getShortDescription().contains(
                         "Occupancy: 0/10000")));
     }
@@ -3763,7 +3903,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtySixCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtySevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3798,6 +3938,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
+                "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3829,7 +3970,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(36, iconPaths.size(),
+        assertEquals(37, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

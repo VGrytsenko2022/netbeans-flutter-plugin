@@ -130,6 +130,9 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("quarterTurns");
     private static final PropertyName MAIN_AXIS = new PropertyName("mainAxis");
     private static final PropertyName REVERSE = new PropertyName("reverse");
+    private static final PropertyName SPACING = new PropertyName("spacing");
+    private static final PropertyName OVERFLOW_DIRECTION =
+            new PropertyName("overflowDirection");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -1931,6 +1934,181 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertTrue(assertInstanceOf(
                     WidgetSlot.ListSlot.class,
                     savedListBody.slots().get(CHILDREN)).children().isEmpty());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteOverflowBarInsertionSurvivesSaveReloadAndFurtherEdits()
+            throws Exception {
+        StableId appendedId = StableId.parse(
+                "67676767-6767-4767-8767-676767676767");
+        WidgetTypeId overflowBarType = new WidgetTypeId(
+                "flutter.widgets.OverflowBar");
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_overflow_bar_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("OverflowBar("));
+                        assertTrue(request.content().contains("children: []"));
+                        assertFalse(request.content().contains("spacing:"));
+                        assertFalse(request.content().contains(
+                                "overflowDirection:"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            overflowBarType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal OverflowBar insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append OverflowBar to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode overflowBar = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(overflowBarType, overflowBar.type());
+            assertEquals(Map.of(), overflowBar.properties(),
+                    "omission preserves Flutter's zero spacing, start, down, "
+                            + "and ambient direction defaults");
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    overflowBar.slots().get(CHILDREN)).children().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            assertArrayEquals(candidateDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(candidateFd, Files.readAllBytes(fixture.fdPath()));
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_overflow_bar_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedOverflowBar = findModelWidget(
+                    reopened.document().orElseThrow().root(), appendedId);
+            assertEquals(overflowBarType, reopenedOverflowBar.type());
+            assertEquals(Map.of(), reopenedOverflowBar.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    reopenedOverflowBar.slots().get(CHILDREN))
+                    .children().isEmpty());
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("spacing: -4.5"));
+                        if (call == 1) {
+                            assertFalse(request.content().contains(
+                                    "overflowDirection: VerticalDirection.up"));
+                        } else {
+                            assertTrue(request.content().contains(
+                                    "overflowDirection: VerticalDirection.up"));
+                        }
+                        assertTrue(request.content().contains("children: []"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            PropertyValue.DoubleValue signedSpacing =
+                    new PropertyValue.DoubleValue(
+                            new java.math.BigDecimal("-4.5"));
+            FlutterDesignerMutationController.MutationResult spacingEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(appendedId, SPACING, signedSpacing),
+                            "OverflowBar.spacing")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    spacingEdited.outcome(), spacingEdited::reason);
+            FlutterDesignerMutationController.Snapshot spacingSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(signedSpacing,
+                    findModelWidget(
+                            spacingSnapshot.document().orElseThrow().root(),
+                            appendedId).properties().get(SPACING));
+
+            PropertyValue.EnumValue upward = new PropertyValue.EnumValue(
+                    "VerticalDirection", "up");
+            FlutterDesignerMutationController.MutationResult directionEdited =
+                    fixture.mutations().submit(
+                            spacingSnapshot.token().orElseThrow(),
+                            new SetProperty(
+                                    appendedId, OVERFLOW_DIRECTION, upward),
+                            "OverflowBar.overflowDirection")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    directionEdited.outcome(), directionEdited::reason);
+            FlutterDesignerMutationController.Snapshot changed =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            spacingSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode changedOverflowBar = findModelWidget(
+                    changed.document().orElseThrow().root(), appendedId);
+            assertEquals(signedSpacing,
+                    changedOverflowBar.properties().get(SPACING));
+            assertEquals(upward,
+                    changedOverflowBar.properties().get(OVERFLOW_DIRECTION));
+            assertEquals(2, editAnalyses.get());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedOverflowBar = findModelWidget(
+                    saved.root(), appendedId);
+            assertEquals(signedSpacing,
+                    savedOverflowBar.properties().get(SPACING));
+            assertEquals(upward,
+                    savedOverflowBar.properties().get(OVERFLOW_DIRECTION));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    savedOverflowBar.slots().get(CHILDREN)).children().isEmpty());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

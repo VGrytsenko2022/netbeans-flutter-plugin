@@ -54,6 +54,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Transform", ICON_ROOT + "transform.svg"),
             Map.entry("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg"),
             Map.entry("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg"),
+            Map.entry("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg"),
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry("flutter.widgets.Text", ICON_ROOT + "text.svg"),
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),

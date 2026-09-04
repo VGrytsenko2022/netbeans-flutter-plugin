@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtyFourTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyFiveTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -60,6 +60,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Opacity",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
+                "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.SizedOverflowBox",
@@ -73,8 +74,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(34, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(29, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(35, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(30, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -87,10 +88,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(674, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(675, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(657, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(658, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -126,6 +127,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.OverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.RotatedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedOverflowBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Spacer", WIDGETS_IMPORT),
@@ -247,11 +249,12 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
+                "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"), typeIds(palette));
-        assertEquals(26, palette.stream()
+        assertEquals(27, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
@@ -300,6 +303,9 @@ class BuiltInWidgetCatalogTest {
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE, BigDecimal.ZERO,
                         BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ONE)),
                 property(catalog, "flutter.widgets.Transform", "transform")
+                        .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ONE),
+                property(catalog, "flutter.widgets.RotatedBox", "quarterTurns")
                         .creationDefault().orElseThrow());
         for (String optional : List.of(
                 "origin", "alignment", "transformHitTests", "filterQuality")) {
@@ -1689,6 +1695,51 @@ class BuiltInWidgetCatalogTest {
 
         SlotDefinition child = transform.slot(new SlotName("child")).orElseThrow();
         assertEquals(DartParameter.named(5, false), child.parameter());
+        assertEquals(SlotCardinality.SINGLE, child.cardinality());
+        assertEquals(0, child.minChildren());
+        assertEquals(1, child.maxChildren());
+        assertInstanceOf(SlotAcceptance.AnyWidget.class, child.acceptance());
+        assertTrue(child.acceptance().accepts(definition("flutter.widgets.Text")));
+    }
+
+    @Test
+    void rotatedBoxExposesExactFlutter344ConstEditableSurface() {
+        WidgetDefinition rotated = definition("flutter.widgets.RotatedBox");
+
+        assertEquals("RotatedBox", rotated.dartClassName());
+        assertTrue(rotated.namedConstructor().isEmpty());
+        assertTrue(rotated.constConstructor());
+        assertEquals(WIDGETS_IMPORT, rotated.dartLibraryUri());
+        assertEquals(List.of(WIDGETS_IMPORT), rotated.importUris());
+        assertTrue(rotated.traits().isEmpty());
+        assertEquals(new PaletteMetadata(
+                        "flutter.layout", 200, 210, "RotatedBox"),
+                rotated.palette());
+        assertEquals(List.of("quarterTurns"), rotated.properties().stream()
+                .map(value -> value.name().value()).toList());
+
+        PropertyDefinition quarterTurns = rotated.properties().getFirst();
+        assertEquals(DartParameter.named(0, true), quarterTurns.parameter());
+        assertEquals(Set.of(PropertyValueKind.INTEGER), quarterTurns.acceptedKinds());
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ONE),
+                quarterTurns.creationDefault().orElseThrow());
+        PropertyValueConstraint.IntegerRange range = assertInstanceOf(
+                PropertyValueConstraint.IntegerRange.class,
+                quarterTurns.constraints().getFirst());
+        assertEquals(DartNumericLiterals.MIN_PORTABLE_INTEGER, range.minimum());
+        assertEquals(DartNumericLiterals.MAX_PORTABLE_INTEGER, range.maximum());
+        assertTrue(range.accepts(new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        assertTrue(range.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MIN_PORTABLE_INTEGER)));
+        assertTrue(range.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MAX_PORTABLE_INTEGER)));
+        assertFalse(range.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MIN_PORTABLE_INTEGER.subtract(BigInteger.ONE))));
+        assertFalse(range.accepts(new PropertyValue.IntegerValue(
+                DartNumericLiterals.MAX_PORTABLE_INTEGER.add(BigInteger.ONE))));
+
+        SlotDefinition child = rotated.slot(new SlotName("child")).orElseThrow();
+        assertEquals(DartParameter.named(1, false), child.parameter());
         assertEquals(SlotCardinality.SINGLE, child.cardinality());
         assertEquals(0, child.minChildren());
         assertEquals(1, child.maxChildren());

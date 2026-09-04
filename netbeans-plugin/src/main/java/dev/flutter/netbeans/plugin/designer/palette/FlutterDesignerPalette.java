@@ -311,6 +311,10 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.Transform".equals(
                     definition.typeId().value())) {
                 setShortDescription(message("Widget.Transform.Description"));
+            } else if ("flutter.widgets.RotatedBox".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.RotatedBox.Name"));
+                setShortDescription(message("Widget.RotatedBox.Description"));
             }
             FlutterWidgetIconRegistry.findIconPath(item.typeId())
                     .ifPresent(this::setIconBaseWithExtension);

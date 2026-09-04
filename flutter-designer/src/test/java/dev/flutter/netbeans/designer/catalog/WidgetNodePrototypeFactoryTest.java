@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -573,6 +574,48 @@ class WidgetNodePrototypeFactoryTest {
                                 new PropertyName("filterQuality"),
                                 new PropertyValue.EnumValue(
                                         "FilterQuality", "ultra"))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
+    void createsRotatedBoxWithOneQuarterTurnAndSignedPortableOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.RotatedBox");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.RotatedBox"), prototype.type());
+        assertEquals(Map.of(
+                        new PropertyName("quarterTurns"),
+                        new PropertyValue.IntegerValue(BigInteger.ONE)),
+                prototype.properties());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+
+        WidgetNode negative = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("quarterTurns"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(-3))));
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(-3)),
+                negative.properties().get(new PropertyName("quarterTurns")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("quarterTurns"),
+                                new PropertyValue.IntegerValue(
+                                        DartNumericLiterals.MAX_PORTABLE_INTEGER
+                                                .add(BigInteger.ONE)))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("quarterTurns"),
+                                new PropertyValue.StringValue("1"))));
         assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
                 WidgetPlacementRules.creationMode(definition));
         assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));

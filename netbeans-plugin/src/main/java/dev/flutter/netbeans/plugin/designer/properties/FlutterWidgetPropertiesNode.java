@@ -71,6 +71,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.SizedOverflowBox");
     private static final WidgetTypeId TRANSFORM_TYPE =
             new WidgetTypeId("flutter.widgets.Transform");
+    private static final WidgetTypeId ROTATED_BOX_TYPE =
+            new WidgetTypeId("flutter.widgets.RotatedBox");
     private static final PropertyName OFFSTAGE_PROPERTY =
             new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
@@ -704,6 +706,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (ROTATED_BOX_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child rotated clockwise by the required number of "
+                    + "quarter turns before layout. Odd turns swap the child's width "
+                    + "and height; negative turns rotate counter-clockwise. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -847,6 +859,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean offstage = OFFSTAGE_TYPE.equals(widget.type());
         boolean sizedOverflowBox = SIZED_OVERFLOW_BOX_TYPE.equals(widget.type());
         boolean transform = TRANSFORM_TYPE.equals(widget.type());
+        boolean rotatedBox = ROTATED_BOX_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -889,6 +902,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Paint-time Matrix4, pivot origin, alignment, hit-testing, "
                                         + "filter quality, and optional child contract for the "
                                         + "selected Transform widget; layout size is unchanged."
+                        : rotatedBox
+                                ? "Required signed quarter-turn rotation applied before layout "
+                                        + "and optional child contract for the selected "
+                                        + "RotatedBox widget."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -1001,6 +1018,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(),
                         transformPropertyDisplayName(property.name()),
                         transformPropertyDescription(property.name())));
+            } else if (rotatedBox && "quarterTurns".equals(
+                    property.name().value())) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        "Quarter turns",
+                        "Required signed integer number of clockwise quarter turns applied "
+                                + "before layout. Negative values rotate counter-clockwise, "
+                                + "multiples of four preserve orientation, and odd values "
+                                + "swap the child's width and height. Designer palette "
+                                + "creation starts at 1."));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,

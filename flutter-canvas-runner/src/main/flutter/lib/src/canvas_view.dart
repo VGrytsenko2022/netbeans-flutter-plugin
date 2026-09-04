@@ -532,6 +532,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.IntrinsicHeight' ||
         node.type == 'flutter.widgets.IntrinsicWidth' ||
         node.type == 'flutter.widgets.Offstage' ||
+        node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
         node.type == 'flutter.widgets.Transform' ||
         node.type == 'flutter.widgets.ConstrainedBox' ||
@@ -2063,6 +2064,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.IntrinsicHeight' => _intrinsicHeight(),
       'flutter.widgets.IntrinsicWidth' => _intrinsicWidth(),
       'flutter.widgets.Offstage' => _offstage(),
+      'flutter.widgets.RotatedBox' => _rotatedBox(),
       'flutter.widgets.SizedOverflowBox' => _sizedOverflowBox(),
       'flutter.widgets.Transform' =>
         _single('child') ?? const SizedBox.shrink(),
@@ -3646,6 +3648,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   Widget _offstage() =>
       Offstage(offstage: _boolean('offstage') ?? true, child: _single('child'));
+
+  Widget _rotatedBox() => RotatedBox(
+    quarterTurns: _integer('quarterTurns')!,
+    child: _single('child'),
+  );
 
   Widget _sizedOverflowBox() {
     final requestedSize = node.properties['size']!.value as CanvasSizeValue;

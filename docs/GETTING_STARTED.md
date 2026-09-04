@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirty-four
+The current capability-gated Palette and native Canvas admit exactly thirty-five
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `ListView`, `Text`, `Icon` and `Image`. Twenty-nine
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListView`, `Text`, `Icon` and `Image`. Thirty
 definitions use reviewed const constructors. Their `General` Properties expose
-exactly 674 typed writable rows: 657 across the thirty-three
+exactly 675 typed writable rows: 658 across the thirty-four
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -338,6 +338,18 @@ outside this slice; equivalent matrices can be entered through `Transform.new`.
 The practical Material/Base backlog is now 34/92 complete with 58 remaining,
 and Layout contains 26 items.
 
+[`RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+is the fifteenth post-core Palette slice, at Layout order 210 immediately after
+Transform. Its required `quarterTurns` accepts the exact signed native/Web range
+from `-9007199254740991` through `9007199254740991`; new nodes start at `1`.
+Its optional `child` uses the standard single-child slot editor. Unlike the
+paint-time Transform, Flutter applies RotatedBox before layout, so odd turns
+swap the child's width and height constraints while even turns retain them.
+Generated Dart and both Canvas projections build the real widget, preserve the
+stored signed integer and paint its equivalent modulo-four rotation. The
+practical Material/Base backlog is now 35/92 complete with 57 remaining, and
+Layout contains 27 items.
+
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
 `foregroundDecoration`, `width`, `height`, `constraints`, `margin`, `transform`,
@@ -390,8 +402,8 @@ only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
 value, and version 9 adds the atomic finite signed `Offset` wire value.
-Thirty-four sources across thirty-one insertable any-widget and two trait-bound
-slots produce 1,122 compatibility candidates: 969 accepted and 153
+Thirty-five sources across thirty-two insertable any-widget and two trait-bound
+slots produce 1,190 compatibility candidates: 1,032 accepted and 158
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

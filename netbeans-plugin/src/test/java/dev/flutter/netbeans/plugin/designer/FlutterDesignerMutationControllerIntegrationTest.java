@@ -126,6 +126,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName SIZE = new PropertyName("size");
     private static final PropertyName TRANSFORM = new PropertyName("transform");
     private static final PropertyName ORIGIN = new PropertyName("origin");
+    private static final PropertyName QUARTER_TURNS =
+            new PropertyName("quarterTurns");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -1635,6 +1637,134 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertEquals(transformType, savedTransform.type());
             assertEquals(identityMatrix(),
                     savedTransform.properties().get(TRANSFORM));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteRotatedBoxInsertionSurvivesSaveReloadAndFurtherSignedEdit()
+            throws Exception {
+        StableId appendedId = StableId.parse(
+                "67676767-6767-4767-8767-676767676767");
+        WidgetTypeId rotatedBoxType = new WidgetTypeId(
+                "flutter.widgets.RotatedBox");
+        PropertyValue.IntegerValue initialTurns =
+                new PropertyValue.IntegerValue(java.math.BigInteger.ONE);
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_rotated_box_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("RotatedBox("));
+                        assertTrue(request.content().contains("quarterTurns: 1"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            rotatedBoxType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal RotatedBox insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append RotatedBox to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode rotatedBox = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(rotatedBoxType, rotatedBox.type());
+            assertEquals(initialTurns,
+                    rotatedBox.properties().get(QUARTER_TURNS));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    rotatedBox.slots().get(CHILD)).child().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            assertArrayEquals(candidateDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(candidateFd, Files.readAllBytes(fixture.fdPath()));
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_rotated_box_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedRotatedBox = findModelWidget(
+                    reopened.document().orElseThrow().root(), appendedId);
+            assertNotNull(reopenedRotatedBox);
+            assertEquals(initialTurns,
+                    reopenedRotatedBox.properties().get(QUARTER_TURNS));
+
+            PropertyValue.IntegerValue editedTurns =
+                    new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(-3));
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("quarterTurns: -3"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    appendedId, QUARTER_TURNS, editedTurns),
+                            "RotatedBox.quarterTurns")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot changed =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(editedTurns,
+                    findModelWidget(changed.document().orElseThrow().root(), appendedId)
+                            .properties().get(QUARTER_TURNS));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(editedTurns,
+                    findModelWidget(saved.root(), appendedId)
+                            .properties().get(QUARTER_TURNS));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

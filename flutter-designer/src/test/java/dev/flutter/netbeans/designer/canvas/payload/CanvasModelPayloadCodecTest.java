@@ -104,6 +104,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
+                "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -615,6 +616,31 @@ class CanvasModelPayloadCodecTest {
                 + "\"type\":\"FilterQuality\",\"value\":\"high\"}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"78f43c7c-af2c-4c5e-a944-0cfb5bf1a20f\""), json);
+    }
+
+    @Test
+    void projectsRotatedBoxSignedTurnsAndChildWithoutChangingProtocolV14()
+            throws Exception {
+        WidgetNode rotated = new WidgetNode(
+                id("72c25af9-7cb4-4bad-b149-bcc4639626d8"),
+                type("flutter.widgets.RotatedBox"),
+                Map.of(new PropertyName("quarterTurns"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(-3))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "e6a3ba4c-b00a-4f73-9355-40c26a4c03c8",
+                        "Rotated child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), rotated))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains(
+                "\"type\":\"flutter.widgets.RotatedBox\""), json);
+        assertTrue(json.contains(
+                "\"quarterTurns\":{\"kind\":\"integer\",\"value\":-3}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"e6a3ba4c-b00a-4f73-9355-40c26a4c03c8\""), json);
     }
 
     @Test

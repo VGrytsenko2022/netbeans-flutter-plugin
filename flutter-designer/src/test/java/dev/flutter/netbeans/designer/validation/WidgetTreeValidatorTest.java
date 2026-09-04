@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.DartNumericLiterals;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
@@ -1159,6 +1160,98 @@ class WidgetTreeValidatorTest {
             assertEquals("/root/slots/child/child", issue.path());
             assertTrue(issue.message().contains(
                     "flutter.widgets.Transform.child"));
+        }
+    }
+
+    @Test
+    void acceptsRotatedBoxSignedPortableTurnsAndOptionalChild() {
+        for (BigInteger turns : List.of(
+                DartNumericLiterals.MIN_PORTABLE_INTEGER,
+                BigInteger.valueOf(-3),
+                BigInteger.ZERO,
+                BigInteger.ONE,
+                DartNumericLiterals.MAX_PORTABLE_INTEGER)) {
+            WidgetNode rotated = rotatedBox(
+                    "rotated-" + turns,
+                    Map.of(name("quarterTurns"),
+                            new PropertyValue.IntegerValue(turns)),
+                    turns.equals(BigInteger.ONE) ? text("rotatedText") : null);
+            assertTrue(validator().validate(
+                    document(rotated), BuiltInWidgetCatalog.getDefault()).valid(),
+                    turns.toString());
+        }
+    }
+
+    @Test
+    void rotatedBoxRejectsMissingWrongUnknownAndOutOfRangeTurnsAtExactPaths() {
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(rotatedBox("missingTurns", Map.of(), null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.MISSING_PROPERTY);
+        assertEquals("/root/properties/quarterTurns", missing.path());
+
+        ValidationIssue wrongKind = onlyIssue(
+                validator().validate(
+                        document(rotatedBox(
+                                "wrongTurnsKind",
+                                Map.of(name("quarterTurns"),
+                                        new PropertyValue.StringValue("1")),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/quarterTurns", wrongKind.path());
+
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(rotatedBox(
+                                "unknownTurnsProperty",
+                                Map.of(
+                                        name("quarterTurns"),
+                                        new PropertyValue.IntegerValue(BigInteger.ONE),
+                                        name("angle"),
+                                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                                null)),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/angle", unknown.path());
+
+        for (BigInteger turns : List.of(
+                DartNumericLiterals.MIN_PORTABLE_INTEGER.subtract(BigInteger.ONE),
+                DartNumericLiterals.MAX_PORTABLE_INTEGER.add(BigInteger.ONE))) {
+            ValidationIssue range = onlyIssue(
+                    validator().validate(
+                            document(rotatedBox(
+                                    "outOfRangeTurns-" + turns,
+                                    Map.of(name("quarterTurns"),
+                                            new PropertyValue.IntegerValue(turns)),
+                                    null)),
+                            BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.PROPERTY_CONSTRAINT);
+            assertEquals("/root/properties/quarterTurns", range.path());
+        }
+    }
+
+    @Test
+    void rotatedBoxChildEnforcesGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("rotatedExpanded", Map.of(), text("rotatedExpandedText")),
+                flexible("rotatedFlexible", Map.of(), text("rotatedFlexibleText")),
+                spacer("rotatedSpacer", Map.of()))) {
+            WidgetNode rotated = rotatedBox(
+                    "rotated-" + restricted.type().value(),
+                    Map.of(name("quarterTurns"),
+                            new PropertyValue.IntegerValue(BigInteger.ONE)),
+                    restricted);
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(rotated), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/child/child", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.RotatedBox.child"));
         }
     }
 
@@ -2949,6 +3042,16 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             WidgetNode child) {
         return node(idSeed, "flutter.widgets.Transform", properties, Map.of(
+                slotName("child"), child == null
+                        ? WidgetSlot.SingleSlot.empty()
+                        : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode rotatedBox(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            WidgetNode child) {
+        return node(idSeed, "flutter.widgets.RotatedBox", properties, Map.of(
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));

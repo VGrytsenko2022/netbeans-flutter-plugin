@@ -78,7 +78,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `Wrap`, `Container`, `Opacity` and `Transform`,
+`ListView`, `Wrap`, `Container`, `Opacity`, `Transform` and `RotatedBox`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -206,7 +206,7 @@ never apply a top-level suggested screen rectangle to that child, while a
 standalone runner retains the normal suggested-rectangle behavior.
 
 An empty Row, Column, ListView, Wrap, FittedBox, ConstrainedBox,
-UnconstrainedBox, LimitedBox or OverflowBox keeps its real Flutter layout (including
+UnconstrainedBox, LimitedBox, OverflowBox or RotatedBox keeps its real Flutter layout (including
 zero-size outcomes) but receives a non-layout-affecting 36-pixel-minimum
 selection outline and hit rectangle. Its whole bounded rectangle is insertion
 index zero; a populated Row, Column or ListView exposes only its terminal append
@@ -229,9 +229,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-34 reviewed Canvas widgets. Palette insertion evaluates 1,122 exact
-source/destination cells across 34 draggable sources and 33 insertable reviewed
-slots; 969 are accepted and 153 cells are rejected. Expanded and Flexible are
+35 reviewed Canvas widgets. Palette insertion evaluates 1,190 exact
+source/destination cells across 35 draggable sources and 34 insertable reviewed
+slots; 1,032 are accepted and 158 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -554,3 +554,22 @@ constructors are intentionally outside this slice. The aggregate catalog now
 has 34 widgets; 34 sources across 33 insertable destinations form 1,122 cells,
 with 969 accepted and 153 rejected. Canvas model protocol is v14; NBFC framing,
 control and wire remain v1.
+
+[`flutter.widgets.RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+is the fifteenth post-core Canvas widget. Its exact constructor projection
+requires one signed integer `quarterTurns` value and exposes one optional
+single any-widget `child`. Palette creation starts at one clockwise quarter
+turn. The runner accepts the full portable signed-integer range from
+`-9007199254740991` through `9007199254740991`; missing, mistyped and
+out-of-range values fail closed before rendering.
+
+Native and exact-Web views construct the real layout-time `RotatedBox`. Odd
+quarter turns therefore exchange the child's width and height during layout,
+negative values rotate counter-clockwise, and multiples of four preserve its
+orientation. Empty or truly zero-size instances receive only the bounded
+Designer selection/drop target, while populated instances expose the real child
+geometry and the optional `child` drop slot. The aggregate catalog now has 35
+widgets; 35 sources across 34 insertable destinations form 1,190 cells, with
+1,032 accepted and 158 rejected. The practical Material/Base backlog is 35/92
+complete with 57 remaining, and Layout contains 27 items. Canvas model protocol
+remains v14; NBFC framing, control and wire remain v1.

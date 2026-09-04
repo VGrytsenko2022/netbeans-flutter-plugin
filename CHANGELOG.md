@@ -7,6 +7,30 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+  vertical slice is the fifteenth post-core Palette addition, at Layout order
+  210 immediately after Transform. Its complete pinned Flutter 3.44.8 non-`key`
+  contract exposes required signed portable-integer `quarterTurns` and one
+  optional single any-widget `child`. New instances persist `quarterTurns: 1`
+  so the layout-time rotation is immediately visible; every integer from
+  `-9007199254740991` through `9007199254740991` remains exact on native Dart
+  and Web, while values outside that shared range fail validation. Generated
+  Dart and native and exact-Web Canvas construct the real Flutter RotatedBox:
+  odd turns swap the child's layout axes, even turns retain them, and Flutter
+  reduces painting to the equivalent rotation modulo four without replacing
+  the stored integer. Empty nodes retain only a bounded 36x36,
+  non-layout-affecting Designer selection/drop target. Exact property and slot
+  editing, Palette/tree/Canvas DnD, same-tree movement, deterministic
+  generation, Save/reopen and further signed editing, Undo/Redo and reviewed
+  light/dark SVG icons share one closed contract. The catalog now contains 35
+  widgets, 30 reviewed const constructors and 675 writable rows, including 658
+  across the 34 non-`Scaffold` definitions. Thirty-five sources across 32
+  insertable any-widget and two trait-bound destinations form 1,190 DnD
+  candidates: 1,032 accepted and 158 rejected. Layout contains 27 items, and
+  the practical 92-widget backlog is 35/92 complete with 57 remaining. `.fd`
+  stays at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remain v1.
+- The accepted const
   [`flutter.widgets.Transform`](https://api.flutter.dev/flutter/widgets/Transform/Transform.html)
   vertical slice is the fourteenth post-core Palette addition, at Layout order
   200 immediately after SizedOverflowBox. Its complete pinned Flutter 3.44.8

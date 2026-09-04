@@ -383,6 +383,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(transform));
     }
 
+    @Test
+    void rotatedBoxIsAnOrdinaryInsertableWidgetWithRestrictedAnyWidgetChild() {
+        WidgetDefinition rotated = definition("flutter.widgets.RotatedBox");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(rotated).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), rotated));
+        assertTrue(WidgetPlacementRules.accepts(
+                rotated, slot(rotated, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    rotated,
+                    slot(rotated, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.RotatedBox.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(rotated));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(rotated));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(rotated));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

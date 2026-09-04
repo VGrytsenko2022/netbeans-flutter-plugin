@@ -19,11 +19,11 @@ with `ListView`, ADR-048 begins the post-core surface with `Wrap`, ADR-049 adds
 ADR-052 adds `LimitedBox`, ADR-053 adds `OverflowBox`, ADR-054 adds `Flexible`,
 ADR-055 adds `Spacer`, ADR-056 adds `Baseline`, ADR-057 adds `IntrinsicHeight`,
 ADR-058 adds `IntrinsicWidth`, ADR-059 adds `Offstage`, ADR-060 adds
-`SizedOverflowBox`, and ADR-061 establishes the current `Transform` surface:
-674 typed rows across thirty-four widgets, twenty-nine const-constructor
-definitions and 1,122 Palette/DnD candidates, including 969 accepted and 153
-rejected cells. ADR-062 supersedes only ADR-045's requirement that Image
-creation be blocked until a real declared asset exists. The 657-field
+`SizedOverflowBox`, and ADR-061 adds `Transform`. ADR-062 supersedes only
+ADR-045's requirement that Image creation be blocked until a real declared
+asset exists. ADR-063 establishes the current `RotatedBox` surface: 675 typed
+rows across thirty-five widgets, thirty const-constructor definitions and 1,190
+Palette/DnD candidates, including 1,032 accepted and 158 rejected cells. The 658-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -33,7 +33,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-061 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-063 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -278,7 +278,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-061 make 657 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-063 make 658 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -294,8 +294,9 @@ required properties plus optional child slot, IntrinsicHeight's property-free
 optional child slot, IntrinsicWidth's two optional step properties plus optional
 child slot, Offstage's optional boolean plus optional child slot, and
 SizedOverflowBox's required structured size, optional alignment and optional
-child slot, and Transform's required matrix, optional origin/alignment/hit-test/
-filter values and optional child slot.
+child slot, Transform's required matrix, optional origin/alignment/hit-test/
+filter values and optional child slot, and RotatedBox's required signed portable
+`quarterTurns` plus optional child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -328,8 +329,10 @@ and 128 rejected), ADR-057 established the thirty-source, 870-candidate matrix
 930-candidate matrix (792 accepted and 138 rejected), ADR-059 established the
 thirty-two-source, 992-candidate matrix (849 accepted and 143 rejected), and
 ADR-060 established the thirty-three-source, 1,056-candidate matrix (908
-accepted and 148 rejected), and ADR-061 establishes the current
-thirty-four-source, 1,122-candidate matrix (969 accepted and 153 rejected).
+accepted and 148 rejected), ADR-061 established the thirty-four-source,
+1,122-candidate matrix (969 accepted and 153 rejected), and ADR-063 establishes
+the current thirty-five-source, 1,190-candidate matrix (1,032 accepted and 158
+rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -339,7 +342,7 @@ protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `ListView`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -354,12 +357,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated thirty-four-widget model for Mobile, Tablet,
+Canvas now renders the validated thirty-five-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those thirty-four Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,122-cell candidate matrix across thirty-one insertable any-widget and
-two trait-bound destination slots; 969 cells are accepted and 153 rejected.
+those thirty-five Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,190-cell candidate matrix across thirty-two insertable any-widget and
+two trait-bound destination slots; 1,032 cells are accepted and 158 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. Canvas model
@@ -2474,3 +2477,49 @@ asset restores the ordinary const `AssetImage`/`ExactAssetImage` path. Drop
 admission continues to fail closed for stale authority, incompatible or
 ambiguous destinations and other catalog violations, but not for image-inventory
 availability.
+
+## ADR-063 — RotatedBox follows Transform with layout-time quarter turns
+
+Accepted. No widget after Transform had a pre-assigned repository order. The
+next practical complete slice is the const
+[`flutter.widgets.RotatedBox(...)`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+constructor from `package:flutter/widgets.dart`, published in the **Layout**
+Palette category at order 210 immediately after Transform. Flutter also lists
+RotatedBox beside Transform in its Painting/effects catalog, but RotatedBox
+applies its integral rotation before layout and therefore belongs with the
+Designer's structural layout tools. Delegate-based CustomSingleChildLayout and
+CustomMultiChildLayout remain unadmitted rather than introducing arbitrary Dart
+expressions.
+
+The complete reviewed non-`key` Flutter 3.44.8 constructor surface contains
+required named integer `quarterTurns` and one optional single any-widget
+`child`, in constructor order. A detached prototype stores `quarterTurns: 1`
+so creation has an immediately visible clockwise quarter turn. The value may be
+negative and is restricted to Dart's exact shared native/Web interval
+`-9007199254740991..9007199254740991`; missing, wrong-kind and out-of-range
+values fail closed. No constructor branch is omitted.
+
+Generated Dart and both Canvas projections construct the real Flutter
+RotatedBox. Odd turns flip incoming constraints and exchange the child's layout
+axes; even turns retain them. Flutter paints and hit-tests the corresponding
+modulo-four rotation while the Designer preserves the exact signed integer for
+Properties, persistence and Undo/Redo. Selection and drop instrumentation uses
+the actual laid-out render box, with a bounded 36x36 target only when the real
+result is zero-sized. Property and exact-slot editing, Palette/tree/Canvas DnD,
+same-tree movement, Save/reopen and further signed editing share this contract.
+
+RotatedBox adds one writable row, one ordinary source and one insertable
+any-widget destination to ADR-061. The resulting surface contains 675 writable
+rows, with 658 outside Scaffold, across 35 widgets and 30 const-constructor
+definitions. Thirty-five sources across 32 any-widget plus two trait-bound
+destinations form 1,190 candidates. The new destination accepts 31 old
+unrestricted sources and rejects Expanded, Flexible and Spacer; the new source
+enters all 32 any-widget destinations and neither trait-bound destination. This
+adds 63 accepted and five rejected cells, producing 1,032 accepted and 158
+rejected overall. The Layout Palette contains 27 items.
+
+The practical Material/Base Designer backlog is now 35/92 complete, with 57
+remaining. This is a project planning target, not a normative complete list of
+Flutter widgets. Existing integer, slot and payload encodings cover the full
+constructor, so `.fd` remains v9, Catalog API remains 8 and Canvas model remains
+v14; NBFC framing plus Canvas control/wire remain version 1.

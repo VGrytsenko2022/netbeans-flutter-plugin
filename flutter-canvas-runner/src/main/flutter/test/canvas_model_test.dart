@@ -3034,6 +3034,153 @@ void main() {
     );
   });
 
+  test('decodes required signed portable RotatedBox turns and child', () {
+    Map<String, Object?> model({
+      required int quarterTurns,
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '81cdfd65-c958-40cf-ab25-3494d1a9e1fc',
+        'flutter.widgets.RotatedBox',
+        properties: {
+          'quarterTurns': {'kind': 'integer', 'value': quarterTurns},
+        },
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final quarterTurns in const [
+      -maxCanvasSequence,
+      -1,
+      0,
+      1,
+      maxCanvasSequence,
+    ]) {
+      final decoded = _decode(model(quarterTurns: quarterTurns)).root;
+      expect(decoded.type, 'flutter.widgets.RotatedBox');
+      expect(decoded.properties['quarterTurns']!.kind, 'integer');
+      expect(decoded.properties['quarterTurns']!.value, quarterTurns);
+      expect(decoded.slot('child'), isNull);
+    }
+
+    final text = _node(
+      '908cd88b-2ffd-449a-9af8-a7e31dcc0055',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Rotated child'},
+      },
+    );
+    final occupied = _decode(
+      model(quarterTurns: -5, slots: {'child': _single(text)}),
+    ).root;
+    expect(occupied.properties['quarterTurns']!.value, -5);
+    expect(occupied.slot('child')!.child!.type, 'flutter.widgets.Text');
+  });
+
+  test('rejects invalid RotatedBox turns, slots, and flex children', () {
+    Map<String, Object?> rotated({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) => _node(
+      '81cdfd65-c958-40cf-ab25-3494d1a9e1fc',
+      'flutter.widgets.RotatedBox',
+      properties: properties,
+      slots: slots,
+    );
+
+    Map<String, Object?> rootWith(Map<String, Object?> root) {
+      final json = _modelJson();
+      json['root'] = root;
+      return json;
+    }
+
+    for (final invalid in <Map<String, Object?>>[
+      const {},
+      const {
+        'quarterTurns': {'kind': 'double', 'value': 1.0},
+      },
+      const {
+        'quarterTurns': {'kind': 'integer', 'value': maxCanvasSequence + 1},
+      },
+      const {
+        'quarterTurns': {'kind': 'integer', 'value': -maxCanvasSequence - 1},
+      },
+      const {
+        'quarterTurns': {'kind': 'integer', 'value': 1},
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(rootWith(rotated(properties: invalid))),
+        throwsFormatException,
+        reason: invalid.toString(),
+      );
+    }
+
+    const validTurns = {
+      'quarterTurns': {'kind': 'integer', 'value': 1},
+    };
+    expect(
+      () => _decode(
+        rootWith(
+          rotated(properties: validTurns, slots: {'child': _list(const [])}),
+        ),
+      ),
+      throwsFormatException,
+    );
+
+    final text = _node(
+      '908cd88b-2ffd-449a-9af8-a7e31dcc0055',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Invalid flex child'},
+      },
+    );
+    for (final flexType in const [
+      'flutter.widgets.Expanded',
+      'flutter.widgets.Flexible',
+      'flutter.widgets.Spacer',
+    ]) {
+      final flexChild = _node(
+        '52f7536c-b092-47dc-aa34-ad28d8bad093',
+        flexType,
+        slots: flexType == 'flutter.widgets.Spacer'
+            ? const {}
+            : {'child': _single(text)},
+      );
+      expect(
+        () => _decode(
+          rootWith(
+            rotated(
+              properties: validTurns,
+              slots: {'child': _single(flexChild)},
+            ),
+          ),
+        ),
+        throwsFormatException,
+        reason: '$flexType is legal only in Row.children or Column.children',
+      );
+    }
+  });
+
+  test('RotatedBox reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.RotatedBox\n');
+    final end = contract.indexOf('W|flutter.widgets.Row\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.RotatedBox\n'
+      'P|quarterTurns|integer|1|integer:1|'
+      'integer:-9007199254740991:1:9007199254740991:1|'
+      'integer:range:-9007199254740991:1:9007199254740991:1\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
   test('decodes required SizedOverflowBox size, alignment, and child', () {
     Map<String, Object?> model({
       required Map<String, Object?> properties,

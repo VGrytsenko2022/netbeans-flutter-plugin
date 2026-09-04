@@ -55,6 +55,7 @@ public final class BuiltInWidgetCatalog {
             offstage(),
             sizedOverflowBox(),
             transform(),
+            rotatedBox(),
             listView(),
             image(),
             elevatedButton(),
@@ -1100,6 +1101,24 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition rotatedBox() {
+        return widget(
+                "flutter.widgets.RotatedBox",
+                "RotatedBox",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 210, "RotatedBox"),
+                List.of(namedProperty(
+                        "quarterTurns",
+                        0,
+                        true,
+                        portableIntegers(),
+                        new PropertyValue.IntegerValue(BigInteger.ONE))),
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition listView() {
         List<PropertyDefinition> properties = List.of(
                 namedProperty("scrollDirection", 0, false,
@@ -1664,6 +1683,12 @@ public final class BuiltInWidgetCatalog {
     private static List<PropertyValueConstraint> positiveIntegers() {
         return List.of(new PropertyValueConstraint.IntegerRange(
                 BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER));
+    }
+
+    private static List<PropertyValueConstraint> portableIntegers() {
+        return List.of(new PropertyValueConstraint.IntegerRange(
+                DartNumericLiterals.MIN_PORTABLE_INTEGER,
+                DartNumericLiterals.MAX_PORTABLE_INTEGER));
     }
 
     private static List<PropertyValueConstraint> maxLengthIntegers() {

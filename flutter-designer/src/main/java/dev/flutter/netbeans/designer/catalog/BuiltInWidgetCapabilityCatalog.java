@@ -176,6 +176,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Offstage", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SizedOverflowBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Transform", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.RotatedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -194,6 +195,12 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final CanvasNumericBounds POSITIVE_PORTABLE_INTEGER =
             bounds(
                     BigDecimal.ONE,
+                    true,
+                    new BigDecimal(DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                    true);
+    private static final CanvasNumericBounds SIGNED_PORTABLE_INTEGER =
+            bounds(
+                    new BigDecimal(DartNumericLiterals.MIN_PORTABLE_INTEGER),
                     true,
                     new BigDecimal(DartNumericLiterals.MAX_PORTABLE_INTEGER),
                     true);
@@ -232,6 +239,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     private static final Map<PropertyValueKind, CanvasNumericBounds>
             POSITIVE_INTEGER_BOUNDS = Map.of(
                     PropertyValueKind.INTEGER, POSITIVE_PORTABLE_INTEGER);
+    private static final Map<PropertyValueKind, CanvasNumericBounds>
+            SIGNED_PORTABLE_INTEGER_BOUNDS = Map.of(
+                    PropertyValueKind.INTEGER, SIGNED_PORTABLE_INTEGER);
     private static final Map<PropertyValueKind, CanvasNumericBounds>
             NON_NEGATIVE_INTEGER_BOUNDS = Map.of(
                     PropertyValueKind.INTEGER, NON_NEGATIVE_PORTABLE_INTEGER);
@@ -471,6 +481,13 @@ public final class BuiltInWidgetCapabilityCatalog {
                     enumProperty(
                             "filterQuality", "FilterQuality",
                             "none", "low", "medium", "high")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.RotatedBox", projection(Map.ofEntries(
+                    requiredDefaultNumericProperty(
+                            "quarterTurns",
+                            "integer:1",
+                            SIGNED_PORTABLE_INTEGER_BOUNDS,
+                            PropertyValueKind.INTEGER)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
@@ -1950,6 +1967,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         if (value instanceof PropertyValue.DoubleValue decimal) {
             return "double:" + decimalText(decimal.value());
+        }
+        if (value instanceof PropertyValue.IntegerValue integer) {
+            return "integer:" + integer.value();
         }
         if (value instanceof PropertyValue.EnumValue enumValue) {
             return "enum:" + enumValue.type() + ':' + enumValue.value();

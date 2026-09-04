@@ -3173,6 +3173,12 @@ const _nonNegativeNumberBounds = <String, _NumericBounds>{
 const _nonNegativeIntegerBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(minimum: 0, maximum: maxCanvasSequence),
 };
+const _signedPortableIntegerBounds = <String, _NumericBounds>{
+  'integer': _NumericBounds(
+    minimum: -maxCanvasSequence,
+    maximum: maxCanvasSequence,
+  ),
+};
 const _textFieldMaxLengthIntegerBounds = <String, _NumericBounds>{
   'integer': _NumericBounds(minimum: -1, maximum: maxCanvasSequence),
 };
@@ -3806,6 +3812,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
         creationDefaultFingerprint: 'size:100,100',
       ),
       'alignment': _PropertySpec({'alignmentGeometry'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.RotatedBox': _WidgetSpec(
+    {
+      'quarterTurns': _PropertySpec(
+        {'integer'},
+        required: true,
+        creationDefaultFingerprint: 'integer:1',
+        numericBounds: _signedPortableIntegerBounds,
+      ),
     },
     {'child': _optionalSingleSlot},
   ),
@@ -5281,6 +5298,9 @@ P|minWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 S|child|single|0|0|1|any
 W|flutter.widgets.Padding
 P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+S|child|single|0|0|1|any
+W|flutter.widgets.RotatedBox
+P|quarterTurns|integer|1|integer:1|integer:-9007199254740991:1:9007199254740991:1|integer:range:-9007199254740991:1:9007199254740991:1
 S|child|single|0|0|1|any
 W|flutter.widgets.Row
 P|crossAxisAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:CrossAxisAlignment:baseline,center,end,start,stretch

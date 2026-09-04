@@ -622,6 +622,39 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void rotatedBoxFamilyUsesExactReviewedQuarterTurnGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "rotatedbox.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=6, rx=1, stroke-width=1, width=9, x=3.5, y=5]",
+                "path[d=M3.5 5A5 5 0 0 1 12 3.5M12 3.5v3M12 3.5H9, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=1]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=12, rx=2, stroke-width=2, width=18, x=7, y=10]",
+                "path[d=M7 10A10 10 0 0 1 24 7M24 7v6M24 7h-6, "
+                + "stroke-linecap=round, stroke-linejoin=round, stroke-width=2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#D7F1FC, stroke=#42A5F5]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#294B5C, stroke=#64B5F6]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void flexibleFamilyUsesExactReviewedLooseFlexGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "flexible.svg";
@@ -1132,6 +1165,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.SizedOverflowBox",
                 ICON_ROOT + "sizedoverflowbox.svg");
         expected.put("flutter.widgets.Transform", ICON_ROOT + "transform.svg");
+        expected.put("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);

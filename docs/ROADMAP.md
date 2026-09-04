@@ -1136,6 +1136,26 @@ accepted architecture is documented in
   accepted and 153 rejected. The practical 92-widget backlog is 34/92 complete
   with 58 remaining. `.fd` schema is v9, Catalog API is 8 and Canvas model is
   v14; NBFC framing/control/wire remains v1.
+- [x] Complete const
+  [`RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+  as the fifteenth post-core Palette vertical slice at Layout order 210,
+  immediately after Transform. Its complete non-`key` Flutter 3.44.8 constructor
+  surface exposes required signed portable-integer `quarterTurns` and one
+  optional single any-widget `child`. Detached prototypes store `1`; validation
+  accepts exactly `-9007199254740991..9007199254740991` so native and Web emit
+  the same integer. Generated Dart and both Canvas projections construct the
+  real layout-time RotatedBox: odd turns exchange the child's axes, even turns
+  retain them, and Flutter paints the modulo-four equivalent without replacing
+  the exact stored value. Complete property and exact-slot editing,
+  Palette/tree/Canvas DnD, same-tree movement, deterministic generation,
+  Save/reopen and further signed editing, Undo/Redo, reviewed light/dark SVG
+  icons and focused contract tests. The current surface is 35 widgets, 30 const
+  definitions and 675 rows (658 outside Scaffold), with 27 Layout items.
+  Thirty-five sources across 32 insertable any-widget plus two trait
+  destinations form 1,190 candidates: 1,032 accepted and 158 rejected. The
+  practical 92-widget backlog is 35/92 complete with 57 remaining. `.fd` stays
+  at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1153,8 +1173,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after Transform has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-four
+  vertical slices. No specific widget after RotatedBox has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty-five
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

@@ -1535,6 +1535,90 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
+    void rotatedBoxProjectsRequiredSignedQuarterTurnsAndOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.RotatedBox");
+        StableId id = StableId.parse("de241b46-a5eb-4afe-b751-49336fcbd421");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("quarterTurns"), names(properties.getProperties()));
+        assertEquals(
+                "Required signed quarter-turn rotation applied before layout and optional "
+                + "child contract for the selected RotatedBox widget.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> quarterTurns = cellProperty(
+                property(node, "quarterTurns"));
+        assertAll(
+                () -> assertEquals("Quarter turns", quarterTurns.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.IntegerValue(BigInteger.ONE)),
+                        quarterTurns.getValue()),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "clockwise quarter turns")),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "Negative values rotate counter-clockwise")),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "multiples of four preserve orientation")),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "odd values swap the child's width and height")),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "creation starts at 1")),
+                () -> assertTrue(quarterTurns.getShortDescription().contains(
+                        "cannot be unset")),
+                () -> assertFalse(quarterTurns.supportsDefaultValue()),
+                () -> assertFalse(quarterTurns.isDefaultValue()));
+
+        PropertyEditor editor = quarterTurns.getPropertyEditor();
+        editor.setAsText("-3");
+        FlutterPropertyCellValue counterClockwise = cell(editor);
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(-3)),
+                counterClockwise.explicitValue().orElseThrow());
+        editor.setAsText("9007199254740991");
+        assertEquals(
+                new PropertyValue.IntegerValue(new BigInteger("9007199254740991")),
+                cell(editor).explicitValue().orElseThrow());
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("9007199254740992"));
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("-9007199254740992"));
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("1.5"));
+        assertThrows(IllegalArgumentException.class,
+                () -> quarterTurns.setValue(FlutterPropertyCellValue.unset()));
+
+        quarterTurns.setValue(counterClockwise);
+        quarterTurns.restoreDefaultValue();
+        assertEquals(List.of(new SetProperty(
+                        id,
+                        new PropertyName("quarterTurns"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(-3)))),
+                commands,
+                "required quarterTurns never exposes Restore Default");
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "rotated clockwise")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "before layout")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Odd turns swap the child's width and height")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "negative turns rotate counter-clockwise")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
+    }
+
+    @Test
     void opacityProjectsRequiredUnitDoubleOptionalSemanticsAndControllableChild()
             throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Opacity");
@@ -3564,7 +3648,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyFourCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyFiveCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3597,6 +3681,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
+                "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3628,7 +3713,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(34, iconPaths.size(),
+        assertEquals(35, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

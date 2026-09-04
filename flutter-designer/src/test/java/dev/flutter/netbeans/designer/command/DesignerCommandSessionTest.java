@@ -83,6 +83,7 @@ class DesignerCommandSessionTest {
     private static final PropertyName TRANSFORM_HIT_TESTS =
             property("transformHitTests");
     private static final PropertyName FILTER_QUALITY = property("filterQuality");
+    private static final PropertyName QUARTER_TURNS = property("quarterTurns");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -1006,6 +1007,95 @@ class DesignerCommandSessionTest {
                 StandardCharsets.UTF_8);
         assertTrue(editedDart.contains("origin: const Offset(0.0, -8.0)"),
                 editedDart);
+    }
+
+    @Test
+    void rotatedBoxSignedTurnsChildUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(fixture(text(FIRST_ID, "Anchor")));
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.RotatedBox")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ONE),
+                prototype.properties().get(QUARTER_TURNS));
+        assertTrue(((WidgetSlot.SingleSlot) prototype.slots().get(CHILD))
+                .child().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 0), prototype));
+        DesignerCommandSession childAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILD, 0),
+                text(THIRD_ID, "Rotated child")));
+        DesignerCommandSession moved = applied(childAdded, new MoveWidget(
+                WRAPPER_ID, new WidgetPlacement(ROOT_ID, CHILDREN, 1)));
+        assertEquals(List.of(FIRST_ID, WRAPPER_ID), rootChildIds(moved));
+        DesignerCommandSession edited = applied(moved, new SetProperty(
+                WRAPPER_ID,
+                QUARTER_TURNS,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(-3))));
+
+        assertRejected(edited, new ResetProperty(WRAPPER_ID, QUARTER_TURNS),
+                DesignerCommandDiagnosticCode.PROPERTY_REQUIRED);
+        assertRejected(edited, new SetProperty(
+                        WRAPPER_ID,
+                        QUARTER_TURNS,
+                        new PropertyValue.StringValue("-3")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(edited, new SetProperty(
+                        WRAPPER_ID,
+                        QUARTER_TURNS,
+                        new PropertyValue.IntegerValue(
+                                dev.flutter.netbeans.designer.catalog
+                                        .DartNumericLiterals.MAX_PORTABLE_INTEGER
+                                        .add(BigInteger.ONE))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        String editedDart = new String(
+                edited.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(editedDart.contains("const RotatedBox("), editedDart);
+        assertTrue(editedDart.contains("quarterTurns: -3"), editedDart);
+        assertTrue(editedDart.contains(
+                "child: const Text('Rotated child')"), editedDart);
+        assertTrue(editedDart.indexOf("quarterTurns: -3")
+                < editedDart.indexOf("child: const Text('Rotated child')"),
+                editedDart);
+
+        DesignerCommandSession undone = edited.undo().session();
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.ONE), find(
+                undone.current().document().root(), WRAPPER_ID)
+                .properties().get(QUARTER_TURNS));
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(edited.current().fdBytes(), redone.current().fdBytes());
+        assertArrayEquals(edited.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redone.markSaved();
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession furtherEdited = applied(reopened, new SetProperty(
+                WRAPPER_ID,
+                QUARTER_TURNS,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(5))));
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(5)), find(
+                furtherEdited.current().document().root(), WRAPPER_ID)
+                .properties().get(QUARTER_TURNS));
+        assertTrue(new String(
+                        furtherEdited.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("quarterTurns: 5"));
     }
 
     @Test

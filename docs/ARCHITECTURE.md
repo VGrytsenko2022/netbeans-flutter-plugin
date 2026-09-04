@@ -164,17 +164,17 @@ atomic Offset semantic domain makes contributor Catalog API 8 the exact current
 boundary; API 1 through API 7 contributors fail
 closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, thirty-four-item context Palette, selected-node
+Canvas/tree selection edge, thirty-five-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 674 catalog-backed fields across
+Properties are writable for exactly 675 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
-`UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `AspectRatio`, `Stack`,
+`UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `AspectRatio`, `Stack`,
 `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `Wrap`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Twenty-nine of the thirty-four definitions use reviewed const
-constructors; the thirty-three non-`Scaffold` definitions account for 657 rows.
+and `Image`. Thirty of the thirty-five definitions use reviewed const
+constructors; the thirty-four non-`Scaffold` definitions account for 658 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -557,9 +557,23 @@ control/wire remain version 1. The named `Transform.rotate`, `.translate`,
 `.scale` and `.flip` convenience constructors remain explicitly outside this
 slice.
 
-The current contract admits thirty-four exact capability-gated Palette sources
-across thirty-one insertable any-widget and two `PreferredSizeWidget`
-destination slots: 1,122 candidates, of which 969 are accepted and 153 rejected.
+[`RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
+is the fifteenth post-core built-in, at Layout order 210 immediately after
+Transform. Its complete pinned Flutter 3.44.8 const constructor exposes required
+signed portable integer `quarterTurns` plus one optional any-widget `child`.
+Creation stores `1`; validation admits exactly the shared native/Web integer
+range from `-9007199254740991` through `9007199254740991`. Generated Dart and
+both Canvas projections construct the real layout-time RotatedBox: odd turns
+exchange axes, even turns retain them, and Flutter paints the modulo-four
+equivalent without changing the stored value. No schema, Catalog API, Canvas
+model or NBFC/control/wire version changes are required. The current surface has
+35 widgets, 30 reviewed const definitions, 675 writable rows (658 outside
+Scaffold) and 27 Layout items; the practical backlog is 35/92 complete with 57
+remaining.
+
+The current contract admits thirty-five exact capability-gated Palette sources
+across thirty-two insertable any-widget and two `PreferredSizeWidget`
+destination slots: 1,190 candidates, of which 1,032 are accepted and 158 rejected.
 Expanded and Flexible enter only direct `Row.children` and `Column.children`
 wrapper targets; Spacer enters those two list slots by ordinary insertion. The
 wrappers' required child slots are replacement-only and excluded
@@ -736,7 +750,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current thirty-four-definition
+historical source restriction is superseded by the current thirty-five-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -779,7 +793,7 @@ project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 when available, or stores the reserved unresolved provider when the inventory is
 empty or unavailable; only destination and authority failures reject DnD. DnD
-outside the thirty-four-source, 1,122-candidate matrix (969 accepted, 153 rejected)
+outside the thirty-five-source, 1,190-candidate matrix (1,032 accepted, 158 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -794,7 +808,7 @@ Protocol negotiation and decoding do not authorize mutation. The canonical
 protocol-v14 model payload admits only exact reviewed built-in definitions with
 the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
-`FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
+`FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`,
 `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
@@ -1005,9 +1019,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact thirty-four widgets carrying
-the Create capability. All thirty-four built-ins, including `Scaffold`, admit the
-reviewed 674-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact thirty-five widgets carrying
+the Create capability. All thirty-five built-ins, including `Scaffold`, admit the
+reviewed 675-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

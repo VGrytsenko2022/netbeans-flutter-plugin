@@ -233,6 +233,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Opacity'), const [
       canvasEmptyChildDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.RotatedBox'), const [
+      canvasEmptyChildDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.Transform'), const [
       canvasEmptyChildDropSlot,
     ]);
@@ -328,7 +331,7 @@ void main() {
     );
   });
 
-  test('closes the 34-source by 33-destination compatibility matrix', () {
+  test('closes the 35-source by 34-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -340,6 +343,7 @@ void main() {
       'flutter.widgets.IntrinsicHeight',
       'flutter.widgets.IntrinsicWidth',
       'flutter.widgets.Offstage',
+      'flutter.widgets.RotatedBox',
       'flutter.widgets.SizedOverflowBox',
       'flutter.widgets.Transform',
       'flutter.widgets.Column',
@@ -373,8 +377,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(34));
-    expect(destinations, hasLength(33));
+    expect(sourceTypes, hasLength(35));
+    expect(destinations, hasLength(34));
 
     var accepted = 0;
     var rejected = 0;
@@ -400,9 +404,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 969);
-    expect(rejected, 153);
-    expect(accepted + rejected, 1122);
+    expect(accepted, 1032);
+    expect(rejected, 158);
+    expect(accepted + rejected, 1190);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -6378,6 +6382,143 @@ void main() {
   );
 
   testWidgets(
+    'renders real RotatedBox layout for signed and large quarter turns',
+    (tester) async {
+      const widgetId = '81cdfd65-c958-40cf-ab25-3494d1a9e1fc';
+      const childId = '908cd88b-2ffd-449a-9af8-a7e31dcc0055';
+
+      Future<RenderRotatedBox> pump(int quarterTurns) async {
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithCenteredRotatedBox(
+                  quarterTurns: quarterTurns,
+                  child: _viewSizedBoxNode(childId, width: 80, height: 40),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: model,
+            selectedWidgetId: widgetId,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+        final finder = find
+            .descendant(
+              of: find.byKey(const ValueKey('canvas-widget-$widgetId')),
+              matching: find.byType(RotatedBox),
+            )
+            .first;
+        final widget = tester.widget<RotatedBox>(finder);
+        final render = tester.renderObject<RenderRotatedBox>(finder);
+        expect(widget.quarterTurns, quarterTurns);
+        expect(render.quarterTurns, quarterTurns);
+        expect(render.child!.size, const Size(80, 40));
+        return render;
+      }
+
+      const cases = <(int, Size)>[
+        (1, Size(40, 80)),
+        (-1, Size(40, 80)),
+        (maxCanvasSequence, Size(40, 80)),
+        (-maxCanvasSequence, Size(40, 80)),
+        (4, Size(80, 40)),
+        (-4, Size(80, 40)),
+      ];
+      for (final (quarterTurns, expectedSize) in cases) {
+        final render = await pump(quarterTurns);
+        expect(
+          render.size,
+          expectedSize,
+          reason: '$quarterTurns quarter turns',
+        );
+        expect(
+          MatrixUtils.transformRect(
+            render.child!.getTransformTo(render),
+            Offset.zero & render.child!.size,
+          ),
+          rectMoreOrLessEquals(Offset.zero & expectedSize),
+          reason: 'the real RenderRotatedBox must own the layout rotation',
+        );
+        expect(
+          tester.getSize(
+            find.byKey(const ValueKey('canvas-selection-outline-$widgetId')),
+          ),
+          expectedSize,
+          reason: 'selection must follow the rotated layout bounds',
+        );
+      }
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('keeps an empty large-turn RotatedBox selectable and droppable', (
+    tester,
+  ) async {
+    const widgetId = '81cdfd65-c958-40cf-ab25-3494d1a9e1fc';
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithCenteredRotatedBox(
+              quarterTurns: maxCanvasSequence,
+              child: null,
+            ),
+          ),
+        ),
+      ),
+    );
+    String? selectedWidgetId;
+    CanvasDropResolver? resolver;
+    await tester.pumpWidget(
+      StatefulBuilder(
+        builder: (context, setState) => CanvasModelApp(
+          model: model,
+          selectedWidgetId: selectedWidgetId,
+          onSelected: (id) => setState(() => selectedWidgetId = id),
+          onDropResolverChanged: (value) => resolver = value,
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump();
+
+    final finder = find.byType(RotatedBox);
+    final widget = tester.widget<RotatedBox>(finder);
+    final render = tester.renderObject<RenderRotatedBox>(finder);
+    final target = find.byKey(
+      const ValueKey('canvas-zero-size-widget-target-$widgetId'),
+    );
+    expect(widget.quarterTurns, maxCanvasSequence);
+    expect(render.quarterTurns, maxCanvasSequence);
+    expect(render.size, Size.zero);
+    expect(render.child, isNull);
+    expect(target, findsOneWidget);
+    expect(tester.getSize(target), const Size.square(36));
+
+    await tester.tap(target);
+    await tester.pump();
+    expect(selectedWidgetId, widgetId);
+
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final point = tester.getRect(target).center;
+    final drop = resolver!(
+      ((point.dx - surface.left) / surface.width * 1000000).round(),
+      ((point.dy - surface.top) / surface.height * 1000000).round(),
+    );
+    expect(drop?.parentWidgetId, widgetId);
+    expect(drop?.slotName, 'child');
+    expect(drop?.insertionIndex, 0);
+    expect(drop?.zone?.isEmpty, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
     'renders real SizedOverflowBox size, overflow constraints, and alignment',
     (tester) async {
       const widgetId = 'd01c13f5-c20d-48bf-a360-5da7b6b36c67';
@@ -10144,6 +10285,37 @@ Map<String, Object?> _modelWithCenteredOffstage({
           'id': 'aa0bc346-b863-471f-bf3a-bcaa9bbf5090',
           'type': 'flutter.widgets.Offstage',
           'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCenteredRotatedBox({
+  required int quarterTurns,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '55a1a386-b45f-4a5d-aa5d-e124e9d53851',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '81cdfd65-c958-40cf-ab25-3494d1a9e1fc',
+          'type': 'flutter.widgets.RotatedBox',
+          'properties': <String, Object?>{
+            'quarterTurns': {'kind': 'integer', 'value': quarterTurns},
+          },
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},
           },

@@ -85,6 +85,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId ROTATED_BOX = type("flutter.widgets.RotatedBox");
     private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
     private static final WidgetTypeId OVERFLOW_BAR = type("flutter.widgets.OverflowBar");
+    private static final WidgetTypeId SAFE_AREA = type("flutter.widgets.SafeArea");
     private static final WidgetTypeId LIST_VIEW = type("flutter.widgets.ListView");
     private static final WidgetTypeId GRID_VIEW = type("flutter.widgets.GridView");
     private static final WidgetTypeId SINGLE_CHILD_SCROLL_VIEW =
@@ -1113,6 +1114,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !COLORED_BOX.equals(type))
+                .filter(type -> !SAFE_AREA.equals(type))
                 .toList();
         MatrixTargetCase scrollTarget = target(
                 "SingleChildScrollView.child", SINGLE_CHILD_SCROLL_VIEW, CHILD);
@@ -1226,6 +1228,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
         List<WidgetTypeId> allSources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
                 .toList();
         MatrixTargetCase coloredBoxTarget = target(
                 "ColoredBox.child", COLORED_BOX, CHILD);
@@ -1312,6 +1315,130 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
+    void safeAreaCompletesExact1599CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
+        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> occupiedTarget(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(optionalTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, SAFE_AREA, ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "SafeArea -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Wrapped success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                        result,
+                        "SafeArea -> " + target.name());
+                WrapWidget command = success.command();
+                assertEquals(FIRST_ID, command.widgetId());
+                assertEquals(SAFE_AREA, command.wrapper().type());
+                assertTrue(command.wrapper().properties().isEmpty());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots());
+                assertEquals(CHILD, command.wrapperSlot());
+                assertEquals(0, command.wrapperIndex());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(41, BUILT_INS.definitions().size()),
+                () -> assertEquals(39, optionalTargets.size()),
+                () -> assertEquals(37, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(1599, 41 * optionalTargets.size()),
+                () -> assertEquals(1414, 1377 + accepted.get()),
+                () -> assertEquals(185, 183 + rejected.get()));
+    }
+
+    @Test
+    void safeAreaNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
+        AtomicInteger rejectedAllocations = new AtomicInteger();
+        Supplier<StableId> rejectedSupplier = () -> {
+            rejectedAllocations.incrementAndGet();
+            return NEW_ID;
+        };
+        FlutterDesignerPaletteDropPlanner.Rejected emptyList = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS,
+                        SAFE_AREA, ROOT_ID, CHILDREN, 0, rejectedSupplier));
+        FlutterDesignerPaletteDropPlanner.Rejected emptySingle = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(prototype(CENTER)), BUILT_INS,
+                        SAFE_AREA, ROOT_ID, CHILD, 0, rejectedSupplier));
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptyList.code());
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptySingle.code());
+        assertEquals(0, rejectedAllocations.get());
+
+        WidgetNode root = text(ROOT_ID, "root target");
+        FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(
+                        document(root), BUILT_INS, SAFE_AREA, ROOT_ID, () -> NEW_ID));
+        assertEquals(ROOT_ID, wrapped.command().widgetId());
+        assertEquals(NEW_ID, wrapped.command().wrapper().id());
+        assertEquals(SAFE_AREA, wrapped.command().wrapper().type());
+        assertTrue(wrapped.command().wrapper().properties().isEmpty());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                wrapped.command().wrapper().slots());
+        assertEquals(CHILD, wrapped.command().wrapperSlot());
+        assertEquals(0, wrapped.command().wrapperIndex());
+    }
+
+    @Test
+    void safeAreaRejectsWrappingFlexParentDataTargetsBeforeIdAllocation() {
+        List<WidgetNode> targets = List.of(
+                expanded(FIRST_ID, text(indexedId(20), "expanded child")),
+                flexible(FIRST_ID, text(indexedId(21), "flexible child")),
+                WidgetNodePrototypeFactory.create(definition(SPACER), FIRST_ID));
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of(target))), BUILT_INS,
+                            SAFE_AREA, ROOT_ID, CHILDREN, 0, () -> {
+                                allocations.incrementAndGet();
+                                return NEW_ID;
+                            }));
+            assertEquals(
+                    FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REJECTED,
+                    failure.code());
+            assertTrue(failure.reason().contains("must be a direct child"),
+                    failure.reason());
+            assertEquals(0, allocations.get());
+        }));
+    }
+
+    @Test
     void expandedAndFlexibleCannotWrapAnyFlexParentDataWidget() {
         record NestedCase(String name, WidgetTypeId outer, WidgetNode inner) {
         }
@@ -1351,7 +1478,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                     FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REJECTED,
                     failure.code(),
                     testCase.name());
-            assertTrue(failure.reason().contains("nesting would move the inner"),
+            assertTrue(failure.reason().contains("must be a direct child"),
                     failure.reason());
             assertEquals(0, allocations.get(), testCase.name());
         }));
@@ -1411,9 +1538,9 @@ class FlutterDesignerPaletteDropPlannerTest {
         assertEquals(
                 FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REJECTED,
                 nested.code());
-        assertTrue(nested.reason().contains("Cannot wrap Expanded '" + FIRST_ID));
-        assertTrue(nested.reason().contains("required direct Row.children or "
-                + "Column.children parent"));
+        assertTrue(nested.reason().contains("Cannot wrap 'flutter.widgets.Expanded' ('"
+                + FIRST_ID));
+        assertTrue(nested.reason().contains("must be a direct child"));
         assertEquals(0, allocations.get());
     }
 
@@ -2098,6 +2225,18 @@ class FlutterDesignerPaletteDropPlannerTest {
             WidgetTypeId parentType,
             SlotName slot) {
         return new MatrixTargetCase(name, document(prototype(parentType)), slot);
+    }
+
+    private static MatrixTargetCase occupiedTarget(
+            String name,
+            WidgetTypeId parentType,
+            SlotName slot) {
+        SlotDefinition definition = definition(parentType).slot(slot).orElseThrow();
+        WidgetNode target = text(FIRST_ID, "existing wrap target");
+        WidgetNode parent = definition.cardinality() == SlotCardinality.SINGLE
+                ? singleParent(parentType, slot, target)
+                : listParent(parentType, slot, List.of(target));
+        return new MatrixTargetCase(name, document(parent), slot);
     }
 
     private static DesignerDocument document(WidgetNode root) {

@@ -981,6 +981,39 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void safeAreaFamilyUsesExactReviewedSystemInsetGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "safearea.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=2, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "path[d=M4 3.5h8l1 2v5l-1 2H4l-1-2v-5z, stroke-linejoin=round, "
+                + "stroke-width=1]",
+                "rect[height=5, rx=1, stroke-width=1, width=6, x=5, y=5.5]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=4, stroke-width=2, width=26, x=3, y=3]",
+                "path[d=M8 7h16l2 4v10l-2 4H8l-2-4V11z, stroke-linejoin=round, "
+                + "stroke-width=2]",
+                "rect[height=10, rx=2, stroke-width=2, width=12, x=10, y=11]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "path[fill=#D7F1FC, stroke=#42A5F5]",
+                "rect[fill=#80DEEA, stroke=#00838F]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "path[fill=#31495C, stroke=#90CAF9]",
+                "rect[fill=#4DD0E1, stroke=#B2EBF2]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "wrap.svg";
@@ -1386,6 +1419,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg");
         expected.put("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg");
         expected.put("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg");
+        expected.put("flutter.widgets.SafeArea", ICON_ROOT + "safearea.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 ICON_ROOT + "gridviewcount.svg");

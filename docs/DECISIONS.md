@@ -24,10 +24,11 @@ ADR-045's requirement that Image creation be blocked until a real declared
 asset exists. ADR-063 records the completed `RotatedBox` milestone, ADR-064
 records `ListBody`, ADR-065 adds `OverflowBar`, and ADR-066 establishes the
 historical `GridView.count` surface. ADR-067 establishes the historical
-`SingleChildScrollView` surface, and ADR-068 establishes the current
-`ColoredBox` surface: 716 typed rows across forty widgets, thirty-four
-const-constructor definitions and 1,560 Palette/DnD candidates, including 1,377
-accepted and 183 rejected cells. The 699-field
+`SingleChildScrollView` surface, ADR-068 records the historical `ColoredBox`
+surface, and ADR-069 establishes the current `SafeArea` surface: 722 typed rows
+across forty-one widgets, thirty-five const-constructor definitions and 1,599
+Palette/DnD candidates, including 1,414 accepted and 185 rejected cells. The
+705-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -37,7 +38,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-068 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-069 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -108,9 +109,13 @@ contract. Typed `IconDataValue` and `PropertyValueKind.ICON_DATA` established
 `API_VERSION == 4`. ADR-039 added exported `ImageProviderValue` and established
 `API_VERSION == 5`. ADR-050 added finite-or-positive-infinite box-constraint
 bounds and established `API_VERSION == 6`; ADR-060's atomic Size value
-established `API_VERSION == 7`; ADR-061's atomic signed Offset value establishes
-the current `API_VERSION == 8`, and API-1 through API-7
-contributors fail closed before their definitions are loaded. This is not yet a permanent 1.0
+established `API_VERSION == 7`; and ADR-061's atomic signed Offset value
+established `API_VERSION == 8`. ADR-069 adds the exported
+`EdgeInsetsValues.directionalAllowed` component needed to distinguish
+SafeArea's concrete physical `EdgeInsets` parameter from broader
+`EdgeInsetsGeometry` parameters and establishes the current
+`API_VERSION == 9`. API-1 through API-8 contributors fail closed before their
+definitions are loaded. This is not yet a permanent 1.0
 compatibility promise. Further incompatible evolution should move the SPI to a
 dedicated module/new package boundary rather than silently breaking extensions
 behind an existing API version.
@@ -282,7 +287,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-068 make 699 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-069 make 705 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -305,7 +310,7 @@ rows plus ordered children slot, OverflowBar's six layout rows plus ordered
 children slot, GridView.count's 21 grouped rows plus ordered children slot,
 SingleChildScrollView's 10 grouped rows plus optional child slot, and
 ColoredBox's required theme-aware color, optional anti-aliasing and optional
-child slot.
+child slot, and SafeArea's six optional properties plus required child slot.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -347,8 +352,9 @@ thirty-seven-source, 1,332-candidate matrix (1,164 accepted and 168 rejected).
 ADR-066 established the historical thirty-eight-source, 1,406-candidate matrix
 (1,233 accepted and 173 rejected), ADR-067 established the historical
 thirty-nine-source, 1,482-candidate matrix (1,304 accepted and 178 rejected),
-and ADR-068 establishes the current forty-source, 1,560-candidate matrix (1,377
-accepted and 183 rejected).
+ADR-068 established the historical forty-source, 1,560-candidate matrix (1,377
+accepted and 183 rejected), and ADR-069 establishes the current forty-one-source,
+1,599-candidate matrix (1,414 accepted and 185 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -358,7 +364,7 @@ protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
 `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
@@ -373,15 +379,18 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-one-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,560-cell candidate matrix across thirty-seven insertable any-widget
-and two trait-bound destination slots; 1,377 cells are accepted and 183 rejected.
+those forty-one Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,599-cell candidate matrix across thirty-seven insertable any-widget
+and two trait-bound destination slots; 1,414 cells are accepted and 185 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
-required child slots are replacement-only rather than insertable. Canvas model
+required child slots are replacement-only rather than insertable. SafeArea uses
+the same generic atomic required-child wrapper mode, with tree root/non-root and
+Canvas non-root-only targets; it cannot wrap Expanded, Flexible or Spacer.
+Canvas model
 protocol v14's
 content-addressed asset-resource frames do not change ADR-021's core boundary:
 the Canvas is still rendered directly by Flutter and never transferred as a
@@ -2807,3 +2816,51 @@ remaining. This planning target is not a normative complete list of Flutter
 widgets. Existing value and slot encodings keep `.fd` schema v9, Catalog API 8
 and Canvas model v14 unchanged; NBFC framing plus Canvas control/wire remain
 version 1.
+
+## ADR-069 — SafeArea is a generic atomic required-child wrapper
+
+Accepted. [`SafeArea`](https://api.flutter.dev/flutter/widgets/SafeArea/SafeArea.html)
+is published in the **Layout** Palette category at order 240 immediately after
+`OverflowBar`. Its catalog identity is `flutter.widgets.SafeArea`, its Dart
+class is `SafeArea`, and the reviewed default constructor is const.
+
+The complete Flutter 3.44.8 surface after excluding only the common `key`
+argument contains optional `left`, `top`, `right`, `bottom`, `minimum` and
+`maintainBottomViewPadding`, followed by one required `child`. The detached
+wrapper payload omits all six properties, preserving Flutter's exact `true`,
+`EdgeInsets.zero` and `false` defaults, but is never admitted as a standalone
+node. `minimum` accepts signed finite physical `EdgeInsets`.
+`EdgeInsetsDirectional` is deliberately rejected because SafeArea declares the
+concrete physical type rather than `EdgeInsetsGeometry`. Non-finite components
+and arbitrary Dart expressions are separately rejected by the Designer's closed
+stored-value policy.
+
+A required child cannot be represented by a valid empty inserted widget.
+Creation mode is therefore derived generically from the catalog shape: exactly
+one required single any-widget `child`, with no unresolved required property,
+uses one atomic `WrapWidget` around an existing subtree. This is not a SafeArea
+type allow-list and never publishes an incomplete node. The widget-tree route
+can wrap either the document root or a non-root row. The current Canvas target
+wire resolves only non-root children and intentionally publishes no synthetic
+root target; root wrapping remains available through the tree. SafeArea cannot
+wrap Expanded, Flexible or Spacer because their ParentData must remain a direct
+child of Row or Column. Generated Dart and native/exact-Web Canvas construct the
+real widget. Save/reopen, further editing and Undo/Redo use the existing paired
+mutation pipeline, and four reviewed 16/32 px light/dark SVGs identify the
+widget.
+
+SafeArea adds six writable rows and one source, but its required occupied child
+slot is not an insertable destination. The resulting surface contains 722
+writable rows, with 705 outside Scaffold, across 41 widgets and 35
+const-constructor definitions. Forty-one sources across 37 any-widget and two
+trait-bound destinations form 1,599 candidates. The new source enters all 37
+any-widget destinations and neither trait destination, adding 37 accepted and
+two rejected cells to ADR-068: 1,414 accepted and 185 rejected overall. Layout
+contains 30 Palette items, Scrolling three, Basic four and Material four.
+
+The practical Material/Base Designer backlog is now 41/92 complete, with 51
+remaining. This planning target is not a normative complete list of Flutter
+widgets. Existing persisted and transport shapes keep `.fd` schema v9 and
+Canvas model v14 unchanged; adding the exported `directionalAllowed` component
+to `PropertyValueConstraint.EdgeInsetsValues` advances the contributor Catalog
+API to 9. NBFC framing plus Canvas control/wire remain version 1.

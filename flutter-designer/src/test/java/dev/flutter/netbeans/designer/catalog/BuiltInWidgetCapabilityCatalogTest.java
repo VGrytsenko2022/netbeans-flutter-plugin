@@ -55,6 +55,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
+            "flutter.widgets.SafeArea",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
             "flutter.widgets.SingleChildScrollView",
@@ -96,6 +97,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
+            "flutter.widgets.SafeArea",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
             "flutter.widgets.SingleChildScrollView",
@@ -113,7 +115,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortySourcesAndThirtyNineInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyOneSourcesAndThirtyNineInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -136,7 +138,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(40, sources.size());
+        assertEquals(41, sources.size());
         assertEquals(39, destinations.size());
         assertEquals(37, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -146,9 +148,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1560, candidates);
-        assertEquals(1377, accepted);
-        assertEquals(183, candidates - accepted);
+        assertEquals(1599, candidates);
+        assertEquals(1414, accepted);
+        assertEquals(185, candidates - accepted);
     }
 
     @Test
@@ -216,6 +218,61 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertTrue(contract.contains(
                 "P|isAntiAlias|boolean|0|-|-|boolean:any\n"
                 + "S|child|single|0|0|1|any\n"), contract);
+    }
+
+    @Test
+    void safeAreaHasPhysicalInsetsRequiredChildAndAtomicWrapperFingerprint() {
+        WidgetDefinition definition = definition("flutter.widgets.SafeArea");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(6, projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        for (String name : List.of(
+                "left", "top", "right", "bottom",
+                "maintainBottomViewPadding")) {
+            var property = projection.propertyContracts().get(new PropertyName(name));
+            assertFalse(property.required(), name);
+            assertEquals(Set.of(PropertyValueKind.BOOLEAN),
+                    property.acceptedKinds(), name);
+            assertTrue(property.creationDefaultFingerprint().isEmpty(), name);
+        }
+        var minimum = projection.propertyContracts()
+                .get(new PropertyName("minimum"));
+        assertFalse(minimum.required());
+        assertEquals(Set.of(PropertyValueKind.EDGE_INSETS), minimum.acceptedKinds());
+        assertEquals("*:1:*:1", minimum.numericBounds()
+                .get(PropertyValueKind.EDGE_INSETS).fingerprint());
+        assertEquals("edgeInsetsPhysical:0:*:1:*:1",
+                minimum.constraintFingerprints().get(PropertyValueKind.EDGE_INSETS));
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, true, 1, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.SafeArea\n"
+                + "P|bottom|boolean|0|-|-|boolean:any\n"
+                + "P|left|boolean|0|-|-|boolean:any\n"
+                + "P|maintainBottomViewPadding|boolean|0|-|-|boolean:any\n"
+                + "P|minimum|edgeInsets|0|-|edgeInsets:*:1:*:1|"
+                + "edgeInsets:edgeInsetsPhysical:0:*:1:*:1\n"
+                + "P|right|boolean|0|-|-|boolean:any\n"
+                + "P|top|boolean|0|-|-|boolean:any\n"
+                + "S|child|single|1|1|1|any\n"
+                + "C|flutter.widgets.SafeArea|paletteCreate|"
+                + "wrapExistingChild|child\n"), contract);
+        assertFalse(contract.contains(
+                "W|flutter.widgets.SafeArea\nP|minimum|edgeInsetsDirectional"), contract);
     }
 
     @Test

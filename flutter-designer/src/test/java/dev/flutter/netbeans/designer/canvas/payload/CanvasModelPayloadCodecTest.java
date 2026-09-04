@@ -107,6 +107,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
+                "flutter.widgets.SafeArea",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
                 "flutter.widgets.SingleChildScrollView",
@@ -148,6 +149,61 @@ class CanvasModelPayloadCodecTest {
                 "\"isAntiAlias\":{\"kind\":\"boolean\",\"value\":false}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"780ed564-3d39-4a50-bb75-e22892d7ef45\""), json);
+    }
+
+    @Test
+    void projectsSafeAreaRequiredChildAndSignedPhysicalMinimumAsEdgeInsets()
+            throws Exception {
+        WidgetNode safeArea = new WidgetNode(
+                id("177b55b5-7831-4d43-8d26-0219f743087f"),
+                type("flutter.widgets.SafeArea"),
+                Map.of(new PropertyName("minimum"),
+                        new PropertyValue.EdgeInsetsValue(
+                                new BigDecimal("-12.5"),
+                                new BigDecimal("2.25"),
+                                new BigDecimal("-3.5"),
+                                BigDecimal.ZERO)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "1877e358-ac21-4c35-9ac4-a0e62402fc19",
+                        "Safe child"))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), safeArea))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.SafeArea\""), json);
+        assertTrue(json.contains("\"minimum\":{\"kind\":\"edgeInsets\","
+                + "\"left\":-12.5,\"top\":2.25,"
+                + "\"right\":-3.5,\"bottom\":0}"), json);
+        assertTrue(json.contains(
+                "\"child\":{\"id\":\"1877e358-ac21-4c35-9ac4-a0e62402fc19\""),
+                json);
+        assertFalse(json.contains("\"kind\":\"edgeInsetsDirectional\""), json);
+    }
+
+    @Test
+    void rejectsDirectionalSafeAreaMinimumAtJavaBoundaryBeforePayloadEncoding() {
+        WidgetNode safeArea = new WidgetNode(
+                id("4621d370-f7c7-4a66-8dc1-f8c0b500c0d0"),
+                type("flutter.widgets.SafeArea"),
+                Map.of(new PropertyName("minimum"),
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE,
+                                BigDecimal.TWO,
+                                BigDecimal.valueOf(3),
+                                BigDecimal.valueOf(4))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "9321e2c3-cbbc-4a7a-a627-35a86e35e715",
+                        "Directional child"))));
+        DesignerDocument invalid = new DesignerDocument(
+                DOCUMENT_ID, source(), safeArea);
+
+        // A CanvasRenderRequest cannot be created, so encode/write is never reached.
+        IllegalArgumentException failure = assertThrows(
+                IllegalArgumentException.class, () -> request(invalid));
+        assertTrue(failure.getMessage().contains("designer.property.constraint"),
+                failure::getMessage);
     }
 
     @Test

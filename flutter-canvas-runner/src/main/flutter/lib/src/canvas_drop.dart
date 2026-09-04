@@ -1,3 +1,5 @@
+import 'canvas_model.dart';
+
 /// Resolves one normalized native surface point to a semantic drop target.
 typedef CanvasDropResolver =
     CanvasDropTarget? Function(
@@ -109,10 +111,19 @@ class CanvasDropSlotSemantics {
   const CanvasDropSlotSemantics.wrapExisting({
     required this.slotName,
     this.overlapPriority = 0,
+    this.acceptance = canvasAnyDropAcceptance,
   }) : maximumChildren = 10000,
        cardinality = CanvasDropSlotCardinality.list,
        zonePlacement = CanvasDropZonePlacement.existingChild,
-       acceptance = canvasAnyDropAcceptance,
+       wrapsExistingChild = true;
+
+  const CanvasDropSlotSemantics.wrapExistingSingle({
+    required this.slotName,
+    this.overlapPriority = 0,
+    this.acceptance = canvasAnyDropAcceptance,
+  }) : maximumChildren = 1,
+       cardinality = CanvasDropSlotCardinality.single,
+       zonePlacement = CanvasDropZonePlacement.existingChild,
        wrapsExistingChild = true;
 
   final String slotName;
@@ -206,6 +217,8 @@ const canvasFlexibleWidgetType = 'flutter.widgets.Flexible';
 
 const canvasSpacerWidgetType = 'flutter.widgets.Spacer';
 
+const canvasSafeAreaWidgetType = 'flutter.widgets.SafeArea';
+
 bool isCanvasFlexParentDataWidgetType(String widgetType) =>
     widgetType == canvasExpandedWidgetType ||
     widgetType == canvasFlexibleWidgetType;
@@ -213,6 +226,14 @@ bool isCanvasFlexParentDataWidgetType(String widgetType) =>
 bool isCanvasFlexRestrictedWidgetType(String widgetType) =>
     isCanvasFlexParentDataWidgetType(widgetType) ||
     widgetType == canvasSpacerWidgetType;
+
+bool isCanvasRequiredChildWrapperWidgetType(String widgetType) =>
+    !isCanvasFlexParentDataWidgetType(widgetType) &&
+    isCanvasReviewedRequiredChildWrapperWidgetType(widgetType);
+
+bool isCanvasPaletteWrapperWidgetType(String widgetType) =>
+    isCanvasFlexParentDataWidgetType(widgetType) ||
+    isCanvasRequiredChildWrapperWidgetType(widgetType);
 
 const canvasStackChildrenAppendDropSlot = CanvasDropSlotSemantics.append(
   slotName: 'children',
@@ -345,6 +366,48 @@ CanvasDropSlotSemantics? canvasDropSlotForWidgetSlot(
   return null;
 }
 
+/// Resolves an occupied reviewed parent slot that can be replaced by a
+/// host-authorized required-child wrapper.
+///
+/// Required child slots are deliberately absent from the normal insertion
+/// matrix because a valid model can never expose them empty. They are still
+/// valid replacement targets when the palette operation wraps their current
+/// child without creating an intermediate invalid model.
+CanvasDropSlotSemantics? canvasExistingChildWrapTargetSlot({
+  required String parentWidgetType,
+  required String slotName,
+}) {
+  final insertionSlot = canvasDropSlotForWidgetSlot(parentWidgetType, slotName);
+  final requiredChild =
+      slotName == 'child' &&
+      isCanvasReviewedRequiredChildWrapperWidgetType(parentWidgetType);
+  final cardinality =
+      insertionSlot?.cardinality ??
+      (requiredChild ? CanvasDropSlotCardinality.single : null);
+  final acceptance = insertionSlot?.acceptance ?? canvasAnyDropAcceptance;
+  if (cardinality == null) {
+    return null;
+  }
+  return cardinality == CanvasDropSlotCardinality.single
+      ? CanvasDropSlotSemantics.wrapExistingSingle(
+          slotName: slotName,
+          overlapPriority: 6,
+          acceptance: acceptance,
+        )
+      : CanvasDropSlotSemantics.wrapExisting(
+          slotName: slotName,
+          overlapPriority: 6,
+          acceptance: acceptance,
+        );
+}
+
+bool canvasWrapperAcceptsExistingChild({
+  required String wrapperWidgetType,
+  required String childWidgetType,
+}) =>
+    isCanvasPaletteWrapperWidgetType(wrapperWidgetType) &&
+    !isCanvasFlexRestrictedWidgetType(childWidgetType);
+
 /// Revalidates the complete source-aware semantic target independently of
 /// rendered hit-test geometry.
 bool canvasDropTargetAcceptsSource({
@@ -362,6 +425,18 @@ bool canvasDropTargetAcceptsSource({
           currentChildCount: currentChildCount,
           insertionIndex: insertionIndex,
         );
+  }
+  if (isCanvasRequiredChildWrapperWidgetType(source.widgetType)) {
+    final slot = canvasExistingChildWrapTargetSlot(
+      parentWidgetType: parentWidgetType,
+      slotName: slotName,
+    );
+    return slot != null &&
+        slot.accepts(
+          currentChildCount: currentChildCount,
+          insertionIndex: insertionIndex,
+        ) &&
+        slot.acceptsSource(source);
   }
   if (source.widgetType == canvasSpacerWidgetType &&
       (slotName != 'children' ||

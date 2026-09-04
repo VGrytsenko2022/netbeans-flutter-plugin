@@ -543,6 +543,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.FittedBox' ||
         node.type == 'flutter.widgets.Expanded' ||
         node.type == 'flutter.widgets.Flexible' ||
+        node.type == canvasSafeAreaWidgetType ||
         node.type == canvasSpacerWidgetType ||
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Wrap' ||
@@ -1164,7 +1165,54 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     List<_DropCandidate> result,
     CanvasPaletteDragSource source,
   ) {
-    if (isCanvasFlexParentDataWidgetType(source.widgetType) &&
+    if (isCanvasRequiredChildWrapperWidgetType(source.widgetType)) {
+      // CanvasDropTarget identifies a parent slot, so only existing non-root
+      // children can be represented on the current negotiated wire. Do not
+      // invent a root sentinel: the host has no field it could revalidate.
+      for (final slotEntry in node.slots.entries) {
+        final modelSlot = slotEntry.value;
+        final wrapSlot = canvasExistingChildWrapTargetSlot(
+          parentWidgetType: node.type,
+          slotName: slotEntry.key,
+        );
+        if (wrapSlot == null ||
+            modelSlot.kind != wrapSlot.modelSlotKind ||
+            !wrapSlot.acceptsSource(source)) {
+          continue;
+        }
+        for (var index = 0; index < modelSlot.children.length; index++) {
+          final child = modelSlot.children[index];
+          if (!canvasWrapperAcceptsExistingChild(
+            wrapperWidgetType: source.widgetType,
+            childWidgetType: child.type,
+          )) {
+            continue;
+          }
+          final box = _renderBox(_nodeKeys[child.id]);
+          if (box == null) {
+            continue;
+          }
+          final zone = _resolvedGlobalDropZone(
+            box,
+            Offset.zero & box.size,
+            point,
+            surfaceRect,
+          );
+          if (zone != null) {
+            result.add(
+              _DropCandidate(
+                node,
+                depth + 1,
+                zone.width * zone.height,
+                wrapSlot,
+                index,
+                zone,
+              ),
+            );
+          }
+        }
+      }
+    } else if (isCanvasFlexParentDataWidgetType(source.widgetType) &&
         (node.type == 'flutter.widgets.Row' ||
             node.type == 'flutter.widgets.Column')) {
       final modelSlot = node.slot('children');
@@ -2227,6 +2275,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
+      'flutter.widgets.SafeArea' => _safeArea(),
       'flutter.widgets.Spacer' => Spacer(flex: _integer('flex') ?? 1),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
@@ -3439,6 +3488,16 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     children: _children('children'),
   );
 
+  Widget _safeArea() => SafeArea(
+    left: _boolean('left') ?? true,
+    top: _boolean('top') ?? true,
+    right: _boolean('right') ?? true,
+    bottom: _boolean('bottom') ?? true,
+    minimum: _physicalEdgeInsets('minimum') ?? EdgeInsets.zero,
+    maintainBottomViewPadding: _boolean('maintainBottomViewPadding') ?? false,
+    child: _single('child')!,
+  );
+
   EdgeInsetsGeometry _paddingGeometry() {
     return _edgeInsetsGeometry('padding')!;
   }
@@ -3463,6 +3522,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       _ => throw StateError('Unsupported Canvas EdgeInsets value.'),
     };
+  }
+
+  EdgeInsets? _physicalEdgeInsets(String name) {
+    final value = node.properties[name]?.value;
+    if (value == null) {
+      return null;
+    }
+    if (value case CanvasEdgeInsets physical) {
+      return EdgeInsets.fromLTRB(
+        physical.left,
+        physical.top,
+        physical.right,
+        physical.bottom,
+      );
+    }
+    throw StateError('Unsupported physical Canvas EdgeInsets value.');
   }
 
   AlignmentGeometry? _alignmentGeometry(String name) {

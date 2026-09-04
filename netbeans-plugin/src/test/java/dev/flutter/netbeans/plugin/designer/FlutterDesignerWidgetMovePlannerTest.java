@@ -79,6 +79,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
     private static final WidgetTypeId OVERFLOW_BAR =
             type("flutter.widgets.OverflowBar");
+    private static final WidgetTypeId SAFE_AREA = type("flutter.widgets.SafeArea");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -276,6 +277,37 @@ class FlutterDesignerWidgetMovePlannerTest {
                         childFailure.code()),
                 () -> assertTrue(childFailure.reason().contains(
                         "flutter.widgets.Expanded.child")));
+    }
+
+    @Test
+    void completedSafeAreaMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "safe child");
+        WidgetNode safeArea = new WidgetNode(
+                A_ID,
+                SAFE_AREA,
+                Map.of(new PropertyName("left"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(safeArea, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                safeArea.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(safeArea.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                safeArea.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, safeArea, result);
     }
 
     @Test

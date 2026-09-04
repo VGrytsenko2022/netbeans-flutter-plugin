@@ -1678,6 +1678,117 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void safeAreaAtomicWrapPropertiesUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        PropertyName left = property("left");
+        PropertyName top = property("top");
+        PropertyName right = property("right");
+        PropertyName bottom = property("bottom");
+        PropertyName minimum = property("minimum");
+        PropertyName maintainBottomViewPadding =
+                property("maintainBottomViewPadding");
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Safe content")));
+        WidgetDefinition safeAreaDefinition = CATALOG.find(
+                type("flutter.widgets.SafeArea")).orElseThrow();
+        WidgetNode detached = WidgetNodePrototypeFactory.create(
+                safeAreaDefinition, WRAPPER_ID);
+        assertTrue(detached.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) detached.slots().get(CHILD))
+                .child().isEmpty());
+
+        assertRejectedUnchanged(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), detached),
+                DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID);
+
+        DesignerCommandSession current = applied(initial, new WrapWidget(
+                FIRST_ID, detached, CHILD, 0));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, left, new PropertyValue.BooleanValue(false)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, top, new PropertyValue.BooleanValue(false)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, right, new PropertyValue.BooleanValue(true)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, bottom, new PropertyValue.BooleanValue(false)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, minimum, new PropertyValue.EdgeInsetsValue(
+                        BigDecimal.valueOf(-1), BigDecimal.valueOf(2),
+                        BigDecimal.valueOf(-3), BigDecimal.valueOf(4))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, maintainBottomViewPadding,
+                new PropertyValue.BooleanValue(true)));
+
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID,
+                        minimum,
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE, BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        WidgetNode finalSafeArea = find(
+                current.current().document().root(), WRAPPER_ID);
+        assertEquals(FIRST_ID,
+                ((WidgetSlot.SingleSlot) finalSafeArea.slots().get(CHILD))
+                        .child().orElseThrow().id());
+        assertEquals(6, finalSafeArea.properties().size());
+
+        String dart = new String(
+                current.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const SafeArea("), dart);
+        assertTrue(dart.contains("left: false"), dart);
+        assertTrue(dart.contains("top: false"), dart);
+        assertTrue(dart.contains("right: true"), dart);
+        assertTrue(dart.contains("bottom: false"), dart);
+        assertTrue(dart.contains(
+                "minimum: const EdgeInsets.fromLTRB(-1.0, 2.0, -3.0, 4.0)"), dart);
+        assertTrue(dart.contains("maintainBottomViewPadding: true"), dart);
+        assertTrue(dart.contains("child: const Text('Safe content')"), dart);
+
+        DesignerCommandSession undone = current.undo().session();
+        assertFalse(find(undone.current().document().root(), WRAPPER_ID)
+                .properties().containsKey(maintainBottomViewPadding));
+        DesignerCommandSession redone = undone.redo().session();
+        assertArrayEquals(current.current().fdBytes(), redone.current().fdBytes());
+        assertArrayEquals(current.current().dartCandidateBytes(),
+                redone.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redone.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.SafeArea\""), fd);
+        assertTrue(fd.contains("\"kind\": \"edgeInsets\""), fd);
+        assertTrue(fd.contains("\"left\": -1"), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID, left,
+                        new PropertyValue.BooleanValue(true)));
+        assertEquals(new PropertyValue.BooleanValue(true),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(left));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("left: true"));
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

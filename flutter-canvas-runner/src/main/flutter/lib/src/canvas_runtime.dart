@@ -1424,13 +1424,25 @@ class CanvasRuntimeController extends ChangeNotifier
       return null;
     }
     final modelSlot = parent.slot(target.slotName);
-    if (!isCanvasFlexParentDataWidgetType(authority.source.widgetType)) {
+    if (!isCanvasPaletteWrapperWidgetType(authority.source.widgetType)) {
       final dropSlot = canvasDropSlotForWidgetSlot(
         parent.type,
         target.slotName,
       );
       if (dropSlot == null ||
           (modelSlot != null && modelSlot.kind != dropSlot.modelSlotKind)) {
+        return null;
+      }
+    } else if (isCanvasRequiredChildWrapperWidgetType(
+      authority.source.widgetType,
+    )) {
+      final wrapSlot = canvasExistingChildWrapTargetSlot(
+        parentWidgetType: parent.type,
+        slotName: target.slotName,
+      );
+      if (wrapSlot == null ||
+          modelSlot == null ||
+          modelSlot.kind != wrapSlot.modelSlotKind) {
         return null;
       }
     }
@@ -1449,6 +1461,16 @@ class CanvasRuntimeController extends ChangeNotifier
             modelSlot.kind != 'list' ||
             isCanvasFlexRestrictedWidgetType(
               modelSlot.children[target.insertionIndex].type,
+            ))) {
+      return null;
+    }
+    if (isCanvasRequiredChildWrapperWidgetType(authority.source.widgetType) &&
+        (modelSlot == null ||
+            target.insertionIndex < 0 ||
+            target.insertionIndex >= modelSlot.children.length ||
+            !canvasWrapperAcceptsExistingChild(
+              wrapperWidgetType: authority.source.widgetType,
+              childWidgetType: modelSlot.children[target.insertionIndex].type,
             ))) {
       return null;
     }

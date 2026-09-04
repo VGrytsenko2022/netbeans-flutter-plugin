@@ -1627,6 +1627,46 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void safeAreaMinimumOffersOnlyConcretePhysicalEdgeInsetsWhilePaddingKeepsDirectional()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding safeArea = binding(
+                property("flutter.widgets.SafeArea", "minimum"));
+        FlutterTypedPropertyEditors.Binding padding = binding(
+                property("flutter.widgets.Padding", "padding"));
+        assertFalse(safeArea.directionalEdgeInsetsAllowed());
+        assertTrue(padding.directionalEdgeInsetsAllowed());
+
+        PropertyEditor editor = safeArea.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Minimum", "Concrete physical EdgeInsets for SafeArea."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JComboBox<?> mode = findNamed(
+                    panel, JComboBox.class, "flutter.edgeInsets.mode");
+            assertEquals(List.of(
+                    "All sides",
+                    "Symmetric",
+                    "Physical (left/right)"), comboLabels(mode));
+            assertNull(findNamed(panel, JTextField.class,
+                    "flutter.edgeInsets.directional.start"));
+            assertNull(findNamed(panel, JTextField.class,
+                    "flutter.edgeInsets.directional.end"));
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("directional start/end values are not accepted"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class,
+                () -> editor.setAsText("directional: 1, 2, 3, 4"));
+        PropertyEditor legacy = padding.createEditor();
+        legacy.setAsText("directional: 1, 2, 3, 4");
+        assertEquals(FlutterPropertyCellValue.explicit(
+                directionalEdge("1", "2", "3", "4")), legacy.getValue());
+    }
+
+    @Test
     void edgeInsetsDialogCommitsAllSymmetricPhysicalAndDirectionalAtomically()
             throws Exception {
         assertEdgeInsetsDialogCommit(
@@ -2439,7 +2479,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(100, booleanProperties.size(),
+        assertEquals(105, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.SingleChildScrollView.reverse"));
@@ -2447,6 +2487,12 @@ class FlutterPropertyEditorComponentsTest {
                 "flutter.widgets.SingleChildScrollView.primary"));
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ColoredBox.isAntiAlias"));
+        assertTrue(booleanProperties.contains("flutter.widgets.SafeArea.left"));
+        assertTrue(booleanProperties.contains("flutter.widgets.SafeArea.top"));
+        assertTrue(booleanProperties.contains("flutter.widgets.SafeArea.right"));
+        assertTrue(booleanProperties.contains("flutter.widgets.SafeArea.bottom"));
+        assertTrue(booleanProperties.contains(
+                "flutter.widgets.SafeArea.maintainBottomViewPadding"));
 
         onEdt(() -> {
             for (String qualifiedName : booleanProperties) {

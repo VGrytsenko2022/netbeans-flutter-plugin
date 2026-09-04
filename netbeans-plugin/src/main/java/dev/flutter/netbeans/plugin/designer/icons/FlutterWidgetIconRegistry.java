@@ -57,6 +57,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg"),
             Map.entry("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg"),
             Map.entry("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg"),
+            Map.entry("flutter.widgets.SafeArea", ICON_ROOT + "safearea.svg"),
             Map.entry("flutter.widgets.ListView", ICON_ROOT + "listview.svg"),
             Map.entry(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                     ICON_ROOT + "gridviewcount.svg"),

@@ -7,6 +7,37 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`SafeArea`](https://api.flutter.dev/flutter/widgets/SafeArea/SafeArea.html)
+  vertical slice is the twenty-first post-core Palette addition, at Layout
+  order 240 after `OverflowBar`. Its complete reviewed Flutter 3.44.8
+  non-`key` constructor exposes optional `left`, `top`, `right`, `bottom`,
+  signed finite physical `EdgeInsets minimum`, and
+  `maintainBottomViewPadding`, plus one required any-widget `child`. The
+  detached wrapper payload omits all six properties, preserving Flutter's exact
+  `true`, `EdgeInsets.zero` and `false` defaults, but cannot be admitted as a
+  standalone node. `EdgeInsetsDirectional` is rejected because Flutter declares
+  the concrete physical `EdgeInsets` type rather than `EdgeInsetsGeometry`;
+  non-finite components and arbitrary expressions are separately rejected by
+  the Designer's closed stored-value policy.
+  Palette/tree creation uses the generic atomic required-child wrapper contract
+  and never inserts an incomplete node. The widget tree can wrap a root or
+  non-root selection; the current Canvas target wire wraps non-root children
+  only and intentionally publishes no synthetic root target. Expanded,
+  Flexible and Spacer cannot be wrapped because their ParentData must remain a
+  direct Row/Column child. Generated Dart and native/exact-Web Canvas construct
+  the real `SafeArea`; Properties, deterministic generation, Save/reopen and
+  further editing, Undo/Redo and four reviewed light/dark 16/32 px SVGs share
+  the same closed contract. The catalog now contains 41 widgets, 35 reviewed
+  const constructors and 722 writable rows, including 705 across the 40
+  non-`Scaffold` definitions. Forty-one sources across 37 insertable any-widget
+  and two trait-bound destinations form 1,599 DnD candidates: 1,414 accepted
+  and 185 rejected. Layout contains 30 items, Scrolling 3, Basic 4 and Material
+  4; the practical 92-widget backlog is 41/92 complete with 51 remaining.
+  `.fd` stays at schema v9 and Canvas model stays at v14; adding the exported
+  `directionalAllowed` component to `PropertyValueConstraint.EdgeInsetsValues`
+  advances the contributor Catalog API to 9. NBFC framing/control/wire remain
+  v1.
+- The accepted const
   [`ColoredBox`](https://api.flutter.dev/flutter/widgets/ColoredBox/ColoredBox.html)
   vertical slice is the twentieth post-core Palette addition, at Basic order 40
   after `Image`. Its complete reviewed Flutter 3.44.8 non-`key` constructor

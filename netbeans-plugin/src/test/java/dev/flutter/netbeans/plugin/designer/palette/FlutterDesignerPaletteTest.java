@@ -75,6 +75,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.RotatedBox",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
+            "flutter.widgets.SafeArea",
             "flutter.widgets.ListView",
             GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
             SingleChildScrollViewWidgetPropertySchema
@@ -86,8 +87,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(40, CATALOG.definitions().size());
-        assertEquals(34, CATALOG.definitions().stream()
+        assertEquals(41, CATALOG.definitions().size());
+        assertEquals(35, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -106,9 +107,9 @@ class FlutterDesignerPaletteTest {
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody", "OverflowBar"),
+                "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
                 itemLabels(categories[1]));
-        assertEquals(29, itemLabels(categories[1]).size());
+        assertEquals(30, itemLabels(categories[1]).size());
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
         assertEquals(List.of("Text", "Icon", "Image", "ColoredBox"),
@@ -138,7 +139,7 @@ class FlutterDesignerPaletteTest {
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody", "OverflowBar"),
+                "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
                 itemLabels(categories[1]));
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
@@ -823,6 +824,38 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void safeAreaPaletteSelectionExplainsRequiredWrapperDefaultsAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.SafeArea";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertNotNull(definition);
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.layout",
+                        200,
+                        240,
+                        "SafeArea"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("SafeArea", node.getDisplayName());
+        assertEquals(
+                "Wrap an existing widget so MediaQuery padding keeps it clear of system "
+                + "intrusions on selected sides. The wrapper preserves Flutter’s four "
+                + "enabled sides, zero minimum inset, and disabled bottom-view-padding "
+                + "maintenance defaults until explicitly edited.",
+                node.getShortDescription());
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void gridViewCountPaletteSelectionExplainsStaticGridDefaultsAndIcon()
             throws ReflectiveOperationException {
         String typeId = GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value();
@@ -1235,7 +1268,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void fortyCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyOneCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1254,7 +1287,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(40, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(41, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

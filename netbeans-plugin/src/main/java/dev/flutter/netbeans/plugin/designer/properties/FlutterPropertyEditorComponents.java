@@ -1128,7 +1128,7 @@ final class FlutterPropertyEditorComponents {
         private static final String[] DIRECTIONAL_NAMES = {
             "start", "top", "end", "bottom"
         };
-        private final JComboBox<Mode> mode = new JComboBox<>(Mode.values());
+        private final JComboBox<Mode> mode;
         private final CardLayout cardLayout = new CardLayout();
         private final JPanel cards = new JPanel(cardLayout);
         private final JTextField all = new JTextField(12);
@@ -1146,14 +1146,21 @@ final class FlutterPropertyEditorComponents {
                 FlutterTypedPropertyEditors.Binding binding,
                 PropertyEnv environment) {
             super(editor, binding, environment);
+            boolean directionalAllowed = binding.directionalEdgeInsetsAllowed();
+            mode = new JComboBox<>(directionalAllowed
+                    ? Mode.values()
+                    : new Mode[]{Mode.ALL, Mode.SYMMETRIC, Mode.PHYSICAL});
             setLayout(new BorderLayout(0, 8));
             setName("flutter.edgeInsets.custom");
             setPreferredSize(new Dimension(470, 290));
             getAccessibleContext().setAccessibleName(
                     binding.definition().name().value() + " edge insets editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits all, symmetric, physical, or text-direction-aware "
-                    + "Flutter edge insets.");
+                    directionalAllowed
+                            ? "Edits all, symmetric, physical, or text-direction-aware "
+                                    + "Flutter edge insets."
+                            : "Edits concrete physical Flutter EdgeInsets; directional "
+                                    + "start/end values are not accepted by this property.");
 
             JPanel header = new JPanel(new GridBagLayout());
             GridBagConstraints constraints = constraints();
@@ -1162,8 +1169,11 @@ final class FlutterPropertyEditorComponents {
             modeLabel.setLabelFor(mode);
             mode.getAccessibleContext().setAccessibleName("Edge insets mode");
             mode.getAccessibleContext().setAccessibleDescription(
-                    "Select all, symmetric, physical left/right, or "
-                    + "directional start/end padding.");
+                    directionalAllowed
+                            ? "Select all, symmetric, physical left/right, or "
+                                    + "directional start/end padding."
+                            : "Select all, symmetric, or physical left/right padding. "
+                                    + "This property does not accept directional start/end values.");
             constraints.gridx = 0;
             constraints.gridy = 0;
             constraints.weightx = 0;
@@ -1190,8 +1200,10 @@ final class FlutterPropertyEditorComponents {
             cards.add(singleFieldPanel("All sides:", all), Mode.ALL.name());
             cards.add(twoFieldPanel(), Mode.SYMMETRIC.name());
             cards.add(sidePanel(PHYSICAL_NAMES, physical, false), Mode.PHYSICAL.name());
-            cards.add(sidePanel(DIRECTIONAL_NAMES, directional, true),
-                    Mode.DIRECTIONAL.name());
+            if (directionalAllowed) {
+                cards.add(sidePanel(DIRECTIONAL_NAMES, directional, true),
+                        Mode.DIRECTIONAL.name());
+            }
             add(cards, BorderLayout.CENTER);
 
             PropertyValue initial = initialValue().explicitValue().orElseGet(

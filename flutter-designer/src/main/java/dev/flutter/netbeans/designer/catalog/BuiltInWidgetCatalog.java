@@ -58,6 +58,7 @@ public final class BuiltInWidgetCatalog {
             rotatedBox(),
             listBody(),
             overflowBar(),
+            safeArea(),
             listView(),
             gridViewCount(),
             singleChildScrollView(),
@@ -1165,6 +1166,40 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("textDirection", 5, false,
                                 enumValues("TextDirection", "rtl", "ltr"))),
                 List.of(listSlot("children", 6, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition safeArea() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("left", 0, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("top", 1, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("right", 2, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("bottom", 3, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty(
+                        "minimum",
+                        4,
+                        false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(
+                                false, false))),
+                namedProperty(
+                        "maintainBottomViewPadding",
+                        5,
+                        false,
+                        any(PropertyValueKind.BOOLEAN)));
+        if (properties.size()
+                != SafeAreaWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "SafeArea catalog/property schema count mismatch");
+        }
+        return widget(
+                SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value(),
+                "SafeArea",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 240, "SafeArea"),
+                properties,
+                List.of(singleSlot("child", 6, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

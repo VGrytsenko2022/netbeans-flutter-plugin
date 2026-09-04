@@ -3286,6 +3286,72 @@ class WidgetTreeValidatorTest {
                 "flutter.widgets.ColoredBox.child"), placement.message());
     }
 
+    @Test
+    void acceptsSafeAreaCompletePhysicalInsetsSurfaceIncludingSignedMinimum() {
+        WidgetNode safeArea = node(
+                "valid-safe-area",
+                "flutter.widgets.SafeArea",
+                Map.ofEntries(
+                        Map.entry(name("left"), new PropertyValue.BooleanValue(false)),
+                        Map.entry(name("top"), new PropertyValue.BooleanValue(false)),
+                        Map.entry(name("right"), new PropertyValue.BooleanValue(true)),
+                        Map.entry(name("bottom"), new PropertyValue.BooleanValue(false)),
+                        Map.entry(name("minimum"), new PropertyValue.EdgeInsetsValue(
+                                BigDecimal.valueOf(-1), BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(-3), BigDecimal.valueOf(4))),
+                        Map.entry(name("maintainBottomViewPadding"),
+                                new PropertyValue.BooleanValue(true))),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(text("safe-area-child"))));
+
+        ValidationResult result = validator().validate(
+                document(safeArea), BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.valid(), () -> result.issues().toString());
+    }
+
+    @Test
+    void rejectsSafeAreaWithoutChildDirectionalMinimumAndRestrictedChild() {
+        WidgetNode missingChild = node(
+                "invalid-safe-area-empty",
+                "flutter.widgets.SafeArea",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue missing = onlyIssue(
+                validator().validate(
+                        document(missingChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.SLOT_NULL);
+        assertEquals("/root/slots/child/child", missing.path());
+
+        WidgetNode directional = node(
+                "invalid-safe-area-directional",
+                "flutter.widgets.SafeArea",
+                Map.of(name("minimum"),
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE, BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                Map.of(slotName("child"),
+                        WidgetSlot.SingleSlot.of(text("directional-child"))));
+        ValidationIssue minimum = onlyIssue(
+                validator().validate(
+                        document(directional), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/minimum", minimum.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-safe-area-child",
+                "flutter.widgets.SafeArea",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("safe-area-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(restrictedChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.SafeArea.child"), placement.message());
+    }
+
     private static WidgetTreeValidator validator() {
         return new WidgetTreeValidator();
     }

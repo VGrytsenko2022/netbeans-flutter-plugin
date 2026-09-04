@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFortyTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFortyOneTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -66,6 +66,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Padding",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
+                "flutter.widgets.SafeArea",
                 "flutter.widgets.SingleChildScrollView",
                 "flutter.widgets.SizedBox",
                 "flutter.widgets.SizedOverflowBox",
@@ -79,8 +80,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(40, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(34, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(41, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(35, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -94,10 +95,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(716, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(722, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(699, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(705, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -138,6 +139,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Padding", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Row", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.RotatedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.SafeArea", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SingleChildScrollView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.SizedOverflowBox", WIDGETS_IMPORT),
@@ -268,6 +270,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
+                "flutter.widgets.SafeArea",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
                 "flutter.widgets.SingleChildScrollView",
@@ -275,7 +278,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox"), typeIds(palette));
-        assertEquals(29, palette.stream()
+        assertEquals(30, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());
@@ -353,6 +356,12 @@ class BuiltInWidgetCatalogTest {
                 "overflowDirection", "textDirection")) {
             assertTrue(property(catalog, "flutter.widgets.OverflowBar", optional)
                     .creationDefault().isEmpty(), "OverflowBar." + optional);
+        }
+        for (String optional : List.of(
+                "left", "top", "right", "bottom", "minimum",
+                "maintainBottomViewPadding")) {
+            assertTrue(property(catalog, "flutter.widgets.SafeArea", optional)
+                    .creationDefault().isEmpty(), "SafeArea." + optional);
         }
         for (String optional : List.of(
                 "origin", "alignment", "transformHitTests", "filterQuality")) {

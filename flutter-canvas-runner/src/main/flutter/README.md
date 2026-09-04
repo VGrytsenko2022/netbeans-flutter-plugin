@@ -235,14 +235,19 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-40 reviewed Canvas widgets. Palette insertion evaluates 1,560 exact
-source/destination cells across 40 draggable sources and 39 insertable reviewed
-slots; 1,377 are accepted and 183 cells are rejected. Expanded and Flexible are
+41 reviewed Canvas widgets. Palette insertion evaluates 1,599 exact
+source/destination cells across 41 draggable sources and 39 insertable reviewed
+slots; 1,414 are accepted and 185 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. The negotiated
+another widget. SafeArea is a generic atomic wrapper around an existing widget,
+never an empty required-child prototype. The current Canvas target wire exposes
+non-root child targets only and intentionally offers no root target; root
+wrapping remains available through the NetBeans tree. SafeArea cannot wrap
+Expanded, Flexible or Spacer because their ParentData must remain attached
+directly to Row or Column. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
 traits before Flutter exposes compatible hover zones. The
 runner only renders validated revisions, performs
@@ -679,6 +684,29 @@ remains const; a theme token resolves through `Theme.of(context).colorScheme...`
 and produces a non-const widget. An empty ColoredBox has no intrinsic size, so
 Canvas retains only a non-layout-affecting 36x36 selection/drop target when its
 real bounds collapse to zero; that overlay never enters the model or generated
-Dart. The aggregate catalog now has 40 widgets; 40 sources across 39 insertable
-destinations form 1,560 cells, with 1,377 accepted and 183 rejected. Canvas model
-protocol remains v14; NBFC framing, control and wire remain v1.
+Dart. At the `ColoredBox` milestone, the aggregate catalog had 40 widgets; 40
+sources across 39 insertable destinations formed 1,560 cells, with 1,377
+accepted and 183 rejected. Canvas model protocol remained v14; NBFC framing,
+control and wire remained v1.
+
+[`flutter.widgets.SafeArea`](https://api.flutter.dev/flutter/widgets/SafeArea/SafeArea.html)
+is decoded as the exact const default-constructor projection for Flutter 3.44.8
+without a protocol-version change. Optional `left`, `top`, `right` and `bottom`
+preserve `true` when omitted; optional `minimum` preserves `EdgeInsets.zero`;
+and optional `maintainBottomViewPadding` preserves `false`. `minimum` accepts
+signed finite physical `EdgeInsets` only. `EdgeInsetsDirectional`, non-finite
+components and arbitrary Dart expressions are rejected. The required
+any-widget `child` slot has exact cardinality one; `key` is excluded.
+
+Native and exact-Web views construct the real `SafeArea`. Host creation wraps an
+existing widget atomically, so Canvas never decodes a half-empty required child.
+The current target wire publishes only non-root children as wrapper targets and
+deliberately publishes no root target. Expanded, Flexible and Spacer are not
+targets because their ParentData must remain directly attached to Row or Column.
+The aggregate catalog now has 41 widgets and 35 reviewed const definitions, with
+722 writable rows (705 outside Scaffold). Palette contains 30 Layout, three
+Scrolling, four Basic and four Material items; the backlog is 41/92 complete
+with 51 remaining. The 41 sources across 39 insertable destinations form 1,599
+cells, with 1,414 accepted and 185 rejected. `.fd` remains v9 and Canvas model
+protocol remains v14; the exported `EdgeInsetsValues.directionalAllowed`
+constraint advances Catalog API to v9. NBFC framing, control and wire remain v1.

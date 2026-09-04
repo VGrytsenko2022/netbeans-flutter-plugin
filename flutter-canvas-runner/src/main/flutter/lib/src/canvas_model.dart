@@ -3194,6 +3194,9 @@ const _nonNegativeEdgeInsetsBounds = <String, _NumericBounds>{
   'edgeInsets': _NumericBounds(minimum: 0),
   'edgeInsetsDirectional': _NumericBounds(minimum: 0),
 };
+const _signedPhysicalEdgeInsetsBounds = <String, _NumericBounds>{
+  'edgeInsets': _NumericBounds(),
+};
 const _widgetsLibraryUri = 'package:flutter/widgets.dart';
 const _materialLibraryUri = 'package:flutter/material.dart';
 const _servicesLibraryUri = 'package:flutter/services.dart';
@@ -3826,6 +3829,19 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       ),
     },
     {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.SafeArea': _WidgetSpec(
+    {
+      'left': _PropertySpec({'boolean'}),
+      'top': _PropertySpec({'boolean'}),
+      'right': _PropertySpec({'boolean'}),
+      'bottom': _PropertySpec({'boolean'}),
+      'minimum': _PropertySpec({
+        'edgeInsets',
+      }, numericBounds: _signedPhysicalEdgeInsetsBounds),
+      'maintainBottomViewPadding': _PropertySpec({'boolean'}),
+    },
+    {'child': _requiredSingleSlot},
   ),
   'flutter.widgets.Transform': _WidgetSpec(
     {
@@ -5542,6 +5558,15 @@ P|textBaseline|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextB
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|verticalDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:VerticalDirection:down,up
 S|children|list|0|0|10000|any
+W|flutter.widgets.SafeArea
+P|bottom|boolean|0|-|-|boolean:any
+P|left|boolean|0|-|-|boolean:any
+P|maintainBottomViewPadding|boolean|0|-|-|boolean:any
+P|minimum|edgeInsets|0|-|edgeInsets:*:1:*:1|edgeInsets:edgeInsetsPhysical:0:*:1:*:1
+P|right|boolean|0|-|-|boolean:any
+P|top|boolean|0|-|-|boolean:any
+S|child|single|1|1|1|any
+C|flutter.widgets.SafeArea|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.SingleChildScrollView
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
@@ -5712,6 +5737,8 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
       if (_isFlexParentDataWidgetType(widgetType)) {
         result.writeln('C|$widgetType|paletteCreate|wrapExistingChild|child');
       }
+    } else if (isCanvasReviewedRequiredChildWrapperWidgetType(widgetType)) {
+      result.writeln('C|$widgetType|paletteCreate|wrapExistingChild|child');
     }
   }
   return result.toString();
@@ -5734,6 +5761,28 @@ bool _isFlexParentDataWidgetType(String widgetType) =>
     widgetType == 'flutter.widgets.Expanded' ||
     widgetType == 'flutter.widgets.Flexible';
 
+/// Whether the reviewed schema can be created atomically by wrapping an
+/// existing child without inventing any persisted constructor value.
+bool isCanvasReviewedRequiredChildWrapperWidgetType(String widgetType) {
+  final specification = _widgetSpecifications[widgetType];
+  if (specification == null || specification.slots.length != 1) {
+    return false;
+  }
+  final child = specification.slots['child'];
+  if (child == null ||
+      child.cardinality != 'single' ||
+      !child.required ||
+      child.minimumChildren != 1 ||
+      child.maximumChildren != 1 ||
+      child.acceptance.kind != _SlotAcceptanceKind.any) {
+    return false;
+  }
+  return specification.properties.values.every(
+    (property) =>
+        !property.required || property.creationDefaultFingerprint != null,
+  );
+}
+
 bool _isFlexRestrictedWidgetType(String widgetType) =>
     _isFlexParentDataWidgetType(widgetType) ||
     widgetType == 'flutter.widgets.Spacer';
@@ -5753,7 +5802,10 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   }
   if (kind == 'edgeInsets' || kind == 'edgeInsetsDirectional') {
     _expect(numeric != null, 'Canvas EdgeInsets schema is incomplete.');
-    return 'edgeInsets:${spec.edgeInsetsNonNegative ? 1 : 0}:'
+    final contractKind = spec.kinds.contains('edgeInsetsDirectional')
+        ? 'edgeInsets'
+        : 'edgeInsetsPhysical';
+    return '$contractKind:${spec.edgeInsetsNonNegative ? 1 : 0}:'
         '${_numericBoundsFingerprint(numeric!)}';
   }
   if (numeric != null) {

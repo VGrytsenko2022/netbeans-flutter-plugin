@@ -733,7 +733,23 @@ public sealed interface PropertyValueConstraint permits
         }
     }
 
-    record EdgeInsetsValues(boolean nonNegative) implements PropertyValueConstraint {
+    /**
+     * Typed EdgeInsets constraint.
+     *
+     * <p>{@code directionalAllowed} distinguishes APIs accepting the broad
+     * {@code EdgeInsetsGeometry} surface from APIs such as {@code SafeArea}
+     * whose public parameter is the concrete physical {@code EdgeInsets}
+     * type.</p>
+     */
+    record EdgeInsetsValues(
+            boolean nonNegative,
+            boolean directionalAllowed) implements PropertyValueConstraint {
+
+        /** Preserves the historical EdgeInsetsGeometry-capable contract. */
+        public EdgeInsetsValues(boolean nonNegative) {
+            this(nonNegative, true);
+        }
+
         @Override
         public PropertyValueKind kind() {
             return PropertyValueKind.EDGE_INSETS;
@@ -746,7 +762,8 @@ public sealed interface PropertyValueConstraint permits
                         edgeInsets.left(), edgeInsets.top(),
                         edgeInsets.right(), edgeInsets.bottom());
             }
-            if (value instanceof PropertyValue.EdgeInsetsDirectionalValue edgeInsets) {
+            if (directionalAllowed
+                    && value instanceof PropertyValue.EdgeInsetsDirectionalValue edgeInsets) {
                 return acceptsSides(
                         edgeInsets.start(), edgeInsets.top(),
                         edgeInsets.end(), edgeInsets.bottom());
@@ -772,7 +789,12 @@ public sealed interface PropertyValueConstraint permits
 
         @Override
         public String description() {
-            return nonNegative ? "non-negative edge insets" : "edge insets";
+            if (directionalAllowed) {
+                return nonNegative ? "non-negative edge insets" : "edge insets";
+            }
+            return nonNegative
+                    ? "non-negative physical edge insets"
+                    : "physical edge insets";
         }
     }
 }

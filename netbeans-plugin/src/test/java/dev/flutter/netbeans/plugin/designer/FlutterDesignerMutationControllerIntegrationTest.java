@@ -22,7 +22,9 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
@@ -142,6 +144,10 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName COLOR = new PropertyName("color");
     private static final PropertyName IS_ANTI_ALIAS =
             new PropertyName("isAntiAlias");
+    private static final PropertyName SAFE_LEFT = new PropertyName("left");
+    private static final PropertyName SAFE_MINIMUM = new PropertyName("minimum");
+    private static final PropertyName MAINTAIN_BOTTOM_VIEW_PADDING =
+            new PropertyName("maintainBottomViewPadding");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -2881,6 +2887,286 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertEquals(childId, assertInstanceOf(
                     WidgetSlot.SingleSlot.class,
                     savedColoredBox.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteSafeAreaWrapsExistingChildThenReopensForFurtherUndoableEdits()
+            throws Exception {
+        StableId safeAreaId = StableId.parse(
+                "76767676-7676-4676-8676-767676767676");
+        WidgetTypeId safeAreaType = SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE;
+        PropertyValue.BooleanValue leftDisabled =
+                new PropertyValue.BooleanValue(false);
+        PropertyValue.EdgeInsetsValue minimum = new PropertyValue.EdgeInsetsValue(
+                java.math.BigDecimal.ONE,
+                java.math.BigDecimal.valueOf(2),
+                java.math.BigDecimal.valueOf(3),
+                java.math.BigDecimal.valueOf(4));
+        PropertyValue.BooleanValue maintainBottom =
+                new PropertyValue.BooleanValue(true);
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_safe_area_wrap", columnExactPair())) {
+            AtomicInteger initialAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = initialAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("const SafeArea("));
+                        assertTrue(request.content().contains("child: const Text("));
+                        assertFalse(request.content().contains("child: null"));
+                        assertFalse(request.content().contains("minimum:"));
+                        assertFalse(request.content().contains(
+                                "maintainBottomViewPadding:"));
+                        if (call == 1) {
+                            assertFalse(request.content().contains("left:"));
+                        } else {
+                            assertTrue(request.content().contains("left: false"));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            safeAreaType,
+                            FIRST_ID,
+                            () -> safeAreaId);
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected SafeArea wrapper around the existing Text");
+
+            FlutterDesignerMutationController.MutationResult wrapApplied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            wrapped.command(),
+                            "home_page.fd — wrap Text with SafeArea")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    wrapApplied.outcome(), wrapApplied::reason);
+            FlutterDesignerMutationController.Snapshot wrappedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            WidgetNode safeArea = findModelWidget(
+                    wrappedSnapshot.document().orElseThrow().root(), safeAreaId);
+            assertTrue(safeArea.properties().isEmpty());
+            assertEquals(FIRST_ID, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    safeArea.slots().get(CHILD)).child().orElseThrow().id());
+
+            FlutterDesignerMutationController.MutationResult leftEdited =
+                    fixture.mutations().submit(
+                            wrappedSnapshot.token().orElseThrow(),
+                            new SetProperty(safeAreaId, SAFE_LEFT, leftDisabled),
+                            "SafeArea.left")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    leftEdited.outcome(), leftEdited::reason);
+            FlutterDesignerMutationController.Snapshot editedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            wrappedSnapshot.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            assertEquals(leftDisabled, findModelWidget(
+                    editedSnapshot.document().orElseThrow().root(), safeAreaId)
+                    .properties().get(SAFE_LEFT));
+            assertEquals(2, initialAnalyses.get());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_safe_area_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedSafeArea = findModelWidget(
+                    reopened.document().orElseThrow().root(), safeAreaId);
+            assertEquals(Map.of(SAFE_LEFT, leftDisabled),
+                    reopenedSafeArea.properties());
+            assertEquals(FIRST_ID, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    reopenedSafeArea.slots().get(CHILD)).child().orElseThrow().id());
+
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(safeAreaType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedSafeArea,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> left =
+                    cellProperty(propertiesNode, "left");
+            assertEquals(FlutterPropertyCellValue.explicit(leftDisabled), left.getValue());
+            assertTrue(left.getPropertyEditor().isPaintable());
+            assertNull(left.getPropertyEditor().getTags());
+            Node.Property<FlutterPropertyCellValue> minimumProperty =
+                    cellProperty(propertiesNode, "minimum");
+            assertEquals(FlutterPropertyCellValue.unset(), minimumProperty.getValue());
+            assertTrue(minimumProperty.getPropertyEditor().supportsCustomEditor());
+            Node.Property<FlutterPropertyCellValue> maintain =
+                    cellProperty(propertiesNode, "maintainBottomViewPadding");
+            assertEquals(FlutterPropertyCellValue.unset(), maintain.getValue());
+            assertTrue(maintain.getPropertyEditor().isPaintable());
+            assertEquals("Text", java.util.Arrays.stream(propertiesNode.getPropertySets())
+                    .flatMap(set -> java.util.Arrays.stream(set.getProperties()))
+                    .filter(property -> "child".equals(property.getName()))
+                    .findFirst().orElseThrow().getValue());
+
+            AtomicInteger furtherAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = furtherAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("const SafeArea("));
+                        assertTrue(request.content().contains("left: false"));
+                        assertTrue(request.content().contains(
+                                "minimum: const EdgeInsets.fromLTRB(1.0, 2.0, 3.0, 4.0)"));
+                        assertTrue(request.content().contains("child: const Text("));
+                        if (call == 1) {
+                            assertFalse(request.content().contains(
+                                    "maintainBottomViewPadding:"));
+                        } else {
+                            assertTrue(request.content().contains(
+                                    "maintainBottomViewPadding: true"));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult minimumEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(safeAreaId, SAFE_MINIMUM, minimum),
+                            "SafeArea.minimum")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    minimumEdited.outcome(), minimumEdited::reason);
+            FlutterDesignerMutationController.Snapshot minimumSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+
+            FlutterDesignerMutationController.MutationResult maintainEdited =
+                    fixture.mutations().submit(
+                            minimumSnapshot.token().orElseThrow(),
+                            new SetProperty(
+                                    safeAreaId,
+                                    MAINTAIN_BOTTOM_VIEW_PADDING,
+                                    maintainBottom),
+                            "SafeArea.maintainBottomViewPadding")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    maintainEdited.outcome(), maintainEdited::reason);
+            FlutterDesignerMutationController.Snapshot maintainSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            minimumSnapshot.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            WidgetNode fullyEdited = findModelWidget(
+                    maintainSnapshot.document().orElseThrow().root(), safeAreaId);
+            assertEquals(leftDisabled, fullyEdited.properties().get(SAFE_LEFT));
+            assertEquals(minimum, fullyEdited.properties().get(SAFE_MINIMUM));
+            assertEquals(maintainBottom,
+                    fullyEdited.properties().get(MAINTAIN_BOTTOM_VIEW_PADDING));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot maintainUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            maintainSnapshot.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            WidgetNode withoutMaintain = findModelWidget(
+                    maintainUndone.document().orElseThrow().root(), safeAreaId);
+            assertEquals(minimum, withoutMaintain.properties().get(SAFE_MINIMUM));
+            assertFalse(withoutMaintain.properties().containsKey(
+                    MAINTAIN_BOTTOM_VIEW_PADDING));
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot minimumUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            maintainUndone.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            WidgetNode persistedBaseline = findModelWidget(
+                    minimumUndone.document().orElseThrow().root(), safeAreaId);
+            assertEquals(Map.of(SAFE_LEFT, leftDisabled),
+                    persistedBaseline.properties());
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot minimumRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            minimumUndone.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            assertEquals(minimum, findModelWidget(
+                    minimumRedone.document().orElseThrow().root(), safeAreaId)
+                    .properties().get(SAFE_MINIMUM));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot maintainRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            minimumRedone.token().orElseThrow(),
+                            List.of(safeAreaId, SECOND_ID));
+            WidgetNode finalSafeArea = findModelWidget(
+                    maintainRedone.document().orElseThrow().root(), safeAreaId);
+            assertEquals(leftDisabled, finalSafeArea.properties().get(SAFE_LEFT));
+            assertEquals(minimum, finalSafeArea.properties().get(SAFE_MINIMUM));
+            assertEquals(maintainBottom,
+                    finalSafeArea.properties().get(MAINTAIN_BOTTOM_VIEW_PADDING));
+            assertEquals(FIRST_ID, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    finalSafeArea.slots().get(CHILD)).child().orElseThrow().id());
+            assertEquals(2, furtherAnalyses.get(),
+                    "Undo/Redo must replay the two exact analyzed SafeArea pairs");
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedSafeArea = findModelWidget(saved.root(), safeAreaId);
+            assertEquals(finalSafeArea, savedSafeArea);
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

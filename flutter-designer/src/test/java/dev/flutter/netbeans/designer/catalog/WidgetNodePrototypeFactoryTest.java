@@ -133,6 +133,50 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsDetachedSafeAreaWrapperWithOmittedDefaultsAndPhysicalInsetsOnly() {
+        WidgetDefinition definition = definition("flutter.widgets.SafeArea");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD,
+                WidgetPlacementRules.creationMode(definition));
+        assertFalse(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.ofEntries(
+                        Map.entry(new PropertyName("left"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("top"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("right"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(new PropertyName("bottom"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("minimum"),
+                                new PropertyValue.EdgeInsetsValue(
+                                        BigDecimal.valueOf(-1), BigDecimal.valueOf(2),
+                                        BigDecimal.valueOf(3), BigDecimal.valueOf(4))),
+                        Map.entry(new PropertyName("maintainBottomViewPadding"),
+                                new PropertyValue.BooleanValue(true))));
+        assertEquals(6, configured.properties().size());
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("minimum"),
+                                new PropertyValue.EdgeInsetsDirectionalValue(
+                                        BigDecimal.ONE, BigDecimal.TWO,
+                                        BigDecimal.valueOf(3), BigDecimal.valueOf(4)))));
+    }
+
+    @Test
     void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Align"), ID);

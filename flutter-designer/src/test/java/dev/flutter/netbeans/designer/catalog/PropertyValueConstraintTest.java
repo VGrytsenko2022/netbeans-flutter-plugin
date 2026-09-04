@@ -123,6 +123,19 @@ class PropertyValueConstraintTest {
     }
 
     @Test
+    void physicalEdgeInsetsAcceptSignedFiniteSidesAndRejectDirectionalValues() {
+        PropertyValueConstraint.EdgeInsetsValues physical =
+                new PropertyValueConstraint.EdgeInsetsValues(false, false);
+
+        assertTrue(physical.accepts(insets("-1", "2", "-3", "4")));
+        assertFalse(physical.accepts(new PropertyValue.EdgeInsetsDirectionalValue(
+                BigDecimal.ONE, BigDecimal.TWO, BigDecimal.valueOf(3),
+                BigDecimal.valueOf(4))));
+        assertFalse(physical.directionalAllowed());
+        assertEquals("physical edge insets", physical.description());
+    }
+
+    @Test
     void allowsOptionalPositionalParametersInExtensionMetadata() {
         DartParameter parameter = DartParameter.positional(0, false);
         assertFalse(parameter.required());

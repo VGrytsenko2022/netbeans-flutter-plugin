@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.designer.catalog;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -111,7 +112,7 @@ public final class WidgetPlacementRules {
     /** Returns the reviewed Palette creation behavior of one widget. */
     public static PaletteCreationMode creationMode(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        return isFlexWrapper(definition)
+        return requiredAnyWidgetWrapperSlot(definition).isPresent()
                 ? PaletteCreationMode.WRAP_EXISTING_CHILD
                 : PaletteCreationMode.INSERT_PROTOTYPE;
     }
@@ -127,20 +128,18 @@ public final class WidgetPlacementRules {
      */
     public static List<String> capabilityFingerprintLines(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        if (!isFlexRestrictedWidget(definition)) {
-            return List.of();
-        }
+        ArrayList<String> lines = new ArrayList<>(3);
         String type = definition.typeId().value();
-        List<String> placementLines = List.of(
-                "R|" + type + "|directParentSlot|flutter.widgets.Column|children",
-                "R|" + type + "|directParentSlot|flutter.widgets.Row|children");
-        if (!isFlexWrapper(definition)) {
-            return placementLines;
+        if (isFlexRestrictedWidget(definition)) {
+            lines.add("R|" + type
+                    + "|directParentSlot|flutter.widgets.Column|children");
+            lines.add("R|" + type
+                    + "|directParentSlot|flutter.widgets.Row|children");
         }
-        return List.of(
-                placementLines.get(0),
-                placementLines.get(1),
-                "C|" + type + "|paletteCreate|wrapExistingChild|child");
+        requiredAnyWidgetWrapperSlot(definition).ifPresent(slot -> lines.add(
+                "C|" + type + "|paletteCreate|wrapExistingChild|"
+                + slot.name().value()));
+        return List.copyOf(lines);
     }
 
     private static boolean isFlexRestrictedWidget(WidgetDefinition definition) {
@@ -150,9 +149,29 @@ public final class WidgetPlacementRules {
                 || SPACER_TYPE.equals(type);
     }
 
-    private static boolean isFlexWrapper(WidgetDefinition definition) {
-        String type = definition.typeId().value();
-        return EXPANDED_TYPE.equals(type) || FLEXIBLE_TYPE.equals(type);
+    /**
+     * Detects the reusable atomic-wrapper shape from catalog semantics rather
+     * than from a widget allow-list. A directly inserted detached prototype
+     * would violate its required slot, so Palette creation must wrap one
+     * existing widget in a single atomic command.
+     */
+    private static Optional<SlotDefinition> requiredAnyWidgetWrapperSlot(
+            WidgetDefinition definition) {
+        if (definition.slots().size() != 1
+                || definition.properties().stream().anyMatch(property ->
+                property.parameter().required()
+                && property.creationDefault().isEmpty())) {
+            return Optional.empty();
+        }
+        SlotDefinition slot = definition.slots().getFirst();
+        if (!"child".equals(slot.name().value())
+                || !slot.parameter().required()
+                || slot.minChildren() != 1
+                || slot.maxChildren() != 1
+                || !(slot.acceptance() instanceof SlotAcceptance.AnyWidget)) {
+            return Optional.empty();
+        }
+        return Optional.of(slot);
     }
 
     private static boolean isFlexParentDataDestination(

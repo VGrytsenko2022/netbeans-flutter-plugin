@@ -349,6 +349,152 @@ void main() {
     expect(canvasDropSlotsForWidgetType(canvasExpandedWidgetType), isEmpty);
     expect(canvasDropSlotsForWidgetType(canvasFlexibleWidgetType), isEmpty);
     expect(canvasDropSlotsForWidgetType(canvasSpacerWidgetType), isEmpty);
+    expect(canvasDropSlotsForWidgetType(canvasSafeAreaWidgetType), isEmpty);
+    expect(
+      isCanvasReviewedRequiredChildWrapperWidgetType(canvasSafeAreaWidgetType),
+      isTrue,
+    );
+    expect(
+      isCanvasReviewedRequiredChildWrapperWidgetType(canvasExpandedWidgetType),
+      isTrue,
+      reason: 'shape is generic even though Canvas placement is flex-special',
+    );
+    expect(
+      isCanvasReviewedRequiredChildWrapperWidgetType('flutter.widgets.Center'),
+      isFalse,
+    );
+
+    final safeAreaSource = CanvasPaletteDragSource(
+      token: 'safe-area-source',
+      widgetType: canvasSafeAreaWidgetType,
+      traits: const {},
+    );
+    for (final target
+        in <
+          ({
+            String parentWidgetType,
+            String slotName,
+            int childCount,
+            int index,
+          })
+        >[
+          (
+            parentWidgetType: 'flutter.widgets.Center',
+            slotName: 'child',
+            childCount: 1,
+            index: 0,
+          ),
+          (
+            parentWidgetType: 'flutter.widgets.Row',
+            slotName: 'children',
+            childCount: 2,
+            index: 1,
+          ),
+          (
+            parentWidgetType: canvasExpandedWidgetType,
+            slotName: 'child',
+            childCount: 1,
+            index: 0,
+          ),
+          (
+            parentWidgetType: canvasSafeAreaWidgetType,
+            slotName: 'child',
+            childCount: 1,
+            index: 0,
+          ),
+        ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: target.parentWidgetType,
+          slotName: target.slotName,
+          currentChildCount: target.childCount,
+          insertionIndex: target.index,
+          source: safeAreaSource,
+        ),
+        isTrue,
+        reason: '${target.parentWidgetType}.${target.slotName}',
+      );
+    }
+    expect(
+      canvasExistingChildWrapTargetSlot(
+        parentWidgetType: 'flutter.widgets.Center',
+        slotName: 'child',
+      )?.modelSlotKind,
+      'single',
+    );
+    expect(
+      canvasExistingChildWrapTargetSlot(
+        parentWidgetType: 'flutter.widgets.Row',
+        slotName: 'children',
+      )?.modelSlotKind,
+      'list',
+    );
+    for (final rejected
+        in <
+          ({
+            String parentWidgetType,
+            String slotName,
+            int childCount,
+            int index,
+          })
+        >[
+          (
+            parentWidgetType: 'flutter.widgets.Center',
+            slotName: 'child',
+            childCount: 0,
+            index: 0,
+          ),
+          (
+            parentWidgetType: 'flutter.widgets.Row',
+            slotName: 'children',
+            childCount: 2,
+            index: 2,
+          ),
+          (
+            parentWidgetType: 'flutter.material.Scaffold',
+            slotName: 'appBar',
+            childCount: 1,
+            index: 0,
+          ),
+          (
+            parentWidgetType: 'flutter.widgets.Center',
+            slotName: 'futureSlot',
+            childCount: 1,
+            index: 0,
+          ),
+        ]) {
+      expect(
+        canvasDropTargetAcceptsSource(
+          parentWidgetType: rejected.parentWidgetType,
+          slotName: rejected.slotName,
+          currentChildCount: rejected.childCount,
+          insertionIndex: rejected.index,
+          source: safeAreaSource,
+        ),
+        isFalse,
+        reason: '${rejected.parentWidgetType}.${rejected.slotName}',
+      );
+    }
+    expect(
+      canvasWrapperAcceptsExistingChild(
+        wrapperWidgetType: canvasSafeAreaWidgetType,
+        childWidgetType: 'flutter.widgets.Text',
+      ),
+      isTrue,
+    );
+    for (final flexType in const [
+      canvasExpandedWidgetType,
+      canvasFlexibleWidgetType,
+      canvasSpacerWidgetType,
+    ]) {
+      expect(
+        canvasWrapperAcceptsExistingChild(
+          wrapperWidgetType: canvasSafeAreaWidgetType,
+          childWidgetType: flexType,
+        ),
+        isFalse,
+      );
+    }
 
     final spacerSource = CanvasPaletteDragSource(
       token: 'spacer-source',
@@ -397,7 +543,7 @@ void main() {
     );
   });
 
-  test('closes the 39-source by 38-destination compatibility matrix', () {
+  test('closes the 40-source by 38-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -410,6 +556,7 @@ void main() {
       'flutter.widgets.IntrinsicWidth',
       'flutter.widgets.Offstage',
       'flutter.widgets.RotatedBox',
+      'flutter.widgets.SafeArea',
       'flutter.widgets.SizedOverflowBox',
       'flutter.widgets.Transform',
       'flutter.widgets.Column',
@@ -447,7 +594,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(39));
+    expect(sourceTypes, hasLength(40));
     expect(destinations, hasLength(38));
 
     var accepted = 0;
@@ -475,8 +622,8 @@ void main() {
       }
     }
     expect(accepted, 1304);
-    expect(rejected, 178);
-    expect(accepted + rejected, 1482);
+    expect(rejected, 216);
+    expect(accepted + rejected, 1520);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -4558,6 +4705,127 @@ void main() {
     expect(normal?.parentWidgetId, rowId);
     expect(normal?.insertionIndex, 3);
   });
+
+  testWidgets(
+    'offers SafeArea wrapper zones for occupied reviewed non-root slots only',
+    (tester) async {
+      const centerId = '4e7b1056-bc85-48b4-bbc1-aa27b8671508';
+      const rowId = 'af1561d7-ee2e-4c02-9fb9-7af2eac80bd2';
+      const expandedId = 'f2128b64-9006-47ce-b08b-ff4878274c43';
+      const targetId = '56826883-284c-40d5-99ee-63bf85feca79';
+      CanvasDropResolver? resolver;
+      final source = CanvasPaletteDragSource(
+        token: 'safe-area-source',
+        widgetType: canvasSafeAreaWidgetType,
+        traits: const {},
+      );
+
+      Future<CanvasDropTarget?> pumpAndResolve(
+        Map<String, Object?> root,
+        String renderedTargetId,
+      ) async {
+        final json = _modelJsonForView();
+        json['root'] = root;
+        resolver = null;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        );
+        await tester.pump();
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final point = tester
+            .getRect(find.byKey(ValueKey('canvas-widget-$renderedTargetId')))
+            .center;
+        return resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+          source,
+        );
+      }
+
+      final target = _viewSizedBoxNode(targetId, width: 80, height: 40);
+      final single = await pumpAndResolve(<String, Object?>{
+        'id': centerId,
+        'type': 'flutter.widgets.Center',
+        'properties': <String, Object?>{},
+        'slots': <String, Object?>{
+          'child': <String, Object?>{'kind': 'single', 'child': target},
+        },
+      }, targetId);
+      expect(single?.parentWidgetId, centerId);
+      expect(single?.slotName, 'child');
+      expect(single?.insertionIndex, 0);
+
+      final list = await pumpAndResolve(<String, Object?>{
+        'id': rowId,
+        'type': 'flutter.widgets.Row',
+        'properties': <String, Object?>{
+          'mainAxisSize': {
+            'kind': 'enum',
+            'type': 'MainAxisSize',
+            'value': 'min',
+          },
+        },
+        'slots': <String, Object?>{
+          'children': <String, Object?>{
+            'kind': 'list',
+            'children': <Map<String, Object?>>[
+              target,
+              _viewSizedBoxNode(
+                '05fc09ef-4d8c-4587-a55f-f1fc0513a7bd',
+                width: 60,
+                height: 40,
+              ),
+            ],
+          },
+        },
+      }, targetId);
+      expect(list?.parentWidgetId, rowId);
+      expect(list?.slotName, 'children');
+      expect(list?.insertionIndex, 0);
+
+      final required = await pumpAndResolve(<String, Object?>{
+        'id': '2b310aec-90fc-4286-a248-2b0903ff2731',
+        'type': 'flutter.widgets.Column',
+        'properties': <String, Object?>{},
+        'slots': <String, Object?>{
+          'children': <String, Object?>{
+            'kind': 'list',
+            'children': <Map<String, Object?>>[
+              <String, Object?>{
+                'id': expandedId,
+                'type': canvasExpandedWidgetType,
+                'properties': <String, Object?>{},
+                'slots': <String, Object?>{
+                  'child': <String, Object?>{'kind': 'single', 'child': target},
+                },
+              },
+            ],
+          },
+        },
+      }, targetId);
+      expect(required?.parentWidgetId, expandedId);
+      expect(required?.slotName, 'child');
+      expect(required?.insertionIndex, 0);
+
+      final rootOnly = await pumpAndResolve(
+        _viewTextNode(targetId, 'Root cannot be wrapped on this wire'),
+        targetId,
+      );
+      expect(
+        rootOnly,
+        isNull,
+        reason: 'CanvasDropTarget has no root target identity field',
+      );
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets(
     'renders every reviewed direct Image argument with real Flutter',
@@ -9738,6 +10006,138 @@ void main() {
   );
 
   testWidgets(
+    'renders real SafeArea with exact defaults and physical minimum on native and Web profiles',
+    (tester) async {
+      const safeAreaId = 'df5babd2-16cf-44c4-b497-24375532ec68';
+      const childId = 'b84ced1f-049e-479a-a5c1-6940a09ca2b3';
+      final cases =
+          <
+            ({
+              String platform,
+              Map<String, Object?> properties,
+              EdgeInsets minimum,
+            })
+          >[
+            (
+              platform: 'windows',
+              properties: const {},
+              minimum: EdgeInsets.zero,
+            ),
+            (
+              platform: 'web',
+              properties: const {
+                'left': {'kind': 'boolean', 'value': false},
+                'top': {'kind': 'boolean', 'value': true},
+                'right': {'kind': 'boolean', 'value': false},
+                'bottom': {'kind': 'boolean', 'value': true},
+                'minimum': {
+                  'kind': 'edgeInsets',
+                  'left': 3,
+                  'top': 4,
+                  'right': 5,
+                  'bottom': 6,
+                },
+                'maintainBottomViewPadding': {'kind': 'boolean', 'value': true},
+              },
+              minimum: EdgeInsets.fromLTRB(3, 4, 5, 6),
+            ),
+          ];
+
+      for (final entry in cases) {
+        final json = _modelWithSafeArea(
+          properties: entry.properties,
+          child: _viewSizedBoxNode(childId, width: 80, height: 40),
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final safeAreaFinder = find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$safeAreaId')),
+          matching: find.byType(SafeArea),
+        );
+        expect(safeAreaFinder, findsOneWidget, reason: entry.platform);
+        final safeArea = tester.widget<SafeArea>(safeAreaFinder);
+        expect(safeArea.left, entry.platform == 'windows');
+        expect(safeArea.top, isTrue);
+        expect(safeArea.right, entry.platform == 'windows');
+        expect(safeArea.bottom, isTrue);
+        expect(safeArea.minimum, entry.minimum);
+        expect(safeArea.maintainBottomViewPadding, entry.platform == 'web');
+        expect(safeArea.child, isNotNull);
+        expect(
+          find.descendant(
+            of: safeAreaFinder,
+            matching: find.byKey(const ValueKey('canvas-widget-$childId')),
+          ),
+          findsOneWidget,
+        );
+        expect(
+          tester.getSize(safeAreaFinder),
+          Size(80 + entry.minimum.horizontal, 40 + entry.minimum.vertical),
+          reason: entry.platform,
+        );
+        expect(tester.takeException(), isNull, reason: entry.platform);
+      }
+    },
+  );
+
+  testWidgets(
+    'keeps zero-layout SafeArea real and exposes only a transient 36px target',
+    (tester) async {
+      const safeAreaId = 'df5babd2-16cf-44c4-b497-24375532ec68';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithSafeArea(
+                properties: const {},
+                child: _viewSizedBoxNode(
+                  'b84ced1f-049e-479a-a5c1-6940a09ca2b3',
+                  width: 0,
+                  height: 0,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$safeAreaId'));
+      final safeAreaFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(SafeArea),
+      );
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-group-$safeAreaId'),
+      );
+      expect(tester.getSize(rendered), Size.zero);
+      expect(tester.getSize(safeAreaFinder), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+      expect(tester.getSize(rendered), Size.zero);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders every Container argument through real Flutter objects and keeps its outline outside transform',
     (tester) async {
       const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
@@ -13288,6 +13688,35 @@ Map<String, Object?> _modelWithColoredBox({
     'properties': <String, Object?>{},
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': content},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithSafeArea({
+  required Map<String, Object?> properties,
+  required Map<String, Object?> child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'df5babd2-16cf-44c4-b497-24375532ec68',
+          'type': canvasSafeAreaWidgetType,
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
     },
   };
   return model;

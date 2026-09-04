@@ -1268,6 +1268,28 @@ accepted architecture is documented in
   practical 92-widget backlog is 40/92 complete with 52 remaining. `.fd` stays
   at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
   framing/control/wire remains v1.
+- [x] Complete const
+  [`SafeArea`](https://api.flutter.dev/flutter/widgets/SafeArea/SafeArea.html)
+  as the twenty-first post-core Palette vertical slice at Layout order 240,
+  after `OverflowBar`. Expose all six optional non-`key` constructor properties:
+  `left`, `top`, `right`, `bottom`, signed finite physical `EdgeInsets minimum`
+  and `maintainBottomViewPadding`, plus one required any-widget child. Preserve
+  Flutter defaults by omitting every property on creation and reject
+  `EdgeInsetsDirectional`. Generalize atomic wrapper creation from the catalog's
+  required-single-any-widget shape, so no incomplete SafeArea is inserted.
+  Palette/tree may wrap an existing root or non-root widget; the current Canvas
+  target wire wraps non-root children only and deliberately offers no root
+  target. Reject wrapping Expanded, Flexible or Spacer because their ParentData
+  must remain directly below Row/Column. Complete typed Properties,
+  deterministic generation, native/exact-Web Canvas, Save/reopen and further
+  editing, Undo/Redo and four reviewed SVGs. The current surface is 41 widgets,
+  35 const definitions and 722 rows (705 outside Scaffold). Forty-one sources
+  across 37 insertable any-widget plus two trait destinations form 1,599
+  candidates: 1,414 accepted and 185 rejected. Layout contains 30 items,
+  Scrolling 3, Basic 4 and Material 4; the practical backlog is 41/92 complete
+  with 51 remaining. `.fd` stays at schema v9 and Canvas model at v14; adding
+  the exported `EdgeInsetsValues.directionalAllowed` constraint advances
+  Catalog API to 9. NBFC framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1285,8 +1307,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after ColoredBox has yet been assigned an
-  explicit order. The current typed Properties slice spans all forty
+  vertical slices. No specific widget after SafeArea has yet been assigned an
+  explicit order. The current typed Properties slice spans all forty-one
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

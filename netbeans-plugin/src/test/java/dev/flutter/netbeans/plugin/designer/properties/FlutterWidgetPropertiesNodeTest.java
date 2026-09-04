@@ -21,6 +21,7 @@ import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -836,6 +837,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
+                SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value(),
                 "flutter.widgets.ListView",
                 GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 SingleChildScrollViewWidgetPropertySchema
@@ -877,7 +879,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(716, writableCount,
+        assertEquals(722, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -886,9 +888,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
-                + "OverflowBar, ListView, GridView.count, SingleChildScrollView, "
+                + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
                 + "Image, and ColoredBox leaves");
-        assertEquals(699, nonScaffoldWritableCount,
+        assertEquals(705, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2168,6 +2170,91 @@ class FlutterWidgetPropertiesNodeTest {
                         "non-persisted Designer selection and drop target")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void safeAreaProjectsExactGroupedOptionalSurfaceAndRequiredOccupiedChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value());
+        StableId id = StableId.parse("bd2223bb-177d-498c-bc24-dd9d78053988");
+        WidgetNode child = WidgetNodePrototypeFactory.create(
+                definition("flutter.widgets.Text"),
+                StableId.parse("4771f24f-ed69-459e-991b-e6bb587ef695"));
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + SafeAreaWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(SafeAreaWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                Arrays.stream(sets)
+                        .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
+                                set.getName()))
+                        .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
+                                set.getName()))
+                        .mapToInt(set -> set.getProperties().length).sum());
+        for (SafeAreaWidgetPropertySchema.Group group
+                : SafeAreaWidgetPropertySchema.Group.values()) {
+            Node.PropertySet set = propertySet(node, group.setName());
+            assertEquals(group.displayName(), set.getDisplayName());
+            assertEquals(group.description(), set.getShortDescription());
+            assertEquals("General", set.getValue(
+                    FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        }
+        assertEquals(List.of("left", "top", "right", "bottom"), names(propertySet(
+                node, SafeAreaWidgetPropertySchema.Group.SIDES.setName()).getProperties()));
+        assertEquals(List.of("minimum"), names(propertySet(
+                node, SafeAreaWidgetPropertySchema.Group.PADDING.setName()).getProperties()));
+        assertEquals(List.of("maintainBottomViewPadding"), names(propertySet(
+                node, SafeAreaWidgetPropertySchema.Group.VIEW_PADDING.setName())
+                        .getProperties()));
+
+        Node.Property<FlutterPropertyCellValue> left = cellProperty(property(node, "left"));
+        assertEquals(FlutterPropertyCellValue.unset(), left.getValue());
+        assertEquals(null, left.getPropertyEditor().getTags());
+        left.setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.BooleanValue(false)));
+        assertTrue(left.supportsDefaultValue());
+        left.restoreDefaultValue();
+
+        Node.Property<FlutterPropertyCellValue> minimum = cellProperty(
+                property(node, "minimum"));
+        assertEquals(FlutterPropertyCellValue.unset(), minimum.getValue());
+        assertThrows(IllegalArgumentException.class, () -> minimum.setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.EdgeInsetsDirectionalValue(
+                                BigDecimal.ONE, BigDecimal.valueOf(2),
+                                BigDecimal.valueOf(3), BigDecimal.valueOf(4)))));
+        PropertyValue.EdgeInsetsValue physical = new PropertyValue.EdgeInsetsValue(
+                BigDecimal.ONE, BigDecimal.valueOf(2),
+                BigDecimal.valueOf(3), BigDecimal.valueOf(4));
+        minimum.setValue(FlutterPropertyCellValue.explicit(physical));
+
+        assertEquals(List.of(
+                new SetProperty(id, new PropertyName("left"),
+                        new PropertyValue.BooleanValue(false)),
+                new SetProperty(id, new PropertyName("minimum"), physical)),
+                commands);
+
+        Node.Property<?> childProperty = property(node, "child");
+        assertAll(
+                () -> assertEquals("Text", childProperty.getValue()),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "Required child inset")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "physical EdgeInsets")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "Occupancy: 1/1")),
+                () -> assertTrue(childProperty.getShortDescription().contains(
+                        "cannot be added empty, removed, or cleared")));
     }
 
     @Test
@@ -4128,7 +4215,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fortyCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyOneCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -4164,6 +4251,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
+                SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value(),
                 "flutter.widgets.ListView",
                 GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 SingleChildScrollViewWidgetPropertySchema
@@ -4199,7 +4287,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(40, iconPaths.size(),
+        assertEquals(41, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

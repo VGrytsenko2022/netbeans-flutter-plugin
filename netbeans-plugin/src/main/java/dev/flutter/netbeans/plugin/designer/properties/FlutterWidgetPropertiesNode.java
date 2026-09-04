@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
@@ -486,6 +487,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.equals(
                 widget.type())) {
             addColoredBoxPropertySets(sheet, hasSlotTab);
+        } else if (SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.equals(
+                widget.type())) {
+            addSafeAreaPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -657,6 +661,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child inset from the selected left, top, right, and bottom "
+                    + "system intrusions. Minimum supplies a physical EdgeInsets lower bound, "
+                    + "and Maintain bottom view padding can preserve MediaQuery viewPadding "
+                    + "while the on-screen keyboard is visible. Occupancy: " + count + "/"
+                    + maximum + "; minimum: " + slot.minChildren()
+                    + ". This required child cannot be added empty, removed, or cleared; "
+                    + "open the custom editor to replace it with a new or existing widget.";
         }
         if (BASELINE_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2038,6 +2052,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     description));
+        }
+    }
+
+    private void addSafeAreaPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<SafeAreaWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(SafeAreaWidgetPropertySchema.Group.class);
+        for (SafeAreaWidgetPropertySchema.Group group
+                : SafeAreaWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            SafeAreaWidgetPropertySchema.Definition schema =
+                    SafeAreaWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in SafeArea property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()));
         }
     }
 

@@ -25,12 +25,12 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(40, javaTypes.size(),
+        assertEquals(41, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
-                + "SingleChildScrollView, and ColoredBox");
+                + "SingleChildScrollView, SafeArea, and ColoredBox");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -55,6 +55,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.RotatedBox"));
         assertTrue(javaTypes.contains("flutter.widgets.ListBody"));
         assertTrue(javaTypes.contains("flutter.widgets.OverflowBar"));
+        assertTrue(javaTypes.contains("flutter.widgets.SafeArea"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.GridView"));
         assertTrue(javaTypes.contains("flutter.widgets.SingleChildScrollView"));
@@ -130,6 +131,8 @@ class FlutterWidgetCapabilityParityTest {
                 "Flexible.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Spacer"),
                 "Spacer has no child slot and is never a DnD destination");
+        assertTrue(!javaContainers.contains("flutter.widgets.SafeArea"),
+                "SafeArea.child is required replacement-only, not an empty insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
                 "Baseline.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicHeight"),

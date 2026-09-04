@@ -4073,6 +4073,129 @@ void main() {
     },
   );
 
+  testWidgets(
+    'authoritatively admits SafeArea replacement targets and rejects unsafe children',
+    (tester) async {
+      final input = StreamController<List<int>>();
+      final output = <List<int>>[];
+      final runtime = CanvasRuntimeController(
+        input: input.stream,
+        output: (bytes) => output.add(List<int>.from(bytes)),
+        flush: () async {},
+        diagnostic: fail,
+      );
+      final running = runtime.start();
+      input.add(
+        encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+      );
+      _addRender(input, _rowWithExpandedModelBytes());
+      await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+      for (var attempt = 0; attempt < 20 && runtime.model == null; attempt++) {
+        await tester.pump(const Duration(milliseconds: 10));
+      }
+      expect(runtime.model, isNotNull);
+      await tester.pump();
+
+      const token =
+          'nbfdnd:v1:d40d59ed-9d9c-41b3-9bc7-9c7be768fc65:'
+          'f6480d29-b8a4-4dc7-85f7-d517b6cdf368';
+      const rowId = '1035b7df-df9b-442b-9af2-72b4c90f1462';
+      const expandedId = 'd4694b31-94a5-43ea-8cf8-3c6327f57113';
+      Map<String, Object?> request(int generation) => {
+        'token': token,
+        'xMicros': 500000,
+        'yMicros': 500000,
+        'generation': generation,
+        'probeId': generation,
+      };
+      Future<void> expectTarget({
+        required String parentWidgetId,
+        required String slotName,
+        required int insertionIndex,
+        required bool accepted,
+        required int generation,
+        required String reason,
+      }) async {
+        runtime.setDropResolver(
+          (_, _, [_]) => CanvasDropTarget(
+            parentWidgetId: parentWidgetId,
+            slotName: slotName,
+            insertionIndex: insertionIndex,
+          ),
+        );
+        expect(
+          await _sourceAwareHover(
+            runtime,
+            input,
+            request(generation),
+            widgetType: canvasSafeAreaWidgetType,
+          ),
+          accepted,
+          reason: reason,
+        );
+      }
+
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 0,
+        accepted: true,
+        generation: 0,
+        reason: 'SafeArea may wrap an ordinary list child',
+      );
+      await expectTarget(
+        parentWidgetId: expandedId,
+        slotName: 'child',
+        insertionIndex: 0,
+        accepted: true,
+        generation: 1,
+        reason: 'occupied required child slots are atomic replacement targets',
+      );
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 1,
+        accepted: false,
+        generation: 2,
+        reason: 'SafeArea cannot become the parent of Expanded',
+      );
+      await expectTarget(
+        parentWidgetId: rowId,
+        slotName: 'children',
+        insertionIndex: 2,
+        accepted: false,
+        generation: 3,
+        reason: 'SafeArea wraps an existing child, never terminal-appends',
+      );
+      await expectTarget(
+        parentWidgetId: '6e88bff4-8d73-48aa-92b5-87aa3344f6a7',
+        slotName: 'body',
+        insertionIndex: 0,
+        accepted: true,
+        generation: 4,
+        reason: 'an occupied reviewed single slot is replaceable',
+      );
+      await expectTarget(
+        parentWidgetId: '6e88bff4-8d73-48aa-92b5-87aa3344f6a7',
+        slotName: 'appBar',
+        insertionIndex: 0,
+        accepted: false,
+        generation: 5,
+        reason: 'empty and PreferredSize-only slots fail closed',
+      );
+
+      await input.close();
+      await running;
+      await tester.pumpWidget(const SizedBox.shrink());
+      expect(
+        _decodeControlMessages(
+          output,
+        ).where((message) => message['type'] == 'runner.paletteDrop'),
+        isEmpty,
+      );
+    },
+  );
+
   test('rejects malformed, unsupported and non-terminal native drops', () async {
     final runtime = CanvasRuntimeController(
       input: const Stream<List<int>>.empty(),
@@ -4116,6 +4239,40 @@ Uint8List _rowWithSpacerModelBytes() {
     'type': canvasSpacerWidgetType,
     'properties': <String, Object?>{},
     'slots': <String, Object?>{},
+  });
+  return Uint8List.fromList(utf8.encode(jsonEncode(json)));
+}
+
+Uint8List _rowWithExpandedModelBytes() {
+  final json =
+      jsonDecode(utf8.decode(fixture.modelBytesForViewTest()))
+          as Map<String, Object?>;
+  final root = json['root']! as Map<String, Object?>;
+  final row = _findNodeByType(root, 'flutter.widgets.Row')!;
+  final children =
+      ((row['slots']! as Map<String, Object?>)['children']!
+              as Map<String, Object?>)['children']!
+          as List<Object?>;
+  children.add(<String, Object?>{
+    'id': 'd4694b31-94a5-43ea-8cf8-3c6327f57113',
+    'type': canvasExpandedWidgetType,
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'd0b6b10c-b759-4efc-a22b-a0b70c9dc677',
+          'type': 'flutter.widgets.Text',
+          'properties': <String, Object?>{
+            'data': <String, Object?>{
+              'kind': 'string',
+              'value': 'Expanded child',
+            },
+          },
+          'slots': <String, Object?>{},
+        },
+      },
+    },
   });
   return Uint8List.fromList(utf8.encode(jsonEncode(json)));
 }

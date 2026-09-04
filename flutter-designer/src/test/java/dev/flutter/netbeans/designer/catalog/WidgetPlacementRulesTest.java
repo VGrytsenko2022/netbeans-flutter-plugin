@@ -588,6 +588,41 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(coloredBox));
     }
 
+    @Test
+    void safeAreaUsesGenericRequiredAnyWidgetAtomicWrapperCreation() {
+        WidgetDefinition safeArea = definition("flutter.widgets.SafeArea");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(safeArea).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), safeArea));
+        assertTrue(WidgetPlacementRules.accepts(
+                safeArea, slot(safeArea, "child"), text));
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    safeArea,
+                    slot(safeArea, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.SafeArea.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD,
+                WidgetPlacementRules.creationMode(safeArea));
+        assertFalse(WidgetPlacementRules.supportsDirectPrototypeInsertion(safeArea));
+        assertEquals(List.of(
+                        "C|flutter.widgets.SafeArea|paletteCreate|"
+                        + "wrapExistingChild|child"),
+                WidgetPlacementRules.capabilityFingerprintLines(safeArea));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

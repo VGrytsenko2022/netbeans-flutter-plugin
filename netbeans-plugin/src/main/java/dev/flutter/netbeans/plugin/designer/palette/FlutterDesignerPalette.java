@@ -249,7 +249,10 @@ public final class FlutterDesignerPalette {
             super(Children.LEAF, Lookups.fixed(item, definition));
             setName(item.typeId().value());
             setDisplayName(item.displayName());
-            if (WidgetPlacementRules.creationMode(definition)
+            if ("flutter.widgets.SafeArea".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.SafeArea.Name"));
+                setShortDescription(message("Widget.SafeArea.Description"));
+            } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();
                 setShortDescription(

@@ -780,6 +780,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.RotatedBox",
                     "flutter.widgets.ListBody",
                     "flutter.widgets.OverflowBar",
+                    "flutter.widgets.SafeArea",
                     "flutter.widgets.ListView",
                     dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema
                             .GRID_VIEW_COUNT_TYPE.value(),

@@ -203,6 +203,20 @@ final class FlutterTypedPropertyEditors {
             return !definition.parameter().required();
         }
 
+        boolean directionalEdgeInsetsAllowed() {
+            if (editorKind != EditorKind.EDGE_INSETS) {
+                throw new IllegalStateException(
+                        "Directional EdgeInsets capability is only defined for EdgeInsets editors.");
+            }
+            return definition.constraints().stream()
+                    .filter(PropertyValueConstraint.EdgeInsetsValues.class::isInstance)
+                    .map(PropertyValueConstraint.EdgeInsetsValues.class::cast)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "EdgeInsets editor is missing its typed constraint."))
+                    .directionalAllowed();
+        }
+
         List<ThemeToken> allowedThemeTokens() {
             return definition.constraints().stream()
                     .filter(PropertyValueConstraint.ThemeTokenValues.class::isInstance)

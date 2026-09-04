@@ -5382,6 +5382,166 @@ void main() {
     );
   });
 
+  test('decodes the exact SafeArea properties and required child contract', () {
+    Map<String, Object?> model({
+      required Map<String, Object?> properties,
+      required Map<String, Object?> slots,
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'df5babd2-16cf-44c4-b497-24375532ec68',
+        'flutter.widgets.SafeArea',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final child = _node(
+      'b84ced1f-049e-479a-a5c1-6940a09ca2b3',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Safe child'},
+      },
+    );
+    final explicit = _decode(
+      model(
+        properties: const {
+          'left': {'kind': 'boolean', 'value': false},
+          'top': {'kind': 'boolean', 'value': true},
+          'right': {'kind': 'boolean', 'value': false},
+          'bottom': {'kind': 'boolean', 'value': true},
+          'minimum': {
+            'kind': 'edgeInsets',
+            'left': -4,
+            'top': 5.5,
+            'right': -6.25,
+            'bottom': 7,
+          },
+          'maintainBottomViewPadding': {'kind': 'boolean', 'value': true},
+        },
+        slots: {'child': _single(child)},
+      ),
+    ).root;
+    expect(explicit.type, 'flutter.widgets.SafeArea');
+    expect(explicit.properties, hasLength(6));
+    expect(explicit.properties['left']!.value, isFalse);
+    expect(explicit.properties['top']!.value, isTrue);
+    expect(explicit.properties['right']!.value, isFalse);
+    expect(explicit.properties['bottom']!.value, isTrue);
+    expect(explicit.properties['maintainBottomViewPadding']!.value, isTrue);
+    final minimum = explicit.properties['minimum']!.value as CanvasEdgeInsets;
+    expect(
+      [minimum.left, minimum.top, minimum.right, minimum.bottom],
+      [-4, 5.5, -6.25, 7],
+    );
+    expect(explicit.slot('child')!.child!.type, 'flutter.widgets.Text');
+
+    final omitted = _decode(
+      model(properties: const {}, slots: {'child': _single(child)}),
+    ).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('child')!.children, hasLength(1));
+  });
+
+  test('rejects unsupported SafeArea value, slot, and child branches', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'df5babd2-16cf-44c4-b497-24375532ec68',
+        'flutter.widgets.SafeArea',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final text = _node(
+      'b84ced1f-049e-479a-a5c1-6940a09ca2b3',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Safe child'},
+      },
+    );
+    for (final invalid in <Map<String, Object?>>[
+      model(),
+      model(slots: {'child': _single(null)}),
+      model(
+        properties: const {
+          'minimum': {
+            'kind': 'edgeInsetsDirectional',
+            'start': 1,
+            'top': 2,
+            'end': 3,
+            'bottom': 4,
+          },
+        },
+        slots: {'child': _single(text)},
+      ),
+      model(
+        properties: const {
+          'left': {'kind': 'integer', 'value': 1},
+        },
+        slots: {'child': _single(text)},
+      ),
+      model(
+        properties: const {
+          'futureProperty': {'kind': 'boolean', 'value': true},
+        },
+        slots: {'child': _single(text)},
+      ),
+      model(
+        slots: {
+          'child': {
+            'kind': 'list',
+            'children': [text],
+          },
+        },
+      ),
+      model(slots: {'child': _single(text), 'futureSlot': _single(null)}),
+    ]) {
+      expect(() => _decode(invalid), throwsFormatException);
+    }
+
+    final expanded = _node(
+      '47184ff3-7c45-49e5-9039-3079417a7c67',
+      'flutter.widgets.Expanded',
+      slots: {'child': _single(text)},
+    );
+    expect(
+      () => _decode(model(slots: {'child': _single(expanded)})),
+      throwsFormatException,
+      reason: 'SafeArea cannot become the RenderFlex parent of Expanded',
+    );
+  });
+
+  test('SafeArea reviewed schema and wrapper creation contract are exact', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.SafeArea\n');
+    final end = contract.indexOf(
+      'W|flutter.widgets.SingleChildScrollView\n',
+      start,
+    );
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.SafeArea\n'
+      'P|bottom|boolean|0|-|-|boolean:any\n'
+      'P|left|boolean|0|-|-|boolean:any\n'
+      'P|maintainBottomViewPadding|boolean|0|-|-|boolean:any\n'
+      'P|minimum|edgeInsets|0|-|edgeInsets:*:1:*:1|'
+      'edgeInsets:edgeInsetsPhysical:0:*:1:*:1\n'
+      'P|right|boolean|0|-|-|boolean:any\n'
+      'P|top|boolean|0|-|-|boolean:any\n'
+      'S|child|single|1|1|1|any\n'
+      'C|flutter.widgets.SafeArea|paletteCreate|wrapExistingChild|child\n',
+    );
+  });
+
   test('decodes the complete strict Container contract and nested unions', () {
     final child = _node(
       'e1c67a19-d25c-4675-92c4-cab1772bf571',

@@ -4442,9 +4442,16 @@ public final class FlutterDesignerMultiViewDesign
         String widgetDisplayName = catalog.find(prepared.widgetType())
                 .orElseThrow().palette().displayName();
         if (prepared.wrapTargetId().isPresent()) {
+            StableId wrapTarget = prepared.wrapTargetId().orElseThrow();
+            if (document.root().id().equals(wrapTarget)) {
+                return FlutterDesignerWidgetTreeDropSupport.Preview.accepted(
+                        prepared,
+                        "Wrap Designer root widget " + wrapTarget
+                        + " with " + widgetDisplayName + '.');
+            }
             return FlutterDesignerWidgetTreeDropSupport.Preview.accepted(
                     prepared,
-                    "Wrap widget " + prepared.wrapTargetId().orElseThrow()
+                    "Wrap widget " + wrapTarget
                     + " with " + widgetDisplayName + " as a direct child of "
                     + prepared.parentId() + '.' + prepared.slotName().value()
                     + " at index " + prepared.insertionIndex() + '.');
@@ -4493,21 +4500,31 @@ public final class FlutterDesignerMultiViewDesign
                 .orElseThrow().palette().displayName();
         if (result instanceof FlutterDesignerPaletteTreeDropAdapter.Wrapped wrapped) {
             WrapWidget command = wrapped.command();
-            String target = modelName + " — wrap widget " + command.widgetId()
-                    + " with " + widgetDisplayName + " in "
-                    + prepared.parentId() + '.' + prepared.slotName().value()
-                    + " at index " + prepared.insertionIndex();
+            boolean wrapsRoot = document.root().id().equals(command.widgetId());
+            String target = wrapsRoot
+                    ? modelName + " — wrap Designer root widget "
+                            + command.widgetId() + " with " + widgetDisplayName
+                    : modelName + " — wrap widget " + command.widgetId()
+                            + " with " + widgetDisplayName + " in "
+                            + prepared.parentId() + '.' + prepared.slotName().value()
+                            + " at index " + prepared.insertionIndex();
             submitDesignerMutation(
                     controllerForEdit,
                     candidate.token().orElseThrow(),
                     command,
-                    "Wrap Flutter child with " + widgetDisplayName,
+                    wrapsRoot
+                            ? "Wrap Flutter root widget with " + widgetDisplayName
+                            : "Wrap Flutter child with " + widgetDisplayName,
                     target);
             return FlutterDesignerWidgetTreeDropSupport.Decision.accepted(
-                    "Wrapping widget " + command.widgetId() + " with "
-                    + widgetDisplayName + " in " + prepared.parentId() + '.'
-                    + prepared.slotName().value() + " at index "
-                    + prepared.insertionIndex() + '.');
+                    wrapsRoot
+                            ? "Wrapping Designer root widget " + command.widgetId()
+                                    + " with " + widgetDisplayName + '.'
+                            : "Wrapping widget " + command.widgetId() + " with "
+                                    + widgetDisplayName + " in "
+                                    + prepared.parentId() + '.'
+                                    + prepared.slotName().value() + " at index "
+                                    + prepared.insertionIndex() + '.');
         }
         FlutterDesignerPaletteTreeDropAdapter.Committed committed =
                 (FlutterDesignerPaletteTreeDropAdapter.Committed) result;

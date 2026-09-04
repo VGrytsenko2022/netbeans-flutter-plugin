@@ -179,6 +179,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.RotatedBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListBody", STATIC_EDITABLE),
             Map.entry("flutter.widgets.OverflowBar", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.SafeArea", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.GridView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
@@ -516,6 +517,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                             "overflowDirection", "VerticalDirection", "up", "down"),
                     enumProperty("textDirection", "TextDirection", "rtl", "ltr")),
                     Map.of("children", listSlotSchema(false, 0, 10_000)))),
+            Map.entry("flutter.widgets.SafeArea", projection(Map.ofEntries(
+                    property("left", PropertyValueKind.BOOLEAN),
+                    property("top", PropertyValueKind.BOOLEAN),
+                    property("right", PropertyValueKind.BOOLEAN),
+                    property("bottom", PropertyValueKind.BOOLEAN),
+                    Map.entry("minimum", physicalEdgeInsetsSchema(false)),
+                    property("maintainBottomViewPadding", PropertyValueKind.BOOLEAN)),
+                    Map.of("child", singleSlotSchema(true, 1)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.GridView", gridViewCountProjection()),
             Map.entry("flutter.widgets.SingleChildScrollView",
@@ -1668,6 +1677,22 @@ public final class BuiltInWidgetCapabilityCatalog {
                         + ':' + bounds.fingerprint()));
     }
 
+    private static CanvasPropertyContract physicalEdgeInsetsSchema(
+            boolean nonNegative) {
+        CanvasNumericBounds bounds = nonNegative
+                ? NON_NEGATIVE_NUMERIC
+                : UNBOUNDED_NUMERIC;
+        return new CanvasPropertyContract(
+                Set.of(PropertyValueKind.EDGE_INSETS),
+                false,
+                Optional.empty(),
+                Map.of(PropertyValueKind.EDGE_INSETS, bounds),
+                Map.of(
+                        PropertyValueKind.EDGE_INSETS,
+                        "edgeInsetsPhysical:" + (nonNegative ? '1' : '0')
+                        + ':' + bounds.fingerprint()));
+    }
+
     private static Map.Entry<String, CanvasPropertyContract> property(
             String name,
             PropertyValueKind... kinds) {
@@ -2015,6 +2040,11 @@ public final class BuiltInWidgetCapabilityCatalog {
             CanvasNumericBounds numeric = edgeInsets.nonNegative()
                     ? NON_NEGATIVE_NUMERIC
                     : UNBOUNDED_NUMERIC;
+            if (!edgeInsets.directionalAllowed()) {
+                return "edgeInsetsPhysical:"
+                        + (edgeInsets.nonNegative() ? '1' : '0')
+                        + ':' + numeric.fingerprint();
+            }
             return "edgeInsets:" + (edgeInsets.nonNegative() ? '1' : '0')
                     + ':' + numeric.fingerprint();
         }
@@ -2288,7 +2318,8 @@ public final class BuiltInWidgetCapabilityCatalog {
         TreeMap<String, CanvasNumericBounds> result = new TreeMap<>();
         contract.numericBounds().forEach((kind, bounds) -> {
             result.put(kind.wireName(), bounds);
-            if (kind == PropertyValueKind.EDGE_INSETS) {
+            if (kind == PropertyValueKind.EDGE_INSETS
+                    && allowsDirectionalEdgeInsets(contract)) {
                 result.put("edgeInsetsDirectional", bounds);
             }
         });
@@ -2300,13 +2331,21 @@ public final class BuiltInWidgetCapabilityCatalog {
         TreeMap<String, String> result = new TreeMap<>();
         contract.constraintFingerprints().forEach((kind, fingerprint) -> {
             result.put(kind.wireName(), fingerprint);
-            if (kind == PropertyValueKind.EDGE_INSETS) {
+            if (kind == PropertyValueKind.EDGE_INSETS
+                    && allowsDirectionalEdgeInsets(contract)) {
                 // The semantic Java value kind deliberately covers both wire
                 // variants decoded by the isolated Dart Canvas runtime.
                 result.put("edgeInsetsDirectional", fingerprint);
             }
         });
         return Collections.unmodifiableMap(result);
+    }
+
+    private static boolean allowsDirectionalEdgeInsets(
+            CanvasPropertyContract contract) {
+        return !contract.constraintFingerprints()
+                .getOrDefault(PropertyValueKind.EDGE_INSETS, "")
+                .startsWith("edgeInsetsPhysical:");
     }
 
     private static String decimalText(BigDecimal value) {

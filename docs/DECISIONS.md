@@ -2416,6 +2416,13 @@ drop targeting verifies exact local containment instead of the transformed
 axis-aligned bounding-box corners. Singular and otherwise valid finite matrices
 remain legal Flutter values rather than being replaced by a Designer approximation.
 
+`package:flutter/widgets.dart` re-exports `Matrix4`, but analyzer navigation
+correctly resolves that class to its declaring
+`package:vector_math/vector_math_64.dart` library outside the Flutter SDK root.
+Generated occurrence metadata therefore retains the real declaring library and
+pair-save does not misclassify Matrix4 as a Flutter-owned probe. The Flutter-SDK
+trust boundary remains unchanged; no Pub Cache directory becomes trusted.
+
 This slice intentionally models `Transform.new`. The `.rotate`, `.translate`,
 `.scale` and `.flip` convenience constructors remain outside the admitted
 constructor identity; their resulting effects remain expressible through the

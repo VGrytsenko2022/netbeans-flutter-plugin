@@ -784,6 +784,17 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 "mutation_saved_transform_origin_reload_further_edit",
                 transformExactPair(initial))) {
             awaitReadyWithOrigin(fixture.mutations(), initial);
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("Matrix4.fromList"));
+                        assertFalse(request.symbolProbes().stream().anyMatch(
+                                        probe -> probe.expectedSymbolName()
+                                                .equals("Matrix4")),
+                                "re-exported vector_math Matrix4 must not be trusted as "
+                                + "a Flutter-SDK-owned navigation target");
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
             FlutterDesignerMutationController.MutationResult applied =
                     fixture.mutations().submit(
                             fixture.mutations().snapshot().token().orElseThrow(),
@@ -1530,6 +1541,100 @@ class FlutterDesignerMutationControllerIntegrationTest {
                             Files.readAllBytes(fixture.fdPath())));
             assertEquals(sizedBoxType,
                     findModelWidget(saved.document().root(), appendedId).type());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteTransformInsertionPassesPairSaveWithoutTrustingPubCache()
+            throws Exception {
+        MutationFixture fixture = fixture(
+                "mutation_palette_transform_append", columnExactPair());
+        StableId appendedId = StableId.parse(
+                "68686868-6868-4868-8868-686868686868");
+        WidgetTypeId transformType = new WidgetTypeId(
+                "flutter.widgets.Transform");
+        AtomicInteger transformAnalysisCalls = new AtomicInteger();
+
+        try (fixture) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        transformAnalysisCalls.incrementAndGet();
+                        assertTrue(request.content().contains("Transform("));
+                        assertTrue(request.content().contains("Matrix4.fromList"));
+                        assertTrue(request.symbolProbes().stream().anyMatch(
+                                probe -> probe.expectedSymbolName()
+                                        .equals("Transform")));
+                        assertFalse(request.symbolProbes().stream().anyMatch(
+                                        probe -> probe.expectedSymbolName()
+                                                .equals("Matrix4")),
+                                "the vector_math declaration must not become a "
+                                + "Flutter-SDK-owned navigation probe");
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            transformType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal Transform insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append Transform to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode transform = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(transformType, transform.type());
+            assertEquals(identityMatrix(), transform.properties().get(TRANSFORM));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    transform.slots().get(CHILD)).child().isEmpty());
+            assertEquals(1, transformAnalysisCalls.get());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            assertArrayEquals(candidateDart,
+                    fixture.editor().liveSnapshot().markerBearingUtf8());
+
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            assertArrayEquals(candidateDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(candidateFd, Files.readAllBytes(fixture.fdPath()));
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedTransform = findModelWidget(
+                    saved.root(), appendedId);
+            assertEquals(transformType, savedTransform.type());
+            assertEquals(identityMatrix(),
+                    savedTransform.properties().get(TRANSFORM));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

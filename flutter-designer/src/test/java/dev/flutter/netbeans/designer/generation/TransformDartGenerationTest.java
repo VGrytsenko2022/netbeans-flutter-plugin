@@ -58,6 +58,13 @@ class TransformDartGenerationTest {
         assertFalse(build.contains("Transform.translate"), build);
         assertFalse(build.contains("Transform.scale"), build);
         assertFalse(build.contains("Transform.flip"), build);
+        GeneratedDartSymbolOccurrence matrix4 = first.symbolOccurrences().stream()
+                .filter(occurrence -> occurrence.symbolName().equals("Matrix4"))
+                .findFirst()
+                .orElseThrow();
+        assertEquals("package:vector_math/vector_math_64.dart",
+                matrix4.libraryUri(),
+                "widgets.dart re-exports Matrix4 but analyzer navigation owns it in vector_math");
         assertEquals("""
                   @override
                   Widget build(BuildContext context) {

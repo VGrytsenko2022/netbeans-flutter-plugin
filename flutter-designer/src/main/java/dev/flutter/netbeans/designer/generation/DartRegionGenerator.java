@@ -59,6 +59,8 @@ public final class DartRegionGenerator {
     private static final String SERVICES_IMPORT = "package:flutter/services.dart";
     private static final String WIDGETS_IMPORT = "package:flutter/widgets.dart";
     private static final String RENDERING_IMPORT = "package:flutter/rendering.dart";
+    private static final String VECTOR_MATH_64_LIBRARY =
+            "package:vector_math/vector_math_64.dart";
     private static final String DART_CONVERT_IMPORT = "dart:convert";
     private static final String DART_UI_IMPORT = "dart:ui";
     private static final String UNRESOLVED_IMAGE_BASE64 =
@@ -3786,7 +3788,7 @@ public final class DartRegionGenerator {
         return scalar(rendered, false, path, widgetId, context,
                 List.of(occurrence(
                         "widget:" + widgetId + ":matrix4:" + path,
-                        symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                        symbol.nameOffset(), symbol.name(), VECTOR_MATH_64_LIBRARY,
                         path, Optional.of(widgetId))));
     }
 

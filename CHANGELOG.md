@@ -692,6 +692,12 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Fixed
 
+- Transform insertion and Matrix4 property edits no longer fail pair-save with
+  `UNTRUSTED_NAVIGATION_TARGET`. Generated symbol evidence now records
+  `Matrix4` under its real `package:vector_math/vector_math_64.dart` owner even
+  though Flutter's `widgets.dart` re-exports it. The pair-save analyzer keeps
+  its existing Flutter-SDK trust boundary and simply excludes this external
+  occurrence from Flutter-owned probes instead of broadening trusted roots.
 - Property-only Designer revisions now refresh the existing selected Explorer
   `Node` and its stable `Node.Property` instances in place. The standard
   NetBeans PropertySheet therefore retains its active editor, selected row,

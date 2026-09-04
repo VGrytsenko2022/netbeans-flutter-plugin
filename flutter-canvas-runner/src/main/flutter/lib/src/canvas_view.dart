@@ -548,6 +548,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ListBody' ||
         node.type == 'flutter.widgets.OverflowBar' ||
         node.type == 'flutter.widgets.ListView' ||
+        node.type == 'flutter.widgets.GridView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
@@ -1031,6 +1032,17 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     int insertionIndex,
     String slotName,
   ) {
+    if (parentNode.type == 'flutter.widgets.GridView' &&
+        slotName == 'children') {
+      return _gridInsertionZone(
+        parentNode,
+        parentBox,
+        parentRect,
+        children,
+        insertionIndex,
+        markerExtent: _moveInsertionMarkerExtent,
+      );
+    }
     if ((parentNode.type == 'flutter.widgets.Stack' ||
             parentNode.type == 'flutter.widgets.Wrap') &&
         slotName == 'children') {
@@ -1353,6 +1365,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       }
       return parent;
     }
+    if (node.type == 'flutter.widgets.GridView' && slotName == 'children') {
+      return _gridInsertionZone(
+        node,
+        parentBox,
+        parent,
+        children,
+        children.length,
+        markerExtent: _minimumTerminalBand,
+      );
+    }
     final last = _renderBox(_nodeKeys[children.last.id]);
     if (last == null) {
       return Rect.zero;
@@ -1413,6 +1435,80 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           );
   }
 
+  Rect _gridInsertionZone(
+    CanvasNode node,
+    RenderBox parentBox,
+    Rect parent,
+    List<CanvasNode> children,
+    int insertionIndex, {
+    required double markerExtent,
+  }) {
+    if (parent.isEmpty || children.isEmpty) {
+      return children.isEmpty ? parent : Rect.zero;
+    }
+    final beforeExisting = insertionIndex < children.length;
+    final referenceIndex = beforeExisting
+        ? insertionIndex
+        : children.length - 1;
+    final reference = _renderBox(_nodeKeys[children[referenceIndex].id]);
+    if (reference == null) {
+      return Rect.zero;
+    }
+    final renderedReferenceRect = _finiteRectInAncestor(reference, parentBox);
+    if (renderedReferenceRect == null) {
+      return Rect.zero;
+    }
+    final referenceRect = renderedReferenceRect.intersect(parent);
+    if (referenceRect.isEmpty) {
+      return Rect.zero;
+    }
+
+    final crossAxisCount = _integerValue(node, 'crossAxisCount') ?? 2;
+    final atGroupBoundary = beforeExisting
+        ? insertionIndex % crossAxisCount == 0
+        : children.length % crossAxisCount == 0;
+    final horizontalMain = _isHorizontalGridView(node);
+    final reverse = _booleanValue(node, 'reverse') == true;
+    final direction = _resolvedTextDirection(node);
+    final mainForwardPositive = horizontalMain
+        ? (direction == TextDirection.ltr) != reverse
+        : !reverse;
+    final crossForwardPositive = horizontalMain
+        ? true
+        : direction == TextDirection.ltr;
+    final useMainAxisEdge = atGroupBoundary;
+    final forwardPositive = useMainAxisEdge
+        ? mainForwardPositive
+        : crossForwardPositive;
+    final leading = beforeExisting;
+    final useMinimumEdge = leading == forwardPositive;
+    final verticalEdge = useMainAxisEdge == horizontalMain;
+    final edge = verticalEdge
+        ? (useMinimumEdge ? referenceRect.left : referenceRect.right)
+        : (useMinimumEdge ? referenceRect.top : referenceRect.bottom);
+    final extent = verticalEdge
+        ? markerExtent.clamp(1.0, parent.width)
+        : markerExtent.clamp(1.0, parent.height);
+    final half = extent / 2;
+
+    if (verticalEdge) {
+      final center = edge.clamp(parent.left + half, parent.right - half);
+      return Rect.fromLTRB(
+        center - half,
+        referenceRect.top,
+        center + half,
+        referenceRect.bottom,
+      );
+    }
+    final center = edge.clamp(parent.top + half, parent.bottom - half);
+    return Rect.fromLTRB(
+      referenceRect.left,
+      center - half,
+      referenceRect.right,
+      center + half,
+    );
+  }
+
   TextDirection _resolvedTextDirection(CanvasNode node) {
     final explicit = _enumValue(node, 'textDirection');
     if (explicit == 'rtl') {
@@ -1429,6 +1525,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
 
   static bool _isHorizontalListView(CanvasNode node) =>
       node.type == 'flutter.widgets.ListView' &&
+      _enumValue(node, 'scrollDirection') == 'horizontal';
+
+  static bool _isHorizontalGridView(CanvasNode node) =>
+      node.type == 'flutter.widgets.GridView' &&
       _enumValue(node, 'scrollDirection') == 'horizontal';
 
   static bool _isHorizontalListBody(CanvasNode node) =>
@@ -1645,6 +1745,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static bool? _booleanValue(CanvasNode node, String propertyName) {
     final property = node.properties[propertyName];
     return property?.kind == 'boolean' ? property!.value as bool : null;
+  }
+
+  static int? _integerValue(CanvasNode node, String propertyName) {
+    final property = node.properties[propertyName];
+    return property?.kind == 'integer' ? property!.value as int : null;
   }
 
   static double? _numberValue(CanvasNode node, String propertyName) {
@@ -2115,6 +2220,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ListBody' => _listBody(),
       'flutter.widgets.OverflowBar' => _overflowBar(),
       'flutter.widgets.ListView' => _listView(),
+      'flutter.widgets.GridView' => _gridView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
@@ -3050,7 +3156,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           node.type == 'flutter.widgets.Wrap' ||
           node.type == 'flutter.widgets.ListBody' ||
           node.type == 'flutter.widgets.OverflowBar' ||
-          node.type == 'flutter.widgets.ListView') &&
+          node.type == 'flutter.widgets.ListView' ||
+          node.type == 'flutter.widgets.GridView') &&
       (node.slot('children')?.children.isEmpty ?? false);
 
   Widget _row() => Row(
@@ -3176,20 +3283,20 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       scrollDirection: scrollDirection,
       reverse: _boolean('reverse') ?? false,
       primary: _boolean('primary'),
-      physics: _listViewPhysics(),
+      physics: _scrollPhysics(),
       shrinkWrap: shrinkWrap,
       padding: _edgeInsetsGeometry('padding'),
       itemExtent: _number('itemExtent'),
       addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
       addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
       addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
-      scrollCacheExtent: _listViewScrollCacheExtent(),
+      scrollCacheExtent: _scrollCacheExtent(),
       semanticChildCount: _integer('semanticChildCount'),
       dragStartBehavior: _dragStartBehavior(),
-      keyboardDismissBehavior: _listViewKeyboardDismissBehavior(),
+      keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
       restorationId: _string('restorationId'),
       clipBehavior: _clipBehavior() ?? Clip.hardEdge,
-      hitTestBehavior: _listViewHitTestBehavior(),
+      hitTestBehavior: _scrollHitTestBehavior(),
       children: _children('children'),
     );
 
@@ -3217,7 +3324,65 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  ScrollPhysics? _listViewPhysics() => switch (_string('physics')) {
+  Widget _gridView() {
+    final scrollDirection = _enum('scrollDirection') == 'horizontal'
+        ? Axis.horizontal
+        : Axis.vertical;
+    final shrinkWrap = _boolean('shrinkWrap') ?? false;
+
+    Widget buildGridView() => GridView.count(
+      scrollDirection: scrollDirection,
+      reverse: _boolean('reverse') ?? false,
+      primary: _boolean('primary'),
+      physics: _scrollPhysics(),
+      shrinkWrap: shrinkWrap,
+      padding: _edgeInsetsGeometry('padding'),
+      crossAxisCount: _integer('crossAxisCount') ?? 2,
+      mainAxisSpacing: _number('mainAxisSpacing') ?? 0.0,
+      crossAxisSpacing: _number('crossAxisSpacing') ?? 0.0,
+      childAspectRatio: _number('childAspectRatio') ?? 1.0,
+      mainAxisExtent: _number('mainAxisExtent'),
+      addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+      addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+      addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+      scrollCacheExtent: _scrollCacheExtent(),
+      semanticChildCount: _integer('semanticChildCount'),
+      dragStartBehavior: _dragStartBehavior(),
+      keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
+      restorationId: _string('restorationId'),
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      hitTestBehavior: _scrollHitTestBehavior(),
+      children: _children('children'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        // A grid always needs a bounded cross axis. A non-shrink-wrapped
+        // viewport additionally needs a bounded main axis. These finite caps
+        // mirror the generated application's shared constraint guard.
+        final fallbackWidth =
+            !constraints.hasBoundedWidth &&
+                (scrollDirection == Axis.vertical || !shrinkWrap)
+            ? 240.0
+            : null;
+        final fallbackHeight =
+            !constraints.hasBoundedHeight &&
+                (scrollDirection == Axis.horizontal || !shrinkWrap)
+            ? 120.0
+            : null;
+        if (fallbackWidth != null || fallbackHeight != null) {
+          return SizedBox(
+            width: fallbackWidth,
+            height: fallbackHeight,
+            child: buildGridView(),
+          );
+        }
+        return buildGridView();
+      },
+    );
+  }
+
+  ScrollPhysics? _scrollPhysics() => switch (_string('physics')) {
     'alwaysScrollable' => const AlwaysScrollableScrollPhysics(),
     'bouncing' => const BouncingScrollPhysics(),
     'clamping' => const ClampingScrollPhysics(),
@@ -3227,19 +3392,19 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     _ => null,
   };
 
-  ScrollCacheExtent? _listViewScrollCacheExtent() {
+  ScrollCacheExtent? _scrollCacheExtent() {
     final pixels = _number('scrollCacheExtent');
     return pixels == null ? null : ScrollCacheExtent.pixels(pixels);
   }
 
-  ScrollViewKeyboardDismissBehavior? _listViewKeyboardDismissBehavior() =>
+  ScrollViewKeyboardDismissBehavior? _scrollKeyboardDismissBehavior() =>
       switch (_enum('keyboardDismissBehavior')) {
         'manual' => ScrollViewKeyboardDismissBehavior.manual,
         'onDrag' => ScrollViewKeyboardDismissBehavior.onDrag,
         _ => null,
       };
 
-  HitTestBehavior _listViewHitTestBehavior() =>
+  HitTestBehavior _scrollHitTestBehavior() =>
       switch (_enum('hitTestBehavior')) {
         'deferToChild' => HitTestBehavior.deferToChild,
         'translucent' => HitTestBehavior.translucent,

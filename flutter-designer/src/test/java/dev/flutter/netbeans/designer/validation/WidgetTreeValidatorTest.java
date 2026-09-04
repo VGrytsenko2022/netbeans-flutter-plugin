@@ -3046,6 +3046,101 @@ class WidgetTreeValidatorTest {
         assertTrue(result.valid(), () -> result.issues().toString());
     }
 
+    @Test
+    void acceptsGridViewCountFullStaticSurfaceAndOrderedChildren() {
+        LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>();
+        properties.put(name("scrollDirection"),
+                new PropertyValue.EnumValue("Axis", "horizontal"));
+        properties.put(name("reverse"), new PropertyValue.BooleanValue(true));
+        properties.put(name("primary"), new PropertyValue.BooleanValue(false));
+        properties.put(name("physics"), new PropertyValue.StringValue("bouncing"));
+        properties.put(name("shrinkWrap"), new PropertyValue.BooleanValue(true));
+        properties.put(name("padding"), new PropertyValue.EdgeInsetsValue(
+                BigDecimal.ONE, BigDecimal.ONE,
+                BigDecimal.ONE, BigDecimal.ONE));
+        properties.put(name("crossAxisCount"),
+                new PropertyValue.IntegerValue(BigInteger.valueOf(3)));
+        properties.put(name("mainAxisSpacing"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(8)));
+        properties.put(name("crossAxisSpacing"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(6)));
+        properties.put(name("childAspectRatio"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(1.5)));
+        properties.put(name("mainAxisExtent"),
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(72)));
+        properties.put(name("addAutomaticKeepAlives"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(name("addRepaintBoundaries"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(name("addSemanticIndexes"),
+                new PropertyValue.BooleanValue(false));
+        properties.put(name("scrollCacheExtent"),
+                new PropertyValue.IntegerValue(BigInteger.valueOf(200)));
+        properties.put(name("semanticChildCount"),
+                new PropertyValue.IntegerValue(BigInteger.valueOf(2)));
+        properties.put(name("dragStartBehavior"),
+                new PropertyValue.EnumValue("DragStartBehavior", "down"));
+        properties.put(name("keyboardDismissBehavior"),
+                new PropertyValue.EnumValue(
+                        "ScrollViewKeyboardDismissBehavior", "onDrag"));
+        properties.put(name("restorationId"),
+                new PropertyValue.StringValue("main-grid"));
+        properties.put(name("clipBehavior"),
+                new PropertyValue.EnumValue("Clip", "antiAlias"));
+        properties.put(name("hitTestBehavior"),
+                new PropertyValue.EnumValue("HitTestBehavior", "translucent"));
+        WidgetNode grid = gridView(
+                "valid-grid", properties,
+                List.of(text("grid-first"), text("grid-second")));
+
+        ValidationResult result = validator().validate(
+                document(grid), BuiltInWidgetCatalog.getDefault());
+
+        assertTrue(result.valid(), () -> result.issues().toString());
+    }
+
+    @Test
+    void rejectsInvalidGridViewCountAndSemanticCountBeyondChildren() {
+        WidgetNode invalidCount = gridView(
+                "invalid-grid-count",
+                Map.of(name("crossAxisCount"),
+                        new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                List.of());
+        ValidationIssue constraint = onlyIssue(
+                validator().validate(
+                        document(invalidCount), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/crossAxisCount", constraint.path());
+
+        WidgetNode semanticConflict = gridView(
+                "invalid-grid-semantics",
+                Map.of(
+                        name("crossAxisCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                        name("semanticChildCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                List.of(text("only-grid-child")));
+        ValidationIssue conflict = onlyIssue(
+                validator().validate(
+                        document(semanticConflict), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONFLICT);
+        assertEquals("/root/properties/semanticChildCount", conflict.path());
+        assertTrue(conflict.message().contains(
+                "GridView.count semanticChildCount 2"), conflict.message());
+
+        WidgetNode restrictedChild = gridView(
+                "invalid-grid-child",
+                Map.of(name("crossAxisCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                List.of(spacer("grid-spacer", Map.of())));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(
+                        document(restrictedChild), BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.GridView.children"), placement.message());
+    }
+
     private static WidgetTreeValidator validator() {
         return new WidgetTreeValidator();
     }
@@ -3246,6 +3341,14 @@ class WidgetTreeValidatorTest {
             Map<PropertyName, PropertyValue> properties,
             List<WidgetNode> children) {
         return node(idSeed, "flutter.widgets.OverflowBar", properties, Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(children)));
+    }
+
+    private static WidgetNode gridView(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            List<WidgetNode> children) {
+        return node(idSeed, "flutter.widgets.GridView", properties, Map.of(
                 slotName("children"), new WidgetSlot.ListSlot(children)));
     }
 

@@ -10,6 +10,7 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
@@ -474,6 +475,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
             addListViewPropertySets(sheet, hasSlotTab);
+        } else if (GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.equals(
+                widget.type())) {
+            addGridViewCountPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -820,6 +824,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && CHILDREN_SLOT.equals(slot.name())) {
             return "Ordered children laid out linearly along the selected scroll axis. "
                     + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children assigned to grid tiles in exact source, paint, and "
+                    + "semantic order. Cross-axis count fixes the number of columns for "
+                    + "vertical scrolling or rows for horizontal scrolling. Occupancy: "
+                    + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
@@ -1885,6 +1898,38 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             java.util.List<String> presets =
                     schema.target() == ListViewWidgetPropertySchema.Target.PHYSICS_PRESET
                             ? ListViewWidgetPropertySchema.PHYSICS_PRESETS
+                            : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description(),
+                    false,
+                    presets));
+        }
+    }
+
+    private void addGridViewCountPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<GridViewCountWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(GridViewCountWidgetPropertySchema.Group.class);
+        for (GridViewCountWidgetPropertySchema.Group group
+                : GridViewCountWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            GridViewCountWidgetPropertySchema.Definition schema =
+                    GridViewCountWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in GridView.count property is missing its "
+                                    + "presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == GridViewCountWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? GridViewCountWidgetPropertySchema.PHYSICS_PRESETS
                             : java.util.List.of();
             groups.get(schema.group()).put(projectProperty(
                     property,

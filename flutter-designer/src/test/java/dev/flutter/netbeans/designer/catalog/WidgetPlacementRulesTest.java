@@ -485,6 +485,40 @@ class WidgetPlacementRulesTest {
                 WidgetPlacementRules.capabilityFingerprintLines(overflowBar));
     }
 
+    @Test
+    void gridViewIsAnOrdinaryInsertableWidgetWithRestrictedOrderedChildren() {
+        WidgetDefinition gridView = definition("flutter.widgets.GridView");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(gridView).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), gridView));
+        assertTrue(WidgetPlacementRules.accepts(
+                gridView, slot(gridView, "children"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    gridView,
+                    slot(gridView, "children"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.GridView.children"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(gridView));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(gridView));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(gridView));
+    }
+
     private static WidgetDefinition definition(String type) {
         return BuiltInWidgetCatalog.getDefault()
                 .find(new WidgetTypeId(type))

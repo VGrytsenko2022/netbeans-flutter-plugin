@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PaletteMetadata;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -281,6 +282,10 @@ public final class FlutterDesignerPalette {
                         "Create an ordered static ListView. Controller-owned state, "
                         + "builders, prototypeItem, and deprecated cacheExtent are outside "
                         + "this Designer slice.");
+            } else if (GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.equals(
+                    definition.typeId())) {
+                setDisplayName(message("Widget.GridViewCount.Name"));
+                setShortDescription(message("Widget.GridViewCount.Description"));
             } else if ("flutter.widgets.ConstrainedBox".equals(
                     definition.typeId().value())) {
                 setShortDescription(message("Widget.ConstrainedBox.Description"));

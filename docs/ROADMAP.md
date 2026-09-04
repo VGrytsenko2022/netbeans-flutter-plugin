@@ -1202,6 +1202,29 @@ accepted architecture is documented in
   practical 92-widget backlog is 37/92 complete with 55 remaining. `.fd` stays
   at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
   framing/control/wire remains v1.
+- [x] Complete non-const
+  [`GridView.count`](https://api.flutter.dev/flutter/widgets/GridView/GridView.count.html)
+  as the eighteenth post-core Palette vertical slice at Scrolling order 20,
+  immediately after ListView. Expose the complete reviewed static-child
+  Flutter 3.44.8 non-`key` named constructor as 21 typed rows: scroll direction,
+  reverse, primary, a closed physics preset, shrink wrap, padding, required
+  positive cross-axis count with creation value 2, main/cross spacing, child
+  aspect ratio, optional main-axis extent, automatic keep-alives, repaint
+  boundaries, semantic indexes, pixel cache extent, semantic child count, drag
+  start, keyboard dismissal, restoration ID, clip behavior and hit-test
+  behavior. Keep children in one exact ordered any-widget list slot. Exclude
+  controller state, builders/delegates, other named constructors,
+  `scrollBehavior`, `key` and deprecated raw `cacheExtent`. Complete grouped
+  NetBeans Properties, Palette/tree/Canvas DnD, same-tree movement/reordering,
+  deterministic named-constructor generation, Save/reopen and further editing,
+  Undo/Redo, native and exact-Web Canvas, four reviewed SVGs and focused
+  contracts. The current surface is 38 widgets, 32 const definitions and 704
+  rows (687 outside Scaffold). Thirty-eight sources across 35 insertable
+  any-widget plus two trait destinations form 1,406 candidates: 1,233 accepted
+  and 173 rejected. Layout remains at 29 items, Scrolling contains 2, and the
+  practical 92-widget backlog is 38/92 complete with 54 remaining. `.fd` stays
+  at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
+  framing/control/wire remains v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1219,8 +1242,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after OverflowBar has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-seven
+  vertical slices. No specific widget after GridView.count has yet been assigned
+  an explicit order. The current typed Properties slice spans all thirty-eight
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

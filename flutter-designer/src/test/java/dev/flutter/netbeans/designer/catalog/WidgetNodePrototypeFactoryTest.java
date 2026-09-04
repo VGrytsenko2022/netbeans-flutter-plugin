@@ -716,6 +716,101 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsGridViewCountWithRequiredDefaultAndAllTypedOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.GridView");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.GridView"), prototype.type());
+        assertEquals(Map.of(
+                        new PropertyName("crossAxisCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                prototype.properties());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.ListSlot.class,
+                prototype.slots().get(new SlotName("children"))).children().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.ofEntries(
+                        Map.entry(new PropertyName("scrollDirection"),
+                                new PropertyValue.EnumValue("Axis", "horizontal")),
+                        Map.entry(new PropertyName("reverse"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(new PropertyName("primary"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("physics"),
+                                new PropertyValue.StringValue("bouncing")),
+                        Map.entry(new PropertyName("shrinkWrap"),
+                                new PropertyValue.BooleanValue(true)),
+                        Map.entry(new PropertyName("padding"),
+                                new PropertyValue.EdgeInsetsValue(
+                                        BigDecimal.ONE, BigDecimal.ONE,
+                                        BigDecimal.ONE, BigDecimal.ONE)),
+                        Map.entry(new PropertyName("crossAxisCount"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(3))),
+                        Map.entry(new PropertyName("mainAxisSpacing"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(8))),
+                        Map.entry(new PropertyName("crossAxisSpacing"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(6))),
+                        Map.entry(new PropertyName("childAspectRatio"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(1.5))),
+                        Map.entry(new PropertyName("mainAxisExtent"),
+                                new PropertyValue.DoubleValue(BigDecimal.valueOf(72))),
+                        Map.entry(new PropertyName("addAutomaticKeepAlives"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("addRepaintBoundaries"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("addSemanticIndexes"),
+                                new PropertyValue.BooleanValue(false)),
+                        Map.entry(new PropertyName("scrollCacheExtent"),
+                                new PropertyValue.IntegerValue(BigInteger.valueOf(200))),
+                        Map.entry(new PropertyName("semanticChildCount"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                        Map.entry(new PropertyName("dragStartBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "DragStartBehavior", "down")),
+                        Map.entry(new PropertyName("keyboardDismissBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "ScrollViewKeyboardDismissBehavior", "onDrag")),
+                        Map.entry(new PropertyName("restorationId"),
+                                new PropertyValue.StringValue("main-grid")),
+                        Map.entry(new PropertyName("clipBehavior"),
+                                new PropertyValue.EnumValue("Clip", "antiAlias")),
+                        Map.entry(new PropertyName("hitTestBehavior"),
+                                new PropertyValue.EnumValue(
+                                        "HitTestBehavior", "translucent"))));
+        assertEquals(21, configured.properties().size());
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(3)),
+                configured.properties().get(new PropertyName("crossAxisCount")));
+        assertEquals(new PropertyValue.StringValue("bouncing"),
+                configured.properties().get(new PropertyName("physics")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("crossAxisCount"),
+                                new PropertyValue.IntegerValue(BigInteger.ZERO))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("mainAxisSpacing"),
+                                new PropertyValue.IntegerValue(BigInteger.ONE))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("physics"),
+                                new PropertyValue.StringValue("custom"))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

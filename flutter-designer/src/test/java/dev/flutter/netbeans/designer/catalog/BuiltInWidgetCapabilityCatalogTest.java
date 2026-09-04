@@ -56,6 +56,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
+            "flutter.widgets.GridView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -94,6 +95,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
             "flutter.widgets.ListView",
+            "flutter.widgets.GridView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image");
@@ -107,7 +109,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtySevenSourcesAndThirtySixInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtyEightSourcesAndThirtySevenInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -130,9 +132,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(37, sources.size());
-        assertEquals(36, destinations.size());
-        assertEquals(34, destinations.stream()
+        assertEquals(38, sources.size());
+        assertEquals(37, destinations.size());
+        assertEquals(35, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -140,9 +142,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1332, candidates);
-        assertEquals(1164, accepted);
-        assertEquals(168, candidates - accepted);
+        assertEquals(1406, candidates);
+        assertEquals(1233, accepted);
+        assertEquals(173, candidates - accepted);
     }
 
     @Test
@@ -163,6 +165,57 @@ class BuiltInWidgetCapabilityCatalogTest {
                             .collect(java.util.stream.Collectors.toSet()),
                     projection.slots(), definition.typeId().value());
         }
+    }
+
+    @Test
+    void gridViewCountHasExactStaticEditableCapabilityAndIndependentProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.GridView");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(21, projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("children")), projection.slots());
+
+        var crossAxisCount = projection.propertyContracts()
+                .get(new PropertyName("crossAxisCount"));
+        assertTrue(crossAxisCount.required());
+        assertEquals(Set.of(PropertyValueKind.INTEGER),
+                crossAxisCount.acceptedKinds());
+        assertEquals(Optional.of("integer:2"),
+                crossAxisCount.creationDefaultFingerprint());
+        assertEquals("1:1:9007199254740991:1",
+                crossAxisCount.numericBounds().get(PropertyValueKind.INTEGER)
+                        .fingerprint());
+        for (String name : List.of(
+                "mainAxisSpacing", "crossAxisSpacing", "mainAxisExtent")) {
+            assertEquals("0:1:*:1", projection.propertyContracts()
+                    .get(new PropertyName(name)).numericBounds()
+                    .get(PropertyValueKind.DOUBLE).fingerprint(), name);
+        }
+        assertEquals("0:0:*:1", projection.propertyContracts()
+                .get(new PropertyName("childAspectRatio")).numericBounds()
+                .get(PropertyValueKind.DOUBLE).fingerprint());
+        assertTrue(projection.propertyContracts().get(new PropertyName("physics"))
+                .constraintFingerprints().get(PropertyValueKind.STRING)
+                .startsWith("pattern:"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("dragStartBehavior"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:"));
+        assertTrue(projection.propertyContracts()
+                .get(new PropertyName("hitTestBehavior"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM)
+                .startsWith("enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:"));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10_000),
+                projection.slotContracts().get(new SlotName("children")));
     }
 
     @Test

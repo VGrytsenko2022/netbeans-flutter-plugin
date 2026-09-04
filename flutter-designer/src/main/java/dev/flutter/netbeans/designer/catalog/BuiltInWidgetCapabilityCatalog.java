@@ -180,6 +180,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ListBody", STATIC_EDITABLE),
             Map.entry("flutter.widgets.OverflowBar", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.GridView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -514,6 +515,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     enumProperty("textDirection", "TextDirection", "rtl", "ltr")),
                     Map.of("children", listSlotSchema(false, 0, 10_000)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
+            Map.entry("flutter.widgets.GridView", gridViewCountProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),
@@ -735,6 +737,58 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty(
                         "itemExtent", NON_NEGATIVE_NUMBER_BOUNDS,
                         PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                property("addAutomaticKeepAlives", PropertyValueKind.BOOLEAN),
+                property("addRepaintBoundaries", PropertyValueKind.BOOLEAN),
+                property("addSemanticIndexes", PropertyValueKind.BOOLEAN),
+                numericProperty(
+                        "scrollCacheExtent", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "semanticChildCount", NON_NEGATIVE_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                enumPropertyForLibrary(
+                        "dragStartBehavior", GESTURES_LIBRARY,
+                        "DragStartBehavior", "down", "start"),
+                enumProperty(
+                        "keyboardDismissBehavior",
+                        "ScrollViewKeyboardDismissBehavior", "manual", "onDrag"),
+                stringLengthProperty("restorationId", 1, 256),
+                enumProperty(
+                        "clipBehavior", "Clip", "none", "hardEdge",
+                        "antiAlias", "antiAliasWithSaveLayer"),
+                enumPropertyForLibrary(
+                        "hitTestBehavior", RENDERING_LIBRARY,
+                        "HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                Map.of("children", listSlotSchema(false, 0, 10_000)));
+    }
+
+    private static CanvasProjection gridViewCountProjection() {
+        return projection(Map.ofEntries(
+                enumProperty("scrollDirection", "Axis", "horizontal", "vertical"),
+                property("reverse", PropertyValueKind.BOOLEAN),
+                property("primary", PropertyValueKind.BOOLEAN),
+                stringPatternProperty(
+                        "physics",
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)"),
+                property("shrinkWrap", PropertyValueKind.BOOLEAN),
+                edgeInsetsProperty("padding", true),
+                requiredDefaultNumericProperty(
+                        "crossAxisCount",
+                        "integer:2",
+                        POSITIVE_INTEGER_BOUNDS,
+                        PropertyValueKind.INTEGER),
+                numericProperty(
+                        "mainAxisSpacing", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "crossAxisSpacing", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "childAspectRatio", POSITIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
+                numericProperty(
+                        "mainAxisExtent", NON_NEGATIVE_DOUBLE_BOUNDS,
+                        PropertyValueKind.DOUBLE),
                 property("addAutomaticKeepAlives", PropertyValueKind.BOOLEAN),
                 property("addRepaintBoundaries", PropertyValueKind.BOOLEAN),
                 property("addSemanticIndexes", PropertyValueKind.BOOLEAN),

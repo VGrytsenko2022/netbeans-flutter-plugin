@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.io.IOException;
 import java.io.InputStream;
@@ -764,6 +765,61 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void gridViewCountFamilyUsesExactReviewedScrollableGridGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "gridviewcount.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=1.5, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "rect[height=2.7, rx=.5, width=3.5, x=3, y=3.2]",
+                "rect[height=2.7, rx=.5, width=3.5, x=7.4, y=3.2]",
+                "rect[height=2.7, rx=.5, width=3.5, x=3, y=6.8]",
+                "rect[height=2.7, rx=.5, width=3.5, x=7.4, y=6.8]",
+                "rect[height=2.4, rx=.5, width=3.5, x=3, y=10.4]",
+                "rect[height=2.4, rx=.5, width=3.5, x=7.4, y=10.4]",
+                "rect[height=9.6, rx=.4, width=.8, x=12.4, y=3.2]",
+                "rect[height=3.8, rx=.6, width=1.2, x=12.2, y=5]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=3, stroke-width=2, width=26, x=3, y=3]",
+                "rect[height=5.4, rx=1, width=7, x=6, y=6.4]",
+                "rect[height=5.4, rx=1, width=7, x=14.8, y=6.4]",
+                "rect[height=5.4, rx=1, width=7, x=6, y=13.6]",
+                "rect[height=5.4, rx=1, width=7, x=14.8, y=13.6]",
+                "rect[height=4.8, rx=1, width=7, x=6, y=20.8]",
+                "rect[height=4.8, rx=1, width=7, x=14.8, y=20.8]",
+                "rect[height=19.2, rx=.8, width=1.6, x=24.8, y=6.4]",
+                "rect[height=7.6, rx=1.2, width=2.4, x=24.4, y=10]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "rect[fill=#42A5F5]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#1565C0]",
+                "rect[fill=#26C6DA]",
+                "rect[fill=#26C6DA]",
+                "rect[fill=#42A5F5]",
+                "rect[fill=#B0BEC5]",
+                "rect[fill=#40566D]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "rect[fill=#64B5F6]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#29B6F6]",
+                "rect[fill=#80DEEA]",
+                "rect[fill=#80DEEA]",
+                "rect[fill=#64B5F6]",
+                "rect[fill=#607D8B]",
+                "rect[fill=#E0E8EF]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void listBodyFamilyUsesExactReviewedLinearChildGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "listbody.svg";
@@ -1251,6 +1307,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg");
         expected.put("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
+        expected.put(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+                ICON_ROOT + "gridviewcount.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

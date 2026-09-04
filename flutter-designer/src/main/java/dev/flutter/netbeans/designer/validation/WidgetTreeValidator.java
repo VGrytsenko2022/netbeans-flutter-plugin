@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -339,7 +340,14 @@ public final class WidgetTreeValidator {
         }
 
         if (type.equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE.value())) {
-            validateListViewSemanticChildCount(node, propertiesPath, issues);
+            validateStaticScrollViewSemanticChildCount(
+                    node, propertiesPath, "ListView", issues);
+            return;
+        }
+
+        if (type.equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value())) {
+            validateStaticScrollViewSemanticChildCount(
+                    node, propertiesPath, "GridView.count", issues);
             return;
         }
 
@@ -461,9 +469,10 @@ public final class WidgetTreeValidator {
         }
     }
 
-    private static void validateListViewSemanticChildCount(
+    private static void validateStaticScrollViewSemanticChildCount(
             WidgetNode node,
             String propertiesPath,
+            String owner,
             IssueCollector issues) {
         BigInteger semanticCount = integerValue(node, "semanticChildCount");
         if (semanticCount == null) {
@@ -477,7 +486,7 @@ public final class WidgetTreeValidator {
                     PROPERTY_CONFLICT,
                     propertiesPath + "/semanticChildCount",
                     node.id(),
-                    "ListView semanticChildCount " + semanticCount
+                    owner + " semanticChildCount " + semanticCount
                     + " exceeds the current children count " + childCount + "."));
         }
     }

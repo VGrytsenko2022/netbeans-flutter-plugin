@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedThirtySevenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedThirtyEightTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -50,6 +50,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.FittedBox",
                 "flutter.widgets.Flexible",
                 "flutter.widgets.FractionallySizedBox",
+                "flutter.widgets.GridView",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.IntrinsicHeight",
@@ -76,7 +77,7 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(37, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(38, BuiltInWidgetCatalog.getDefault().definitions().size());
         assertEquals(32, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
@@ -85,15 +86,16 @@ class BuiltInWidgetCatalogTest {
                         "flutter.material.ElevatedButton",
                         "flutter.widgets.ConstrainedBox",
                         "flutter.widgets.Container",
+                        "flutter.widgets.GridView",
                         "flutter.widgets.ListView"),
                 BuiltInWidgetCatalog.getDefault().definitions().stream()
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(683, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(704, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(666, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(687, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -118,6 +120,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Flexible", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FractionallySizedBox", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.GridView", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Icon", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Image", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.IntrinsicHeight", WIDGETS_IMPORT),
@@ -160,6 +163,8 @@ class BuiltInWidgetCatalogTest {
                 definition("flutter.material.TextField").importUris());
         assertEquals(List.of(GESTURES_IMPORT, RENDERING_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.widgets.ListView").importUris());
+        assertEquals(List.of(GESTURES_IMPORT, RENDERING_IMPORT, WIDGETS_IMPORT),
+                definition("flutter.widgets.GridView").importUris());
         assertEquals(List.of(RENDERING_IMPORT, WIDGETS_IMPORT),
                 definition("flutter.widgets.OverflowBox").importUris(),
                 "OverflowBoxFit is owned by rendering.dart in Flutter 3.44.8");
@@ -258,6 +263,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
+                "flutter.widgets.GridView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image"), typeIds(palette));
@@ -314,6 +320,15 @@ class BuiltInWidgetCatalogTest {
         assertEquals(new PropertyValue.IntegerValue(BigInteger.ONE),
                 property(catalog, "flutter.widgets.RotatedBox", "quarterTurns")
                         .creationDefault().orElseThrow());
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                property(catalog, "flutter.widgets.GridView", "crossAxisCount")
+                        .creationDefault().orElseThrow());
+        for (PropertyDefinition property : definition("flutter.widgets.GridView").properties()) {
+            if (!property.name().value().equals("crossAxisCount")) {
+                assertTrue(property.creationDefault().isEmpty(),
+                        "GridView." + property.name().value());
+            }
+        }
         for (String optional : List.of("mainAxis", "reverse")) {
             assertTrue(property(catalog, "flutter.widgets.ListBody", optional)
                     .creationDefault().isEmpty(), "ListBody." + optional);

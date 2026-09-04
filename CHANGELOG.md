@@ -6,6 +6,30 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- The accepted non-const
+  [`GridView.count`](https://api.flutter.dev/flutter/widgets/GridView/GridView.count.html)
+  vertical slice is the eighteenth post-core Palette addition, at Scrolling
+  order 20 immediately after ListView. Its complete reviewed Flutter 3.44.8
+  non-`key` static-child contract exposes 21 typed properties: scrolling axis,
+  reversal, primary-controller policy, reviewed physics preset, shrink wrap,
+  padding, required positive `crossAxisCount` (creation value 2), non-negative
+  main/cross spacing, positive child aspect ratio, optional non-negative main
+  extent, three child-delegate flags, pixel cache extent, semantic child count,
+  drag and keyboard-dismiss behavior, restoration ID, clipping and hit testing;
+  `children` remains an exact ordered any-widget list slot. Controller-owned
+  state, builders/delegates, other named constructors, `scrollBehavior`, `key`
+  and deprecated raw `cacheExtent` stay outside the slice. Generated Dart and
+  native/exact-Web Canvas construct the real `GridView.count`. Property and
+  list-slot editing, Palette/tree/Canvas DnD, same-tree movement/reordering,
+  deterministic generation, Save/reopen and further editing, Undo/Redo and four
+  reviewed light/dark 16/32 px SVGs share one closed contract. The catalog now
+  contains 38 widgets, 32 reviewed const constructors and 704 writable rows,
+  including 687 across the 37 non-`Scaffold` definitions. Thirty-eight sources
+  across 35 insertable any-widget and two trait-bound destinations form 1,406
+  DnD candidates: 1,233 accepted and 173 rejected. Layout remains at 29 items,
+  Scrolling contains 2, and the practical 92-widget backlog is 38/92 complete
+  with 54 remaining. `.fd` stays at schema v9, Catalog API at 8 and Canvas model
+  at v14; NBFC framing/control/wire remain v1.
 - The accepted const
   [`flutter.widgets.OverflowBar`](https://api.flutter.dev/flutter/widgets/OverflowBar/OverflowBar.html)
   vertical slice is the seventeenth post-core Palette addition, at Layout order

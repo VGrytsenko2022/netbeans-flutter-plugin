@@ -1354,6 +1354,129 @@ class DesignerCommandSessionTest {
     }
 
     @Test
+    void gridViewCountChildrenPropertiesUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        PropertyName crossAxisCount = property("crossAxisCount");
+        PropertyName mainAxisSpacing = property("mainAxisSpacing");
+        PropertyName physics = property("physics");
+        PropertyName scrollCacheExtent = property("scrollCacheExtent");
+        PropertyName semanticChildCount = property("semanticChildCount");
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Anchor")));
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.GridView")).orElseThrow(),
+                WRAPPER_ID);
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                prototype.properties().get(crossAxisCount));
+        assertTrue(((WidgetSlot.ListSlot) prototype.slots().get(CHILDREN))
+                .children().isEmpty());
+
+        DesignerCommandSession current = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), prototype));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 0),
+                text(SECOND_ID, "Second tile")));
+        current = applied(current, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 1),
+                text(THIRD_ID, "First tile")));
+        current = applied(current, new MoveWidget(
+                THIRD_ID, new WidgetPlacement(WRAPPER_ID, CHILDREN, 0)));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, crossAxisCount,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(3))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, mainAxisSpacing,
+                new PropertyValue.DoubleValue(BigDecimal.valueOf(8))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, physics,
+                new PropertyValue.StringValue("bouncing")));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, scrollCacheExtent,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(200))));
+        current = applied(current, new SetProperty(
+                WRAPPER_ID, semanticChildCount,
+                new PropertyValue.IntegerValue(BigInteger.valueOf(2))));
+
+        assertRejected(current, new SetProperty(
+                        WRAPPER_ID,
+                        crossAxisCount,
+                        new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                current, new ResetProperty(WRAPPER_ID, mainAxisSpacing));
+        WidgetNode finalGrid = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(List.of(THIRD_ID, SECOND_ID),
+                ((WidgetSlot.ListSlot) finalGrid.slots().get(CHILDREN))
+                        .children().stream().map(WidgetNode::id).toList());
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(3)),
+                finalGrid.properties().get(crossAxisCount));
+        assertFalse(finalGrid.properties().containsKey(mainAxisSpacing));
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("GridView.count("), dart);
+        assertFalse(dart.contains("const GridView.count("), dart);
+        assertTrue(dart.contains("crossAxisCount: 3"), dart);
+        assertFalse(dart.contains("mainAxisSpacing:"), dart);
+        assertTrue(dart.contains(
+                "physics: const BouncingScrollPhysics()"), dart);
+        assertTrue(dart.contains("ScrollCacheExtent.pixels(200)"), dart);
+        assertTrue(dart.indexOf("const Text('First tile')")
+                < dart.indexOf("const Text('Second tile')"), dart);
+        assertTrue(dart.indexOf("scrollCacheExtent:")
+                < dart.indexOf("children:", dart.indexOf("GridView.count(")), dart);
+        assertTrue(dart.indexOf("children:", dart.indexOf("GridView.count("))
+                < dart.indexOf("semanticChildCount:"), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(8)),
+                find(undoReset.current().document().root(), WRAPPER_ID)
+                        .properties().get(mainAxisSpacing));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.GridView\""), fd);
+        assertTrue(fd.contains("\"crossAxisCount\""), fd);
+        assertTrue(fd.contains("\"value\": 3"), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID,
+                        crossAxisCount,
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(4))));
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(4)),
+                find(editedAfterReopen.current().document().root(), WRAPPER_ID)
+                        .properties().get(crossAxisCount));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("crossAxisCount: 4"));
+    }
+
+    @Test
     void opacityPrototypeEditResetChildUndoRedoAndReopenAreByteExact()
             throws Exception {
         DesignerCommandSession initial = session(fixture());

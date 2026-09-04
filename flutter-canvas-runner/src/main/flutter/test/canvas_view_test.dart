@@ -245,6 +245,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ListView'), const [
       canvasChildrenAppendDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.GridView'), const [
+      canvasChildrenAppendDropSlot,
+    ]);
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ListBody'), const [
       canvasChildrenAppendDropSlot,
     ]);
@@ -337,7 +340,7 @@ void main() {
     );
   });
 
-  test('closes the 37-source by 36-destination compatibility matrix', () {
+  test('closes the 38-source by 37-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -372,6 +375,7 @@ void main() {
       'flutter.widgets.Image',
       'flutter.widgets.ListBody',
       'flutter.widgets.ListView',
+      'flutter.widgets.GridView',
       'flutter.widgets.OverflowBar',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
@@ -385,8 +389,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(37));
-    expect(destinations, hasLength(36));
+    expect(sourceTypes, hasLength(38));
+    expect(destinations, hasLength(37));
 
     var accepted = 0;
     var rejected = 0;
@@ -412,9 +416,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1164);
-    expect(rejected, 168);
-    expect(accepted + rejected, 1332);
+    expect(accepted, 1233);
+    expect(rejected, 173);
+    expect(accepted + rejected, 1406);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -6268,6 +6272,516 @@ void main() {
     },
   );
 
+  testWidgets('renders every GridView.count argument with real Flutter', (
+    tester,
+  ) async {
+    const gridId = '7c5646ab-89dc-45b0-b147-f46604fc411f';
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(
+            _modelWithGridView(
+              properties: {
+                'scrollDirection': {
+                  'kind': 'enum',
+                  'type': 'Axis',
+                  'value': 'horizontal',
+                },
+                'reverse': {'kind': 'boolean', 'value': true},
+                'primary': {'kind': 'boolean', 'value': false},
+                'physics': {'kind': 'string', 'value': 'bouncing'},
+                'shrinkWrap': {'kind': 'boolean', 'value': false},
+                'padding': {
+                  'kind': 'edgeInsetsDirectional',
+                  'start': 1.0,
+                  'top': 2.0,
+                  'end': 3.0,
+                  'bottom': 4.0,
+                },
+                'crossAxisCount': {'kind': 'integer', 'value': 2},
+                'mainAxisSpacing': {'kind': 'double', 'value': 5.0},
+                'crossAxisSpacing': {'kind': 'double', 'value': 6.0},
+                'childAspectRatio': {'kind': 'double', 'value': 1.5},
+                'mainAxisExtent': {'kind': 'double', 'value': 48.0},
+                'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
+                'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
+                'addSemanticIndexes': {'kind': 'boolean', 'value': false},
+                'scrollCacheExtent': {'kind': 'integer', 'value': 240},
+                'semanticChildCount': {'kind': 'integer', 'value': 2},
+                'dragStartBehavior': {
+                  'kind': 'enum',
+                  'type': 'DragStartBehavior',
+                  'value': 'down',
+                },
+                'keyboardDismissBehavior': {
+                  'kind': 'enum',
+                  'type': 'ScrollViewKeyboardDismissBehavior',
+                  'value': 'onDrag',
+                },
+                'restorationId': {'kind': 'string', 'value': 'primary-grid'},
+                'clipBehavior': {
+                  'kind': 'enum',
+                  'type': 'Clip',
+                  'value': 'antiAlias',
+                },
+                'hitTestBehavior': {
+                  'kind': 'enum',
+                  'type': 'HitTestBehavior',
+                  'value': 'translucent',
+                },
+              },
+              children: [
+                _viewTextNode('0e15ae86-0c58-4298-b80e-2ab6b3a55371', 'First'),
+                _viewTextNode('c2fab615-373d-475e-81ca-76cc1d28460c', 'Second'),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+
+    await tester.pumpWidget(
+      CanvasModelApp(model: model, selectedWidgetId: null, onSelected: (_) {}),
+    );
+    await tester.pump();
+
+    final node = find.byKey(const ValueKey('canvas-widget-$gridId'));
+    final finder = find.descendant(of: node, matching: find.byType(GridView));
+    final grid = tester.widget<GridView>(finder);
+    expect(grid.scrollDirection, Axis.horizontal);
+    expect(grid.reverse, isTrue);
+    expect(grid.primary, isFalse);
+    expect(grid.physics, isA<BouncingScrollPhysics>());
+    expect(grid.shrinkWrap, isFalse);
+    expect(grid.padding, const EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4));
+    final gridDelegate =
+        grid.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+    expect(gridDelegate.crossAxisCount, 2);
+    expect(gridDelegate.mainAxisSpacing, 5);
+    expect(gridDelegate.crossAxisSpacing, 6);
+    expect(gridDelegate.childAspectRatio, 1.5);
+    expect(gridDelegate.mainAxisExtent, 48);
+    final childDelegate = grid.childrenDelegate as SliverChildListDelegate;
+    expect(childDelegate.addAutomaticKeepAlives, isFalse);
+    expect(childDelegate.addRepaintBoundaries, isFalse);
+    expect(childDelegate.addSemanticIndexes, isFalse);
+    expect(grid.scrollCacheExtent?.value, 240);
+    expect(grid.semanticChildCount, 2);
+    expect(grid.dragStartBehavior, DragStartBehavior.down);
+    expect(
+      grid.keyboardDismissBehavior,
+      ScrollViewKeyboardDismissBehavior.onDrag,
+    );
+    expect(grid.restorationId, 'primary-grid');
+    expect(grid.clipBehavior, Clip.antiAlias);
+    expect(grid.hitTestBehavior, HitTestBehavior.translucent);
+    expect(find.text('First'), findsOneWidget);
+    expect(find.text('Second'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('honors GridView.count tile geometry in both axes', (
+    tester,
+  ) async {
+    const firstId = '0e15ae86-0c58-4298-b80e-2ab6b3a55371';
+    const secondId = 'c2fab615-373d-475e-81ca-76cc1d28460c';
+    const thirdId = '83854346-c458-48c5-a650-912667302538';
+
+    Future<({List<Rect> children, double scale})> render(
+      Map<String, Object?> properties,
+    ) async {
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: CanvasModel.decode(
+            Uint8List.fromList(
+              utf8.encode(
+                jsonEncode(
+                  _modelWithGridView(
+                    properties: properties,
+                    children: [
+                      _viewTextNode(firstId, 'First'),
+                      _viewTextNode(secondId, 'Second'),
+                      _viewTextNode(thirdId, 'Third'),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      final grid = find.byType(GridView);
+      final scale = tester.getRect(grid).width / tester.getSize(grid).width;
+      return (
+        children: [
+          tester.getRect(find.byKey(const ValueKey('canvas-widget-$firstId'))),
+          tester.getRect(find.byKey(const ValueKey('canvas-widget-$secondId'))),
+          tester.getRect(find.byKey(const ValueKey('canvas-widget-$thirdId'))),
+        ],
+        scale: scale,
+      );
+    }
+
+    final vertical = await render({
+      'crossAxisCount': {'kind': 'integer', 'value': 2},
+      'mainAxisSpacing': {'kind': 'double', 'value': 8.0},
+      'crossAxisSpacing': {'kind': 'double', 'value': 10.0},
+      'childAspectRatio': {'kind': 'double', 'value': 2.0},
+      'padding': {
+        'kind': 'edgeInsets',
+        'left': 10.0,
+        'top': 10.0,
+        'right': 10.0,
+        'bottom': 10.0,
+      },
+    });
+    expect(vertical.children[0].width, closeTo(135 * vertical.scale, 0.01));
+    expect(vertical.children[0].height, closeTo(67.5 * vertical.scale, 0.01));
+    expect(
+      vertical.children[1].left - vertical.children[0].right,
+      closeTo(10 * vertical.scale, 0.01),
+    );
+    expect(
+      vertical.children[2].top - vertical.children[0].bottom,
+      closeTo(8 * vertical.scale, 0.01),
+    );
+
+    final fixedExtent = await render({
+      'crossAxisCount': {'kind': 'integer', 'value': 2},
+      'childAspectRatio': {'kind': 'double', 'value': 0.25},
+      'mainAxisExtent': {'kind': 'double', 'value': 40.0},
+    });
+    expect(
+      fixedExtent.children[0].height,
+      closeTo(40 * fixedExtent.scale, 0.01),
+    );
+
+    final horizontal = await render({
+      'scrollDirection': {
+        'kind': 'enum',
+        'type': 'Axis',
+        'value': 'horizontal',
+      },
+      'crossAxisCount': {'kind': 'integer', 'value': 2},
+      'mainAxisSpacing': {'kind': 'double', 'value': 8.0},
+      'crossAxisSpacing': {'kind': 'double', 'value': 10.0},
+      'mainAxisExtent': {'kind': 'double', 'value': 50.0},
+    });
+    expect(
+      horizontal.children[1].top - horizontal.children[0].bottom,
+      closeTo(10 * horizontal.scale, 0.01),
+    );
+    expect(
+      horizontal.children[2].left - horizontal.children[0].right,
+      closeTo(8 * horizontal.scale, 0.01),
+    );
+    expect(horizontal.children[0].width, closeTo(50 * horizontal.scale, 0.01));
+  });
+
+  testWidgets('bounds every required GridView axis under flex constraints', (
+    tester,
+  ) async {
+    Future<Size> render({
+      required String parentType,
+      required Map<String, Object?> properties,
+    }) async {
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithGridView(
+                properties: properties,
+                children: const [],
+                unboundedParentType: parentType,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+      expect(tester.takeException(), isNull);
+      return tester.getSize(find.byType(GridView));
+    }
+
+    expect(
+      (await render(
+        parentType: 'flutter.widgets.Column',
+        properties: {},
+      )).height,
+      120,
+    );
+    expect(
+      (await render(
+        parentType: 'flutter.widgets.Row',
+        properties: {
+          'scrollDirection': {
+            'kind': 'enum',
+            'type': 'Axis',
+            'value': 'horizontal',
+          },
+        },
+      )).width,
+      240,
+    );
+    expect(
+      (await render(
+        parentType: 'flutter.widgets.Row',
+        properties: {
+          'shrinkWrap': {'kind': 'boolean', 'value': true},
+        },
+      )).width,
+      240,
+    );
+    expect(
+      (await render(
+        parentType: 'flutter.widgets.Column',
+        properties: {
+          'scrollDirection': {
+            'kind': 'enum',
+            'type': 'Axis',
+            'value': 'horizontal',
+          },
+          'shrinkWrap': {'kind': 'boolean', 'value': true},
+        },
+      )).height,
+      120,
+    );
+  });
+
+  testWidgets('exposes an empty GridView as insertion index zero', (
+    tester,
+  ) async {
+    final model = CanvasModel.decode(
+      Uint8List.fromList(
+        utf8.encode(
+          jsonEncode(_modelWithGridView(properties: {}, children: const [])),
+        ),
+      ),
+    );
+    CanvasDropResolver? resolver;
+    await tester.pumpWidget(
+      CanvasModelApp(
+        model: model,
+        selectedWidgetId: null,
+        onSelected: (_) {},
+        onDropResolverChanged: (value) => resolver = value,
+      ),
+    );
+    await tester.pump();
+
+    const gridId = '7c5646ab-89dc-45b0-b147-f46604fc411f';
+    final surface = tester.getRect(find.byType(CanvasDocumentView));
+    final gridRect = tester.getRect(
+      find.byKey(const ValueKey('canvas-widget-$gridId')),
+    );
+    int micros(double value, double origin, double extent) =>
+        ((value - origin) / extent * 1000000).round();
+    final target = resolver!(
+      micros(gridRect.center.dx, surface.left, surface.width),
+      micros(gridRect.center.dy, surface.top, surface.height),
+    );
+    expect(target?.parentWidgetId, gridId);
+    expect(target?.slotName, 'children');
+    expect(target?.insertionIndex, 0);
+    expect(target?.zone?.isEmpty, isFalse);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'resolves row-major GridView append and move markers across directions',
+    (tester) async {
+      const gridId = '7c5646ab-89dc-45b0-b147-f46604fc411f';
+      const firstId = '0e15ae86-0c58-4298-b80e-2ab6b3a55371';
+      const secondId = 'c2fab615-373d-475e-81ca-76cc1d28460c';
+      const thirdId = '83854346-c458-48c5-a650-912667302538';
+      final cases =
+          <
+            ({
+              Axis axis,
+              bool reverse,
+              TextDirection direction,
+              int childCount,
+              int moveIndex,
+            })
+          >[
+            (
+              axis: Axis.vertical,
+              reverse: false,
+              direction: TextDirection.rtl,
+              childCount: 3,
+              moveIndex: 1,
+            ),
+            (
+              axis: Axis.vertical,
+              reverse: true,
+              direction: TextDirection.ltr,
+              childCount: 2,
+              moveIndex: 0,
+            ),
+            (
+              axis: Axis.horizontal,
+              reverse: true,
+              direction: TextDirection.rtl,
+              childCount: 2,
+              moveIndex: 0,
+            ),
+            (
+              axis: Axis.horizontal,
+              reverse: false,
+              direction: TextDirection.ltr,
+              childCount: 3,
+              moveIndex: 1,
+            ),
+          ];
+
+      for (final entry in cases) {
+        final allChildren = [
+          _viewTextNode(firstId, 'First'),
+          _viewTextNode(secondId, 'Second'),
+          _viewTextNode(thirdId, 'Third'),
+        ];
+        final json = _modelWithGridView(
+          properties: {
+            if (entry.axis == Axis.horizontal)
+              'scrollDirection': {
+                'kind': 'enum',
+                'type': 'Axis',
+                'value': 'horizontal',
+              },
+            'reverse': {'kind': 'boolean', 'value': entry.reverse},
+            'crossAxisCount': {'kind': 'integer', 'value': 2},
+            'mainAxisExtent': {'kind': 'double', 'value': 50.0},
+            'mainAxisSpacing': {'kind': 'double', 'value': 8.0},
+            'crossAxisSpacing': {'kind': 'double', 'value': 10.0},
+          },
+          children: allChildren.take(entry.childCount).toList(),
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] =
+            entry.direction == TextDirection.rtl ? 'ar-SA' : 'en-US';
+        CanvasDropResolver? dropResolver;
+        CanvasMovePreviewResolver? moveResolver;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => dropResolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        );
+        await tester.pump();
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final gridRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$gridId')),
+        );
+        final grid = find.byType(GridView);
+        final visualScale =
+            tester.getRect(grid).width / tester.getSize(grid).width;
+        final lastId = entry.childCount == 2 ? secondId : thirdId;
+        final lastRect = tester.getRect(
+          find.byKey(ValueKey('canvas-widget-$lastId')),
+        );
+        final groupBoundary = entry.childCount % 2 == 0;
+        final horizontalMain = entry.axis == Axis.horizontal;
+        final mainForwardPositive = horizontalMain
+            ? (entry.direction == TextDirection.ltr) != entry.reverse
+            : !entry.reverse;
+        final crossForwardPositive = horizontalMain
+            ? true
+            : entry.direction == TextDirection.ltr;
+        final forwardPositive = groupBoundary
+            ? mainForwardPositive
+            : crossForwardPositive;
+        final verticalEdge = groupBoundary == horizontalMain;
+        final appendEdge = verticalEdge
+            ? (forwardPositive ? lastRect.right : lastRect.left)
+            : (forwardPositive ? lastRect.bottom : lastRect.top);
+        final appendPoint = verticalEdge
+            ? Offset(
+                appendEdge.clamp(
+                  gridRect.left + 18 * visualScale,
+                  gridRect.right - 18 * visualScale,
+                ),
+                lastRect.center.dy,
+              )
+            : Offset(
+                lastRect.center.dx,
+                appendEdge.clamp(
+                  gridRect.top + 18 * visualScale,
+                  gridRect.bottom - 18 * visualScale,
+                ),
+              );
+        int micros(double value, double origin, double extent) =>
+            ((value - origin) / extent * 1000000).round();
+        final append = dropResolver!(
+          micros(appendPoint.dx, surface.left, surface.width),
+          micros(appendPoint.dy, surface.top, surface.height),
+        );
+        expect(append?.parentWidgetId, gridId, reason: entry.toString());
+        expect(append?.slotName, 'children', reason: entry.toString());
+        expect(
+          append?.insertionIndex,
+          entry.childCount,
+          reason: entry.toString(),
+        );
+
+        final retained = entry.moveIndex == 0 ? secondId : thirdId;
+        final retainedRect = tester.getRect(
+          find.byKey(ValueKey('canvas-widget-$retained')),
+        );
+        final moveGroupBoundary = entry.moveIndex % 2 == 0;
+        final moveForwardPositive = moveGroupBoundary
+            ? mainForwardPositive
+            : crossForwardPositive;
+        final moveVerticalEdge = moveGroupBoundary == horizontalMain;
+        final leadingUsesMinimum = moveForwardPositive;
+        final moveEdge = moveVerticalEdge
+            ? (leadingUsesMinimum ? retainedRect.left : retainedRect.right)
+            : (leadingUsesMinimum ? retainedRect.top : retainedRect.bottom);
+        final move = moveResolver!(
+          firstId,
+          gridId,
+          'children',
+          entry.moveIndex,
+        );
+        expect(move?.parentWidgetId, gridId, reason: entry.toString());
+        expect(move?.insertionIndex, entry.moveIndex, reason: entry.toString());
+        final zone = move!.zone!;
+        final actualEdge = moveVerticalEdge
+            ? (zone.leftMicros + zone.rightMicros) ~/ 2
+            : (zone.topMicros + zone.bottomMicros) ~/ 2;
+        final clampedMoveEdge = moveVerticalEdge
+            ? moveEdge.clamp(
+                gridRect.left + 6 * visualScale,
+                gridRect.right - 6 * visualScale,
+              )
+            : moveEdge.clamp(
+                gridRect.top + 6 * visualScale,
+                gridRect.bottom - 6 * visualScale,
+              );
+        final expectedEdge = moveVerticalEdge
+            ? micros(clampedMoveEdge, surface.left, surface.width)
+            : micros(clampedMoveEdge, surface.top, surface.height);
+        expect(actualEdge, closeTo(expectedEdge, 2), reason: entry.toString());
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
+
   testWidgets('renders exact nullable SizedBox dimensions and child', (
     tester,
   ) async {
@@ -11967,6 +12481,66 @@ Map<String, Object?> _modelWithListView({
         };
   body['child'] = <String, Object?>{
     'id': '31684f33-2e10-4fc6-9658-77cf0fe7eb55',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithGridView({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  String? unboundedParentType,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final gridView = <String, Object?>{
+    'id': '7c5646ab-89dc-45b0-b147-f46604fc411f',
+    'type': 'flutter.widgets.GridView',
+    'properties': <String, Object?>{
+      'crossAxisCount': {'kind': 'integer', 'value': 2},
+      ...properties,
+    },
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final child = unboundedParentType == null
+      ? <String, Object?>{
+          'id': 'f929fdb0-0143-4984-88ae-5d456ff6dbd1',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': gridView},
+          },
+        }
+      : <String, Object?>{
+          'id': '6befa00a-3715-498c-a818-e78c4ff39936',
+          'type': unboundedParentType,
+          'properties': <String, Object?>{
+            'mainAxisSize': {
+              'kind': 'enum',
+              'type': 'MainAxisSize',
+              'value': 'min',
+            },
+          },
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[gridView],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '466ce4d2-1179-4e5b-b4d9-1bc09898a75e',
     'type': 'flutter.widgets.Center',
     'properties': <String, Object?>{},
     'slots': <String, Object?>{

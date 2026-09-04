@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirty-seven
+The current capability-gated Palette and native Canvas admit exactly thirty-eight
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `Text`, `Icon` and `Image`.
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `ListView`, `GridView.count`, `Text`, `Icon` and `Image`.
 Thirty-two definitions use reviewed const constructors. Their `General`
-Properties expose exactly 683 typed writable rows: 666 across the thirty-six
+Properties expose exactly 704 typed writable rows: 687 across the thirty-seven
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -379,6 +379,22 @@ alignment retains Flutter's natural width. It also retains a 36x36 empty target;
 those guards are not saved into the form or application source. The practical Material/Base backlog is now 37/92 complete
 with 55 remaining, and Layout contains 29 items.
 
+[`GridView.count`](https://api.flutter.dev/flutter/widgets/GridView/GridView.count.html)
+is the eighteenth post-core Palette slice, at Scrolling order 20 immediately
+after ListView. A new node contains required **Cross-axis count** `2` and an
+empty ordered `children` slot. Its other 20 rows remain `<not set>` and preserve
+Flutter's vertical direction, forward order, inferred primary/controller and
+physics behavior, unit tile ratio, zero spacing, normal clipping, semantics and
+restoration defaults. Use **Main-axis extent** to request a fixed tile extent;
+when present it takes precedence over the extent derived from **Child aspect
+ratio**. Use the same `children` slot editor to add or reorder tiles in exact
+source, paint and semantic order. Controller-owned state, builders/delegates,
+the other named constructors, `scrollBehavior`, `key` and deprecated raw
+`cacheExtent` are outside this static slice. Generated Dart and Canvas apply the
+same 240-wide/120-high guard only where unbounded constraints require it. The practical Material/Base backlog
+is now 38/92 complete with 54 remaining; Layout remains at 29 items and
+Scrolling contains 2.
+
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
 `foregroundDecoration`, `width`, `height`, `constraints`, `margin`, `transform`,
@@ -431,8 +447,8 @@ only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
 value, and version 9 adds the atomic finite signed `Offset` wire value.
-Thirty-seven sources across thirty-four insertable any-widget and two trait-bound
-slots produce 1,332 compatibility candidates: 1,164 accepted and 168
+Thirty-eight sources across thirty-five insertable any-widget and two trait-bound
+slots produce 1,406 compatibility candidates: 1,233 accepted and 173
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

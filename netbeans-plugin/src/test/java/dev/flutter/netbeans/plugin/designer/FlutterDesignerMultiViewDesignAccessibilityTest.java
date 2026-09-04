@@ -781,6 +781,8 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.ListBody",
                     "flutter.widgets.OverflowBar",
                     "flutter.widgets.ListView",
+                    dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema
+                            .GRID_VIEW_COUNT_TYPE.value(),
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
                     "flutter.widgets.Image"),

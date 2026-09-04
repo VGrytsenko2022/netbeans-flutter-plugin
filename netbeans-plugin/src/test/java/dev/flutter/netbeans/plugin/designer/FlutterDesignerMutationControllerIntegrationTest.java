@@ -19,6 +19,7 @@ import dev.flutter.netbeans.dart.DartNavigationTarget;
 import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
@@ -96,6 +97,7 @@ import org.openide.explorer.propertysheet.PropertySheet;
 import org.openide.filesystems.FileEvent;
 import org.openide.filesystems.FileObject;
 import org.openide.filesystems.FileUtil;
+import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.text.CloneableEditorSupport;
 import org.openide.util.Lookup;
@@ -133,6 +135,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName SPACING = new PropertyName("spacing");
     private static final PropertyName OVERFLOW_DIRECTION =
             new PropertyName("overflowDirection");
+    private static final PropertyName CROSS_AXIS_COUNT =
+            new PropertyName("crossAxisCount");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -2109,6 +2113,252 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertTrue(assertInstanceOf(
                     WidgetSlot.ListSlot.class,
                     savedOverflowBar.slots().get(CHILDREN)).children().isEmpty());
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteGridViewCountReopensWithEditablePropertyAndUndoableChildSlot()
+            throws Exception {
+        StableId gridId = StableId.parse(
+                "70707070-7070-4070-8070-707070707070");
+        StableId tileId = StableId.parse(
+                "71717171-7171-4171-8171-717171717171");
+        WidgetTypeId gridType =
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE;
+        WidgetTypeId textType = new WidgetTypeId("flutter.widgets.Text");
+        PropertyValue.IntegerValue two = new PropertyValue.IntegerValue(
+                java.math.BigInteger.valueOf(2));
+        PropertyValue.IntegerValue three = new PropertyValue.IntegerValue(
+                java.math.BigInteger.valueOf(3));
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_grid_view_count_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("GridView.count("));
+                        assertTrue(request.content().contains("crossAxisCount: 2"));
+                        assertTrue(request.content().contains("children: []"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            gridType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> gridId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal GridView.count insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append GridView.count to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            WidgetNode grid = findModelWidget(
+                    applied.document().orElseThrow().root(), gridId);
+            assertEquals(gridType, grid.type());
+            assertEquals(Map.of(CROSS_AXIS_COUNT, two), grid.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    grid.slots().get(CHILDREN)).children().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_grid_view_count_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedGrid = findModelWidget(
+                    reopened.document().orElseThrow().root(), gridId);
+            assertEquals(Map.of(CROSS_AXIS_COUNT, two), reopenedGrid.properties());
+            var definition = reopened.catalog().orElseThrow()
+                    .find(gridType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedGrid,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> crossAxisCount =
+                    cellProperty(propertiesNode, "crossAxisCount");
+            assertTrue(crossAxisCount.canWrite(),
+                    "reopened GridView.count must retain its numeric editor");
+            assertEquals(FlutterPropertyCellValue.explicit(two),
+                    crossAxisCount.getValue());
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("GridView.count("));
+                        assertTrue(request.content().contains("crossAxisCount: 3"));
+                        if (call == 1) {
+                            assertTrue(request.content().contains("children: []"));
+                        } else {
+                            assertTrue(request.content().contains("Text("));
+                            assertTrue(request.content().contains("children: ["));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult propertyEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(gridId, CROSS_AXIS_COUNT, three),
+                            "GridView.count.crossAxisCount")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    propertyEdited.outcome(), propertyEdited::reason);
+            FlutterDesignerMutationController.Snapshot propertySnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            assertEquals(three, findModelWidget(
+                    propertySnapshot.document().orElseThrow().root(), gridId)
+                    .properties().get(CROSS_AXIS_COUNT));
+
+            FlutterDesignerPaletteDropPlanner.Result childPlan =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            propertySnapshot.document().orElseThrow(),
+                            propertySnapshot.catalog().orElseThrow(),
+                            textType,
+                            gridId,
+                            CHILDREN,
+                            0,
+                            () -> tileId);
+            FlutterDesignerPaletteDropPlanner.Accepted childAccepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, childPlan);
+            FlutterDesignerMutationController.MutationResult childAdded =
+                    fixture.mutations().submit(
+                            propertySnapshot.token().orElseThrow(),
+                            childAccepted.command(),
+                            "GridView.count.children — append Text")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    childAdded.outcome(), childAdded::reason);
+            FlutterDesignerMutationController.Snapshot childSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertySnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            assertEquals(List.of(tileId), assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    findModelWidget(
+                            childSnapshot.document().orElseThrow().root(), gridId)
+                            .slots().get(CHILDREN)).children().stream()
+                    .map(WidgetNode::id).toList());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot childUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            WidgetNode withoutTile = findModelWidget(
+                    childUndone.document().orElseThrow().root(), gridId);
+            assertEquals(three, withoutTile.properties().get(CROSS_AXIS_COUNT));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    withoutTile.slots().get(CHILDREN)).children().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            assertEquals(two, findModelWidget(
+                    propertyUndone.document().orElseThrow().root(), gridId)
+                    .properties().get(CROSS_AXIS_COUNT));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot propertyRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            assertEquals(three, findModelWidget(
+                    propertyRedone.document().orElseThrow().root(), gridId)
+                    .properties().get(CROSS_AXIS_COUNT));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot childRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            propertyRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, gridId));
+            WidgetNode finalGrid = findModelWidget(
+                    childRedone.document().orElseThrow().root(), gridId);
+            assertEquals(three, finalGrid.properties().get(CROSS_AXIS_COUNT));
+            assertEquals(List.of(tileId), assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    finalGrid.slots().get(CHILDREN)).children().stream()
+                    .map(WidgetNode::id).toList());
+            assertEquals(2, editAnalyses.get(),
+                    "Undo/Redo must replay the two exact analyzed GridView.count pairs");
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedGrid = findModelWidget(saved.root(), gridId);
+            assertEquals(three, savedGrid.properties().get(CROSS_AXIS_COUNT));
+            assertEquals(List.of(tileId), assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    savedGrid.slots().get(CHILDREN)).children().stream()
+                    .map(WidgetNode::id).toList());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

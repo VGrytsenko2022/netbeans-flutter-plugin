@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
@@ -65,6 +66,66 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterWidgetPropertiesNodeTest {
+
+    @Test
+    void gridViewCountProjectsAllPropertiesWithClosedPhysicsChoicesAndChildrenSlot()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value());
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                StableId.parse("1ad9391f-ab8d-4fe0-9a79-2ac0d746e287"));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + GridViewCountWidgetPropertySchema.Group.values().length,
+                sets.length);
+        assertEquals(GridViewCountWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                Arrays.stream(sets)
+                        .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
+                                set.getName()))
+                        .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
+                                set.getName()))
+                        .mapToInt(set -> set.getProperties().length).sum());
+        for (GridViewCountWidgetPropertySchema.Group group
+                : GridViewCountWidgetPropertySchema.Group.values()) {
+            Node.PropertySet set = propertySet(node, group.setName());
+            assertEquals(group.displayName(), set.getDisplayName());
+            assertEquals(group.description(), set.getShortDescription());
+            assertEquals("General", set.getValue(
+                    FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        }
+
+        Node.Property<?> physics = property(node, "physics");
+        assertEquals(java.util.stream.Stream.concat(
+                        java.util.stream.Stream.of(FlutterWidgetPropertiesNode.NOT_SET),
+                        GridViewCountWidgetPropertySchema.PHYSICS_PRESETS.stream()).toList(),
+                Arrays.asList(physics.getPropertyEditor().getTags()));
+        cellProperty(physics).setValue(FlutterPropertyCellValue.explicit(
+                new PropertyValue.StringValue("clamping")));
+        SetProperty command = assertInstanceOf(SetProperty.class, commands.getFirst());
+        assertEquals(new PropertyName("physics"), command.propertyName());
+        assertEquals(new PropertyValue.StringValue("clamping"), command.value());
+
+        assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                widget.properties().get(new PropertyName("crossAxisCount")));
+        assertTrue(property(node, "crossAxisCount").getShortDescription().contains(
+                "Positive number of tiles in the cross axis"));
+        assertTrue(property(node, "mainAxisExtent").getShortDescription().contains(
+                "logical-pixel extent for each tile"));
+
+        Node.PropertySet slots = propertySet(
+                node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
+        assertEquals(List.of("children"), names(slots.getProperties()));
+        assertTrue(slots.getProperties()[0].getShortDescription().contains(
+                "exact source, paint, and semantic order"));
+        assertTrue(slots.getProperties()[0].getShortDescription().contains(
+                "columns for vertical scrolling or rows for horizontal scrolling"));
+        assertEquals("Slots", slots.getValue(
+                FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+    }
 
     @Test
     void listViewProjectsAllStaticPropertiesWithClosedPhysicsChoicesAndChildrenSlot()
@@ -672,6 +733,11 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("quarterTurns"),
                         new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        requiredValues.put(
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+                Map.of(
+                        new PropertyName("crossAxisCount"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -707,6 +773,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image");
@@ -743,7 +810,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(683, writableCount,
+        assertEquals(704, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -752,9 +819,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
-                + "OverflowBar, ListView, "
+                + "OverflowBar, ListView, GridView.count, "
                 + "and Image leaves");
-        assertEquals(666, nonScaffoldWritableCount,
+        assertEquals(687, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -3903,7 +3970,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtySevenCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtyEightCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3940,6 +4007,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.ListView",
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image");
@@ -3970,7 +4038,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(37, iconPaths.size(),
+        assertEquals(38, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

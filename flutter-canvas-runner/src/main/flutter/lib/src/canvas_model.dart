@@ -831,14 +831,15 @@ void _validateNodeSlotRelationships(
   Map<String, CanvasSlot> slots,
   String path,
 ) {
-  if (type != 'flutter.widgets.ListView') {
+  if (type != 'flutter.widgets.ListView' &&
+      type != 'flutter.widgets.GridView') {
     return;
   }
   final semanticChildCount = properties['semanticChildCount']?.value as int?;
   final childCount = slots['children']?.children.length ?? 0;
   _expect(
     semanticChildCount == null || semanticChildCount <= childCount,
-    'Canvas ListView semanticChildCount cannot exceed children.length: '
+    'Canvas $type semanticChildCount cannot exceed children.length: '
     '$path/properties/semanticChildCount',
   );
 }
@@ -4390,6 +4391,83 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'children': _optionalListSlot},
   ),
+  'flutter.widgets.GridView': _WidgetSpec(
+    {
+      'scrollDirection': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'reverse': _PropertySpec({'boolean'}),
+      'primary': _PropertySpec({'boolean'}),
+      'physics': _PropertySpec(
+        {'string'},
+        stringPattern:
+            r'(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)',
+      ),
+      'shrinkWrap': _PropertySpec({'boolean'}),
+      'padding': _PropertySpec(
+        {'edgeInsets', 'edgeInsetsDirectional'},
+        numericBounds: _nonNegativeEdgeInsetsBounds,
+        edgeInsetsNonNegative: true,
+      ),
+      'crossAxisCount': _PropertySpec(
+        {'integer'},
+        required: true,
+        creationDefaultFingerprint: 'integer:2',
+        numericBounds: _positiveIntegerBounds,
+      ),
+      'mainAxisSpacing': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'crossAxisSpacing': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'childAspectRatio': _PropertySpec({
+        'double',
+      }, numericBounds: _positiveDoubleBounds),
+      'mainAxisExtent': _PropertySpec({
+        'double',
+      }, numericBounds: _nonNegativeDoubleBounds),
+      'addAutomaticKeepAlives': _PropertySpec({'boolean'}),
+      'addRepaintBoundaries': _PropertySpec({'boolean'}),
+      'addSemanticIndexes': _PropertySpec({'boolean'}),
+      'scrollCacheExtent': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'semanticChildCount': _PropertySpec({
+        'integer',
+      }, numericBounds: _nonNegativeIntegerBounds),
+      'dragStartBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _gesturesLibraryUri,
+        enumType: 'DragStartBehavior',
+        enumValues: {'down', 'start'},
+      ),
+      'keyboardDismissBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'ScrollViewKeyboardDismissBehavior',
+        enumValues: {'manual', 'onDrag'},
+      ),
+      'restorationId': _PropertySpec(
+        {'string'},
+        minimumStringLength: 1,
+        maximumStringLength: 256,
+        explicitStringLength: true,
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+      'hitTestBehavior': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _renderingLibraryUri,
+        enumType: 'HitTestBehavior',
+        enumValues: {'deferToChild', 'opaque', 'translucent'},
+      ),
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.SizedBox': _WidgetSpec(
     {
       'width': _PropertySpec({
@@ -5269,6 +5347,29 @@ P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|widthFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.GridView
+P|addAutomaticKeepAlives|boolean|0|-|-|boolean:any
+P|addRepaintBoundaries|boolean|0|-|-|boolean:any
+P|addSemanticIndexes|boolean|0|-|-|boolean:any
+P|childAspectRatio|double|0|-|double:0:0:*:1|double:range:0:0:*:1
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|crossAxisCount|integer|1|integer:2|integer:1:1:9007199254740991:1|integer:range:1:1:9007199254740991:1
+P|crossAxisSpacing|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
+P|hitTestBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:HitTestBehavior:deferToChild,opaque,translucent
+P|keyboardDismissBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ScrollViewKeyboardDismissBehavior:manual,onDrag
+P|mainAxisExtent|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|mainAxisSpacing|double|0|-|double:0:1:*:1|double:range:0:1:*:1
+P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|physics|string|0|-|-|string:pattern:KD86YWx3YXlzU2Nyb2xsYWJsZXxib3VuY2luZ3xjbGFtcGluZ3xuZXZlclNjcm9sbGFibGV8cGFnZXxyYW5nZU1haW50YWluaW5nKQ
+P|primary|boolean|0|-|-|boolean:any
+P|restorationId|string|0|-|-|string:length:1:256
+P|reverse|boolean|0|-|-|boolean:any
+P|scrollCacheExtent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|scrollDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+P|semanticChildCount|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
+P|shrinkWrap|boolean|0|-|-|boolean:any
+S|children|list|0|0|10000|any
 W|flutter.widgets.Icon
 P|applyTextScaling|boolean|0|-|-|boolean:any
 P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor

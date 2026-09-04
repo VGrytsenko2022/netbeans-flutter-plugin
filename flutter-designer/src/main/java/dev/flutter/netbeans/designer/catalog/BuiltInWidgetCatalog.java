@@ -59,6 +59,7 @@ public final class BuiltInWidgetCatalog {
             listBody(),
             overflowBar(),
             listView(),
+            gridViewCount(),
             image(),
             elevatedButton(),
             textField()));
@@ -1218,6 +1219,72 @@ public final class BuiltInWidgetCatalog {
                 List.of(listSlot("children", 11, false, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition gridViewCount() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("primary", 2, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("physics", 3, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("shrinkWrap", 4, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("padding", 5, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("crossAxisCount", 6, true,
+                        positiveIntegers(),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                namedProperty("mainAxisSpacing", 7, false,
+                        nonNegativeDoubles()),
+                namedProperty("crossAxisSpacing", 8, false,
+                        nonNegativeDoubles()),
+                namedProperty("childAspectRatio", 9, false,
+                        positiveDoubles()),
+                namedProperty("mainAxisExtent", 10, false,
+                        nonNegativeDoubles()),
+                namedProperty("addAutomaticKeepAlives", 11, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addRepaintBoundaries", 12, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addSemanticIndexes", 13, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("scrollCacheExtent", 14, false,
+                        nonNegativeNumbers()),
+                namedProperty("semanticChildCount", 16, false,
+                        nonNegativeIntegers()),
+                namedProperty("dragStartBehavior", 17, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("keyboardDismissBehavior", 18, false,
+                        enumValues("ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                namedProperty("restorationId", 19, false,
+                        stringLength(1, 256)),
+                namedProperty("clipBehavior", 20, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 21, false,
+                        renderingEnumValues(
+                                "HitTestBehavior", "deferToChild", "opaque", "translucent")));
+        if (properties.size()
+                != GridViewCountWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "GridView.count catalog/property schema count mismatch");
+        }
+        return namedWidget(
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+                "GridView",
+                "count",
+                false,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT),
+                Set.of(),
+                palette("flutter.scrolling", 250, 20, "GridView.count"),
+                properties,
+                List.of(listSlot("children", 15, false, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition image() {
         return widget(
                 "flutter.widgets.Image",
@@ -1604,6 +1671,30 @@ public final class BuiltInWidgetCatalog {
                 new WidgetTypeId(typeId),
                 dartClassName,
                 Optional.empty(),
+                constConstructor,
+                dartLibraryUri,
+                imports,
+                traits,
+                palette,
+                properties,
+                slots);
+    }
+
+    private static WidgetDefinition namedWidget(
+            String typeId,
+            String dartClassName,
+            String namedConstructor,
+            boolean constConstructor,
+            String dartLibraryUri,
+            List<String> imports,
+            Set<String> traits,
+            PaletteMetadata palette,
+            List<PropertyDefinition> properties,
+            List<SlotDefinition> slots) {
+        return new WidgetDefinition(
+                new WidgetTypeId(typeId),
+                dartClassName,
+                Optional.of(namedConstructor),
                 constConstructor,
                 dartLibraryUri,
                 imports,

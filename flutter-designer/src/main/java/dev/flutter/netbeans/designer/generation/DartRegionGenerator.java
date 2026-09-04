@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
@@ -269,8 +270,7 @@ public final class DartRegionGenerator {
                     current.node(), definition, GESTURES_IMPORT);
             requiresRendering |= usesEnumLibrary(
                     current.node(), definition, RENDERING_IMPORT);
-            requiresRendering |= current.node().type().equals(
-                    ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
+            requiresRendering |= isStaticScrollView(current.node())
                     && current.node().properties().containsKey(
                             new PropertyName("scrollCacheExtent"));
             requiresDartConvert |= current.node().properties().values().stream()
@@ -348,7 +348,9 @@ public final class DartRegionGenerator {
                 TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE);
         boolean listView = node.type().equals(
                 ListViewWidgetPropertySchema.LIST_VIEW_TYPE);
-        int constructorBaseIndent = textField || listView
+        boolean gridView = node.type().equals(
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE);
+        int constructorBaseIndent = textField || listView || gridView
                 ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
@@ -379,6 +381,10 @@ public final class DartRegionGenerator {
             }
             if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
                     && ListViewWidgetPropertySchema.isSynthesized(property.name())) {
+                continue;
+            }
+            if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
+                    && GridViewCountWidgetPropertySchema.isSynthesized(property.name())) {
                 continue;
             }
             PropertyValue value = node.properties().get(property.name());
@@ -439,7 +445,11 @@ public final class DartRegionGenerator {
                     node, definition, path, context, arguments);
         }
         if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)) {
-            appendListViewSynthesizedArguments(
+            appendStaticScrollViewSynthesizedArguments(
+                    node, definition, path, context, arguments);
+        }
+        if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)) {
+            appendStaticScrollViewSynthesizedArguments(
                     node, definition, path, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
@@ -540,8 +550,8 @@ public final class DartRegionGenerator {
             return wrapTextFieldConstraintGuard(
                     node, path, baseIndent, context, rendered);
         }
-        if (node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)) {
-            return wrapListViewConstraintGuard(
+        if (isStaticScrollView(node)) {
+            return wrapStaticScrollViewConstraintGuard(
                     node, path, baseIndent, context, rendered);
         }
         return rendered;
@@ -602,11 +612,11 @@ public final class DartRegionGenerator {
     }
 
     /**
-     * Keeps the modeled ListView valid under arbitrary flex ancestors. The
-     * viewport always needs a bounded cross axis; a non-shrink-wrapped list
-     * additionally needs a bounded main axis.
+     * Keeps a modeled static ListView/GridView valid under arbitrary flex
+     * ancestors. The viewport always needs a bounded cross axis; a
+     * non-shrink-wrapped scroll view additionally needs a bounded main axis.
      */
-    private RenderedValue wrapListViewConstraintGuard(
+    private RenderedValue wrapStaticScrollViewConstraintGuard(
             WidgetNode node,
             String path,
             int baseIndent,
@@ -5100,18 +5110,23 @@ public final class DartRegionGenerator {
                 ? flag.value() : null;
     }
 
-    private void appendListViewSynthesizedArguments(
+    private static boolean isStaticScrollView(WidgetNode node) {
+        return node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
+                || node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE);
+    }
+
+    private void appendStaticScrollViewSynthesizedArguments(
             WidgetNode node,
             WidgetDefinition definition,
             String path,
             GenerationContext context,
             List<ConstructorArgument> arguments) {
-        appendListViewPhysics(node, definition, path, context, arguments);
-        appendListViewScrollCacheExtent(
+        appendStaticScrollViewPhysics(node, definition, path, context, arguments);
+        appendStaticScrollViewCacheExtent(
                 node, definition, path, context, arguments);
     }
 
-    private void appendListViewPhysics(
+    private void appendStaticScrollViewPhysics(
             WidgetNode node,
             WidgetDefinition definition,
             String path,
@@ -5127,7 +5142,8 @@ public final class DartRegionGenerator {
         if (!(value instanceof PropertyValue.StringValue preset)) {
             throw catalogInconsistency(
                     propertyPath, node.id(),
-                    "ListView physics must be a validated string preset.");
+                    definition.dartClassName()
+                    + " physics must be a validated string preset.");
         }
         String dartClass = switch (preset.value()) {
             case "alwaysScrollable" -> "AlwaysScrollableScrollPhysics";
@@ -5138,7 +5154,8 @@ public final class DartRegionGenerator {
             case "rangeMaintaining" -> "RangeMaintainingScrollPhysics";
             default -> throw catalogInconsistency(
                     propertyPath, node.id(),
-                    "Unsupported validated ListView physics preset '"
+                    "Unsupported validated " + definition.dartClassName()
+                    + " physics preset '"
                     + preset.value() + "'.");
         };
         RenderedSymbol symbol = context.planner().renderedSymbol(
@@ -5163,7 +5180,7 @@ public final class DartRegionGenerator {
                                 Optional.of(node.id()))))));
     }
 
-    private void appendListViewScrollCacheExtent(
+    private void appendStaticScrollViewCacheExtent(
             WidgetNode node,
             WidgetDefinition definition,
             String path,
@@ -5180,7 +5197,8 @@ public final class DartRegionGenerator {
                 && !(value instanceof PropertyValue.DoubleValue)) {
             throw catalogInconsistency(
                     propertyPath, node.id(),
-                    "ListView scrollCacheExtent must be a validated numeric value.");
+                    definition.dartClassName()
+                    + " scrollCacheExtent must be a validated numeric value.");
         }
         RenderedValue amount = renderProperty(
                 value, property, propertyPath, node.id(), context);

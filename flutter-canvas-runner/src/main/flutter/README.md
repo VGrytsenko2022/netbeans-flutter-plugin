@@ -78,7 +78,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`
+`ListView`, `GridView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`
 and `OverflowBar`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
@@ -206,16 +206,18 @@ resize burst into one contiguous layout sequence. On Windows an embedded
 never apply a top-level suggested screen rectangle to that child, while a
 standalone runner retains the normal suggested-rectangle behavior.
 
-An empty Row, Column, ListView, ListBody, OverflowBar, Wrap, FittedBox, ConstrainedBox,
+An empty Row, Column, ListView, GridView, ListBody, OverflowBar, Wrap, FittedBox, ConstrainedBox,
 UnconstrainedBox, LimitedBox, OverflowBox or RotatedBox keeps its real Flutter layout (including
 zero-size outcomes) but receives a non-layout-affecting 36-pixel-minimum
 selection outline and hit rectangle. Its whole bounded rectangle is insertion
-index zero; a populated Row, Column, ListView, ListBody or OverflowBar exposes only its terminal append
+index zero; a populated Row, Column, ListView, GridView, ListBody or OverflowBar exposes only its terminal append
 edge. Stack uses its full rendered rectangle for both empty and populated
 z-order appends. Wrap also uses its full rendered rectangle for every terminal
 append because run formation has no single stable edge. ListView and ListBody
 resolve their terminal edge from vertical/horizontal, reverse and LTR/RTL visual
-order. OverflowBar derives whether its real render object is in a fitting row or
+order. GridView resolves incomplete-group insertion along its cross axis and
+complete-group insertion along its main axis, including `reverse` and ambient
+LTR/RTL direction. OverflowBar derives whether its real render object is in a fitting row or
 vertical overflow column, then uses effective text direction or
 `overflowDirection` for that edge.
 
@@ -233,9 +235,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-37 reviewed Canvas widgets. Palette insertion evaluates 1,332 exact
-source/destination cells across 37 draggable sources and 36 insertable reviewed
-slots; 1,164 are accepted and 168 cells are rejected. Expanded and Flexible are
+38 reviewed Canvas widgets. Palette insertion evaluates 1,406 exact
+source/destination cells across 38 draggable sources and 37 insertable reviewed
+slots; 1,233 are accepted and 173 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -617,3 +619,31 @@ destinations form 1,332 cells, with 1,164 accepted and 168 rejected. The
 practical Material/Base backlog is 37/92 complete with 55 remaining, and Layout
 contains 29 items. Canvas model protocol remains v14; NBFC framing, control and
 wire remain v1.
+
+[`flutter.widgets.GridView`](https://api.flutter.dev/flutter/widgets/GridView/GridView.count.html)
+is decoded as the exact static `GridView.count(children: ...)` projection for
+Flutter 3.44.8 without a protocol-version change. Its 21 writable leaves cover
+axis/reverse/primary, six closed physics presets, shrink wrapping, non-negative
+physical or directional padding, required positive `crossAxisCount` (Designer
+creation default 2), non-negative main/cross spacing, positive
+`childAspectRatio`, nullable non-negative `mainAxisExtent`, the three child
+delegate flags, pixel scroll cache extent, bounded semantic child count, drag
+and keyboard behavior, restoration ID, clipping and hit testing. One optional
+ordered any-widget `children` list is the only slot. Controller-owned state,
+delegates/builders, deprecated `cacheExtent`, other constructors, `key` and raw
+Dart are absent from the closed model.
+
+Native and exact-Web views construct the real `GridView.count`; Flutter owns
+RTL/reverse/scroll-direction placement, and a non-null `mainAxisExtent`
+naturally overrides aspect-derived tile extent in its fixed-count delegate. A
+shared generated/Canvas guard supplies width 240 whenever a vertical grid lacks a bounded
+cross axis, height 120 whenever a horizontal grid lacks one, and the matching
+main-axis bound for a non-shrink-wrapped viewport. An empty grid keeps a bounded
+index-zero insertion target. A populated grid exposes a 36-pixel terminal band
+beside the logical last tile; move preview uses a 12-pixel row-major marker at
+the referenced tile. Partial groups advance on the cross axis, complete groups
+advance on the main axis, with `reverse` and ambient LTR/RTL resolved from the
+real render tree. The aggregate catalog now has 38 widgets; 38 sources across
+37 insertable destinations form 1,406 cells, with 1,233 accepted and 173
+rejected. Canvas model protocol remains v14; NBFC framing, control and wire
+remain v1.

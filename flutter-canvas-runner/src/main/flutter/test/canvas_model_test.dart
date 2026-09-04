@@ -662,7 +662,7 @@ void main() {
   test('FractionallySizedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.FractionallySizedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    final end = contract.indexOf('W|flutter.widgets.GridView\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -4154,6 +4154,191 @@ void main() {
     expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(17));
     expect(block, contains('S|children|list|0|0|10000|any\n'));
     expect(block, contains('P|scrollCacheExtent|double,integer|0|-|'));
+  });
+
+  test('decodes all 21 GridView.count leaves and ordered children', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '7c5646ab-89dc-45b0-b147-f46604fc411f',
+      'flutter.widgets.GridView',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+        'reverse': {'kind': 'boolean', 'value': true},
+        'primary': {'kind': 'boolean', 'value': false},
+        'physics': {'kind': 'string', 'value': 'bouncing'},
+        'shrinkWrap': {'kind': 'boolean', 'value': true},
+        'padding': {
+          'kind': 'edgeInsetsDirectional',
+          'start': 1.0,
+          'top': 2.0,
+          'end': 3.0,
+          'bottom': 4.0,
+        },
+        'crossAxisCount': {'kind': 'integer', 'value': 2},
+        'mainAxisSpacing': {'kind': 'double', 'value': 5.0},
+        'crossAxisSpacing': {'kind': 'double', 'value': 6.0},
+        'childAspectRatio': {'kind': 'double', 'value': 1.5},
+        'mainAxisExtent': {'kind': 'double', 'value': 48.0},
+        'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
+        'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
+        'addSemanticIndexes': {'kind': 'boolean', 'value': false},
+        'scrollCacheExtent': {'kind': 'integer', 'value': 240},
+        'semanticChildCount': {'kind': 'integer', 'value': 2},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'keyboardDismissBehavior': {
+          'kind': 'enum',
+          'type': 'ScrollViewKeyboardDismissBehavior',
+          'value': 'onDrag',
+        },
+        'restorationId': {'kind': 'string', 'value': 'primary-grid'},
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'antiAlias'},
+        'hitTestBehavior': {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'translucent',
+        },
+      },
+      slots: {
+        'children': _list([
+          _node(
+            '0e15ae86-0c58-4298-b80e-2ab6b3a55371',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'First'},
+            },
+          ),
+          _node(
+            'c2fab615-373d-475e-81ca-76cc1d28460c',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Second'},
+            },
+          ),
+        ]),
+      },
+    );
+
+    final grid = _decode(json).root;
+    expect(grid.type, 'flutter.widgets.GridView');
+    expect(grid.properties, hasLength(21));
+    expect(grid.properties['crossAxisCount']!.value, 2);
+    expect(grid.properties['childAspectRatio']!.value, 1.5);
+    expect(grid.properties['scrollCacheExtent']!.value, 240);
+    expect(grid.slot('children')!.children.map((child) => child.id), [
+      '0e15ae86-0c58-4298-b80e-2ab6b3a55371',
+      'c2fab615-373d-475e-81ca-76cc1d28460c',
+    ]);
+  });
+
+  test('requires positive GridView.count crossAxisCount with default 2', () {
+    Map<String, Object?> model(Map<String, Object?> properties) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '7c5646ab-89dc-45b0-b147-f46604fc411f',
+        'flutter.widgets.GridView',
+        properties: properties,
+        slots: {'children': _list([])},
+      );
+      return json;
+    }
+
+    expect(() => _decode(model({})), throwsFormatException);
+    expect(
+      () => _decode(
+        model({
+          'crossAxisCount': {'kind': 'integer', 'value': 0},
+        }),
+      ),
+      throwsFormatException,
+    );
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    expect(
+      contract,
+      contains('P|crossAxisCount|integer|1|integer:2|integer:1:1:'),
+    );
+  });
+
+  test('rejects values outside the closed GridView.count projection', () {
+    Map<String, Object?> invalid(String name, Map<String, Object?> value) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '7c5646ab-89dc-45b0-b147-f46604fc411f',
+        'flutter.widgets.GridView',
+        properties: {
+          'crossAxisCount': {'kind': 'integer', 'value': 2},
+          name: value,
+        },
+        slots: {'children': _list([])},
+      );
+      return json;
+    }
+
+    for (final json in <Map<String, Object?>>[
+      invalid('physics', {'kind': 'string', 'value': 'custom'}),
+      invalid('mainAxisSpacing', {'kind': 'double', 'value': -0.1}),
+      invalid('crossAxisSpacing', {'kind': 'double', 'value': -0.1}),
+      invalid('childAspectRatio', {'kind': 'double', 'value': 0.0}),
+      invalid('mainAxisExtent', {'kind': 'double', 'value': -0.1}),
+      invalid('restorationId', {'kind': 'string', 'value': ''}),
+      invalid('mainAxisSpacing', {'kind': 'integer', 'value': 1}),
+      invalid('scrollDirection', {
+        'kind': 'enum',
+        'type': 'Axis',
+        'value': 'diagonal',
+      }),
+      invalid('hitTestBehavior', {
+        'kind': 'enum',
+        'type': 'HitTestBehavior',
+        'value': 'ignore',
+      }),
+    ]) {
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
+  test('rejects GridView semanticChildCount above children length', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '7c5646ab-89dc-45b0-b147-f46604fc411f',
+      'flutter.widgets.GridView',
+      properties: {
+        'crossAxisCount': {'kind': 'integer', 'value': 2},
+        'semanticChildCount': {'kind': 'integer', 'value': 1},
+      },
+      slots: {'children': _list([])},
+    );
+
+    expect(
+      () => _decode(json),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('/properties/semanticChildCount'),
+        ),
+      ),
+    );
+  });
+
+  test('GridView.count reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.GridView\n');
+    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final block = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(21));
+    expect(block, contains('S|children|list|0|0|10000|any\n'));
+    expect(block, isNot(contains('controller')));
+    expect(block, isNot(contains('cacheExtent|')));
   });
 
   test('decodes all 54 reviewed TextField constructor leaves exactly', () {

@@ -86,6 +86,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
     private static final WidgetTypeId OVERFLOW_BAR = type("flutter.widgets.OverflowBar");
     private static final WidgetTypeId LIST_VIEW = type("flutter.widgets.ListView");
+    private static final WidgetTypeId GRID_VIEW = type("flutter.widgets.GridView");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
@@ -114,6 +115,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final PropertyName BASELINE_VALUE = new PropertyName("baseline");
     private static final PropertyName BASELINE_TYPE_VALUE =
             new PropertyName("baselineType");
+    private static final PropertyName CROSS_AXIS_COUNT =
+            new PropertyName("crossAxisCount");
     private static final StableId DOCUMENT_ID = id("14f6c16f-893b-44d0-b809-edbd51bbcdaa");
     private static final StableId ROOT_ID = id("0209809f-351a-4ce7-8c07-1ec625b1e109");
     private static final StableId FIRST_ID = id("710c4ad9-c3cf-434e-af1e-5217ac38aa92");
@@ -905,6 +908,150 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
+    void gridViewCountCompletesExact1406CellModelWithOrderedChildren() {
+        List<MatrixTargetCase> targets = List.of(
+                target("Scaffold.body", SCAFFOLD, BODY),
+                target("Scaffold.floatingActionButton", SCAFFOLD,
+                        FLOATING_ACTION_BUTTON),
+                target("Column.children", COLUMN, CHILDREN),
+                target("Row.children", ROW, CHILDREN),
+                target("Wrap.children", WRAP, CHILDREN),
+                target("Padding.child", PADDING, CHILD),
+                target("Center.child", CENTER, CHILD),
+                target("SizedBox.child", SIZED_BOX, CHILD),
+                target("AspectRatio.child", ASPECT_RATIO, CHILD),
+                target("Container.child", CONTAINER, CHILD),
+                target("Opacity.child", OPACITY, CHILD),
+                target("Align.child", ALIGN, CHILD),
+                target("FractionallySizedBox.child", FRACTIONALLY_SIZED_BOX, CHILD),
+                target("FittedBox.child", FITTED_BOX, CHILD),
+                target("ConstrainedBox.child", CONSTRAINED_BOX, CHILD),
+                target("UnconstrainedBox.child", UNCONSTRAINED_BOX, CHILD),
+                target("LimitedBox.child", LIMITED_BOX, CHILD),
+                target("OverflowBox.child", OVERFLOW_BOX, CHILD),
+                target("Baseline.child", BASELINE, CHILD),
+                target("IntrinsicHeight.child", INTRINSIC_HEIGHT, CHILD),
+                target("IntrinsicWidth.child", INTRINSIC_WIDTH, CHILD),
+                target("Offstage.child", OFFSTAGE, CHILD),
+                target("SizedOverflowBox.child", SIZED_OVERFLOW_BOX, CHILD),
+                target("Transform.child", TRANSFORM, CHILD),
+                target("RotatedBox.child", ROTATED_BOX, CHILD),
+                target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
+                target("OverflowBar.children", OVERFLOW_BAR, CHILDREN),
+                target("ListView.children", LIST_VIEW, CHILDREN),
+                target("GridView.count.children", GRID_VIEW, CHILDREN),
+                target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
+                target("AppBar.leading", APP_BAR, LEADING),
+                target("AppBar.title", APP_BAR, TITLE),
+                target("AppBar.actions", APP_BAR, ACTIONS),
+                target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE),
+                target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
+                target("AppBar.bottom", APP_BAR, BOTTOM));
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger gridAccepted = new AtomicInteger();
+        AtomicInteger gridRejected = new AtomicInteger();
+
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, GRID_VIEW, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "GridView.count -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                gridRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "GridView.count -> " + target.name());
+                WidgetNode widget = success.command().widget();
+                assertEquals(GRID_VIEW, widget.type());
+                assertEquals(
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2)),
+                        widget.properties().get(CROSS_AXIS_COUNT));
+                WidgetSlot.ListSlot children = assertInstanceOf(
+                        WidgetSlot.ListSlot.class,
+                        widget.slots().get(CHILDREN));
+                assertTrue(children.children().isEmpty());
+                assertEquals(1, allocations.get());
+                gridAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> oldSources = Stream.concat(
+                coreSources().stream().map(CoreSourceCase::type),
+                Stream.of(EXPANDED, IMAGE, FLEXIBLE, SPACER)).toList();
+        MatrixTargetCase gridTarget = target(
+                "GridView.count.children", GRID_VIEW, CHILDREN);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(oldSources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    gridTarget.document(), BUILT_INS, source, ROOT_ID,
+                    gridTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> GridView.count.children");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> GridView.count.children");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILDREN, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(37, targets.size()),
+                () -> assertEquals(35, gridAccepted.get()),
+                () -> assertEquals(2, gridRejected.get()),
+                () -> assertEquals(37, oldSources.size()),
+                () -> assertEquals(34, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(1406,
+                        1332 + targets.size() + oldSources.size()),
+                () -> assertEquals(1233,
+                        1164 + gridAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(173,
+                        168 + gridRejected.get() + targetRejected.get()));
+    }
+
+    @Test
     void spacerAppendsToPopulatedFlexChildrenAndNeverWrapsTheExistingChild() {
         DesignerDocument document = document(parent(
                 ROW, List.of(text(FIRST_ID, "existing"))));
@@ -1112,8 +1259,10 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void enforcesTerminalAppendAcrossEveryListSlotForEveryCoreSource() {
+    void enforcesTerminalAppendAcrossEveryListSlotForEveryPaletteSource() {
         AtomicInteger rejectedAllocations = new AtomicInteger();
+        List<CoreSourceCase> sources = Stream.concat(
+                coreSources().stream(), Stream.of(gridViewCountSource())).toList();
         List<SingleTargetCase> listTargets = List.of(
                 new SingleTargetCase("Column.children", COLUMN, CHILDREN),
                 new SingleTargetCase("Row.children", ROW, CHILDREN),
@@ -1122,9 +1271,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("ListBody.children", LIST_BODY, CHILDREN),
                 new SingleTargetCase("OverflowBar.children", OVERFLOW_BAR, CHILDREN),
                 new SingleTargetCase("ListView.children", LIST_VIEW, CHILDREN),
+                new SingleTargetCase(
+                        "GridView.count.children", GRID_VIEW, CHILDREN),
                 new SingleTargetCase("AppBar.actions", APP_BAR, ACTIONS));
 
-        assertAll(listTargets.stream().flatMap(target -> coreSources().stream()
+        assertAll(listTargets.stream().flatMap(target -> sources.stream()
                 .flatMap(source -> Stream.of(
                         (Executable) () -> assertRejection(
                                 source.name() + " -> " + target.name()
@@ -1159,8 +1310,12 @@ class FlutterDesignerPaletteDropPlannerTest {
                             assertEquals(1, accepted.command().destination().index());
                             assertExactPrototype(source, accepted.command().widget());
                         }))));
-        assertEquals(0, rejectedAllocations.get(),
-                "non-terminal list insertions must fail before stable-id allocation");
+        assertAll(
+                () -> assertEquals(34, sources.size()),
+                () -> assertEquals(9, listTargets.size()),
+                () -> assertEquals(0, rejectedAllocations.get(),
+                        "non-terminal list insertions must fail before "
+                        + "stable-id allocation"));
     }
 
     @Test
@@ -1695,6 +1850,16 @@ class FlutterDesignerPaletteDropPlannerTest {
                                 false,
                                 List.of())),
                         Map.of()));
+    }
+
+    private static CoreSourceCase gridViewCountSource() {
+        return new CoreSourceCase(
+                "GridView.count",
+                GRID_VIEW,
+                Map.of(
+                        CROSS_AXIS_COUNT,
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                Map.of(CHILDREN, SlotCardinality.LIST));
     }
 
     private static MatrixTargetCase target(

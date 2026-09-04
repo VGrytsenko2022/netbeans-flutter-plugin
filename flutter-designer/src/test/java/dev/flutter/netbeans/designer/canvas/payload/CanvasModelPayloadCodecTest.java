@@ -117,7 +117,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ColoredBox",
                 "flutter.widgets.Placeholder",
                 "flutter.widgets.Directionality",
-                "flutter.widgets.DecoratedBox"),
+                "flutter.widgets.DecoratedBox",
+                "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -376,6 +377,44 @@ class CanvasModelPayloadCodecTest {
 
         assertTrue(failure.getMessage().contains("designer.property.missing"),
                 failure::getMessage);
+    }
+
+    @Test
+    void projectsExcludeSemanticsOmittedDefaultExplicitFalseAndOptionalChild()
+            throws Exception {
+        WidgetNode omitted = new WidgetNode(
+                id("0275932d-bcc6-4bba-9154-7e86cb9489a8"),
+                type("flutter.widgets.ExcludeSemantics"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        String omittedJson = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), omitted))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(omittedJson.contains("\"protocolVersion\":14"), omittedJson);
+        assertTrue(omittedJson.contains(
+                "\"type\":\"flutter.widgets.ExcludeSemantics\""), omittedJson);
+        assertFalse(omittedJson.contains("\"excluding\""), omittedJson);
+        assertTrue(omittedJson.contains("\"child\":null"), omittedJson);
+
+        WidgetNode included = new WidgetNode(
+                id("2729cf34-eae9-42b5-b280-05842420b5cd"),
+                type("flutter.widgets.ExcludeSemantics"),
+                Map.of(new PropertyName("excluding"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "c9f148a4-6488-4d45-8092-3afdb02451b7",
+                        "Announced child"))));
+        String includedJson = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), included))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(includedJson.contains(
+                "\"excluding\":{\"kind\":\"boolean\",\"value\":false}"),
+                includedJson);
+        assertTrue(includedJson.contains(
+                "\"child\":{\"id\":\"c9f148a4-6488-4d45-8092-3afdb02451b7\""),
+                includedJson);
     }
 
     @Test

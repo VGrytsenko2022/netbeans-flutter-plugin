@@ -3599,6 +3599,54 @@ class WidgetTreeValidatorTest {
                 "flutter.widgets.DecoratedBox.child"), placement.message());
     }
 
+    @Test
+    void acceptsExcludeSemanticsOmittedOrExplicitBooleanAndOptionalChild() {
+        WidgetNode omitted = node(
+                "valid-exclude-semantics-omitted",
+                "flutter.widgets.ExcludeSemantics",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode included = node(
+                "valid-exclude-semantics-included",
+                "flutter.widgets.ExcludeSemantics",
+                Map.of(name("excluding"), new PropertyValue.BooleanValue(false)),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        text("exclude-semantics-child"))));
+
+        for (WidgetNode candidate : List.of(omitted, included)) {
+            ValidationResult result = validator().validate(
+                    document(candidate), BuiltInWidgetCatalog.getDefault());
+            assertTrue(result.valid(), () -> result.issues().toString());
+        }
+    }
+
+    @Test
+    void rejectsExcludeSemanticsWrongValueAndRestrictedChild() {
+        WidgetNode wrongKind = node(
+                "invalid-exclude-semantics-kind",
+                "flutter.widgets.ExcludeSemantics",
+                Map.of(name("excluding"), new PropertyValue.StringValue("true")),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.empty()));
+        ValidationIssue kind = onlyIssue(
+                validator().validate(document(wrongKind),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/excluding", kind.path());
+
+        WidgetNode restrictedChild = node(
+                "invalid-exclude-semantics-child",
+                "flutter.widgets.ExcludeSemantics",
+                Map.of(),
+                Map.of(slotName("child"), WidgetSlot.SingleSlot.of(
+                        spacer("exclude-semantics-spacer", Map.of()))));
+        ValidationIssue placement = onlyIssue(
+                validator().validate(document(restrictedChild),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.WIDGET_PLACEMENT);
+        assertTrue(placement.message().contains(
+                "flutter.widgets.ExcludeSemantics.child"), placement.message());
+    }
+
     private static WidgetTreeValidator validator() {
         return new WidgetTreeValidator();
     }

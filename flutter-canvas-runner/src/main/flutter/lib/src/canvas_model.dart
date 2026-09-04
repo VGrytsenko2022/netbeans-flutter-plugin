@@ -3749,6 +3749,12 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot},
   ),
+  'flutter.widgets.ExcludeSemantics': _WidgetSpec(
+    {
+      'excluding': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Expanded': _WidgetSpec(
     {
       'flex': _PropertySpec({
@@ -5460,6 +5466,9 @@ W|flutter.widgets.Directionality
 P|textDirection|enum|1|enum:TextDirection:ltr|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 S|child|single|1|1|1|any
 C|flutter.widgets.Directionality|paletteCreate|wrapExistingChild|child
+W|flutter.widgets.ExcludeSemantics
+P|excluding|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.Expanded
 P|flex|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
 S|child|single|1|1|1|any

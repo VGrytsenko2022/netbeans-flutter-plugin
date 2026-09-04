@@ -23,6 +23,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
@@ -160,6 +161,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
             new PropertyName("decoration");
     private static final PropertyName DECORATION_POSITION =
             new PropertyName("position");
+    private static final PropertyName EXCLUDING = new PropertyName("excluding");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -3879,6 +3881,204 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(candidateFd)).document();
             assertEquals(finalDecoratedBox,
                     findModelWidget(saved.root(), decoratedBoxId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteExcludeSemanticsSaveReopenEditUndoRedoAndSaveRemainExact()
+            throws Exception {
+        StableId excludeSemanticsId = StableId.parse(
+                "7a7a7a7a-7a7a-4a7a-8a7a-7a7a7a7a7a7a");
+        WidgetTypeId excludeSemanticsType =
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE;
+        PropertyValue.BooleanValue explicitFalse =
+                new PropertyValue.BooleanValue(false);
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_exclude_semantics_append", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const ExcludeSemantics("));
+                        assertFalse(request.content().contains("excluding:"),
+                                "omission must preserve Flutter's true default");
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            excludeSemanticsType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> excludeSemanticsId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal ExcludeSemantics insertion");
+
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ExcludeSemantics to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, excludeSemanticsId));
+            WidgetNode excludeSemantics = findModelWidget(
+                    added.document().orElseThrow().root(), excludeSemanticsId);
+            assertAll(
+                    () -> assertTrue(excludeSemantics.properties().isEmpty()),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            excludeSemantics.slots().get(CHILD)).child().isEmpty()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_exclude_semantics_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedExcludeSemantics = findModelWidget(
+                    reopened.document().orElseThrow().root(), excludeSemanticsId);
+            assertTrue(reopenedExcludeSemantics.properties().isEmpty());
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(excludeSemanticsType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedExcludeSemantics,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> excluding =
+                    cellProperty(propertiesNode, "excluding");
+            assertAll(
+                    () -> assertTrue(excluding.canWrite(),
+                            "reopened ExcludeSemantics must retain its boolean editor"),
+                    () -> assertEquals(
+                            FlutterPropertyCellValue.unset(),
+                            excluding.getValue()),
+                    () -> assertTrue(excluding.getPropertyEditor().isPaintable(),
+                            "explicit booleans must retain the checkbox renderer"),
+                    () -> assertNull(excluding.getPropertyEditor().getTags(),
+                            "optional booleans must not regress to a combo editor"),
+                    () -> assertEquals("Empty", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "const ExcludeSemantics("));
+                        assertTrue(request.content().contains(
+                                "excluding: false"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult edited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    excludeSemanticsId,
+                                    EXCLUDING,
+                                    explicitFalse),
+                            "ExcludeSemantics.excluding")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    edited.outcome(), edited::reason);
+            FlutterDesignerMutationController.Snapshot editedSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, excludeSemanticsId));
+            assertEquals(explicitFalse, findModelWidget(
+                    editedSnapshot.document().orElseThrow().root(),
+                    excludeSemanticsId).properties().get(EXCLUDING));
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot undone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            editedSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, excludeSemanticsId));
+            assertFalse(findModelWidget(
+                    undone.document().orElseThrow().root(),
+                    excludeSemanticsId).properties().containsKey(EXCLUDING));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot redone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            undone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, excludeSemanticsId));
+            WidgetNode finalExcludeSemantics = findModelWidget(
+                    redone.document().orElseThrow().root(), excludeSemanticsId);
+            assertAll(
+                    () -> assertEquals(explicitFalse,
+                            finalExcludeSemantics.properties().get(EXCLUDING)),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            finalExcludeSemantics.slots().get(CHILD))
+                            .child().isEmpty()),
+                    () -> assertEquals(1, analyses.get(),
+                            "Undo/Redo replays the exact analyzed pair"));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            assertEquals(finalExcludeSemantics,
+                    findModelWidget(saved.root(), excludeSemanticsId));
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

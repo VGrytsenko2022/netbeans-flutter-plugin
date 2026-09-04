@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -860,7 +861,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.ColoredBox",
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
-                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value());
+                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value());
 
         int writableCount = 0;
         int nonScaffoldWritableCount = 0;
@@ -894,7 +896,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(729, writableCount,
+        assertEquals(730, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -904,8 +906,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
                 + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, "
                 + "OverflowBar, SafeArea, ListView, GridView.count, SingleChildScrollView, "
-                + "Image, ColoredBox, Placeholder, Directionality, and DecoratedBox leaves");
-        assertEquals(712, nonScaffoldWritableCount,
+                + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
+                + "ExcludeSemantics leaves");
+        assertEquals(713, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2529,6 +2532,83 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Empty", child.getValue()),
                 () -> assertTrue(child.getShortDescription().contains("Optional")),
                 () -> assertTrue(child.getShortDescription().contains("Occupancy: 0/1")));
+    }
+
+    @Test
+    void excludeSemanticsProjectsNullableCheckboxGroupAndOptionalChild()
+            throws Exception {
+        WidgetDefinition definition = definition(
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value());
+        StableId id = StableId.parse("72a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName excludingName = new PropertyName("excluding");
+        WidgetNode widget = new WidgetNode(
+                id,
+                definition.typeId(),
+                Map.of(excludingName, new PropertyValue.BooleanValue(true)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(2 + ExcludeSemanticsWidgetPropertySchema.Group.values().length,
+                sets.length);
+        Node.PropertySet semantics = propertySet(
+                node, ExcludeSemanticsWidgetPropertySchema.Group.SEMANTICS.setName());
+        assertAll(
+                () -> assertEquals("Semantics", semantics.getDisplayName()),
+                () -> assertEquals(
+                        "Accessibility semantics exclusion for this subtree.",
+                        semantics.getShortDescription()),
+                () -> assertEquals("General", semantics.getValue(
+                        FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
+                () -> assertEquals(List.of("excluding"),
+                        names(semantics.getProperties())));
+
+        Node.Property<FlutterPropertyCellValue> excluding = cellProperty(
+                property(node, "excluding"));
+        assertAll(
+                () -> assertEquals("Excluding", excluding.getDisplayName()),
+                () -> assertEquals(
+                        FlutterPropertyCellValue.explicit(
+                                new PropertyValue.BooleanValue(true)),
+                        excluding.getValue()),
+                () -> assertNull(excluding.getPropertyEditor().getTags(),
+                        "explicit booleans use the global checkbox editor"),
+                () -> assertTrue(excluding.supportsDefaultValue()),
+                () -> assertFalse(excluding.isDefaultValue()),
+                () -> assertTrue(excluding.getShortDescription().contains(
+                        "removed from the semantics tree")),
+                () -> assertTrue(excluding.getShortDescription().contains(
+                        "Omission preserves Flutter's true default")),
+                () -> assertTrue(excluding.getShortDescription().contains(
+                        "standard checkbox editor")));
+
+        PropertyEditor editor = excluding.getPropertyEditor();
+        editor.setAsText(FlutterWidgetPropertiesNode.NOT_SET);
+        assertEquals(FlutterPropertyCellValue.unset(), cell(editor));
+        editor.setAsText("false");
+        FlutterPropertyCellValue explicitFalse = cell(editor);
+        assertEquals(new PropertyValue.BooleanValue(false),
+                explicitFalse.explicitValue().orElseThrow());
+        excluding.setValue(explicitFalse);
+        excluding.restoreDefaultValue();
+        assertEquals(List.of(
+                new SetProperty(id, excludingName,
+                        new PropertyValue.BooleanValue(false)),
+                new ResetProperty(id, excludingName)), commands);
+
+        Node.Property<?> child = property(node, "child");
+        assertAll(
+                () -> assertEquals("Child", child.getDisplayName()),
+                () -> assertEquals("Empty", child.getValue()),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "descendant semantics")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "without changing layout, painting, or hit testing")),
+                () -> assertTrue(child.getShortDescription().contains(
+                        "Occupancy: 0/1")));
     }
 
     @Test
@@ -4489,7 +4569,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void fortyFourCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyFiveCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -4535,8 +4615,9 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
-                DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
-                DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value());
+                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
+                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
 
         for (String typeId : typeIds) {
@@ -4564,7 +4645,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(44, iconPaths.size(),
+        assertEquals(45, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

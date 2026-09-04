@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -502,6 +503,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.equals(
                 widget.type())) {
             addDecoratedBoxPropertySets(sheet, hasSlotTab);
+        } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
+                widget.type())) {
+            addExcludeSemanticsPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -913,6 +917,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child composited with the required BoxDecoration. "
                     + "Position paints that decoration behind or in front of the child. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
+                widget.type()) && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child whose descendant semantics can be removed from the "
+                    + "accessibility tree without changing layout, painting, or hit testing. "
                     + "Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
@@ -2169,6 +2182,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addExcludeSemanticsPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ExcludeSemanticsWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ExcludeSemanticsWidgetPropertySchema.Group.class);
+        for (ExcludeSemanticsWidgetPropertySchema.Group group
+                : ExcludeSemanticsWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ExcludeSemanticsWidgetPropertySchema.Definition schema =
+                    ExcludeSemanticsWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ExcludeSemantics property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()
+                            + " Omission preserves Flutter's true default; explicit true "
+                            + "or false uses the standard checkbox editor."));
         }
     }
 

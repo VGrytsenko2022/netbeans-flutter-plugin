@@ -298,6 +298,38 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsExcludeSemanticsWithOmittedTrueDefaultAndOptionalChild() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.ExcludeSemantics");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertTrue(prototype.properties().isEmpty(),
+                "Omission preserves Flutter's excluding=true default");
+        assertTrue(assertInstanceOf(
+                WidgetSlot.SingleSlot.class,
+                prototype.slots().get(new SlotName("child"))).child().isEmpty());
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+
+        WidgetNode included = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(new PropertyName("excluding"),
+                        new PropertyValue.BooleanValue(false)));
+        assertEquals(new PropertyValue.BooleanValue(false),
+                included.properties().get(new PropertyName("excluding")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("excluding"),
+                                new PropertyValue.StringValue("false"))));
+    }
+
+    @Test
     void createsAlignWithoutMaterializingFlutterDefaultsAndWithEmptyChildSlot() {
         WidgetNode prototype = WidgetNodePrototypeFactory.create(
                 definition("flutter.widgets.Align"), ID);

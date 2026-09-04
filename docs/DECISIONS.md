@@ -27,10 +27,11 @@ historical `GridView.count` surface. ADR-067 establishes the historical
 `SingleChildScrollView` surface, ADR-068 records the historical `ColoredBox`
 surface, ADR-069 records the historical `SafeArea` surface, ADR-070 records the
 historical `Placeholder` surface, ADR-071 records the historical
-`Directionality` surface, and ADR-072 establishes the current `DecoratedBox`
-surface: 729 typed rows across forty-four widgets, thirty-eight
-const-constructor definitions and 1,804 Palette/DnD candidates, including
-1,607 accepted and 197 rejected cells. The 712-field
+`Directionality` surface, ADR-072 records the historical `DecoratedBox`
+surface, and ADR-073 establishes the current `ExcludeSemantics` surface: 730
+typed rows across forty-five widgets, thirty-nine const-constructor definitions
+and 1,890 Palette/DnD candidates, including 1,688 accepted and 202 rejected
+cells. The 713-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -40,7 +41,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-072 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-073 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -362,9 +363,10 @@ accepted and 183 rejected), ADR-069 established the historical forty-one-source,
 1,599-candidate matrix (1,414 accepted and 185 rejected), ADR-070 established
 the historical forty-two-source, 1,680-candidate matrix (1,490 accepted and
 190 rejected), ADR-071 established the historical forty-three-source,
-1,720-candidate matrix (1,528 accepted and 192 rejected), and ADR-072
-establishes the current forty-four-source, 1,804-candidate matrix (1,607
-accepted and 197 rejected).
+1,720-candidate matrix (1,528 accepted and 192 rejected), ADR-072 established
+the historical forty-four-source, 1,804-candidate matrix (1,607 accepted and
+197 rejected), and ADR-073 establishes the current forty-five-source,
+1,890-candidate matrix (1,688 accepted and 202 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -375,7 +377,7 @@ protocol-v14 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -389,12 +391,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-four-widget model for Mobile, Tablet,
+Canvas now renders the validated forty-five-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty-four Create-capable definitions, and the DnD-capable set uses the
-reviewed 1,804-cell candidate matrix across thirty-nine insertable any-widget
-and two trait-bound destination slots; 1,607 cells are accepted and 197 rejected.
+those forty-five Create-capable definitions, and the DnD-capable set uses the
+reviewed 1,890-cell candidate matrix across forty insertable any-widget and two
+trait-bound destination slots; 1,688 cells are accepted and 202 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3001,16 +3003,63 @@ deterministic const generation, Save/reopen and further editing,
 chronological Undo/Redo, accessibility and four reviewed 16/32 px light/dark
 SVGs.
 
-`DecoratedBox` adds two writable rows, one source and one optional any-widget
+`DecoratedBox` added two writable rows, one source and one optional any-widget
 destination. The 43 previous sources add 40 accepted and three ParentData
 rejections at the new child slot; the new source adds 39 accepted any-widget
-and two rejected trait-bound cells. The resulting surface has 729 writable
+and two rejected trait-bound cells. At that milestone the surface had 729 writable
 rows, 712 outside Scaffold, across 44 widgets and 38 reviewed const-constructor
 definitions. Forty-four sources across 39 any-widget and two trait-bound
-destinations form 1,804 candidates: 1,607 accepted and 197 rejected. Layout
-contains 30 Palette items, Scrolling three, Basic seven and Material four.
+destinations formed 1,804 candidates: 1,607 accepted and 197 rejected. Layout
+contained 30 Palette items, Scrolling three, Basic seven and Material four.
 
-The practical Material/Base Designer backlog is now 44/92 complete, with 48
+The practical Material/Base Designer backlog was then 44/92 complete, with 48
+remaining. This planning target is not a normative complete list of Flutter
+widgets. Existing value, slot and transport shapes kept `.fd` schema v9,
+Catalog API 9, Canvas model v14 and NBFC framing plus Canvas control/wire v1
+unchanged.
+
+## ADR-073 — ExcludeSemantics opens the Accessibility Palette category
+
+Accepted. [`ExcludeSemantics`](https://api.flutter.dev/flutter/widgets/ExcludeSemantics/ExcludeSemantics.html)
+is the first item in the **Accessibility** Palette category at category order
+400 and item order 10. Its catalog identity is
+`flutter.widgets.ExcludeSemantics`, its Dart class is `ExcludeSemantics`, and
+its canonical Flutter 3.44.8 constructor is const.
+
+After excluding only the common `key` argument, the complete reviewed
+constructor contains optional `bool excluding` with the exact Flutter default
+`true` and one optional any-widget `child`. A new Palette node stores neither
+the property nor a child, so generated Dart preserves both constructor
+defaults. The standard optional-boolean Properties editor exposes `<not set>`,
+explicit `true` and explicit `false`, supports Restore Default, and remains
+editable after Save/reopen and Undo/Redo. The Slots sheet manages the optional
+child with the same exact-slot contract as other single-child wrappers.
+
+Generated Dart and native/exact-Web Canvas construct the real
+`ExcludeSemantics`. Omitted or explicit `true` removes the application child
+subtree from Flutter's semantics tree, while explicit `false` preserves it;
+layout, paint and hit testing continue to proxy the child unchanged. The
+`ExcludeSemantics` node's own Designer selection, hit/drop and accessibility
+wrapper remains outside the application widget and stays operable in both
+modes. Descendant Canvas semantics labels follow the real subtree exclusion;
+the separate NetBeans widget tree remains accessible. An empty node
+retains only the transient IDE-owned zero-size selection/drop target. The full
+slice includes Palette/tree/Canvas creation, optional-child management,
+same-tree movement, deterministic const generation, Save/reopen and further
+editing, chronological Undo/Redo, accessibility and four reviewed 16/32 px
+light/dark SVGs.
+
+`ExcludeSemantics` adds one writable row, one source and one optional
+any-widget destination. The 44 previous sources add 41 accepted cells and
+three ParentData rejections at the new child slot; the new source contributes
+40 accepted any-widget cells, including its self-cell, and two rejected
+trait-bound cells. The resulting surface has 730 writable rows, 713 outside
+Scaffold, across 45 widgets and 39 reviewed const-constructor definitions.
+Forty-five sources across 40 any-widget and two trait-bound destinations form
+1,890 candidates: 1,688 accepted and 202 rejected. Layout contains 30 Palette
+items, Scrolling three, Basic seven, Material four and Accessibility one.
+
+The practical Designer backlog is now 45/92 complete, with 47
 remaining. This planning target is not a normative complete list of Flutter
 widgets. Existing value, slot and transport shapes keep `.fd` schema v9,
 Catalog API 9, Canvas model v14 and NBFC framing plus Canvas control/wire v1

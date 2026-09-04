@@ -347,6 +347,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.ColoredBox' ||
       'flutter.widgets.Container' ||
       'flutter.widgets.DecoratedBox' ||
+      'flutter.widgets.ExcludeSemantics' ||
       'flutter.widgets.FittedBox' ||
       'flutter.widgets.FractionallySizedBox' ||
       'flutter.widgets.Opacity' ||

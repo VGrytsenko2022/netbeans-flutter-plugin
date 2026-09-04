@@ -67,6 +67,7 @@ public final class BuiltInWidgetCatalog {
             placeholder(),
             directionality(),
             decoratedBox(),
+            excludeSemantics(),
             elevatedButton(),
             textField()));
 
@@ -1532,6 +1533,29 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.basic", 300, 70, "DecoratedBox"),
                 properties,
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition excludeSemantics() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "excluding",
+                0,
+                false,
+                any(PropertyValueKind.BOOLEAN)));
+        if (properties.size()
+                != ExcludeSemanticsWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ExcludeSemantics catalog/property schema count mismatch");
+        }
+        return widget(
+                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
+                "ExcludeSemantics",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.accessibility", 400, 10, "ExcludeSemantics"),
+                properties,
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

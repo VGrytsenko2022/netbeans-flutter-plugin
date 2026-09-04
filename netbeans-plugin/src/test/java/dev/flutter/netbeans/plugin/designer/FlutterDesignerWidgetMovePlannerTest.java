@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotAcceptance;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -87,6 +88,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE;
     private static final WidgetTypeId DECORATED_BOX =
             DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE;
+    private static final WidgetTypeId EXCLUDE_SEMANTICS =
+            ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -398,6 +401,39 @@ class FlutterDesignerWidgetMovePlannerTest {
                 () -> assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
                         decoratedBox.slots().get(CHILD)).child().orElseThrow()));
         assertAcceptedCommandApplies(document, BUILT_INS, decoratedBox, result);
+    }
+
+    @Test
+    void completedExcludeSemanticsMovesWithBooleanChildAndIdsPreserved() {
+        WidgetNode child = validText(D_ID, "semantic child");
+        WidgetNode widget = new WidgetNode(
+                A_ID,
+                EXCLUDE_SEMANTICS,
+                Map.of(new PropertyName("excluding"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(widget.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertEquals(
+                        new PropertyValue.BooleanValue(false),
+                        widget.properties().get(new PropertyName("excluding"))),
+                () -> assertEquals(child, ((WidgetSlot.SingleSlot)
+                        widget.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
     }
 
     @Test
@@ -1084,6 +1120,26 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(
                 new WidgetPlacement(emptyDecoratedBox.id(), CHILD, 0),
                 command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyExcludeSemanticsChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into ExcludeSemantics");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(EXCLUDE_SEMANTICS), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }
 

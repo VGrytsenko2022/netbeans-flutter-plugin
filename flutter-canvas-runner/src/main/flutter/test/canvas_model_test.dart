@@ -5740,7 +5740,10 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Directionality\n');
-      final end = contract.indexOf('W|flutter.widgets.Expanded\n', start);
+      final end = contract.indexOf(
+        'W|flutter.widgets.ExcludeSemantics\n',
+        start,
+      );
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(
@@ -6066,6 +6069,106 @@ void main() {
       ),
     );
     expect(slice, endsWith('S|child|single|0|0|1|any\n'));
+  });
+
+  test(
+    'decodes omitted, true, and false ExcludeSemantics with optional child',
+    () {
+      final omitted = _decode(
+        _excludeSemanticsModel(includeChildSlot: false),
+      ).root;
+      expect(omitted.type, 'flutter.widgets.ExcludeSemantics');
+      expect(omitted.properties, isEmpty);
+      expect(omitted.slot('child'), isNull);
+
+      final explicitTrue = _decode(
+        _excludeSemanticsModel(excluding: true),
+      ).root;
+      expect(explicitTrue.properties['excluding']!.value, isTrue);
+      expect(explicitTrue.slot('child')!.child, isNull);
+
+      final text = _node(
+        '4cded0e1-23b0-43f2-b310-ab6ca68e99dc',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Semantic child'},
+        },
+      );
+      final explicitFalse = _decode(
+        _excludeSemanticsModel(excluding: false, child: text),
+      ).root;
+      expect(explicitFalse.properties['excluding']!.value, isFalse);
+      expect(explicitFalse.slot('child')!.child!.type, 'flutter.widgets.Text');
+    },
+  );
+
+  test(
+    'rejects non-contract ExcludeSemantics values, slots, and flex child',
+    () {
+      for (final properties in <Map<String, Object?>>[
+        const {
+          'excluding': {'kind': 'integer', 'value': 1},
+        },
+        const {
+          'excluding': {'kind': 'string', 'value': 'true'},
+        },
+        const {
+          'futureProperty': {'kind': 'boolean', 'value': true},
+        },
+      ]) {
+        expect(
+          () => _decode(_excludeSemanticsModel(properties: properties)),
+          throwsFormatException,
+          reason: properties.toString(),
+        );
+      }
+
+      final wrongSlot = _excludeSemanticsModel();
+      (wrongSlot['root']! as Map<String, Object?>)['slots'] = {
+        'child': {'kind': 'list', 'children': const []},
+      };
+      expect(() => _decode(wrongSlot), throwsFormatException);
+
+      final text = _node(
+        '4cded0e1-23b0-43f2-b310-ab6ca68e99dc',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Flex child'},
+        },
+      );
+      for (final flexType in const [
+        'flutter.widgets.Expanded',
+        'flutter.widgets.Flexible',
+        'flutter.widgets.Spacer',
+      ]) {
+        final flexChild = _node(
+          'f1d79860-3e86-4f0f-9fa5-b0c690fc4300',
+          flexType,
+          slots: flexType == 'flutter.widgets.Spacer'
+              ? const {}
+              : {'child': _single(text)},
+        );
+        expect(
+          () => _decode(_excludeSemanticsModel(child: flexChild)),
+          throwsFormatException,
+          reason: '$flexType requires a direct Row or Column children slot',
+        );
+      }
+    },
+  );
+
+  test('ExcludeSemantics reviewed schema is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ExcludeSemantics\n');
+    final end = contract.indexOf('W|flutter.widgets.Expanded\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ExcludeSemantics\n'
+      'P|excluding|boolean|0|-|-|boolean:any\n'
+      'S|child|single|0|0|1|any\n',
+    );
   });
 
   test('decodes the complete strict Container contract and nested unions', () {
@@ -8730,6 +8833,27 @@ Map<String, Object?> _decoratedBoxModel({
     'flutter.widgets.DecoratedBox',
     properties: values,
     slots: {'child': _single(child)},
+  );
+  return model;
+}
+
+Map<String, Object?> _excludeSemanticsModel({
+  bool? excluding,
+  Map<String, Object?>? child,
+  Map<String, Object?>? properties,
+  bool includeChildSlot = true,
+}) {
+  final model = _modelJson();
+  model['root'] = _node(
+    '2a082f33-7251-4a63-9f41-845aa0aa7a80',
+    'flutter.widgets.ExcludeSemantics',
+    properties:
+        properties ??
+        <String, Object?>{
+          if (excluding != null)
+            'excluding': {'kind': 'boolean', 'value': excluding},
+        },
+    slots: includeChildSlot ? {'child': _single(child)} : const {},
   );
   return model;
 }

@@ -122,6 +122,10 @@ void main() {
       canvasEmptyChildDropSlot,
     ]);
     expect(
+      canvasDropSlotsForWidgetType('flutter.widgets.ExcludeSemantics'),
+      const [canvasEmptyChildDropSlot],
+    );
+    expect(
       canvasDropSlotsForWidgetType('flutter.widgets.ConstrainedBox'),
       const [canvasEmptyChildDropSlot],
     );
@@ -610,7 +614,7 @@ void main() {
     );
   });
 
-  test('closes the 44-source by 41-destination compatibility matrix', () {
+  test('closes the 45-source by 42-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -640,6 +644,7 @@ void main() {
       'flutter.widgets.ColoredBox',
       'flutter.widgets.Container',
       'flutter.widgets.DecoratedBox',
+      'flutter.widgets.ExcludeSemantics',
       'flutter.widgets.Expanded',
       'flutter.widgets.Flexible',
       'flutter.widgets.Spacer',
@@ -665,8 +670,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(44));
-    expect(destinations, hasLength(41));
+    expect(sourceTypes, hasLength(45));
+    expect(destinations, hasLength(42));
 
     var accepted = 0;
     var rejected = 0;
@@ -692,9 +697,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1607);
-    expect(rejected, 197);
-    expect(accepted + rejected, 1804);
+    expect(accepted, 1688);
+    expect(rejected, 202);
+    expect(accepted + rejected, 1890);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -10765,6 +10770,176 @@ void main() {
   );
 
   testWidgets(
+    'renders real ExcludeSemantics and keeps Designer semantics, layout, paint, and hits exact',
+    (tester) async {
+      const excludeId = '2a082f33-7251-4a63-9f41-845aa0aa7a80';
+      const sizedId = '3b193044-8362-4b74-a052-956bb1bb8b91';
+      const textId = '4cded0e1-23b0-43f2-b310-ab6ca68e99dc';
+      const applicationLabel = 'Application child semantics';
+      final semantics = tester.ensureSemantics();
+      final cases = <({String platform, bool? stored, bool effective})>[
+        (platform: 'windows', stored: null, effective: true),
+        (platform: 'web', stored: null, effective: true),
+        (platform: 'windows', stored: true, effective: true),
+        (platform: 'web', stored: true, effective: true),
+        (platform: 'windows', stored: false, effective: false),
+        (platform: 'web', stored: false, effective: false),
+      ];
+
+      for (final entry in cases) {
+        final text = _viewTextNode(textId, 'Painted child');
+        (text['properties']! as Map<String, Object?>)['semanticsLabel'] = {
+          'kind': 'string',
+          'value': applicationLabel,
+        };
+        final sized = _viewSizedBoxNode(sizedId, width: 80, height: 40);
+        ((sized['slots']! as Map<String, Object?>)['child']!
+                as Map<String, Object?>)['child'] =
+            text;
+        final json = _modelWithExcludeSemantics(
+          properties: {
+            if (entry.stored != null)
+              'excluding': {'kind': 'boolean', 'value': entry.stored},
+          },
+          child: sized,
+        );
+        (json['profile']! as Map<String, Object?>)['targetPlatform'] =
+            entry.platform;
+        String? selectedWidgetId;
+
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (id) => selectedWidgetId = id,
+          ),
+        );
+        await tester.pump();
+
+        final rendered = find.byKey(const ValueKey('canvas-widget-$excludeId'));
+        final excludeFinder = find.ancestor(
+          of: find.byKey(const ValueKey('canvas-widget-$sizedId')),
+          matching: find.byType(ExcludeSemantics),
+        );
+        expect(excludeFinder, findsOneWidget, reason: entry.toString());
+        final exclude = tester.widget<ExcludeSemantics>(excludeFinder);
+        expect(exclude.excluding, entry.effective, reason: entry.toString());
+        expect(exclude.child, isNotNull, reason: entry.toString());
+        expect(tester.getSize(rendered), const Size(80, 40));
+        expect(tester.getSize(excludeFinder), const Size(80, 40));
+
+        final textFinder = find.text('Painted child');
+        expect(textFinder, findsOneWidget, reason: entry.toString());
+        final richTextFinder = find.descendant(
+          of: find.byKey(const ValueKey('canvas-widget-$textId')),
+          matching: find.byType(RichText),
+        );
+        expect(richTextFinder, findsOneWidget, reason: entry.toString());
+        final paragraph = tester.renderObject<RenderParagraph>(richTextFinder);
+        expect(paragraph.size.isEmpty, isFalse, reason: entry.toString());
+        expect(
+          paragraph.paintBounds.isEmpty,
+          isFalse,
+          reason: entry.toString(),
+        );
+        expect(paragraph.debugNeedsPaint, isFalse, reason: entry.toString());
+
+        expect(
+          find.bySemanticsLabel(
+            RegExp('ExcludeSemantics ${RegExp.escape(excludeId)}'),
+          ),
+          findsOneWidget,
+          reason: 'Designer node remains accessible on ${entry.platform}',
+        );
+        expect(
+          find.bySemanticsLabel(RegExp(applicationLabel)),
+          entry.effective ? findsNothing : findsOneWidget,
+          reason: entry.toString(),
+        );
+        expect(
+          find.bySemanticsLabel(RegExp('Text ${RegExp.escape(textId)}')),
+          entry.effective ? findsNothing : findsOneWidget,
+          reason: entry.toString(),
+        );
+
+        await tester.tap(find.byKey(const ValueKey('canvas-widget-$textId')));
+        await tester.pump();
+        expect(
+          selectedWidgetId,
+          textId,
+          reason: 'ExcludeSemantics must not block hits on ${entry.platform}',
+        );
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+      semantics.dispose();
+    },
+  );
+
+  testWidgets(
+    'keeps empty ExcludeSemantics zero-sized with a selectable child target',
+    (tester) async {
+      const excludeId = '2a082f33-7251-4a63-9f41-845aa0aa7a80';
+      String? selectedWidgetId;
+      CanvasDropResolver? resolver;
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithExcludeSemantics(properties: const {}, child: null),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        StatefulBuilder(
+          builder: (context, setState) => CanvasModelApp(
+            model: model,
+            selectedWidgetId: selectedWidgetId,
+            onSelected: (id) => setState(() => selectedWidgetId = id),
+            onDropResolverChanged: (value) => resolver = value,
+          ),
+        ),
+      );
+      await tester.pump();
+
+      final rendered = find.byKey(const ValueKey('canvas-widget-$excludeId'));
+      final target = find.byKey(
+        const ValueKey('canvas-zero-size-widget-target-$excludeId'),
+      );
+      final excludeFinder = find.descendant(
+        of: rendered,
+        matching: find.byType(ExcludeSemantics),
+      );
+      expect(excludeFinder, findsOneWidget);
+      final exclude = tester.widget<ExcludeSemantics>(excludeFinder);
+      expect(exclude.excluding, isTrue);
+      expect(exclude.child, isNull);
+      expect(tester.getSize(rendered), Size.zero);
+      expect(target, findsOneWidget);
+      expect(tester.getSize(target), const Size.square(36));
+
+      await tester.tap(target);
+      await tester.pump();
+      expect(selectedWidgetId, excludeId);
+
+      final surface = tester.getRect(find.byType(CanvasDocumentView));
+      final point = tester.getRect(target).center;
+      final drop = resolver!(
+        ((point.dx - surface.left) / surface.width * 1000000).round(),
+        ((point.dy - surface.top) / surface.height * 1000000).round(),
+      );
+      expect(drop?.parentWidgetId, excludeId);
+      expect(drop?.slotName, 'child');
+      expect(drop?.insertionIndex, 0);
+      expect(drop?.zone?.isEmpty, isFalse);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
     'renders every Container argument through real Flutter objects and keeps its outline outside transform',
     (tester) async {
       const containerId = 'd9e278fa-32f8-4ef7-a92f-4aef0867435c';
@@ -14467,6 +14642,35 @@ Map<String, Object?> _modelWithDecoratedBox({
         'child': <String, Object?>{
           'id': '607a1c0f-5fd3-438c-ae36-0a054ce05949',
           'type': 'flutter.widgets.DecoratedBox',
+          'properties': properties,
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': child},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithExcludeSemantics({
+  required Map<String, Object?> properties,
+  required Map<String, Object?>? child,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  body['child'] = <String, Object?>{
+    'id': '79f0f14a-b985-4b7f-a10f-dbe50e13fe66',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '2a082f33-7251-4a63-9f41-845aa0aa7a80',
+          'type': 'flutter.widgets.ExcludeSemantics',
           'properties': properties,
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': child},

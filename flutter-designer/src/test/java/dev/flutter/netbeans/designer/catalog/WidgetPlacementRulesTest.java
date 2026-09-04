@@ -658,6 +658,42 @@ class WidgetPlacementRulesTest {
     }
 
     @Test
+    void excludeSemanticsIsAnOrdinaryInsertableWidgetWithOptionalRestrictedChild() {
+        WidgetDefinition excludeSemantics = definition(
+                "flutter.widgets.ExcludeSemantics");
+        WidgetDefinition stack = definition("flutter.widgets.Stack");
+        WidgetDefinition text = definition("flutter.widgets.Text");
+
+        assertTrue(WidgetPlacementRules.evaluateRoot(excludeSemantics).accepted());
+        assertTrue(WidgetPlacementRules.accepts(
+                stack, slot(stack, "children"), excludeSemantics));
+        assertTrue(WidgetPlacementRules.accepts(
+                excludeSemantics, slot(excludeSemantics, "child"), text));
+
+        for (String restricted : List.of(
+                "flutter.widgets.Expanded",
+                "flutter.widgets.Flexible",
+                "flutter.widgets.Spacer")) {
+            WidgetPlacementRules.Decision decision = WidgetPlacementRules.evaluate(
+                    excludeSemantics,
+                    slot(excludeSemantics, "child"),
+                    definition(restricted));
+            assertFalse(decision.accepted(), restricted);
+            assertEquals(WidgetPlacementRules.RejectionKind.DIRECT_PARENT_SLOT,
+                    decision.rejectionKind().orElseThrow());
+            assertTrue(decision.reason().contains(
+                    "flutter.widgets.ExcludeSemantics.child"), decision.reason());
+        }
+
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(excludeSemantics));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(
+                excludeSemantics));
+        assertEquals(List.of(),
+                WidgetPlacementRules.capabilityFingerprintLines(excludeSemantics));
+    }
+
+    @Test
     void safeAreaUsesGenericRequiredAnyWidgetAtomicWrapperCreation() {
         WidgetDefinition safeArea = definition("flutter.widgets.SafeArea");
         WidgetDefinition stack = definition("flutter.widgets.Stack");

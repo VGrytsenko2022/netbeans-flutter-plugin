@@ -145,6 +145,7 @@ public final class FlutterDesignerPalette {
             case "flutter.layout" -> message("Category.Layout");
             case "flutter.scrolling" -> message("Category.Scrolling");
             case "flutter.basic" -> message("Category.Basic");
+            case "flutter.accessibility" -> message("Category.Accessibility");
             default -> categoryId;
         };
     }
@@ -260,6 +261,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.DecoratedBox.Name"));
                 setShortDescription(message("Widget.DecoratedBox.Description"));
+            } else if ("flutter.widgets.ExcludeSemantics".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.ExcludeSemantics.Name"));
+                setShortDescription(message("Widget.ExcludeSemantics.Description"));
             } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();

@@ -235,9 +235,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-44 reviewed Canvas widgets. Palette insertion evaluates 1,804 exact
-source/destination cells across 44 draggable sources and 41 insertable reviewed
-slots; 1,607 are accepted and 197 cells are rejected. Expanded and Flexible are
+45 reviewed Canvas widgets. Palette insertion evaluates 1,890 exact
+source/destination cells across 45 draggable sources and 42 insertable reviewed
+slots; 1,688 are accepted and 202 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -783,10 +783,34 @@ Designer selection, hit and drop affordances remain outside the paint effect.
 An empty zero-size widget retains only a transient Designer target and does not
 change the model or generated Dart.
 
-The aggregate catalog now has 44 widgets and 38 reviewed const definitions,
-with 729 writable rows (712 outside Scaffold). Palette contains 30 Layout,
-three Scrolling, seven Basic and four Material items; the backlog is 44/92
-complete with 48 remaining. The 44 sources across 41 insertable destinations
-form 1,804 cells, with 1,607 accepted and 197 rejected. `.fd` remains v9,
-Canvas model protocol remains v14, Catalog API remains v9 and NBFC framing,
-control and wire remain v1.
+At the DecoratedBox milestone the aggregate catalog had 44 widgets and 38
+reviewed const definitions, with 729 writable rows (712 outside Scaffold).
+Palette contained 30 Layout, three Scrolling, seven Basic and four Material
+items; the backlog was 44/92 complete with 48 remaining. The 44 sources across
+41 insertable destinations formed 1,804 cells, with 1,607 accepted and 197
+rejected. `.fd` remained v9, Canvas model protocol remained v14, Catalog API
+remained v9 and NBFC framing, control and wire remained v1.
+
+[`flutter.widgets.ExcludeSemantics`](https://api.flutter.dev/flutter/widgets/ExcludeSemantics/ExcludeSemantics.html)
+is decoded as the complete const default-constructor projection for Flutter
+3.44.8 without a protocol-version change. Optional `excluding` admits only a
+boolean and omission preserves the exact `true` default. `child` is one optional
+single any-widget slot; `key` and arbitrary expressions remain outside the
+closed model.
+
+Native and exact-Web views construct the real `ExcludeSemantics` around its
+optional child. Omitted or explicit `true` removes the application child's
+semantics subtree; explicit `false` passes it through. Layout, paint and hit
+testing continue to proxy the child. The `ExcludeSemantics` node's own Designer
+selection, hit/drop and accessibility wrapper stays outside the semantics
+effect. Descendant Canvas semantics labels follow the real subtree exclusion;
+the separate NetBeans widget tree remains accessible. An empty zero-size widget
+retains only a transient Designer target.
+
+The aggregate catalog now has 45 widgets and 39 reviewed const definitions,
+with 730 writable rows (713 outside Scaffold). Palette contains 30 Layout,
+three Scrolling, seven Basic, four Material and one Accessibility item; the
+backlog is 45/92 complete with 47 remaining. The 45 sources across 42
+insertable destinations form 1,890 cells, with 1,688 accepted and 202 rejected.
+`.fd` remains v9, Canvas model protocol remains v14, Catalog API remains v9 and
+NBFC framing, control and wire remain v1.

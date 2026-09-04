@@ -52,6 +52,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
+            "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.Padding",
             "flutter.widgets.Center",
             "flutter.widgets.SizedBox",
@@ -90,20 +91,21 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(44, CATALOG.definitions().size());
-        assertEquals(38, CATALOG.definitions().stream()
+        assertEquals(45, CATALOG.definitions().size());
+        assertEquals(39, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
-                        "flutter.basic"),
+                        "flutter.basic", "flutter.accessibility"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(
-                List.of("Material", "Layout", "Scrolling", "Basic"),
+                List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
                 itemLabels(categories[0]));
+        assertEquals(4, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
@@ -115,14 +117,21 @@ class FlutterDesignerPaletteTest {
         assertEquals(30, itemLabels(categories[1]).size());
         assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
                 itemLabels(categories[2]));
+        assertEquals(3, itemLabels(categories[2]).size());
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox"),
                 itemLabels(categories[3]));
+        assertEquals(7, itemLabels(categories[3]).size());
+        assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
+        assertEquals(1, itemLabels(categories[4]).size());
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
                 .lookup(FlutterDesignerPaletteCategory.class);
         assertEquals(new FlutterDesignerPaletteCategory("flutter.material", 100, "Material"), material);
+        assertEquals(new FlutterDesignerPaletteCategory(
+                "flutter.accessibility", 400, "Accessibility"),
+                categories[4].getLookup().lookup(FlutterDesignerPaletteCategory.class));
     }
 
     @Test
@@ -134,7 +143,7 @@ class FlutterDesignerPaletteTest {
 
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
-                        "flutter.basic"),
+                        "flutter.basic", "flutter.accessibility"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field"),
                 itemLabels(categories[0]));
@@ -152,6 +161,7 @@ class FlutterDesignerPaletteTest {
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox"),
                 itemLabels(categories[3]));
+        assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1062,6 +1072,35 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void excludeSemanticsPaletteSelectionExplainsAccessibilityEffectAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.ExcludeSemantics";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.accessibility",
+                        400,
+                        10,
+                        "ExcludeSemantics"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("Exclude Semantics", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("accessibility semantics tree"));
+        assertTrue(node.getShortDescription().contains("layout, painting, and hit testing"));
+        assertTrue(node.getShortDescription().contains("excluding=true"));
+        assertTrue(node.getShortDescription().contains("explicit false"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void textFieldPaletteSelectionExplainsRuntimeOnlyEditingState()
             throws ReflectiveOperationException {
         String typeId = "flutter.material.TextField";
@@ -1361,7 +1400,7 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
-    void fortyFourCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void fortyFiveCanvasItemNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         PaletteController controller = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1380,7 +1419,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(44, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(45, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

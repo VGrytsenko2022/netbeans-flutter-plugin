@@ -1114,6 +1114,51 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void excludeSemanticsFamilyUsesExactReviewedSemanticTreeGeometryAndThemePaint()
+            throws Exception {
+        String base = ICON_ROOT + "excludesemantics.svg";
+        SvgResource light16 = readSvg(base, 16);
+        SvgResource dark16 = readSvg(variant(base, false, true), 16);
+        SvgResource light32 = readSvg(variant(base, true, false), 32);
+        SvgResource dark32 = readSvg(variant(base, true, true), 32);
+
+        assertEquals(List.of(
+                "rect[height=13, rx=2, stroke-width=1, width=13, x=1.5, y=1.5]",
+                "path[d=M8 4.5v2L4.5 9v2m3.5-4.5L11.5 9v2, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=1.4]",
+                "circle[cx=8, cy=3.5, r=1.2]",
+                "circle[cx=4.5, cy=11.5, r=1.2]",
+                "circle[cx=11.5, cy=11.5, r=1.2]",
+                "path[d=M3 13 13 3, stroke-linecap=round, stroke-width=1.6]"),
+                light16.geometry());
+        assertEquals(List.of(
+                "rect[height=26, rx=4, stroke-width=2, width=26, x=3, y=3]",
+                "path[d=M16 9v4l-7 5v4m7-9 7 5v4, stroke-linecap=round, "
+                + "stroke-linejoin=round, stroke-width=2.8]",
+                "circle[cx=16, cy=7, r=2.4]",
+                "circle[cx=9, cy=23, r=2.4]",
+                "circle[cx=23, cy=23, r=2.4]",
+                "path[d=M6 26 26 6, stroke-linecap=round, stroke-width=3.2]"),
+                light32.geometry());
+        assertEquals(List.of(
+                "rect[fill=#EAF5FC, stroke=#40566D]",
+                "path[fill=none, stroke=#42A5F5]",
+                "circle[fill=#1565C0]",
+                "circle[fill=#1565C0]",
+                "circle[fill=#1565C0]",
+                "path[fill=none, stroke=#D97706]"), light16.paint());
+        assertEquals(List.of(
+                "rect[fill=#253746, stroke=#C5D3DF]",
+                "path[fill=none, stroke=#64B5F6]",
+                "circle[fill=#90CAF9]",
+                "circle[fill=#90CAF9]",
+                "circle[fill=#90CAF9]",
+                "path[fill=none, stroke=#FFB74D]"), dark16.paint());
+        assertEquals(light16.paint(), light32.paint());
+        assertEquals(dark16.paint(), dark32.paint());
+    }
+
+    @Test
     void wrapFamilyUsesExactReviewedRunGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "wrap.svg";
@@ -1489,6 +1534,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg");
         expected.put("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg");
         expected.put("flutter.widgets.DecoratedBox", ICON_ROOT + "decoratedbox.svg");
+        expected.put("flutter.widgets.ExcludeSemantics",
+                ICON_ROOT + "excludesemantics.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");
         expected.put("flutter.widgets.Row", ICON_ROOT + "row.svg");
         expected.put("flutter.widgets.Wrap", ICON_ROOT + "wrap.svg");

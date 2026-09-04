@@ -1340,13 +1340,35 @@ accepted architecture is documented in
   Properties, Palette/tree/Canvas DnD, exact-slot management, same-tree
   movement, deterministic const Dart generation, Save/reopen and further
   editing, Undo/Redo, real native/exact-Web background and foreground paint,
-  accessibility and four reviewed SVGs. The current surface is 44 widgets, 38
+  accessibility and four reviewed SVGs. At that milestone the surface was 44 widgets, 38
   const definitions and 729 rows (712 outside Scaffold). Forty-four sources
-  across 39 insertable any-widget plus two trait destinations form 1,804
-  candidates: 1,607 accepted and 197 rejected. Layout contains 30 items,
-  Scrolling 3, Basic 7 and Material 4; the practical backlog is 44/92 complete
-  with 48 remaining. Existing encodings keep `.fd` schema v9, Catalog API 9,
+  across 39 insertable any-widget plus two trait destinations formed 1,804
+  candidates: 1,607 accepted and 197 rejected. Layout contained 30 items,
+  Scrolling 3, Basic 7 and Material 4; the practical backlog was 44/92 complete
+  with 48 remaining. Existing encodings kept `.fd` schema v9, Catalog API 9,
   Canvas model v14 and NBFC framing/control/wire v1 unchanged.
+- [x] Complete const
+  [`ExcludeSemantics`](https://api.flutter.dev/flutter/widgets/ExcludeSemantics/ExcludeSemantics.html)
+  as the first Accessibility Palette vertical slice at category order 400 and
+  item order 10. Expose the complete Flutter 3.44.8 non-`key` constructor:
+  optional closed `bool excluding` with exact omitted default `true` and one
+  optional any-widget `child`. Detached creation stores neither a property nor
+  a child. Complete typed Properties, Palette/tree/Canvas DnD, exact-slot
+  management, same-tree movement, deterministic const Dart generation,
+  Save/reopen and further editing, Undo/Redo, real native/exact-Web semantics,
+  accessibility and four reviewed SVGs. Omitted or explicit `true` removes the
+  application child's semantics subtree, while explicit `false` preserves it;
+  layout, paint and hit testing proxy the child. Keep the `ExcludeSemantics`
+  node's own Designer selection, hit/drop and accessibility wrapper outside the
+  effect; descendant Canvas semantics labels follow the real subtree exclusion,
+  while the NetBeans widget tree remains separately accessible. The current
+  surface is 45 widgets, 39 const definitions
+  and 730 rows (713 outside Scaffold). Forty-five sources across 40 insertable
+  any-widget plus two trait destinations form 1,890 candidates: 1,688 accepted
+  and 202 rejected. Layout contains 30 items, Scrolling 3, Basic 7, Material 4
+  and Accessibility 1; the practical backlog is 45/92 complete with 47
+  remaining. Existing encodings keep `.fd` schema v9, Catalog API 9, Canvas
+  model v14 and NBFC framing/control/wire v1 unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1364,8 +1386,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after DecoratedBox has yet been assigned
-  an explicit order. The current typed Properties slice spans all forty-four
+  vertical slices. No specific widget after ExcludeSemantics has yet been
+  assigned an explicit order. The current typed Properties slice spans all forty-five
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

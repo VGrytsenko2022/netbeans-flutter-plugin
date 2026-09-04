@@ -72,6 +72,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),
             Map.entry("flutter.widgets.DecoratedBox", ICON_ROOT + "decoratedbox.svg"),
+            Map.entry("flutter.widgets.ExcludeSemantics",
+                    ICON_ROOT + "excludesemantics.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),
             Map.entry("flutter.widgets.AspectRatio", ICON_ROOT + "aspectratio.svg"),
             Map.entry("flutter.widgets.Container", ICON_ROOT + "container.svg"),

@@ -65,7 +65,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ColoredBox",
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
-            "flutter.widgets.DecoratedBox");
+            "flutter.widgets.DecoratedBox",
+            "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -110,7 +111,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ColoredBox",
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
-            "flutter.widgets.DecoratedBox");
+            "flutter.widgets.DecoratedBox",
+            "flutter.widgets.ExcludeSemantics");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -121,7 +123,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFortyFourSourcesAndFortyOneInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFortyFiveSourcesAndFortyTwoInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -144,9 +146,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(44, sources.size());
-        assertEquals(41, destinations.size());
-        assertEquals(39, destinations.stream()
+        assertEquals(45, sources.size());
+        assertEquals(42, destinations.size());
+        assertEquals(40, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -154,9 +156,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1804, candidates);
-        assertEquals(1607, accepted);
-        assertEquals(197, candidates - accepted);
+        assertEquals(1890, candidates);
+        assertEquals(1688, accepted);
+        assertEquals(202, candidates - accepted);
     }
 
     @Test
@@ -444,6 +446,50 @@ class BuiltInWidgetCapabilityCatalogTest {
         assertTrue(decoratedBoxContract.endsWith(
                 "S|child|single|0|0|1|any\n"), decoratedBoxContract);
         assertFalse(decoratedBoxContract.contains("\nC|"), decoratedBoxContract);
+    }
+
+    @Test
+    void excludeSemanticsHasExactOptionalBooleanAndChildProjection() {
+        WidgetDefinition definition = definition(
+                "flutter.widgets.ExcludeSemantics");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ExcludeSemanticsWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var excluding = projection.propertyContracts()
+                .get(new PropertyName("excluding"));
+        assertFalse(excluding.required());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), excluding.acceptedKinds());
+        assertTrue(excluding.creationDefaultFingerprint().isEmpty());
+        assertEquals("any", excluding.constraintFingerprints()
+                .get(PropertyValueKind.BOOLEAN));
+
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.widgets.ExcludeSemantics\n");
+        int end = contract.indexOf("W|", start + 2);
+        if (end < 0) {
+            end = contract.length();
+        }
+        String excludeSemanticsContract = contract.substring(start, end);
+        assertEquals(
+                "W|flutter.widgets.ExcludeSemantics\n"
+                + "P|excluding|boolean|0|-|-|boolean:any\n"
+                + "S|child|single|0|0|1|any\n",
+                excludeSemanticsContract);
     }
 
     @Test

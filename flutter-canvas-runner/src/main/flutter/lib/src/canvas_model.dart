@@ -4273,6 +4273,18 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       enumValues: {'none', 'low', 'medium', 'high'},
     ),
   }, {}),
+  'flutter.widgets.ListBody': _WidgetSpec(
+    {
+      'mainAxis': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'Axis',
+        enumValues: {'horizontal', 'vertical'},
+      ),
+      'reverse': _PropertySpec({'boolean'}),
+    },
+    {'children': _optionalListSlot},
+  ),
   'flutter.widgets.ListView': _WidgetSpec(
     {
       'scrollDirection': _PropertySpec(
@@ -5262,6 +5274,10 @@ W|flutter.widgets.LimitedBox
 P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 S|child|single|0|0|1|any
+W|flutter.widgets.ListBody
+P|mainAxis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
+P|reverse|boolean|0|-|-|boolean:any
+S|children|list|0|0|10000|any
 W|flutter.widgets.ListView
 P|addAutomaticKeepAlives|boolean|0|-|-|boolean:any
 P|addRepaintBoundaries|boolean|0|-|-|boolean:any

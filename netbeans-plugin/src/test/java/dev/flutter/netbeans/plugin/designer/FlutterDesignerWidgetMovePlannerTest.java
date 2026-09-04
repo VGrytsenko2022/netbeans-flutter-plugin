@@ -75,6 +75,7 @@ class FlutterDesignerWidgetMovePlannerTest {
     private static final WidgetTypeId SIZED_OVERFLOW_BOX =
             type("flutter.widgets.SizedOverflowBox");
     private static final WidgetTypeId TRANSFORM = type("flutter.widgets.Transform");
+    private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = slot("children");
     private static final SlotName CHILD = slot("child");
@@ -272,6 +273,52 @@ class FlutterDesignerWidgetMovePlannerTest {
                         childFailure.code()),
                 () -> assertTrue(childFailure.reason().contains(
                         "flutter.widgets.Expanded.child")));
+    }
+
+    @Test
+    void onListBodyAppendsTheCompleteSubtreeAtExactConstructorOrder() {
+        WidgetNode nestedText = validText(D_ID, "nested");
+        WidgetNode source = new WidgetNode(
+                A_ID,
+                CENTER,
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(nestedText)));
+        WidgetNode listBody = new WidgetNode(
+                B_ID,
+                LIST_BODY,
+                Map.of(
+                        new PropertyName("mainAxis"),
+                        new PropertyValue.EnumValue("Axis", "horizontal"),
+                        new PropertyName("reverse"),
+                        new PropertyValue.BooleanValue(true)),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(
+                        List.of(validText(C_ID, "existing child")))));
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(source, listBody)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                A_ID,
+                new FlutterDesignerWidgetMovePlanner.On(B_ID));
+        FlutterDesignerWidgetMovePlanner.Accepted accepted = accepted(result);
+
+        assertEquals(
+                new MoveWidget(
+                        A_ID,
+                        new WidgetPlacement(B_ID, CHILDREN, 1)),
+                accepted.command(),
+                "ListBody On-drop must append in exact children constructor order");
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+        assertEquals(
+                new PropertyValue.EnumValue("Axis", "horizontal"),
+                listBody.properties().get(new PropertyName("mainAxis")));
+        assertEquals(
+                new PropertyValue.BooleanValue(true),
+                listBody.properties().get(new PropertyName("reverse")));
     }
 
     @Test

@@ -105,6 +105,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
+                "flutter.widgets.ListBody",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -641,6 +642,37 @@ class CanvasModelPayloadCodecTest {
                 "\"quarterTurns\":{\"kind\":\"integer\",\"value\":-3}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"e6a3ba4c-b00a-4f73-9355-40c26a4c03c8\""), json);
+    }
+
+    @Test
+    void projectsListBodyAxisReverseAndOrderedChildrenWithoutChangingProtocolV14()
+            throws Exception {
+        WidgetNode listBody = new WidgetNode(
+                id("499db53a-46af-478b-822a-64b53af792e3"),
+                type("flutter.widgets.ListBody"),
+                Map.of(
+                        new PropertyName("mainAxis"),
+                        new PropertyValue.EnumValue("Axis", "horizontal"),
+                        new PropertyName("reverse"),
+                        new PropertyValue.BooleanValue(true)),
+                Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of(
+                        text("eb28269c-0422-4376-8b55-c022e8dba1df", "First"),
+                        text("22aa2516-fab4-4294-a3cd-7ec8513f438b", "Second")))));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), listBody))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":14"), json);
+        assertTrue(json.contains("\"type\":\"flutter.widgets.ListBody\""), json);
+        assertTrue(json.contains(
+                "\"mainAxis\":{\"kind\":\"enum\","
+                + "\"type\":\"Axis\",\"value\":\"horizontal\"}"), json);
+        assertTrue(json.contains(
+                "\"reverse\":{\"kind\":\"boolean\",\"value\":true}"), json);
+        int first = json.indexOf("eb28269c-0422-4376-8b55-c022e8dba1df");
+        int second = json.indexOf("22aa2516-fab4-4294-a3cd-7ec8513f438b");
+        assertTrue(first >= 0 && first < second, json);
     }
 
     @Test

@@ -78,7 +78,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `Wrap`, `Container`, `Opacity`, `Transform` and `RotatedBox`,
+`ListView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox` and `ListBody`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -205,15 +205,16 @@ resize burst into one contiguous layout sequence. On Windows an embedded
 never apply a top-level suggested screen rectangle to that child, while a
 standalone runner retains the normal suggested-rectangle behavior.
 
-An empty Row, Column, ListView, Wrap, FittedBox, ConstrainedBox,
+An empty Row, Column, ListView, ListBody, Wrap, FittedBox, ConstrainedBox,
 UnconstrainedBox, LimitedBox, OverflowBox or RotatedBox keeps its real Flutter layout (including
 zero-size outcomes) but receives a non-layout-affecting 36-pixel-minimum
 selection outline and hit rectangle. Its whole bounded rectangle is insertion
-index zero; a populated Row, Column or ListView exposes only its terminal append
+index zero; a populated Row, Column, ListView or ListBody exposes only its terminal append
 edge. Stack uses its full rendered rectangle for both empty and populated
 z-order appends. Wrap also uses its full rendered rectangle for every terminal
-append because run formation has no single stable edge. ListView resolves its
-terminal edge from vertical/horizontal, reverse and LTR/RTL visual order.
+append because run formation has no single stable edge. ListView and ListBody
+resolve their terminal edge from vertical/horizontal, reverse and LTR/RTL visual
+order.
 
 The optional host-driven `widget.movePreview.v1` route projects an existing-
 widget tree move without giving the runner mutation authority. A command carries
@@ -229,9 +230,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-35 reviewed Canvas widgets. Palette insertion evaluates 1,190 exact
-source/destination cells across 35 draggable sources and 34 insertable reviewed
-slots; 1,032 are accepted and 158 cells are rejected. Expanded and Flexible are
+36 reviewed Canvas widgets. Palette insertion evaluates 1,260 exact
+source/destination cells across 36 draggable sources and 35 insertable reviewed
+slots; 1,097 are accepted and 163 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -572,4 +573,23 @@ geometry and the optional `child` drop slot. The aggregate catalog now has 35
 widgets; 35 sources across 34 insertable destinations form 1,190 cells, with
 1,032 accepted and 158 rejected. The practical Material/Base backlog is 35/92
 complete with 57 remaining, and Layout contains 27 items. Canvas model protocol
+remains v14; NBFC framing, control and wire remain v1.
+
+[`flutter.widgets.ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html)
+is the sixteenth post-core Canvas widget. Its exact constructor projection
+accepts optional `mainAxis` (`Axis.vertical` or `Axis.horizontal`) and optional
+`reverse`, preserving Flutter's vertical/non-reversed defaults when absent, plus
+one ordered any-widget `children` list. Unknown values, wrong kinds and unknown
+properties fail closed before rendering.
+
+Generated Dart remains a bare real `ListBody`. Because `RenderListBody` requires
+an unbounded main axis and bounded cross axis, the native and exact-Web Canvas
+host the real widget inside an axis-matched design-time viewport. That guard is
+Canvas-only and never changes the model or generated application source. An
+empty ListBody exposes its bounded rectangle at insertion index zero; a populated
+instance exposes only its visual terminal append edge, resolved from main axis,
+reversal and ambient `Directionality`. The aggregate catalog now has 36 widgets;
+36 sources across 35 insertable destinations form 1,260 cells, with 1,097
+accepted and 163 rejected. The practical Material/Base backlog is 36/92
+complete with 56 remaining, and Layout contains 28 items. Canvas model protocol
 remains v14; NBFC framing, control and wire remain v1.

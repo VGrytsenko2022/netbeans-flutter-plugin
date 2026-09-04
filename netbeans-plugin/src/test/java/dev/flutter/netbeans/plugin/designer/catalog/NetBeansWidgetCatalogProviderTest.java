@@ -59,6 +59,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.SizedOverflowBox"));
         assertTrue(typeIds(result).contains("flutter.widgets.Transform"));
         assertTrue(typeIds(result).contains("flutter.widgets.RotatedBox"));
+        assertTrue(typeIds(result).contains("flutter.widgets.ListBody"));
     }
 
     @Test
@@ -146,7 +147,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(35, result.catalog().definitions().size());
+        assertEquals(36, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -179,7 +180,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(35, result.catalog().definitions().size());
+        assertEquals(36, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

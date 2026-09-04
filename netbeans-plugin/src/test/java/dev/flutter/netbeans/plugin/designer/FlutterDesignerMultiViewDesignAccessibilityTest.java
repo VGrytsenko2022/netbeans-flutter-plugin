@@ -778,6 +778,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.SizedOverflowBox",
                     "flutter.widgets.Transform",
                     "flutter.widgets.RotatedBox",
+                    "flutter.widgets.ListBody",
                     "flutter.widgets.ListView",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",

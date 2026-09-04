@@ -1156,6 +1156,27 @@ accepted architecture is documented in
   practical 92-widget backlog is 35/92 complete with 57 remaining. `.fd` stays
   at schema v9, Catalog API at 8 and Canvas model at v14; NBFC
   framing/control/wire remains v1.
+- [x] Complete const
+  [`ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html) as
+  the sixteenth post-core Palette vertical slice at Layout order 220,
+  immediately after RotatedBox. Its complete non-`key` Flutter 3.44.8
+  constructor surface exposes optional `Axis mainAxis` and `bool reverse`, with
+  defaults `Axis.vertical` and `false`, plus one ordered any-widget `children`
+  list. Detached prototypes omit both properties and begin with an empty list.
+  Generate the real bare ListBody while hosting the real Canvas widget in an
+  axis-matched design-time viewport that supplies its required unbounded main
+  axis and bounded cross axis; never persist or generate that preview guard.
+  Resolve empty and terminal list-drop geometry from axis, reversal and ambient
+  directionality. Complete property and exact-list-slot editing,
+  Palette/tree/Canvas DnD, same-tree movement/reordering, deterministic
+  generation, Save/reopen and further editing, Undo/Redo, reviewed light/dark
+  SVG icons and focused contract tests. The current surface is 36 widgets, 31
+  const definitions and 677 rows (660 outside Scaffold), with 28 Layout items.
+  Thirty-six sources across 33 insertable any-widget plus two trait destinations
+  form 1,260 candidates: 1,097 accepted and 163 rejected. The practical
+  92-widget backlog is 36/92 complete with 56 remaining. `.fd` stays at schema
+  v9, Catalog API at 8 and Canvas model at v14; NBFC framing/control/wire remains
+  v1.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1173,8 +1194,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. No specific widget after RotatedBox has yet been assigned an
-  explicit order. The current typed Properties slice spans all thirty-five
+  vertical slices. No specific widget after ListBody has yet been assigned an
+  explicit order. The current typed Properties slice spans all thirty-six
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

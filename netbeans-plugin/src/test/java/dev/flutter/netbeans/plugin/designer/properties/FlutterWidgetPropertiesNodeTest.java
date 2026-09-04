@@ -623,7 +623,8 @@ class FlutterWidgetPropertiesNodeTest {
     @Test
     void exposesEverySafeCatalogPropertyOnAllCapabilityReviewedWidgetsAsWritable()
             throws Exception {
-        Map<String, Map<PropertyName, PropertyValue>> requiredValues = Map.of(
+        Map<String, Map<PropertyName, PropertyValue>> requiredValues =
+                new LinkedHashMap<>(Map.of(
                 "flutter.widgets.Padding", Map.of(
                         new PropertyName("padding"),
                         new PropertyValue.EdgeInsetsValue(
@@ -665,7 +666,12 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyValue.ImageProviderValue(
                                 PropertyValue.ImageProviderValue.ProviderKind.ASSET,
                                 "assets/image.png",
-                                Optional.empty(), Optional.empty(), Optional.empty())));
+                                Optional.empty(), Optional.empty(), Optional.empty()))));
+        requiredValues.put(
+                "flutter.widgets.RotatedBox",
+                Map.of(
+                        new PropertyName("quarterTurns"),
+                        new PropertyValue.IntegerValue(BigInteger.ZERO)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -697,6 +703,8 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.Offstage",
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
+                "flutter.widgets.RotatedBox",
+                "flutter.widgets.ListBody",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -734,7 +742,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(674, writableCount,
+        assertEquals(677, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -742,9 +750,9 @@ class FlutterWidgetPropertiesNodeTest {
                 + "LimitedBox, OverflowBox, "
                 + "Wrap, Stack, "
                 + "Expanded, Flexible, Spacer, Baseline, IntrinsicHeight, IntrinsicWidth, "
-                + "Offstage, SizedOverflowBox, Transform, ListView, "
+                + "Offstage, SizedOverflowBox, Transform, RotatedBox, ListBody, ListView, "
                 + "and Image leaves");
-        assertEquals(657, nonScaffoldWritableCount,
+        assertEquals(660, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -1616,6 +1624,113 @@ class FlutterWidgetPropertiesNodeTest {
                         "negative turns rotate counter-clockwise")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void listBodyProjectsAxisReverseAndExactOrderedChildrenContract()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ListBody");
+        StableId id = StableId.parse("7adeb901-04e7-4078-85df-8ca88ae67b37");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+
+        Node.PropertySet properties = propertySet(
+                node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of("mainAxis", "reverse"), names(properties.getProperties()));
+        assertEquals(
+                "Sequential main-axis layout, reading-direction reversal, and exact ordered "
+                + "children for the selected ListBody widget; the main axis must be "
+                + "unbounded and the cross axis bounded.",
+                properties.getShortDescription());
+
+        Node.Property<FlutterPropertyCellValue> mainAxis = cellProperty(
+                property(node, "mainAxis"));
+        assertAll(
+                () -> assertEquals("Main axis", mainAxis.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), mainAxis.getValue()),
+                () -> assertEquals(List.of("<not set>", "horizontal", "vertical"),
+                        List.of(mainAxis.getPropertyEditor().getTags())),
+                () -> assertTrue(mainAxis.getShortDescription().contains(
+                        "vertical default")),
+                () -> assertTrue(mainAxis.getShortDescription().contains(
+                        "unbounded space")),
+                () -> assertTrue(mainAxis.getShortDescription().contains(
+                        "bounded cross axis")),
+                () -> assertTrue(mainAxis.supportsDefaultValue()),
+                () -> assertTrue(mainAxis.isDefaultValue()));
+        PropertyEditor axisEditor = mainAxis.getPropertyEditor();
+        axisEditor.setAsText("horizontal");
+        mainAxis.setValue(cell(axisEditor));
+
+        Node.Property<FlutterPropertyCellValue> reverse = cellProperty(
+                property(node, "reverse"));
+        assertAll(
+                () -> assertEquals("Reverse", reverse.getDisplayName()),
+                () -> assertEquals(FlutterPropertyCellValue.unset(), reverse.getValue()),
+                () -> assertNull(reverse.getPropertyEditor().getTags(),
+                        "optional booleans use the global nullable checkbox editor"),
+                () -> assertTrue(reverse.getPropertyEditor().isPaintable()),
+                () -> assertTrue(reverse.getShortDescription().contains(
+                        "false default")),
+                () -> assertTrue(reverse.getShortDescription().contains("LTR/RTL")),
+                () -> assertTrue(reverse.getShortDescription().contains(
+                        "without changing the stored source order")));
+        PropertyEditor reverseEditor = reverse.getPropertyEditor();
+        reverseEditor.setAsText("true");
+        reverse.setValue(cell(reverseEditor));
+
+        assertEquals(List.of(
+                new SetProperty(
+                        id,
+                        new PropertyName("mainAxis"),
+                        new PropertyValue.EnumValue("Axis", "horizontal")),
+                new SetProperty(
+                        id,
+                        new PropertyName("reverse"),
+                        new PropertyValue.BooleanValue(true))),
+                commands);
+
+        WidgetNode explicitReverseWidget = new WidgetNode(
+                widget.id(),
+                widget.type(),
+                Map.of(
+                        new PropertyName("reverse"),
+                        new PropertyValue.BooleanValue(true)),
+                widget.slots(),
+                widget.extensions());
+        List<DesignerCommand> resetCommands = new ArrayList<>();
+        FlutterWidgetPropertiesNode explicitReverseNode =
+                new FlutterWidgetPropertiesNode(
+                        Children.LEAF,
+                        explicitReverseWidget,
+                        definition,
+                        resetCommands::add);
+        Node.Property<FlutterPropertyCellValue> explicitReverse = cellProperty(
+                property(explicitReverseNode, "reverse"));
+        assertFalse(explicitReverse.isDefaultValue());
+        explicitReverse.restoreDefaultValue();
+        assertEquals(
+                List.of(new ResetProperty(id, new PropertyName("reverse"))),
+                resetCommands,
+                "Restore Default is exercised after the refreshed node projects the "
+                + "explicit saved value");
+
+        Node.Property<?> children = property(node, "children");
+        assertAll(
+                () -> assertEquals("Children", children.getDisplayName()),
+                () -> assertEquals("Empty", children.getValue()),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "laid out sequentially along Main axis")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "stretched across the bounded cross axis")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "requires unbounded space along its main axis")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "stored source order")),
+                () -> assertTrue(children.getShortDescription().contains(
+                        "Occupancy: 0/10000")));
     }
 
     @Test
@@ -3648,7 +3763,7 @@ class FlutterWidgetPropertiesNodeTest {
     }
 
     @Test
-    void thirtyFiveCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
+    void thirtySixCanvasWidgetNodesDeclareTheirMatchingUniqueRegistryIconsWithoutRendering()
             throws ReflectiveOperationException {
         List<String> typeIds = List.of(
                 "flutter.material.Scaffold",
@@ -3682,6 +3797,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
+                "flutter.widgets.ListBody",
                 "flutter.widgets.ListView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
@@ -3713,7 +3829,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(35, iconPaths.size(),
+        assertEquals(36, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

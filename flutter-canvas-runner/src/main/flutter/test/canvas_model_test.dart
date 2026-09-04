@@ -1143,7 +1143,7 @@ void main() {
   test('LimitedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.LimitedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.ListView\n', start);
+    final end = contract.indexOf('W|flutter.widgets.ListBody\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -1152,6 +1152,133 @@ void main() {
       'P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
       'P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1\n'
       'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test('decodes the exact optional ListBody contract and ordered children', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '69fdc5a9-8321-4e42-9a8e-2dadc1344b38',
+        'flutter.widgets.ListBody',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    final first = _node(
+      '3aa5f08c-1307-4634-8bed-68b86091cc90',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'First'},
+      },
+    );
+    final second = _node(
+      '5019f83d-0103-4b4e-9932-cc6833343904',
+      'flutter.widgets.Text',
+      properties: {
+        'data': {'kind': 'string', 'value': 'Second'},
+      },
+    );
+    final decoded = _decode(
+      model(
+        properties: const {
+          'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'horizontal'},
+          'reverse': {'kind': 'boolean', 'value': true},
+        },
+        slots: {
+          'children': _list([first, second]),
+        },
+      ),
+    ).root;
+
+    expect(decoded.type, 'flutter.widgets.ListBody');
+    expect(decoded.properties.keys, const ['mainAxis', 'reverse']);
+    final mainAxis = decoded.properties['mainAxis']!.value as CanvasEnumValue;
+    expect(mainAxis.type, 'Axis');
+    expect(mainAxis.value, 'horizontal');
+    expect(decoded.properties['reverse']!.value, isTrue);
+    expect(decoded.slot('children')!.children.map((child) => child.id), [
+      first['id'],
+      second['id'],
+    ]);
+
+    final omitted = _decode(model()).root;
+    expect(omitted.properties, isEmpty);
+    expect(omitted.slot('children'), isNull);
+
+    final explicitEmpty = _decode(
+      model(slots: {'children': _list(const [])}),
+    ).root;
+    expect(explicitEmpty.slot('children')!.children, isEmpty);
+  });
+
+  test('rejects values outside the reviewed ListBody projection', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '69fdc5a9-8321-4e42-9a8e-2dadc1344b38',
+        'flutter.widgets.ListBody',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'diagonal'},
+      },
+      const {
+        'mainAxis': {
+          'kind': 'enum',
+          'type': 'AxisDirection',
+          'value': 'vertical',
+        },
+      },
+      const {
+        'mainAxis': {'kind': 'string', 'value': 'vertical'},
+      },
+      const {
+        'reverse': {'kind': 'integer', 'value': 1},
+      },
+      const {
+        'unknown': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'children': _single(null)})),
+      throwsFormatException,
+    );
+  });
+
+  test('ListBody reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ListBody\n');
+    final end = contract.indexOf('W|flutter.widgets.ListView\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ListBody\n'
+      'P|mainAxis|enum|0|-|-|enum:enum:'
+      'cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Axis:horizontal,vertical\n'
+      'P|reverse|boolean|0|-|-|boolean:any\n'
+      'S|children|list|0|0|10000|any\n',
     );
   });
 

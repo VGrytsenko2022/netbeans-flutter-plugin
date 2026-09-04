@@ -83,6 +83,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             type("flutter.widgets.SizedOverflowBox");
     private static final WidgetTypeId TRANSFORM = type("flutter.widgets.Transform");
     private static final WidgetTypeId ROTATED_BOX = type("flutter.widgets.RotatedBox");
+    private static final WidgetTypeId LIST_BODY = type("flutter.widgets.ListBody");
     private static final WidgetTypeId LIST_VIEW = type("flutter.widgets.ListView");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
@@ -345,6 +346,17 @@ class FlutterDesignerPaletteDropPlannerTest {
                         CHILDREN,
                         1),
                 new AcceptedCase(
+                        "empty ListBody",
+                        document(prototype(LIST_BODY)),
+                        CHILDREN,
+                        0),
+                new AcceptedCase(
+                        "non-empty ListBody terminal constructor order",
+                        document(parent(
+                                LIST_BODY, List.of(text(FIRST_ID, "existing child")))),
+                        CHILDREN,
+                        1),
+                new AcceptedCase(
                         "absent optional ElevatedButton child",
                         document(WidgetNodePrototypeFactory.create(
                                 definition(ELEVATED_BUTTON), ROOT_ID)),
@@ -384,7 +396,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void plansAllNineHundredNinetyTwoAnyWidgetCompatibilityCellsWithExactPrototypes() {
+    void plansAllOneThousandFiftySixAnyWidgetCompatibilityCellsWithExactPrototypes() {
         List<CoreSourceCase> sources = coreSources();
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
@@ -414,6 +426,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Transform.child", TRANSFORM, CHILD),
                 target("RotatedBox.child", ROTATED_BOX, CHILD),
                 target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
                 target("ListView.children", LIST_VIEW, CHILDREN),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
@@ -421,8 +434,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("AppBar.actions", APP_BAR, ACTIONS),
                 target("AppBar.flexibleSpace", APP_BAR, FLEXIBLE_SPACE));
 
-        assertEquals(31, sources.size());
-        assertEquals(32, targets.size());
+        assertEquals(32, sources.size());
+        assertEquals(33, targets.size());
         assertAll(sources.stream().flatMap(source -> targets.stream().map(target ->
                 (Executable) () -> {
                     AtomicInteger allocations = new AtomicInteger();
@@ -452,19 +465,19 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact1054CellMatrix() {
+    void admitsOnlyAppBarAcrossBothPreferredSizeTraitSlotsForExact1120CellMatrix() {
         AtomicInteger allocations = new AtomicInteger();
         List<MatrixTargetCase> traitTargets = List.of(
                 target("Scaffold.appBar", SCAFFOLD, APP_BAR_SLOT),
                 target("AppBar.bottom", APP_BAR, BOTTOM));
         assertAll(
-                () -> assertEquals(34, 32 + traitTargets.size(),
-                        "thirty-two any-widget plus two trait destinations"),
-                () -> assertEquals(1054, 31 * (32 + traitTargets.size()),
+                () -> assertEquals(35, 33 + traitTargets.size(),
+                        "thirty-three any-widget plus two trait destinations"),
+                () -> assertEquals(1120, 32 * (33 + traitTargets.size()),
                         "exact compatibility-matrix candidates"),
-                () -> assertEquals(994, 31 * 32 + traitTargets.size(),
-                        "992 any-widget cells plus two AppBar trait cells"),
-                () -> assertEquals(60, traitTargets.size() * (31 - 1),
+                () -> assertEquals(1058, 32 * 33 + traitTargets.size(),
+                        "1,056 any-widget cells plus two AppBar trait cells"),
+                () -> assertEquals(62, traitTargets.size() * (32 - 1),
                         "all non-AppBar trait cells are rejected"));
 
         assertAll(traitTargets.stream().map(target -> (Executable) () -> {
@@ -495,11 +508,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                             rejected.code(), source.name());
                 })));
         assertEquals(0, allocations.get(),
-                "all 60 rejected trait cells must fail before stable-id allocation");
+                "all 62 rejected trait cells must fail before stable-id allocation");
     }
 
     @Test
-    void expandedWrapsOnlyExistingDirectRowOrColumnChildrenForExact1088CellModel() {
+    void expandedWrapsOnlyExistingDirectRowOrColumnChildrenForExact1155CellModel() {
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
                 target("Scaffold.floatingActionButton", SCAFFOLD,
@@ -536,6 +549,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Transform.child", TRANSFORM, CHILD),
                 target("RotatedBox.child", ROTATED_BOX, CHILD),
                 target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
                 target("ListView.children", LIST_VIEW, CHILDREN),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
@@ -587,16 +601,16 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(34, targets.size()),
+                () -> assertEquals(35, targets.size()),
                 () -> assertEquals(2, accepted.get()),
-                () -> assertEquals(32, rejected.get()),
-                () -> assertEquals(1088, 32 * targets.size()),
-                () -> assertEquals(996, 994 + accepted.get()),
-                () -> assertEquals(92, 60 + rejected.get()));
+                () -> assertEquals(33, rejected.get()),
+                () -> assertEquals(1155, 33 * targets.size()),
+                () -> assertEquals(1060, 1058 + accepted.get()),
+                () -> assertEquals(95, 62 + rejected.get()));
     }
 
     @Test
-    void imageCompletesExact1122CellModelWithDeclaredAssetCreation() {
+    void imageCompletesExact1190CellModelWithDeclaredAssetCreation() {
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
                 target("Scaffold.floatingActionButton", SCAFFOLD,
@@ -625,6 +639,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Transform.child", TRANSFORM, CHILD),
                 target("RotatedBox.child", ROTATED_BOX, CHILD),
                 target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
                 target("ListView.children", LIST_VIEW, CHILDREN),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
@@ -675,16 +690,16 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(34, targets.size()),
-                () -> assertEquals(32, accepted.get()),
+                () -> assertEquals(35, targets.size()),
+                () -> assertEquals(33, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(1122, 33 * targets.size()),
-                () -> assertEquals(1028, 996 + accepted.get()),
-                () -> assertEquals(94, 92 + rejected.get()));
+                () -> assertEquals(1190, 34 * targets.size()),
+                () -> assertEquals(1093, 1060 + accepted.get()),
+                () -> assertEquals(97, 95 + rejected.get()));
     }
 
     @Test
-    void flexibleCompletesExact1156CellModelByWrappingOnlyDirectFlexChildren() {
+    void flexibleCompletesExact1225CellModelByWrappingOnlyDirectFlexChildren() {
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
                 target("Scaffold.floatingActionButton", SCAFFOLD,
@@ -721,6 +736,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Transform.child", TRANSFORM, CHILD),
                 target("RotatedBox.child", ROTATED_BOX, CHILD),
                 target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
                 target("ListView.children", LIST_VIEW, CHILDREN),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
@@ -772,16 +788,16 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(34, targets.size()),
+                () -> assertEquals(35, targets.size()),
                 () -> assertEquals(2, accepted.get()),
-                () -> assertEquals(32, rejected.get()),
-                () -> assertEquals(1156, 34 * targets.size()),
-                () -> assertEquals(1030, 1028 + accepted.get()),
-                () -> assertEquals(126, 94 + rejected.get()));
+                () -> assertEquals(33, rejected.get()),
+                () -> assertEquals(1225, 35 * targets.size()),
+                () -> assertEquals(1095, 1093 + accepted.get()),
+                () -> assertEquals(130, 97 + rejected.get()));
     }
 
     @Test
-    void spacerCompletesExact1190CellModelAsATerminalDirectFlexChild() {
+    void spacerCompletesExact1260CellModelAsATerminalDirectFlexChild() {
         List<MatrixTargetCase> targets = List.of(
                 target("Scaffold.body", SCAFFOLD, BODY),
                 target("Scaffold.floatingActionButton", SCAFFOLD,
@@ -810,6 +826,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 target("Transform.child", TRANSFORM, CHILD),
                 target("RotatedBox.child", ROTATED_BOX, CHILD),
                 target("Stack.children", STACK, CHILDREN),
+                target("ListBody.children", LIST_BODY, CHILDREN),
                 target("ListView.children", LIST_VIEW, CHILDREN),
                 target("ElevatedButton.child", ELEVATED_BUTTON, CHILD),
                 target("AppBar.leading", APP_BAR, LEADING),
@@ -862,12 +879,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(34, targets.size()),
+                () -> assertEquals(35, targets.size()),
                 () -> assertEquals(2, accepted.get()),
-                () -> assertEquals(32, rejected.get()),
-                () -> assertEquals(1190, 35 * targets.size()),
-                () -> assertEquals(1032, 1030 + accepted.get()),
-                () -> assertEquals(158, 126 + rejected.get()));
+                () -> assertEquals(33, rejected.get()),
+                () -> assertEquals(1260, 36 * targets.size()),
+                () -> assertEquals(1097, 1095 + accepted.get()),
+                () -> assertEquals(163, 130 + rejected.get()));
     }
 
     @Test
@@ -1085,6 +1102,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new SingleTargetCase("Row.children", ROW, CHILDREN),
                 new SingleTargetCase("Wrap.children", WRAP, CHILDREN),
                 new SingleTargetCase("Stack.children", STACK, CHILDREN),
+                new SingleTargetCase("ListBody.children", LIST_BODY, CHILDREN),
                 new SingleTargetCase("ListView.children", LIST_VIEW, CHILDREN),
                 new SingleTargetCase("AppBar.actions", APP_BAR, ACTIONS));
 
@@ -1627,6 +1645,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 new CoreSourceCase(
                         "Stack",
                         STACK,
+                        Map.of(),
+                        Map.of(CHILDREN, SlotCardinality.LIST)),
+                new CoreSourceCase(
+                        "ListBody",
+                        LIST_BODY,
                         Map.of(),
                         Map.of(CHILDREN, SlotCardinality.LIST)),
                 new CoreSourceCase(

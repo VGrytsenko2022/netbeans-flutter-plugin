@@ -545,6 +545,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == canvasSpacerWidgetType ||
         node.type == 'flutter.widgets.Stack' ||
         node.type == 'flutter.widgets.Wrap' ||
+        node.type == 'flutter.widgets.ListBody' ||
         node.type == 'flutter.widgets.ListView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.Icon') {
@@ -1040,12 +1041,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final horizontal =
         parentNode.type == 'flutter.widgets.Row' ||
         parentNode.type == 'flutter.material.AppBar' ||
+        _isHorizontalListBody(parentNode) ||
         _isHorizontalListView(parentNode);
-    final reverse = parentNode.type == 'flutter.widgets.ListView'
-        ? _isVisuallyReversedListView(parentNode)
-        : horizontal
-        ? _resolvedTextDirection(parentNode) == TextDirection.rtl
-        : _enumValue(parentNode, 'verticalDirection') == 'up';
+    final reverse = switch (parentNode.type) {
+      'flutter.widgets.ListBody' => _isVisuallyReversedListBody(parentNode),
+      'flutter.widgets.ListView' => _isVisuallyReversedListView(parentNode),
+      _ =>
+        horizontal
+            ? _resolvedTextDirection(parentNode) == TextDirection.rtl
+            : _enumValue(parentNode, 'verticalDirection') == 'up',
+    };
     final referenceIndex = insertionIndex < children.length
         ? insertionIndex
         : children.length - 1;
@@ -1347,11 +1352,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       return Rect.zero;
     }
     if (node.type == 'flutter.widgets.Column' ||
+        (node.type == 'flutter.widgets.ListBody' &&
+            !_isHorizontalListBody(node)) ||
         (node.type == 'flutter.widgets.ListView' &&
             !_isHorizontalListView(node))) {
-      final upward = node.type == 'flutter.widgets.ListView'
-          ? _booleanValue(node, 'reverse') == true
-          : _enumValue(node, 'verticalDirection') == 'up';
+      final upward = switch (node.type) {
+        'flutter.widgets.ListBody' ||
+        'flutter.widgets.ListView' => _booleanValue(node, 'reverse') == true,
+        _ => _enumValue(node, 'verticalDirection') == 'up',
+      };
       final band = _minimumTerminalBand.clamp(1.0, parent.height);
       return upward
           ? Rect.fromLTRB(
@@ -1367,9 +1376,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               parent.bottom,
             );
     }
-    final rightToLeft = node.type == 'flutter.widgets.ListView'
-        ? _isVisuallyReversedListView(node)
-        : _resolvedTextDirection(node) == TextDirection.rtl;
+    final rightToLeft = switch (node.type) {
+      'flutter.widgets.ListBody' => _isVisuallyReversedListBody(node),
+      'flutter.widgets.ListView' => _isVisuallyReversedListView(node),
+      _ => _resolvedTextDirection(node) == TextDirection.rtl,
+    };
     final band = _minimumTerminalBand.clamp(1.0, parent.width);
     return rightToLeft
         ? Rect.fromLTRB(
@@ -1403,6 +1414,19 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   static bool _isHorizontalListView(CanvasNode node) =>
       node.type == 'flutter.widgets.ListView' &&
       _enumValue(node, 'scrollDirection') == 'horizontal';
+
+  static bool _isHorizontalListBody(CanvasNode node) =>
+      node.type == 'flutter.widgets.ListBody' &&
+      _enumValue(node, 'mainAxis') == 'horizontal';
+
+  bool _isVisuallyReversedListBody(CanvasNode node) {
+    final reversed = _booleanValue(node, 'reverse') == true;
+    if (!_isHorizontalListBody(node)) {
+      return reversed;
+    }
+    final rightToLeft = _resolvedTextDirection(node) == TextDirection.rtl;
+    return rightToLeft != reversed;
+  }
 
   bool _isVisuallyReversedListView(CanvasNode node) {
     final reversed = _booleanValue(node, 'reverse') == true;
@@ -2052,6 +2076,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Wrap' => _wrap(),
+      'flutter.widgets.ListBody' => _listBody(),
       'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.Expanded' => _single('child')!,
@@ -2986,6 +3011,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       (node.type == 'flutter.widgets.Row' ||
           node.type == 'flutter.widgets.Column' ||
           node.type == 'flutter.widgets.Wrap' ||
+          node.type == 'flutter.widgets.ListBody' ||
           node.type == 'flutter.widgets.ListView') &&
       (node.slot('children')?.children.isEmpty ?? false);
 
@@ -3014,6 +3040,57 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     clipBehavior: _clipBehavior() ?? Clip.none,
     children: _children('children'),
   );
+
+  Widget _listBody() {
+    final mainAxis = _enum('mainAxis') == 'horizontal'
+        ? Axis.horizontal
+        : Axis.vertical;
+    final reverse = _boolean('reverse') ?? false;
+
+    Widget buildListBody() => ListBody(
+      mainAxis: mainAxis,
+      reverse: reverse,
+      children: _children('children'),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fallbackWidth =
+            mainAxis == Axis.vertical && !constraints.hasBoundedWidth
+            ? 240.0
+            : null;
+        final fallbackHeight =
+            mainAxis == Axis.horizontal && !constraints.hasBoundedHeight
+            ? 120.0
+            : null;
+        // The viewport and RenderListBody intentionally share one axis
+        // direction. `reverse` changes the viewport's scroll origin and the
+        // ListBody's child placement; it does not reorder the child list twice.
+        Widget viewport = SingleChildScrollView(
+          scrollDirection: mainAxis,
+          reverse: reverse,
+          primary: false,
+          child: buildListBody(),
+        );
+        if (node.slot('children')?.children.isEmpty ?? true) {
+          viewport = ConstrainedBox(
+            constraints: mainAxis == Axis.vertical
+                ? const BoxConstraints(minHeight: 36)
+                : const BoxConstraints(minWidth: 36),
+            child: viewport,
+          );
+        }
+        if (fallbackWidth != null || fallbackHeight != null) {
+          return SizedBox(
+            width: fallbackWidth,
+            height: fallbackHeight,
+            child: viewport,
+          );
+        }
+        return viewport;
+      },
+    );
+  }
 
   Widget _listView() {
     final scrollDirection = _enum('scrollDirection') == 'horizontal'

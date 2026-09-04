@@ -622,6 +622,48 @@ class WidgetNodePrototypeFactoryTest {
     }
 
     @Test
+    void createsListBodyWithFlutterOwnedDefaultsAndTypedOverrides() {
+        WidgetDefinition definition = definition("flutter.widgets.ListBody");
+
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, ID);
+
+        assertEquals(new WidgetTypeId("flutter.widgets.ListBody"), prototype.type());
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(assertInstanceOf(
+                WidgetSlot.ListSlot.class,
+                prototype.slots().get(new SlotName("children"))).children().isEmpty());
+
+        WidgetNode configured = WidgetNodePrototypeFactory.create(
+                definition,
+                ID,
+                Map.of(
+                        new PropertyName("mainAxis"),
+                        new PropertyValue.EnumValue("Axis", "horizontal"),
+                        new PropertyName("reverse"),
+                        new PropertyValue.BooleanValue(true)));
+        assertEquals(new PropertyValue.EnumValue("Axis", "horizontal"),
+                configured.properties().get(new PropertyName("mainAxis")));
+        assertEquals(new PropertyValue.BooleanValue(true),
+                configured.properties().get(new PropertyName("reverse")));
+
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("mainAxis"),
+                                new PropertyValue.EnumValue("Axis", "diagonal"))));
+        assertThrows(IllegalArgumentException.class,
+                () -> WidgetNodePrototypeFactory.create(
+                        definition,
+                        ID,
+                        Map.of(new PropertyName("reverse"),
+                                new PropertyValue.StringValue("true"))));
+        assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE,
+                WidgetPlacementRules.creationMode(definition));
+        assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
+    }
+
+    @Test
     void imageRequiresAnExplicitReviewedProviderAndNeverFabricatesOne() {
         WidgetDefinition image = definition("flutter.widgets.Image");
 

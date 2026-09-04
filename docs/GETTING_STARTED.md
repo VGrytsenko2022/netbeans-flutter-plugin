@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly thirty-five
+The current capability-gated Palette and native Canvas admit exactly thirty-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListView`, `Text`, `Icon` and `Image`. Thirty
-definitions use reviewed const constructors. Their `General` Properties expose
-exactly 675 typed writable rows: 658 across the thirty-four
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `ListView`, `Text`, `Icon` and `Image`.
+Thirty-one definitions use reviewed const constructors. Their `General`
+Properties expose exactly 677 typed writable rows: 660 across the thirty-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -350,6 +350,20 @@ stored signed integer and paint its equivalent modulo-four rotation. The
 practical Material/Base backlog is now 35/92 complete with 57 remaining, and
 Layout contains 27 items.
 
+[`ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html) is
+the sixteenth post-core Palette slice, at Layout order 220 immediately after
+RotatedBox. Its optional **Main axis** and **Reverse** Properties preserve
+Flutter's `Axis.vertical` and `false` defaults while left as `<not set>`, and its
+ordered `children` slot starts empty. Drop children on its tree row or Canvas
+target; an empty node accepts index zero, while a populated node appends at the
+visual end selected by its axis, reversal and current text direction. Generated
+Dart contains the real bare `ListBody`. The Canvas alone supplies an
+axis-matched design-time viewport so the real widget receives the unbounded
+main-axis and bounded cross-axis constraints required by `RenderListBody`; that
+guard is not saved into the form or application source. The practical
+Material/Base backlog is now 36/92 complete with 56 remaining, and Layout
+contains 28 items.
+
 `Container` exposes all 13 reviewed non-widget constructor properties:
 `alignment`, `padding`, `color`, `isAntiAlias`, `decoration`,
 `foregroundDecoration`, `width`, `height`, `constraints`, `margin`, `transform`,
@@ -402,8 +416,8 @@ only after an admitted edit. Version 7 represents positive infinity as `null`
 in all four BoxConstraints bounds; older finite minima and nullable maxima
 migrate losslessly, version 8 adds the atomic finite non-negative `Size` wire
 value, and version 9 adds the atomic finite signed `Offset` wire value.
-Thirty-five sources across thirty-two insertable any-widget and two trait-bound
-slots produce 1,190 compatibility candidates: 1,032 accepted and 158
+Thirty-six sources across thirty-three insertable any-widget and two trait-bound
+slots produce 1,260 compatibility candidates: 1,097 accepted and 163
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

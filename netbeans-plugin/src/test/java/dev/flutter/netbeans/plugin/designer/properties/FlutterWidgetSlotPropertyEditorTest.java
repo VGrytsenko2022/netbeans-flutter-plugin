@@ -1866,6 +1866,87 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void listBodyChildrenAddsAtExactTerminalSourceOrderIndex()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ListBody");
+        WidgetNode first = text(
+                id("6c448476-83d6-4904-9cdd-b4f1006dd876"), "first");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                definition,
+                id("dfdd77d3-b014-43e2-bfd9-2ed30b54f86d"));
+        WidgetNode listBody = new WidgetNode(
+                prototype.id(),
+                prototype.type(),
+                prototype.properties(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(first))),
+                Extensions.empty());
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                listBody,
+                definition,
+                ignored -> { },
+                new FlutterWidgetSlotEditorContext(
+                        document(listBody),
+                        CATALOG,
+                        List.of(type("flutter.widgets.Text"))),
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+
+            assertEquals(1, current.getModel().getSize());
+            assertEquals("1 widget", editor.getAsText());
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Text");
+            assertEquals(List.of(), labels(position),
+                    "ListBody additions preserve terminal constructor order");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    environment.getState());
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(listBody.id(), add.ownerId());
+            assertEquals(CHILDREN, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(1, add.index(),
+                    "ListBody append follows the current last child");
+
+            children.setValue(staged);
+            children.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted ListBody children dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
     void flexibleChildIsReplacementOnlyAndDirectFlexSlotsNeverOfferAddFlexible()
             throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");

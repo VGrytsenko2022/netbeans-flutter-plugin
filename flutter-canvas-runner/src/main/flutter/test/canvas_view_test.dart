@@ -245,6 +245,9 @@ void main() {
     expect(canvasDropSlotsForWidgetType('flutter.widgets.ListView'), const [
       canvasChildrenAppendDropSlot,
     ]);
+    expect(canvasDropSlotsForWidgetType('flutter.widgets.ListBody'), const [
+      canvasChildrenAppendDropSlot,
+    ]);
     expect(
       canvasStackChildrenAppendDropSlot.zonePlacement,
       CanvasDropZonePlacement.fullNode,
@@ -331,7 +334,7 @@ void main() {
     );
   });
 
-  test('closes the 35-source by 34-destination compatibility matrix', () {
+  test('closes the 36-source by 35-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -364,6 +367,7 @@ void main() {
       'flutter.widgets.Opacity',
       'flutter.widgets.Icon',
       'flutter.widgets.Image',
+      'flutter.widgets.ListBody',
       'flutter.widgets.ListView',
       'flutter.widgets.SizedBox',
       'flutter.widgets.Stack',
@@ -377,8 +381,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(35));
-    expect(destinations, hasLength(34));
+    expect(sourceTypes, hasLength(36));
+    expect(destinations, hasLength(35));
 
     var accepted = 0;
     var rejected = 0;
@@ -404,9 +408,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 1032);
-    expect(rejected, 158);
-    expect(accepted + rejected, 1190);
+    expect(accepted, 1097);
+    expect(rejected, 163);
+    expect(accepted + rejected, 1260);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -5072,6 +5076,369 @@ void main() {
     expect(field.canRequestFocus, isTrue);
     expect(tester.takeException(), isNull);
   });
+
+  testWidgets(
+    'renders real ListBody defaults and exact horizontal reverse arguments',
+    (tester) async {
+      const listBodyId = 'd79aaf47-73ef-43ee-943b-c2d44b92391d';
+      const firstId = '1b7b8bc1-f72e-4059-8d60-a32add0a62ef';
+      const secondId = '493448dd-35a8-42ed-96b5-e14dff0764a2';
+      final children = [
+        _viewSizedBoxNode(firstId, width: 40, height: 30),
+        _viewSizedBoxNode(secondId, width: 40, height: 30),
+      ];
+
+      Future<void> pump(Map<String, Object?> properties) async {
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(
+                utf8.encode(
+                  jsonEncode(
+                    _modelWithListBody(
+                      properties: properties,
+                      children: children,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+      }
+
+      await pump(const {});
+      final node = find.byKey(const ValueKey('canvas-widget-$listBodyId'));
+      ListBody listBody() => tester.widget<ListBody>(
+        find.descendant(of: node, matching: find.byType(ListBody)).first,
+      );
+      SingleChildScrollView viewport() => tester.widget<SingleChildScrollView>(
+        find
+            .descendant(of: node, matching: find.byType(SingleChildScrollView))
+            .first,
+      );
+
+      expect(listBody().mainAxis, Axis.vertical);
+      expect(listBody().reverse, isFalse);
+      expect(listBody().children, hasLength(2));
+      expect(viewport().scrollDirection, Axis.vertical);
+      expect(viewport().reverse, isFalse);
+      expect(viewport().primary, isFalse);
+      final defaultFirst = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$firstId')),
+      );
+      final defaultSecond = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$firstId')))
+            .width,
+        closeTo(300, 0.01),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$secondId')))
+            .width,
+        closeTo(300, 0.01),
+      );
+      expect(defaultFirst.top, lessThan(defaultSecond.top));
+      expect(tester.takeException(), isNull);
+
+      await pump(const {
+        'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'horizontal'},
+        'reverse': {'kind': 'boolean', 'value': true},
+      });
+      expect(listBody().mainAxis, Axis.horizontal);
+      expect(listBody().reverse, isTrue);
+      expect(viewport().scrollDirection, Axis.horizontal);
+      expect(viewport().reverse, isTrue);
+      final render = tester.renderObject<RenderListBody>(
+        find.descendant(of: node, matching: find.byType(ListBody)).first,
+      );
+      expect(render.axisDirection, AxisDirection.left);
+      final reversedFirst = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$firstId')),
+      );
+      final reversedSecond = tester.getRect(
+        find.byKey(const ValueKey('canvas-widget-$secondId')),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$firstId')))
+            .height,
+        closeTo(160, 0.01),
+      );
+      expect(
+        tester
+            .getSize(find.byKey(const ValueKey('canvas-widget-$secondId')))
+            .height,
+        closeTo(160, 0.01),
+      );
+      expect(reversedFirst.left, greaterThan(reversedSecond.left));
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets(
+    'gives ListBody an unbounded main axis and a finite cross axis in every flex placement',
+    (tester) async {
+      const cases = <({String parentType, Axis axis})>[
+        (parentType: 'flutter.widgets.Column', axis: Axis.vertical),
+        (parentType: 'flutter.widgets.Row', axis: Axis.vertical),
+        (parentType: 'flutter.widgets.Row', axis: Axis.horizontal),
+        (parentType: 'flutter.widgets.Column', axis: Axis.horizontal),
+      ];
+
+      for (final entry in cases) {
+        final properties = <String, Object?>{
+          if (entry.axis == Axis.horizontal)
+            'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'horizontal'},
+        };
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(
+                utf8.encode(
+                  jsonEncode(
+                    _modelWithListBody(
+                      properties: properties,
+                      children: [
+                        _viewSizedBoxNode(
+                          '1b7b8bc1-f72e-4059-8d60-a32add0a62ef',
+                          width: 40,
+                          height: 30,
+                        ),
+                        _viewSizedBoxNode(
+                          '493448dd-35a8-42ed-96b5-e14dff0764a2',
+                          width: 40,
+                          height: 30,
+                        ),
+                      ],
+                      unboundedParentType: entry.parentType,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+          ),
+        );
+        await tester.pump();
+
+        final finder = find.byType(ListBody);
+        final render = tester.renderObject<RenderListBody>(finder);
+        final size = tester.getSize(finder);
+        expect(size.width.isFinite, isTrue, reason: entry.toString());
+        expect(size.height.isFinite, isTrue, reason: entry.toString());
+        if (entry.axis == Axis.vertical) {
+          expect(
+            render.constraints.hasBoundedHeight,
+            isFalse,
+            reason: entry.toString(),
+          );
+          expect(
+            render.constraints.hasBoundedWidth,
+            isTrue,
+            reason: entry.toString(),
+          );
+        } else {
+          expect(
+            render.constraints.hasBoundedWidth,
+            isFalse,
+            reason: entry.toString(),
+          );
+          expect(
+            render.constraints.hasBoundedHeight,
+            isTrue,
+            reason: entry.toString(),
+          );
+        }
+        if (entry.parentType == 'flutter.widgets.Row' &&
+            entry.axis == Axis.vertical) {
+          expect(size.width, closeTo(240, 0.01));
+        }
+        if (entry.parentType == 'flutter.widgets.Column' &&
+            entry.axis == Axis.horizontal) {
+          expect(size.height, closeTo(120, 0.01));
+        }
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
+
+  testWidgets(
+    'keeps empty ListBody nodes concrete, selectable, and appendable in Column and Row',
+    (tester) async {
+      const listBodyId = 'd79aaf47-73ef-43ee-943b-c2d44b92391d';
+      const cases = <({String parentType, Axis axis})>[
+        (parentType: 'flutter.widgets.Column', axis: Axis.vertical),
+        (parentType: 'flutter.widgets.Row', axis: Axis.horizontal),
+      ];
+
+      for (final entry in cases) {
+        String? selectedWidgetId;
+        CanvasDropResolver? resolver;
+        final properties = <String, Object?>{
+          if (entry.axis == Axis.horizontal)
+            'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'horizontal'},
+        };
+        final model = CanvasModel.decode(
+          Uint8List.fromList(
+            utf8.encode(
+              jsonEncode(
+                _modelWithListBody(
+                  properties: properties,
+                  children: const [],
+                  unboundedParentType: entry.parentType,
+                ),
+              ),
+            ),
+          ),
+        );
+
+        await tester.pumpWidget(
+          StatefulBuilder(
+            builder: (context, setState) => CanvasModelApp(
+              model: model,
+              selectedWidgetId: selectedWidgetId,
+              onSelected: (id) => setState(() => selectedWidgetId = id),
+              onDropResolverChanged: (value) => resolver = value,
+            ),
+          ),
+        );
+        await tester.pump();
+
+        final node = find.byKey(const ValueKey('canvas-widget-$listBodyId'));
+        final size = tester.getSize(node);
+        expect(size.isEmpty, isFalse, reason: entry.toString());
+        expect(
+          entry.axis == Axis.vertical ? size.height : size.width,
+          greaterThanOrEqualTo(36),
+          reason: entry.toString(),
+        );
+        await tester.tap(node);
+        await tester.pump();
+        expect(selectedWidgetId, listBodyId, reason: entry.toString());
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final point = tester.getRect(node).center;
+        final drop = resolver!(
+          ((point.dx - surface.left) / surface.width * 1000000).round(),
+          ((point.dy - surface.top) / surface.height * 1000000).round(),
+        );
+        expect(drop?.parentWidgetId, listBodyId, reason: entry.toString());
+        expect(drop?.slotName, 'children', reason: entry.toString());
+        expect(drop?.insertionIndex, 0, reason: entry.toString());
+        expect(drop?.zone?.isEmpty, isFalse, reason: entry.toString());
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
+
+  testWidgets(
+    'resolves ListBody append and move edges for both axes, reverse, and RTL',
+    (tester) async {
+      const listBodyId = 'd79aaf47-73ef-43ee-943b-c2d44b92391d';
+      const firstId = '1b7b8bc1-f72e-4059-8d60-a32add0a62ef';
+      const secondId = '493448dd-35a8-42ed-96b5-e14dff0764a2';
+      const cases = <({Axis axis, bool reverse, TextDirection direction})>[
+        (axis: Axis.vertical, reverse: false, direction: TextDirection.ltr),
+        (axis: Axis.vertical, reverse: true, direction: TextDirection.ltr),
+        (axis: Axis.horizontal, reverse: false, direction: TextDirection.ltr),
+        (axis: Axis.horizontal, reverse: true, direction: TextDirection.ltr),
+        (axis: Axis.horizontal, reverse: false, direction: TextDirection.rtl),
+        (axis: Axis.horizontal, reverse: true, direction: TextDirection.rtl),
+      ];
+
+      for (final entry in cases) {
+        final properties = <String, Object?>{
+          if (entry.axis == Axis.horizontal)
+            'mainAxis': {'kind': 'enum', 'type': 'Axis', 'value': 'horizontal'},
+          'reverse': {'kind': 'boolean', 'value': entry.reverse},
+        };
+        final json = _modelWithListBody(
+          properties: properties,
+          children: [
+            _viewSizedBoxNode(firstId, width: 40, height: 30),
+            _viewSizedBoxNode(secondId, width: 40, height: 30),
+          ],
+        );
+        (json['profile']! as Map<String, Object?>)['locale'] =
+            entry.direction == TextDirection.rtl ? 'ar-SA' : 'en-US';
+        CanvasDropResolver? dropResolver;
+        CanvasMovePreviewResolver? moveResolver;
+        await tester.pumpWidget(
+          CanvasModelApp(
+            model: CanvasModel.decode(
+              Uint8List.fromList(utf8.encode(jsonEncode(json))),
+            ),
+            selectedWidgetId: null,
+            onSelected: (_) {},
+            onDropResolverChanged: (value) => dropResolver = value,
+            onMovePreviewResolverChanged: (value) => moveResolver = value,
+          ),
+        );
+        await tester.pump();
+
+        final surface = tester.getRect(find.byType(CanvasDocumentView));
+        final listRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$listBodyId')),
+        );
+        final retainedRect = tester.getRect(
+          find.byKey(const ValueKey('canvas-widget-$secondId')),
+        );
+        final visuallyReversed = entry.axis == Axis.vertical
+            ? entry.reverse
+            : (entry.direction == TextDirection.rtl) != entry.reverse;
+        final terminalPoint = entry.axis == Axis.vertical
+            ? Offset(
+                listRect.center.dx,
+                visuallyReversed ? listRect.top + 1 : listRect.bottom - 1,
+              )
+            : Offset(
+                visuallyReversed ? listRect.left + 1 : listRect.right - 1,
+                listRect.center.dy,
+              );
+        int micros(double value, double origin, double extent) =>
+            ((value - origin) / extent * 1000000).round();
+        final terminal = dropResolver!(
+          micros(terminalPoint.dx, surface.left, surface.width),
+          micros(terminalPoint.dy, surface.top, surface.height),
+        );
+        expect(terminal?.parentWidgetId, listBodyId, reason: entry.toString());
+        expect(terminal?.slotName, 'children', reason: entry.toString());
+        expect(terminal?.insertionIndex, 2, reason: entry.toString());
+        expect(terminal?.zone?.isEmpty, isFalse, reason: entry.toString());
+
+        final move = moveResolver!(firstId, listBodyId, 'children', 1);
+        expect(move?.parentWidgetId, listBodyId, reason: entry.toString());
+        expect(move?.slotName, 'children', reason: entry.toString());
+        expect(move?.insertionIndex, 1, reason: entry.toString());
+        expect(move?.zone?.isEmpty, isFalse, reason: entry.toString());
+        final zone = move!.zone!;
+        final actualMoveEdge = entry.axis == Axis.vertical
+            ? (zone.topMicros + zone.bottomMicros) ~/ 2
+            : (zone.leftMicros + zone.rightMicros) ~/ 2;
+        final physicalEdge = entry.axis == Axis.vertical
+            ? (visuallyReversed ? retainedRect.top : retainedRect.bottom)
+            : (visuallyReversed ? retainedRect.left : retainedRect.right);
+        final expectedMoveEdge = entry.axis == Axis.vertical
+            ? micros(physicalEdge, surface.top, surface.height)
+            : micros(physicalEdge, surface.left, surface.width);
+        expect(
+          actualMoveEdge,
+          closeTo(expectedMoveEdge, 2),
+          reason: entry.toString(),
+        );
+        expect(tester.takeException(), isNull, reason: entry.toString());
+      }
+    },
+  );
 
   testWidgets('renders every reviewed ListView argument with real Flutter', (
     tester,
@@ -10941,6 +11308,60 @@ Map<String, Object?> _modelWithFixedFlex({
           },
           'slots': <String, Object?>{
             'child': <String, Object?>{'kind': 'single', 'child': flex},
+          },
+        },
+      },
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithListBody({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> children,
+  String? unboundedParentType,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final listBody = <String, Object?>{
+    'id': 'd79aaf47-73ef-43ee-943b-c2d44b92391d',
+    'type': 'flutter.widgets.ListBody',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'children': <String, Object?>{'kind': 'list', 'children': children},
+    },
+  };
+  final content = unboundedParentType == null
+      ? listBody
+      : <String, Object?>{
+          'id': 'c971dca8-1238-45e6-913f-65579d142c5e',
+          'type': unboundedParentType,
+          'properties': <String, Object?>{},
+          'slots': <String, Object?>{
+            'children': <String, Object?>{
+              'kind': 'list',
+              'children': <Map<String, Object?>>[listBody],
+            },
+          },
+        };
+  body['child'] = <String, Object?>{
+    'id': '31684f33-2e10-4fc6-9658-77cf0fe7eb55',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': '3d80adae-3c10-4a2c-9b76-46179ea53b13',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{'kind': 'single', 'child': content},
           },
         },
       },

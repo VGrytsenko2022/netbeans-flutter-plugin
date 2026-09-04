@@ -53,6 +53,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
+            "flutter.widgets.ListBody",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -89,6 +90,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
+            "flutter.widgets.ListBody",
             "flutter.widgets.ListView",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
@@ -103,7 +105,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasThirtyFiveSourcesAndThirtyFourInsertableDestinations() {
+    void exactDndCapabilityMatrixHasThirtySixSourcesAndThirtyFiveInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -126,9 +128,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(35, sources.size());
-        assertEquals(34, destinations.size());
-        assertEquals(32, destinations.stream()
+        assertEquals(36, sources.size());
+        assertEquals(35, destinations.size());
+        assertEquals(33, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -136,9 +138,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(1190, candidates);
-        assertEquals(1032, accepted);
-        assertEquals(158, candidates - accepted);
+        assertEquals(1260, candidates);
+        assertEquals(1097, accepted);
+        assertEquals(163, candidates - accepted);
     }
 
     @Test
@@ -998,6 +1000,49 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void listBodyHasStaticEditableCapabilitiesAndExactV14Projection() {
+        WidgetDefinition definition = definition("flutter.widgets.ListBody");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(Set.of(
+                        new PropertyName("mainAxis"),
+                        new PropertyName("reverse")),
+                projection.properties().keySet());
+
+        var mainAxis = projection.propertyContracts().get(
+                new PropertyName("mainAxis"));
+        assertFalse(mainAxis.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), mainAxis.acceptedKinds());
+        assertTrue(mainAxis.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Axis:horizontal,vertical",
+                mainAxis.constraintFingerprints().get(PropertyValueKind.ENUM));
+
+        var reverse = projection.propertyContracts().get(
+                new PropertyName("reverse"));
+        assertFalse(reverse.required());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), reverse.acceptedKinds());
+        assertTrue(reverse.creationDefaultFingerprint().isEmpty());
+        assertEquals("any",
+                reverse.constraintFingerprints().get(PropertyValueKind.BOOLEAN));
+
+        assertEquals(Set.of(new SlotName("children")), projection.slots());
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.LIST, false, 0, 10_000),
+                projection.slotContracts().get(new SlotName("children")));
+    }
+
+    @Test
     void flexibleHasExactStaticEditableCapabilityAndIndependentProjection() {
         WidgetDefinition definition = definition("flutter.widgets.Flexible");
 
@@ -1624,6 +1669,13 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "integer:-9007199254740991:1:9007199254740991:1|"
                 + "integer:range:-9007199254740991:1:9007199254740991:1\n"
                 + "S|child|single|0|0|1|any\n"));
+        assertTrue(contract.contains(
+                "W|flutter.widgets.ListBody\n"
+                + "P|mainAxis|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Axis:horizontal,vertical\n"
+                + "P|reverse|boolean|0|-|-|boolean:any\n"
+                + "S|children|list|0|0|10000|any\n"));
     }
 
     @Test

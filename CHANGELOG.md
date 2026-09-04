@@ -7,6 +7,29 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 ### Added
 
 - The accepted const
+  [`flutter.widgets.ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html)
+  vertical slice is the sixteenth post-core Palette addition, at Layout order
+  220 immediately after RotatedBox. Its complete pinned Flutter 3.44.8
+  non-`key` contract exposes optional `Axis mainAxis` and `bool reverse`, with
+  Flutter defaults `Axis.vertical` and `false`, plus one ordered any-widget
+  `children` list. Detached prototypes preserve both defaults by omission and
+  start with an empty list. Generated Dart remains a bare real `ListBody`; the
+  native and exact-Web Canvas use an axis-matched design-time viewport guard so
+  the real widget receives the unbounded main-axis and bounded cross-axis
+  constraints required by `RenderListBody`. That guard is neither persisted nor
+  emitted into application source. Empty nodes expose insertion index zero;
+  populated terminal drop geometry follows `mainAxis`, `reverse` and ambient
+  `Directionality`. Exact property and list-slot editing, Palette/tree/Canvas
+  DnD, same-tree movement/reordering, deterministic generation, Save/reopen and
+  further editing, Undo/Redo and reviewed light/dark SVG icons share one closed
+  contract. The catalog now contains 36 widgets, 31 reviewed const constructors
+  and 677 writable rows, including 660 across the 35 non-`Scaffold`
+  definitions. Thirty-six sources across 33 insertable any-widget and two
+  trait-bound destinations form 1,260 DnD candidates: 1,097 accepted and 163
+  rejected. Layout contains 28 items, and the practical 92-widget backlog is
+  36/92 complete with 56 remaining. `.fd` stays at schema v9, Catalog API at 8
+  and Canvas model at v14; NBFC framing/control/wire remain v1.
+- The accepted const
   [`flutter.widgets.RotatedBox`](https://api.flutter.dev/flutter/widgets/RotatedBox/RotatedBox.html)
   vertical slice is the fifteenth post-core Palette addition, at Layout order
   210 immediately after Transform. Its complete pinned Flutter 3.44.8 non-`key`

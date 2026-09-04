@@ -25,11 +25,11 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(35, javaTypes.size(),
+        assertEquals(36, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
-                + "Transform, and RotatedBox");
+                + "Transform, RotatedBox, and ListBody");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -52,6 +52,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.SizedOverflowBox"));
         assertTrue(javaTypes.contains("flutter.widgets.Transform"));
         assertTrue(javaTypes.contains("flutter.widgets.RotatedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.ListBody"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));

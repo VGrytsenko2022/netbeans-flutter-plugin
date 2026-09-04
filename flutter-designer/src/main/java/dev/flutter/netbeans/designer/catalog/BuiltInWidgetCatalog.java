@@ -56,6 +56,7 @@ public final class BuiltInWidgetCatalog {
             sizedOverflowBox(),
             transform(),
             rotatedBox(),
+            listBody(),
             listView(),
             image(),
             elevatedButton(),
@@ -1117,6 +1118,23 @@ public final class BuiltInWidgetCatalog {
                         portableIntegers(),
                         new PropertyValue.IntegerValue(BigInteger.ONE))),
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition listBody() {
+        return widget(
+                "flutter.widgets.ListBody",
+                "ListBody",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.layout", 200, 220, "ListBody"),
+                List.of(
+                        namedProperty("mainAxis", 0, false,
+                                enumValues("Axis", "horizontal", "vertical")),
+                        namedProperty("reverse", 1, false,
+                                any(PropertyValueKind.BOOLEAN))),
+                List.of(listSlot("children", 2, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

@@ -1256,6 +1256,84 @@ class WidgetTreeValidatorTest {
     }
 
     @Test
+    void acceptsListBodyFlutterDefaultsConfiguredDirectionAndOrderedChildren() {
+        WidgetNode defaults = listBody(
+                "listBodyDefaults", Map.of(), List.of());
+        WidgetNode configured = listBody(
+                "listBodyConfigured",
+                Map.of(
+                        name("mainAxis"),
+                        new PropertyValue.EnumValue("Axis", "horizontal"),
+                        name("reverse"),
+                        new PropertyValue.BooleanValue(true)),
+                List.of(text("listBodyFirst"), text("listBodySecond")));
+
+        assertTrue(validator().validate(
+                document(defaults), BuiltInWidgetCatalog.getDefault()).valid());
+        assertTrue(validator().validate(
+                document(configured), BuiltInWidgetCatalog.getDefault()).valid());
+    }
+
+    @Test
+    void listBodyRejectsWrongAxisBooleanAndUnknownPropertyAtExactPaths() {
+        ValidationIssue axis = onlyIssue(
+                validator().validate(
+                        document(listBody(
+                                "listBodyWrongAxis",
+                                Map.of(name("mainAxis"),
+                                        new PropertyValue.EnumValue(
+                                                "Axis", "diagonal")),
+                                List.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_CONSTRAINT);
+        assertEquals("/root/properties/mainAxis", axis.path());
+
+        ValidationIssue reverse = onlyIssue(
+                validator().validate(
+                        document(listBody(
+                                "listBodyWrongReverse",
+                                Map.of(name("reverse"),
+                                        new PropertyValue.StringValue("true")),
+                                List.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.PROPERTY_KIND);
+        assertEquals("/root/properties/reverse", reverse.path());
+
+        ValidationIssue unknown = onlyIssue(
+                validator().validate(
+                        document(listBody(
+                                "listBodyUnknown",
+                                Map.of(name("spacing"),
+                                        new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                                List.of())),
+                        BuiltInWidgetCatalog.getDefault()),
+                WidgetTreeValidator.UNKNOWN_PROPERTY);
+        assertEquals("/root/properties/spacing", unknown.path());
+    }
+
+    @Test
+    void listBodyChildrenEnforceGlobalFlexParentDataPlacementRules() {
+        for (WidgetNode restricted : List.of(
+                expanded("listBodyExpanded", Map.of(), text("listBodyExpandedText")),
+                flexible("listBodyFlexible", Map.of(), text("listBodyFlexibleText")),
+                spacer("listBodySpacer", Map.of()))) {
+            WidgetNode listBody = listBody(
+                    "listBody-" + restricted.type().value(),
+                    Map.of(),
+                    List.of(restricted));
+
+            ValidationIssue issue = onlyIssue(
+                    validator().validate(
+                            document(listBody), BuiltInWidgetCatalog.getDefault()),
+                    WidgetTreeValidator.WIDGET_PLACEMENT);
+
+            assertEquals("/root/slots/children/children/0", issue.path());
+            assertTrue(issue.message().contains(
+                    "flutter.widgets.ListBody.children"));
+        }
+    }
+
+    @Test
     void opacityRequiresAnExplicitDoubleInsideTheInclusiveUnitInterval() {
         WidgetNode omitted = node(
                 "omitted", "flutter.widgets.Opacity", Map.of(), Map.of());
@@ -3055,6 +3133,14 @@ class WidgetTreeValidatorTest {
                 slotName("child"), child == null
                         ? WidgetSlot.SingleSlot.empty()
                         : WidgetSlot.SingleSlot.of(child)));
+    }
+
+    private static WidgetNode listBody(
+            String idSeed,
+            Map<PropertyName, PropertyValue> properties,
+            List<WidgetNode> children) {
+        return node(idSeed, "flutter.widgets.ListBody", properties, Map.of(
+                slotName("children"), new WidgetSlot.ListSlot(children)));
     }
 
     private static PropertyValue.Matrix4Value identityMatrix() {

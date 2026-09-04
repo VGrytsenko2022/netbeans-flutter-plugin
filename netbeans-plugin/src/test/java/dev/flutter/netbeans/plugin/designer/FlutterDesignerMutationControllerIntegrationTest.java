@@ -128,6 +128,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName ORIGIN = new PropertyName("origin");
     private static final PropertyName QUARTER_TURNS =
             new PropertyName("quarterTurns");
+    private static final PropertyName MAIN_AXIS = new PropertyName("mainAxis");
+    private static final PropertyName REVERSE = new PropertyName("reverse");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName BODY = new SlotName("body");
     private static final SlotName CHILD = new SlotName("child");
@@ -1765,6 +1767,170 @@ class FlutterDesignerMutationControllerIntegrationTest {
             assertEquals(editedTurns,
                     findModelWidget(saved.root(), appendedId)
                             .properties().get(QUARTER_TURNS));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteListBodyInsertionSurvivesSaveReloadAndFurtherAxisEdits()
+            throws Exception {
+        StableId appendedId = StableId.parse(
+                "65656565-6565-4565-8565-656565656565");
+        WidgetTypeId listBodyType = new WidgetTypeId(
+                "flutter.widgets.ListBody");
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_list_body_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        assertTrue(request.content().contains("ListBody("));
+                        assertTrue(request.content().contains("children: []"));
+                        assertFalse(request.content().contains("mainAxis:"));
+                        assertFalse(request.content().contains("reverse:"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            listBodyType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> appendedId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal ListBody insertion");
+
+            FlutterDesignerMutationController.MutationResult result =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ListBody to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    result.outcome(), result::reason);
+            FlutterDesignerMutationController.Snapshot applied =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode listBody = findModelWidget(
+                    applied.document().orElseThrow().root(), appendedId);
+            assertEquals(listBodyType, listBody.type());
+            assertEquals(Map.of(), listBody.properties(),
+                    "omission preserves vertical and false Flutter defaults");
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    listBody.slots().get(CHILDREN)).children().isEmpty());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            assertArrayEquals(candidateDart, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(candidateFd, Files.readAllBytes(fixture.fdPath()));
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_list_body_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedListBody = findModelWidget(
+                    reopened.document().orElseThrow().root(), appendedId);
+            assertEquals(listBodyType, reopenedListBody.type());
+            assertEquals(Map.of(), reopenedListBody.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    reopenedListBody.slots().get(CHILDREN)).children().isEmpty());
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains(
+                                "mainAxis: Axis.horizontal"));
+                        if (call == 1) {
+                            assertFalse(request.content().contains("reverse: true"));
+                        } else {
+                            assertTrue(request.content().contains("reverse: true"));
+                        }
+                        assertTrue(request.content().contains("children: []"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            PropertyValue.EnumValue horizontal =
+                    new PropertyValue.EnumValue("Axis", "horizontal");
+            FlutterDesignerMutationController.MutationResult axisEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(appendedId, MAIN_AXIS, horizontal),
+                            "ListBody.mainAxis")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    axisEdited.outcome(), axisEdited::reason);
+            FlutterDesignerMutationController.Snapshot horizontalSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            assertEquals(horizontal,
+                    findModelWidget(
+                            horizontalSnapshot.document().orElseThrow().root(), appendedId)
+                            .properties().get(MAIN_AXIS));
+
+            PropertyValue.BooleanValue reversed =
+                    new PropertyValue.BooleanValue(true);
+            FlutterDesignerMutationController.MutationResult reverseEdited =
+                    fixture.mutations().submit(
+                            horizontalSnapshot.token().orElseThrow(),
+                            new SetProperty(appendedId, REVERSE, reversed),
+                            "ListBody.reverse")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    reverseEdited.outcome(), reverseEdited::reason);
+            FlutterDesignerMutationController.Snapshot changed =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            horizontalSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, appendedId));
+            WidgetNode changedListBody = findModelWidget(
+                    changed.document().orElseThrow().root(), appendedId);
+            assertEquals(horizontal, changedListBody.properties().get(MAIN_AXIS));
+            assertEquals(reversed, changedListBody.properties().get(REVERSE));
+            assertEquals(2, editAnalyses.get());
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(candidateFd)).document();
+            WidgetNode savedListBody = findModelWidget(saved.root(), appendedId);
+            assertEquals(horizontal, savedListBody.properties().get(MAIN_AXIS));
+            assertEquals(reversed, savedListBody.properties().get(REVERSE));
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.ListSlot.class,
+                    savedListBody.slots().get(CHILDREN)).children().isEmpty());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

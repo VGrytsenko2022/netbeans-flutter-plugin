@@ -177,6 +177,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SizedOverflowBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Transform", STATIC_EDITABLE),
             Map.entry("flutter.widgets.RotatedBox", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ListBody", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ListView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE));
 
@@ -489,6 +490,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                             SIGNED_PORTABLE_INTEGER_BOUNDS,
                             PropertyValueKind.INTEGER)),
                     Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ListBody", projection(Map.ofEntries(
+                    enumProperty("mainAxis", "Axis", "horizontal", "vertical"),
+                    property("reverse", PropertyValueKind.BOOLEAN)),
+                    Map.of("children", listSlotSchema(false, 0, 10_000)))),
             Map.entry("flutter.widgets.ListView", listViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.Container", containerProjection()),

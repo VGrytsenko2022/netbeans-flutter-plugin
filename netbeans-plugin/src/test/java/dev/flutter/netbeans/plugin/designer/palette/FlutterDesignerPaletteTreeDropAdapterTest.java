@@ -82,6 +82,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     private static final WidgetTypeId TRANSFORM = type("flutter.widgets.Transform");
     private static final WidgetTypeId ROTATED_BOX =
             type("flutter.widgets.RotatedBox");
+    private static final WidgetTypeId LIST_BODY =
+            type("flutter.widgets.ListBody");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -1079,6 +1081,50 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void listBodyTokenCommitsOmittedDefaultsAndEmptyOrderedChildren() {
+        Fixture fixture = fixture(LIST_BODY);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(LIST_BODY, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(LIST_BODY, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves vertical and false Flutter defaults"),
+                () -> assertEquals(
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ListBody palette authority once"));
+    }
+
+    @Test
     void textTokenAppendsAFullNodeAtTheFrontOfStackPaintOrder() {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -1178,7 +1224,11 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 new AcceptedCase(
                         "empty RotatedBox",
                         document(prototype(ROTATED_BOX)),
-                        CHILD));
+                        CHILD),
+                new AcceptedCase(
+                        "empty ListBody",
+                        document(prototype(LIST_BODY)),
+                        CHILDREN));
 
         assertAll(accepted.stream().map(testCase -> () -> {
             Fixture fixture = fixture(TEXT);

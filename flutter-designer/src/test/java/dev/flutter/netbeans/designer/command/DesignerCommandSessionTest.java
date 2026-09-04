@@ -84,6 +84,8 @@ class DesignerCommandSessionTest {
             property("transformHitTests");
     private static final PropertyName FILTER_QUALITY = property("filterQuality");
     private static final PropertyName QUARTER_TURNS = property("quarterTurns");
+    private static final PropertyName MAIN_AXIS = property("mainAxis");
+    private static final PropertyName REVERSE = property("reverse");
     private static final PropertyName OPACITY = property("opacity");
     private static final PropertyName ALWAYS_INCLUDE_SEMANTICS =
             property("alwaysIncludeSemantics");
@@ -1096,6 +1098,122 @@ class DesignerCommandSessionTest {
                         furtherEdited.current().dartCandidateBytes(),
                         StandardCharsets.UTF_8)
                 .contains("quarterTurns: 5"));
+    }
+
+    @Test
+    void listBodyChildrenPropertiesUndoRedoSaveReopenAndFurtherEditAreExact()
+            throws Exception {
+        DesignerCommandSession initial = session(
+                fixture(text(FIRST_ID, "Anchor")));
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(
+                CATALOG.find(type("flutter.widgets.ListBody")).orElseThrow(),
+                WRAPPER_ID);
+        assertTrue(prototype.properties().isEmpty());
+        assertTrue(((WidgetSlot.ListSlot) prototype.slots().get(CHILDREN))
+                .children().isEmpty());
+
+        DesignerCommandSession added = applied(initial, new AddWidget(
+                new WidgetPlacement(ROOT_ID, CHILDREN, 1), prototype));
+        DesignerCommandSession firstChildAdded = applied(added, new AddWidget(
+                new WidgetPlacement(WRAPPER_ID, CHILDREN, 0),
+                text(SECOND_ID, "Second child")));
+        DesignerCommandSession secondChildAdded = applied(
+                firstChildAdded, new AddWidget(
+                        new WidgetPlacement(WRAPPER_ID, CHILDREN, 1),
+                        text(THIRD_ID, "First child")));
+        DesignerCommandSession reordered = applied(
+                secondChildAdded, new MoveWidget(
+                        THIRD_ID,
+                        new WidgetPlacement(WRAPPER_ID, CHILDREN, 0)));
+        WidgetNode reorderedListBody = find(
+                reordered.current().document().root(), WRAPPER_ID);
+        assertEquals(List.of(THIRD_ID, SECOND_ID),
+                ((WidgetSlot.ListSlot) reorderedListBody.slots().get(CHILDREN))
+                        .children().stream().map(WidgetNode::id).toList());
+
+        DesignerCommandSession horizontal = applied(reordered, new SetProperty(
+                WRAPPER_ID,
+                MAIN_AXIS,
+                new PropertyValue.EnumValue("Axis", "horizontal")));
+        DesignerCommandSession reversed = applied(horizontal, new SetProperty(
+                WRAPPER_ID, REVERSE, new PropertyValue.BooleanValue(true)));
+
+        assertRejected(reversed, new SetProperty(
+                        WRAPPER_ID,
+                        MAIN_AXIS,
+                        new PropertyValue.EnumValue("Axis", "diagonal")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+        assertRejected(reversed, new SetProperty(
+                        WRAPPER_ID,
+                        REVERSE,
+                        new PropertyValue.StringValue("true")),
+                DesignerCommandDiagnosticCode.PROPERTY_VALUE_REJECTED);
+
+        DesignerCommandSession reset = applied(
+                reversed, new ResetProperty(WRAPPER_ID, REVERSE));
+        WidgetNode finalListBody = find(
+                reset.current().document().root(), WRAPPER_ID);
+        assertEquals(new PropertyValue.EnumValue("Axis", "horizontal"),
+                finalListBody.properties().get(MAIN_AXIS));
+        assertFalse(finalListBody.properties().containsKey(REVERSE));
+
+        String dart = new String(
+                reset.current().dartCandidateBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("const ListBody("), dart);
+        assertTrue(dart.contains("mainAxis: Axis.horizontal"), dart);
+        assertFalse(dart.contains("reverse:"), dart);
+        assertTrue(dart.contains("children: ["), dart);
+        assertTrue(dart.indexOf("const Text('First child')")
+                < dart.indexOf("const Text('Second child')"), dart);
+        assertTrue(dart.indexOf("mainAxis: Axis.horizontal")
+                < dart.indexOf(
+                        "children: [", dart.indexOf("const ListBody(")), dart);
+
+        DesignerCommandSession undoReset = reset.undo().session();
+        assertEquals(new PropertyValue.BooleanValue(true), find(
+                undoReset.current().document().root(), WRAPPER_ID)
+                .properties().get(REVERSE));
+        DesignerCommandSession redoReset = undoReset.redo().session();
+        assertArrayEquals(reset.current().fdBytes(),
+                redoReset.current().fdBytes());
+        assertArrayEquals(reset.current().dartCandidateBytes(),
+                redoReset.current().dartCandidateBytes());
+
+        DesignerCommandSession saved = redoReset.markSaved();
+        String fd = new String(
+                saved.current().fdBytes(), StandardCharsets.UTF_8);
+        assertTrue(fd.contains("\"schemaVersion\": 9"), fd);
+        assertTrue(fd.contains("\"type\": \"flutter.widgets.ListBody\""), fd);
+        assertTrue(fd.contains("\"type\": \"Axis\""), fd);
+        assertTrue(fd.contains("\"value\": \"horizontal\""), fd);
+
+        DesignerCommandSessionOpenResult reopenedResult =
+                DesignerCommandSession.open(
+                        OriginalFdBytes.copyOf(
+                                saved.current().fdBytes(),
+                                FdCodecLimits.defaults()),
+                        saved.current().dartCandidateBytes(),
+                        CATALOG);
+        assertTrue(reopenedResult.ready(),
+                () -> reopenedResult.diagnostics().toString());
+        DesignerCommandSession reopened = reopenedResult.session().orElseThrow();
+        assertEquals(saved.current().document(), reopened.current().document());
+        assertArrayEquals(saved.current().fdBytes(), reopened.current().fdBytes());
+        assertArrayEquals(saved.current().dartCandidateBytes(),
+                reopened.current().dartCandidateBytes());
+
+        DesignerCommandSession editedAfterReopen = applied(
+                reopened, new SetProperty(
+                        WRAPPER_ID,
+                        REVERSE,
+                        new PropertyValue.BooleanValue(true)));
+        assertEquals(new PropertyValue.BooleanValue(true), find(
+                editedAfterReopen.current().document().root(), WRAPPER_ID)
+                .properties().get(REVERSE));
+        assertTrue(new String(
+                        editedAfterReopen.current().dartCandidateBytes(),
+                        StandardCharsets.UTF_8)
+                .contains("reverse: true"));
     }
 
     @Test

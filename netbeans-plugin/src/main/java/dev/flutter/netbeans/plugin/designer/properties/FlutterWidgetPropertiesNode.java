@@ -73,6 +73,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             new WidgetTypeId("flutter.widgets.Transform");
     private static final WidgetTypeId ROTATED_BOX_TYPE =
             new WidgetTypeId("flutter.widgets.RotatedBox");
+    private static final WidgetTypeId LIST_BODY_TYPE =
+            new WidgetTypeId("flutter.widgets.ListBody");
     private static final PropertyName OFFSTAGE_PROPERTY =
             new PropertyName("offstage");
     private static final PropertyName BASELINE_PROPERTY =
@@ -819,6 +821,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
         }
+        if (LIST_BODY_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children laid out sequentially along Main axis and stretched "
+                    + "across the bounded cross axis. ListBody requires unbounded space "
+                    + "along its main axis; Reverse changes visual placement without "
+                    + "changing the stored source order. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
         if (EXPANDED_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child expanded with FlexFit.tight along the direct Row or "
@@ -860,6 +872,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         boolean sizedOverflowBox = SIZED_OVERFLOW_BOX_TYPE.equals(widget.type());
         boolean transform = TRANSFORM_TYPE.equals(widget.type());
         boolean rotatedBox = ROTATED_BOX_TYPE.equals(widget.type());
+        boolean listBody = LIST_BODY_TYPE.equals(widget.type());
         boolean opacity = OPACITY_TYPE.equals(widget.type());
         boolean align = ALIGN_TYPE.equals(widget.type());
         boolean fractionallySizedBox = FRACTIONALLY_SIZED_BOX_TYPE.equals(widget.type());
@@ -906,6 +919,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 ? "Required signed quarter-turn rotation applied before layout "
                                         + "and optional child contract for the selected "
                                         + "RotatedBox widget."
+                        : listBody
+                                ? "Sequential main-axis layout, reading-direction reversal, "
+                                        + "and exact ordered children for the selected ListBody "
+                                        + "widget; the main axis must be unbounded and the cross "
+                                        + "axis bounded."
                         : opacity
                                 ? "Transparency and semantics contract for the selected "
                                         + "Opacity widget."
@@ -1029,6 +1047,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 + "multiples of four preserve orientation, and odd values "
                                 + "swap the child's width and height. Designer palette "
                                 + "creation starts at 1."));
+            } else if (listBody) {
+                properties.put(projectProperty(
+                        property,
+                        Optional.empty(),
+                        listBodyPropertyDisplayName(property.name()),
+                        listBodyPropertyDescription(property.name())));
             } else if (opacity && OPACITY_PROPERTY.equals(property.name())) {
                 properties.put(projectProperty(
                         property,
@@ -1221,6 +1245,29 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             }
         }
         return properties;
+    }
+
+    private static String listBodyPropertyDisplayName(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "mainAxis" -> "Main axis";
+            case "reverse" -> "Reverse";
+            default -> displayName(propertyName);
+        };
+    }
+
+    private static String listBodyPropertyDescription(PropertyName propertyName) {
+        return switch (propertyName.value()) {
+            case "mainAxis" ->
+                "Axis along which children are placed sequentially. Omission preserves "
+                + "Flutter's vertical default. RenderListBody requires unbounded space "
+                + "along this axis and a bounded cross axis.";
+            case "reverse" ->
+                "Whether children are positioned opposite the reading direction. Omission "
+                + "preserves Flutter's false default. Horizontal placement combines this "
+                + "value with ambient LTR/RTL Directionality; vertical placement changes "
+                + "between down and up without changing the stored source order.";
+            default -> "Explicit ListBody value for " + propertyName.value() + ".";
+        };
     }
 
     private static String unconstrainedBoxPropertyDescription(PropertyName propertyName) {

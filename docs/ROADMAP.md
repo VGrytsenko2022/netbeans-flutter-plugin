@@ -1666,13 +1666,29 @@ accepted architecture is documented in
   preserve Text's separate optional-composite semantics. Cover actual SDK text
   precedence, dynamic line metrics and inherited-theme behavior, plus required-child
   wrapping/replacement/movement protection, generation/provenance, codec/payload,
-  save/reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  save/reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. At that milestone:
   64 widgets, 58 const definitions, 779 rows (762 outside Scaffold), 61 scalar plus
   three structural definitions; 55 any-widget plus two trait slots remain 57
   destinations, 3,648 cells (3,363 accepted / 285 rejected), Basic 20. Historical
   target 64/92 with 28 remaining; schema/API/model stay 13/14/18. This is an
   API-reviewed successor, not a recovered fixed-order inventory. Full physical
   desktop acceptance remains deferred until the palette is complete.
+- [x] Add `DefaultSelectionStyle` in Basic at order 210 with all three optional
+  constructor fields and required child, plus a Designer-only required merge mode
+  with explicit false creation value and no unset/reset state.
+  Cover literal/semantic cursor and selection colors and all 41 predefined SDK
+  mouse cursors. Direct mode shadows outer fields with null; actual SDK .merge
+  inherits each unset field independently and cannot be generated as const.
+  Exclude only the deliberately non-insertable .fallback constructor. Include
+  factory/member provenance, codec/payload, stable Properties, required-child
+  wrapping/replacement/movement protection, actual Canvas consumer precedence,
+  save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current surface:
+  65 widgets, 59 const-capable definitions, 783 rows (766 outside Scaffold),
+  62 scalar plus three structural definitions; 55 any-widget plus two trait slots
+  remain 57 destinations, 3,705 cells (3,418 accepted / 287 rejected), Basic 21.
+  Historical target 65/92 with 27 remaining; schema/API/model stay 13/14/18.
+  This is an API-reviewed successor, not a recovered fixed-order inventory.
+  Full physical desktop acceptance remains deferred until the palette is complete.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1690,8 +1706,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-four admitted built-ins.
-  The 61 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-five admitted built-ins.
+  The 62 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

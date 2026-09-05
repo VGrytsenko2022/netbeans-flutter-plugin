@@ -6,6 +6,24 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `DefaultSelectionStyle` in Basic at order 210 with all three optional SDK fields
+  and required child, plus a required Designer-only Merge inherited style checkbox
+  with explicit false creation value. Only the three SDK fields allow unset/reset.
+  Both colors use literal/semantic theme editors; mouseCursor admits all 41 closed
+  SDK presets. Direct mode shadows outer fields with null, while the actual SDK
+  `.merge` helper inherits each unset field and disables const propagation. Includes
+  factory/member provenance, codec/payload, required-child wrapping/replacement,
+  movement protection, save/reopen/further edits, Undo/Redo, rollback and four SVGs.
+  SDK fallback is deliberately non-insertable. Current surface: 65 widgets, 59
+  const-capable definitions, 783 rows (766 outside Scaffold), 3,705 placements
+  (3,418 accepted / 287 rejected), Basic 21. Historical target 65/92, 27 remaining;
+  schema/API/model remain 13/14/18. Full physical desktop acceptance stays deferred.
+
+- Repeated references to the same Material ColorScheme role on different fields
+  of one widget no longer collide in generator symbol evidence. Theme occurrence
+  IDs include the exact model path without changing emitted Dart text; regression
+  coverage includes both DefaultSelectionStyle and existing Text properties.
+
 - `DefaultTextHeightBehavior` in Basic at order 200 with all three TextHeightBehavior
   settings and a required child. Both Boolean leaves use centered checkboxes with
   unset/false/true; leading distribution supports unset/even/proportional. All-unset
@@ -13,7 +31,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   argument. Actual Canvas preserves inherited/default-style/local Text precedence,
   dynamic text layout and inherited-theme behavior. Includes composite generation/
   provenance, codec/payload, wrapping/slot replacement/movement protection, save/
-  reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. At that milestone:
   64 widgets, 58 const definitions, 779 rows (762 outside Scaffold), 3,648 placements
   (3,363 accepted / 285 rejected), Basic 20. Historical target 64/92 with 28 remaining;
   schema/API/model stay 13/14/18. Full physical desktop acceptance remains deferred.

@@ -81,6 +81,7 @@ public final class BuiltInWidgetCatalog {
             visibility(),
             tickerMode(),
             defaultTextHeightBehavior(),
+            defaultSelectionStyle(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -1961,6 +1962,23 @@ public final class BuiltInWidgetCatalog {
         return widget(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.value(),
                 "DefaultTextHeightBehavior", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 200, "DefaultTextHeightBehavior"), properties,
+                List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition defaultSelectionStyle() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("cursorColor", 0, false, colorOrTheme()),
+                namedProperty("selectionColor", 1, false, colorOrTheme()),
+                namedProperty("mouseCursor", 2, false, stringPattern(
+                        DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset")),
+                namedProperty("merge", 4, true, any(PropertyValueKind.BOOLEAN),
+                        new PropertyValue.BooleanValue(false)));
+        if (properties.size() != DefaultSelectionStyleWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("DefaultSelectionStyle catalog/property schema count mismatch");
+        }
+        return widget(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.value(),
+                "DefaultSelectionStyle", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 210, "DefaultSelectionStyle"), properties,
                 List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
     }
 

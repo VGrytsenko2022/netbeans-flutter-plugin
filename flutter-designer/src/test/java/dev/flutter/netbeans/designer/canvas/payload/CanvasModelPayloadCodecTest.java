@@ -132,6 +132,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.Visibility",
                 "flutter.widgets.TickerMode",
                 "flutter.widgets.DefaultTextHeightBehavior",
+                "flutter.widgets.DefaultSelectionStyle",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -1353,6 +1354,83 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void defaultSelectionStylePayloadPreservesAllModesAnd41CursorValuesWithOptionalColors() throws Exception {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Default selection child");
+        var modes = List.of(false, true);
+        var cursors = new java.util.ArrayList<Optional<String>>();
+        cursors.add(Optional.empty());
+        dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets()
+                .forEach(value -> cursors.add(Optional.of(value)));
+        int combinations = 0;
+        for (var mode : modes) for (var mouse : cursors) for (boolean colors : List.of(false, true)) {
+            combinations++;
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("merge"), new PropertyValue.BooleanValue(mode));
+            mouse.ifPresent(value -> properties.put(new PropertyName("mouseCursor"), new PropertyValue.StringValue(value)));
+            if (colors) {
+                properties.put(new PropertyName("cursorColor"), new PropertyValue.ColorValue(0x80123456L));
+                properties.put(new PropertyName("selectionColor"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")));
+            }
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"), properties,
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            var codec = new CanvasModelPayloadCodec();
+            byte[] bytes = codec.encode(request);
+            assertArrayEquals(bytes, codec.encode(request));
+            String json = new String(bytes, StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.DefaultSelectionStyle\""), json);
+            assertTrue(json.contains("Default selection child"), json);
+            assertTrue(json.contains("\"merge\":"), json);
+            assertEquals(mouse.isPresent(), json.contains("\"mouseCursor\":"), json);
+            assertEquals(colors, json.contains("\"cursorColor\":"), json);
+            assertEquals(colors, json.contains("\"selectionColor\":"), json);
+            assertTrue(json.contains("\"merge\":{\"kind\":\"boolean\",\"value\":" + mode + "}"), json);
+            mouse.ifPresent(value -> assertTrue(json.contains("\"mouseCursor\":{\"kind\":\"string\",\"value\":\"" + value + "\"}"), json));
+            if (colors) {
+                assertTrue(json.contains("0x80123456"), json);
+                assertTrue(json.contains("material.colorScheme.primary"), json);
+            }
+            for (String name : List.of("key", "fallback", "defaultColor", "inherit")) {
+                assertFalse(json.contains("\"" + name + "\":"), json);
+            }
+        }
+        assertEquals(168, combinations);
+    }
+
+    @Test
+    void defaultSelectionStylePayloadRejectsWrongKindsForeignTokensAndMissingRequiredModeOrChildBeforeEncoding() {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Default selection child");
+        for (String name : List.of("cursorColor", "selectionColor", "mouseCursor", "merge")) {
+            for (PropertyValue invalid : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("unknown"),
+                    new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), new PropertyValue.DartExpressionValue("MouseCursor.defer"))) {
+                var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("merge"), new PropertyValue.BooleanValue(false));
+                properties.put(new PropertyName(name), invalid);
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"),
+                        properties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        for (var node : List.of(
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"), Map.of(),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))),
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"),
+                        Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)), Map.of()),
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"),
+                        Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())),
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultSelectionStyle"),
+                        Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false),
+                                new PropertyName("selectionColor"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.textTheme.bodyMedium"))),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

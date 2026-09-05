@@ -37,10 +37,11 @@ ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
-`TickerMode`, and ADR-092 establishes the current `DefaultTextHeightBehavior`
-surface: 779 typed rows across sixty-four widgets, fifty-eight const-constructor
-definitions and 3,648 Palette/DnD candidates, including 3,363 accepted and 285
-rejected cells. The 762-field
+`TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, and ADR-093 establishes the
+current `DefaultSelectionStyle`
+surface: 783 typed rows across sixty-five widgets, fifty-nine const-constructor
+definitions and 3,705 Palette/DnD candidates, including 3,418 accepted and 287
+rejected cells. The 766-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -50,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-092 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-093 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -302,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-092 make 762 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-093 make 766 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -344,8 +345,10 @@ boolean and its required child wrapper slot. Visibility adds seven optional
 booleans, required child and optional replacement slots. TickerMode adds required
 enabled and optional forceFrames booleans with a required child wrapper slot.
 DefaultTextHeightBehavior adds three optional leaves forming the required
-TextHeightBehavior value and a required child wrapper slot. Scaffold separately
-contributes 17 rows, giving 779 overall.
+TextHeightBehavior value and a required child wrapper slot. DefaultSelectionStyle
+adds three optional SDK fields, a required Designer-only merge Boolean and required child.
+Scaffold separately
+contributes 17 rows, giving 783 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -419,8 +422,10 @@ matrix (3,032 accepted / 272 rejected). ADR-088 establishes the historical sixty
 sixty-one-source, 3,416-candidate matrix (3,140 accepted / 276 rejected). ADR-090
 establishes the historical sixty-two-source, 3,534-candidate matrix
 (3,253 accepted / 281 rejected). ADR-091 establishes the historical sixty-three-source,
-3,591-candidate matrix (3,308 accepted / 283 rejected). ADR-092 establishes the current
+3,591-candidate matrix (3,308 accepted / 283 rejected). ADR-092 establishes the historical
 sixty-four-source, 3,648-candidate matrix (3,363 accepted / 285 rejected).
+ADR-093 establishes the current sixty-five-source, 3,705-candidate matrix
+(3,418 accepted / 287 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -431,7 +436,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -445,16 +450,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-four-widget model for Mobile, Tablet,
+Canvas now renders the validated sixty-five-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-four Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,648-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,363 cells are accepted and 285 rejected.
+those sixty-five Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,705-cell candidate matrix across fifty-five insertable any-widget and two
+trait-bound destination slots; 3,418 cells are accepted and 287 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode and DefaultTextHeightBehavior use the same generic atomic required-child wrapper
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior and DefaultSelectionStyle use the same generic atomic required-child wrapper
 mode, with tree root/non-root and Canvas non-root-only targets; none can wrap Expanded,
 Flexible or Spacer.
 Canvas model
@@ -4447,7 +4452,7 @@ required-child protection, save/reopen/further editing, Undo/Redo, rejected-chan
 rollback, accessibility and four distinct light/dark 16/32px SVGs. Existing value
 shapes suffice: FD schema 13, API model 14, Canvas model 18 and NBFC1 stay unchanged.
 
-Current totals: 64 widgets, 58 const definitions, 779 writable rows (762 outside
+At that milestone: 64 widgets, 58 const definitions, 779 writable rows (762 outside
 Scaffold); 61 scalar plus structural IntrinsicHeight/RepaintBoundary/MergeSemantics.
 The 55 any-widget plus two trait destinations remain 57 insertable slots:
 64x57 = 3,648 cells, 3,363 accepted and 285 rejected. Categories: Layout 31,
@@ -4486,3 +4491,144 @@ The rebuilt Web entry is 2,870,332 bytes with SHA-256
 both source/Web manifests and the artifact contract match. The verified
 `netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,325,029 bytes with SHA-256
 `B6DC1A0D887E49E464FE84054DABAC8171C682472A1DCD0F75C9BEEC837FA381`.
+
+## ADR-093 — DefaultSelectionStyle includes direct and merging inheritance
+
+Accepted, 2026-09-05. The canonical checkout remains
+G:\MyProjects\java\project\netbeans-flutter-plugin-starter; this slice follows
+25a1c5e on branch 0.1.3. Review the pinned Flutter 3.44.8 framework implementation
+and the official DefaultSelectionStyle constructor, merge and fallback API pages.
+
+Add flutter.widgets.DefaultSelectionStyle as one STATIC_EDITABLE Basic/order 210
+palette definition. The complete insertable constructor has optional cursorColor,
+selectionColor and mouseCursor at orders 0/1/2, required single any-widget child
+at order 3, and the existing managed key. Both colors use literal ARGB or reviewed
+Material ColorScheme roles. The three SDK fields have no explicit creation defaults.
+
+Also expose required Boolean merge at order 4 as a Designer-only construction mode,
+with explicit false creation value. False selects the normal const-capable
+constructor; true selects the actual static
+DefaultSelectionStyle.merge helper. This is not a named const constructor and must
+disable const propagation to ancestors. The mode never appears as a Dart argument.
+The factory has separate candidate-bound symbol evidence. Direct mode replaces
+all three inherited fields, including nulls. Merge inherits each unset field
+independently and overrides only explicit values. To clear an inherited field to
+null, choose direct mode; merge's omitted/null argument intentionally inherits.
+
+The cursor is a closed StringValue admitting all 36 SystemMouseCursors presets,
+MouseCursor.defer/uncontrolled and WidgetStateMouseCursor.clickable,
+adaptiveClickable/textable: 41 predefined values in total. Emit each with its real
+SDK owner and member provenance; do not turn the preset name into a quoted Dart
+string. WidgetStateMouseCursor can be used as an ordinary MouseCursor and resolves
+the empty state in createSession. adaptiveClickable uses kIsWeb, not the simulated
+Canvas device profile. Deprecated aliases need no duplicate value; arbitrary
+cursor subclasses and resolver callbacks are outside this closed preset contract.
+The existing TextField 36-preset domain stays unchanged.
+
+The separate const DefaultSelectionStyle.fallback constructor is deliberately not
+insertable: it holds an invalid _NullWidget child and the SDK throws when it is
+mounted. It supplies a fallback value from of(), not an application subtree. This
+is an SDK restriction, not a deferred supported palette branch.
+
+Render the actual constructor/helper and use real SDK consumer precedence and
+inherited-theme notifications/capture/wrap. Explicit Text selectionColor and
+TextField cursorColor override the corresponding inherited defaults, subject to
+the SDK's error/theme fallback rules. TextField's mouse cursor is a separate local
+setting; DefaultSelectionStyle.mouseCursor applies to selectable Text. The wrapper
+does not itself make Text selectable or override Designer's guarded input policy.
+ThemeData/TextSelectionTheme wrappers retain their actual framework behavior.
+Selection color can remain null in an unfocused EditableText; do not fabricate
+selection or focus merely to display a style in the Canvas preview.
+
+The four editable rows use stable shared Properties infrastructure: two color
+editors/previews, a closed cursor chooser and centered required Merge checkbox.
+The three nullable SDK fields retain unset/reset. Merge is an explicit true/false
+construction choice and cannot be removed/reset; rejected reset leaves the model,
+focus and history untouched. Reset of an SDK field removes only that selected
+field; it does not replace the property sheet or discard the required child.
+Reuse generic atomic tree root/non-root and Canvas non-root wrapping, required
+child replacement and protection against clearing/removing/moving it away.
+Intact wrappers use ordinary placement rules; direct Row/Column ParentData keeps
+Expanded/Flexible/Spacer outside the eligible wrapped-child set. Complete the
+codec/payload, Save/reopen/further editing, Undo/Redo, rollback, selection/F2 and
+four light/dark 16/32px SVG paths without a new property kind or format version.
+
+Current totals: 65 widgets, 59 const-capable definitions, 783 writable rows
+(766 outside Scaffold); 62 scalar plus structural IntrinsicHeight/RepaintBoundary/
+MergeSemantics. Eight generic wrappers do not add an ordinary insertion destination.
+55 any-widget plus two trait destinations remain 57 slots: 65x57 = 3,705 cells,
+3,418 accepted and 287 rejected. Categories: Layout 31, Scrolling 3, Basic 21,
+Material 4, Accessibility 6. Historical practical target: 65/92, 27 remaining.
+This is an API-reviewed successor; the historical ordered 92-widget inventory
+has not been recovered. FD schema 13, contributor API 14, Canvas model 18 and
+NBFC1 stay unchanged. Full physical desktop acceptance remains deferred until
+the palette target is complete.
+
+Focused real-SDK validation passes the new candidate test: both generation modes
+with all 41 cursor presets, literal/theme colors, nested reset/merge, selection
+and TextField composition. Eleven accepted class/factory/member probes confirm
+the widgets.dart re-exports resolve inside the pinned SDK. Thirteen malformed
+forms are rejected, including missing/wrong child, wrong color/cursor types,
+invented cursor, leaked merge arguments and illegal const static-helper calls.
+Each candidate leaves the original disk file and analysis options unchanged.
+
+The exhaustive color matrix uncovered a shared generator defect: repeated use of
+one theme token in different properties of a single widget reused the same symbol
+occurrence ID. Qualify the existing theme-token occurrence with its exact model
+path, retaining deterministic identity and unchanged emitted Dart text. This
+allows cursorColor=primary and selectionColor=primary on one DefaultSelectionStyle
+and fixes the same pre-existing Text case. A dedicated Text regression protects
+the shared path; existing strict validation and package trust are not weakened.
+
+The complete core Maven suite passes 1,245 tests with no failures/errors/skips.
+Nineteen new tests comprise eight contract tests, nine command/history tests and
+two payload tests, covering 756 generation/codec combinations and 168 payload
+combinations across both required construction modes and exhaustive typed values.
+Both owners and members of all 41 cursor constants, static merge
+evidence, repeated theme roles, const propagation and exact counts are verified.
+The final required-mode run passes all 1,245 tests again: missing merge is invalid,
+reset is rejected in both false/true modes, and failed reset or atomic patches
+leave the exact pair, revision and retained Undo/Redo path unchanged.
+
+The complete Flutter suite passes 805 tests (777 baseline plus 28 new), with clean
+analyze/format and no SDK edits. Coverage includes all mode/color/cursor decoding
+combinations, actual direct-null versus merge inheritance, semantic theme colors,
+TextField local/error/theme precedence, selection highlight and mouse hover on
+selectable Text, all three WidgetState cursor sessions, dynamic inherited updates,
+InheritedTheme capture/wrap, F2/focus/semantics, required-child wrapping/moves and
+the explicit invalid-child fallback assertion. Windows/Web model profiles use the
+real framework semantics; adaptiveClickable retains compile-time kIsWeb behavior.
+The rebuilt Web entry is 2,871,643 bytes with SHA-256
+`13b7b74d4b463d673a9a803dabf8d902c289b19afe95a99eb28dd4feec5cafee`.
+All 75 source/Web manifest entries were rehashed; both manifests and the packaged
+artifact test match the final runner and Web release build.
+
+During development, a nullable prototype for the Designer-only mode exposed a
+separate retained-history limitation: a same-Dart/different-model endpoint can
+become FD_ONLY after durable re-anchoring, while native retained pair history has
+no complete FD_ONLY endpoint/replay/save representation. Do not claim that this
+shared limitation is fixed, weaken the PAIRED/BASELINE proof contracts, synthesize
+Dart edits, or discard semantic history. The admitted widget instead models its
+construction choice explicitly as required false/true, like other required
+Designer creation fields. This does not restrict any nullable Flutter argument
+or either supported construction branch. The experimental coordinator change was
+removed; broader retained FD_ONLY history support requires its own complete work.
+
+The final focused NetBeans suite passes 693 tests with no failures/errors/skips,
+including all 41 cursor choices, typed color previews, required Merge checkbox,
+stable cell identity, required-reset rejection, optional SDK resets, wrapping/
+replacement/movement protection and the save/reopen/further-edit lifecycle.
+The shared Boolean editor contract now covers 125 fields. The lifecycle preserves
+the exact model, Dart/.fd bytes and Undo/Redo path when required reset is rejected;
+successful mode/color/cursor edits, child replacement and rejected analyzer changes
+retain the existing transaction behavior. PairSaveCoordinator is unchanged.
+
+Final clean release validation in the canonical G: checkout passes all 11 Maven
+reactor modules with the pinned Flutter/Dart SDK and real Web artifact. Surefire:
+3,594 tests, zero failures/errors, six allowed optional skips. Failsafe: 13 tests,
+zero failures/errors, one allowed physical Windows Canvas skip. The complete real
+Dart candidate analyzer suite passes 18 tests, and all 85 mutation lifecycle tests
+pass. `mvn nbm:cluster` and `tools/verify-release.ps1` both pass. The verified
+`netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,334,831 bytes with SHA-256
+`CCD2B55488F715B0B5477CEA70BA61481E742D30D65124C57211735353E7097B`.
+No installed-userdir verification or full physical desktop acceptance is claimed.

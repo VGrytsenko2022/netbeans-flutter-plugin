@@ -22,6 +22,7 @@ import dev.flutter.netbeans.designer.catalog.ExcludeFocusTraversalWidgetProperty
 import dev.flutter.netbeans.designer.catalog.VisibilityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TickerModeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -544,6 +545,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addTickerModePropertySets(sheet, hasSlotTab);
         } else if (DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.equals(widget.type())) {
             addDefaultTextHeightBehaviorPropertySets(sheet, hasSlotTab);
+        } else if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())) {
+            addDefaultSelectionStylePropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -738,6 +741,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child receiving inherited cursor color, selection color and mouse cursor defaults. "
+                    + "Merge true inherits unset fields from the ancestor; false uses a direct style and clears those fields. "
+                    + "Local selection settings can override these defaults. This does not make a child selectable. "
+                    + "Designer selection and editing remain available. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
         if (DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child receiving the nearest inherited TextHeightBehavior default. "
@@ -2499,6 +2511,36 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addDefaultSelectionStylePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<DefaultSelectionStyleWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(DefaultSelectionStyleWidgetPropertySchema.Group.class);
+        for (DefaultSelectionStyleWidgetPropertySchema.Group group
+                : DefaultSelectionStyleWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = DefaultSelectionStyleWidgetPropertySchema.find(property.name()).orElseThrow();
+            String reset = "merge".equals(property.name().value())
+                    ? " Merge is a required Designer-only choice, created as false; it cannot be unset or reset. "
+                            + "Both values use the centered checkbox. "
+                    : " Restore Default returns this SDK field to <not set>. ";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " Merge true emits DefaultSelectionStyle.merge and inherits each unset field from the ancestor. "
+                            + "Merge false emits the direct constructor: unset fields are null, not inherited. "
+                            + "Colors support literal and semantic theme values with previews; Mouse cursor is a closed list "
+                            + "of 36 SystemMouseCursors, MouseCursor.defer/uncontrolled and three WidgetStateMouseCursor presets. "
+                            + reset
+                            + "Local selection settings can override these defaults; this wrapper does not make a child selectable. "
+                            + "Designer child and descendant editing remain available.", false,
+                    "mouseCursor".equals(property.name().value())
+                            ? DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets() : java.util.List.of()));
+        }
+    }
+
     private void addDefaultTextHeightBehaviorPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<DefaultTextHeightBehaviorWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(DefaultTextHeightBehaviorWidgetPropertySchema.Group.class);
@@ -3512,7 +3554,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .reduce((left, right) -> left + "; " + right)
                 .orElse("catalog-declared values");
         String reset;
-        if (property.parameter().required()) {
+        if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())
+                && "merge".equals(property.name().value())) {
+            reset = " This required Designer-only selector cannot be unset or reset; "
+                    + "no merge argument is emitted.";
+        } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             reset = TextFieldWidgetPropertySchema.find(property.name())

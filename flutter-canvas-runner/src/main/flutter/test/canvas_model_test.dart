@@ -7215,7 +7215,7 @@ void main() {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.DecoratedBox\n');
     final end = contract.indexOf(
-      'W|flutter.widgets.DefaultTextHeightBehavior\n',
+      'W|flutter.widgets.DefaultSelectionStyle\n',
       start,
     );
     expect(start, greaterThanOrEqualTo(0));

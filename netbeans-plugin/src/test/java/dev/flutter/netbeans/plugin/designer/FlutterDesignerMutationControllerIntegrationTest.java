@@ -560,6 +560,264 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
 
+
+    @Test
+    void paletteDefaultSelectionStyleSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId childId = FIRST_ID;
+        StableId replacementId = StableId.parse("94949494-9494-4494-8494-949494949494");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.DefaultSelectionStyle");
+        PropertyName merge = new PropertyName("merge");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(new PropertyName("cursorColor"), new PropertyValue.ColorValue(0xFF123456L));
+        configured.put(new PropertyName("selectionColor"), new PropertyValue.ColorValue(0x80336699L));
+        configured.put(new PropertyName("mouseCursor"), new PropertyValue.StringValue("adaptiveClickable"));
+        configured.put(merge, new PropertyValue.BooleanValue(true));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("default_selection_style_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const DefaultSelectionStyle("));
+                assertFalse(request.content().contains("DefaultSelectionStyle.merge("));
+                assertFalse(request.content().contains("cursorColor:"));
+                assertFalse(request.content().contains("selectionColor:"));
+                assertFalse(request.content().contains("mouseCursor:"));
+                assertFalse(request.content().contains("merge:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, childId, () -> surfaceId));
+            var added = applyDefaultSelectionStyleMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)),
+                    surface.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().orElseThrow().id());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("default_selection_style_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("cursorColor", "selectionColor", "mouseCursor", "merge")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("DefaultSelectionStyle(")
+                        || request.content().contains("DefaultSelectionStyle.merge("));
+                assertFalse(request.content().contains("merge:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyDefaultSelectionStyleMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            current = applyDefaultSelectionStyleMutation(fixture, current,
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("Child edited with merged selection style")),
+                    surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "all colors, cursor and merge mode survive descendant editing");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("DefaultSelectionStyle.merge("));
+            assertFalse(generated.contains("const DefaultSelectionStyle.merge("));
+            assertTrue(generated.contains("cursorColor: const Color(0xFF123456)"));
+            assertTrue(generated.contains("selectionColor: const Color(0x80336699)"));
+            assertTrue(generated.contains("mouseCursor: WidgetStateMouseCursor.adaptiveClickable"));
+            assertFalse(generated.contains("merge:"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 5; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 5; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(5, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "default_selection_style_test_rejection", "DefaultSelectionStyle candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, merge, new PropertyValue.BooleanValue(false)),
+                    "DefaultSelectionStyle.merge").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("DefaultSelectionStyle candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("default_selection_style_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var mergeCell = cellProperty(properties, "merge");
+            mergeCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(false)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const DefaultSelectionStyle("));
+                assertFalse(request.content().contains("DefaultSelectionStyle.merge("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyDefaultSelectionStyleMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(merge, new PropertyValue.BooleanValue(false));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            commands.clear();
+            assertFalse(mergeCell.supportsDefaultValue());
+            mergeCell.restoreDefaultValue();
+            assertThrows(IllegalArgumentException.class,
+                    () -> mergeCell.setValue(FlutterPropertyCellValue.unset()));
+            assertTrue(commands.isEmpty(), "a required constructor-mode reset must not dispatch a UI command");
+            assertSame(mergeCell, cellProperty(properties, "merge"));
+            byte[] beforeRejectedResetDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] beforeRejectedResetFd = fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes();
+            String undoBeforeReset = fixture.dataObject().getCombinedUndoRedo().getUndoPresentationName();
+            var rejectedReset = fixture.mutations().submit(edited.token().orElseThrow(),
+                    new ResetProperty(surfaceId, merge), "DefaultSelectionStyle required Merge reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejectedReset.outcome(), rejectedReset::reason);
+            assertEquals(after, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(beforeRejectedResetDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(beforeRejectedResetFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoBeforeReset, fixture.dataObject().getCombinedUndoRedo().getUndoPresentationName());
+            edited = awaitReady(fixture.mutations());
+            Map<String, PropertyValue> furtherEdits = new java.util.LinkedHashMap<>();
+            furtherEdits.put("cursorColor", new PropertyValue.ColorValue(0xFFABCDEFL));
+            furtherEdits.put("selectionColor", new PropertyValue.ColorValue(0x40556677L));
+            furtherEdits.put("mouseCursor", new PropertyValue.StringValue("textable"));
+            for (var entry : furtherEdits.entrySet()) {
+                commands.clear();
+                cellProperty(properties, entry.getKey()).setValue(FlutterPropertyCellValue.explicit(entry.getValue()));
+                assertEquals(1, commands.size());
+                edited = applyDefaultSelectionStyleMutation(fixture, edited, commands.getFirst(), surfaceId);
+                expected.put(new PropertyName(entry.getKey()), entry.getValue());
+                assertEquals(expected, findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            }
+            String editedDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertTrue(editedDart.contains("cursorColor: const Color(0xFFABCDEF)"));
+            assertTrue(editedDart.contains("selectionColor: const Color(0x40556677)"));
+            assertTrue(editedDart.contains("mouseCursor: WidgetStateMouseCursor.textable"));
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            for (PropertyName name : configured.keySet().stream().filter(name -> !name.equals(merge)).toList()) {
+                edited = applyDefaultSelectionStyleMutation(fixture, edited, new ResetProperty(surfaceId, name), surfaceId);
+            }
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertFalse(resetDart.contains("cursorColor:"));
+            assertFalse(resetDart.contains("selectionColor:"));
+            assertFalse(resetDart.contains("mouseCursor:"));
+            assertFalse(resetDart.contains("merge:"));
+            assertTrue(resetDart.contains("const DefaultSelectionStyle("),
+                    "all SDK fields unset with Merge false creates the direct null-clearing style");
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("default_selection_style_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)),
+                    cellProperty(properties, "merge").getValue());
+            assertFalse(cellProperty(properties, "merge").supportsDefaultValue());
+            assertTrue(cellProperty(properties, "merge").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside selection-style subtree after reopen")));
+            assertEquals(1, childEdits.size(), "selection style must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyDefaultSelectionStyleMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside selection-style subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            byte[] beforeIllegalRemoval = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejectedRemoval = fixture.mutations().submit(current.token().orElseThrow(),
+                    new RemoveWidget(childId), "DefaultSelectionStyle required child removal").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejectedRemoval.outcome(), rejectedRemoval::reason);
+            assertEquals(editedChild, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), childId));
+            assertArrayEquals(beforeIllegalRemoval, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = awaitReady(fixture.mutations());
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(),
+                    replacementId);
+            current = applyDefaultSelectionStyleMutation(fixture, current,
+                    new ReplaceSlotChild(surfaceId, CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), surfaceId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("default_selection_style_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside selection-style subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
+        }
+    }
+
     @Test
     void paletteDefaultTextHeightBehaviorSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
             throws Exception {
@@ -8051,6 +8309,17 @@ class FlutterDesignerMutationControllerIntegrationTest {
             DesignerCommand command, StableId wrapperId) throws Exception {
         var result = fixture.mutations().submit(before.token().orElseThrow(), command,
                 "TickerMode properties and required child editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(wrapperId, SECOND_ID));
+    }
+
+
+    private static FlutterDesignerMutationController.Snapshot applyDefaultSelectionStyleMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "DefaultSelectionStyle properties and required child editing").get(10, TimeUnit.SECONDS);
         assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
                 List.of(wrapperId, SECOND_ID));

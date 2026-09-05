@@ -1618,6 +1618,110 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesDefaultSelectionStyleAndMergeWithEverySdkCursorPreset() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("default_selection_style_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaults() => const DefaultSelectionStyle(child: Text('Defaults'));
+                Widget explicitNulls() => const DefaultSelectionStyle(cursorColor: null,
+                  selectionColor: null, mouseCursor: null, child: Text('Clear inherited fields'));
+                Widget inherited() => DefaultSelectionStyle.merge(child: const Text('Inherit all'));
+                Widget nested() => DefaultSelectionStyle(cursorColor: const Color(0xFF123456),
+                  selectionColor: const Color(0x40876543), mouseCursor: SystemMouseCursors.click,
+                  child: DefaultSelectionStyle.merge(cursorColor: const Color(0xFF000000),
+                    child: const DefaultSelectionStyle(child: Text('Nearest null clears'))));
+                Widget selection() => const DefaultSelectionStyle(cursorColor: Color(0xFF123456),
+                  selectionColor: Color(0x80123456), mouseCursor: SystemMouseCursors.text,
+                  child: SelectionArea(child: Text('Selectable', selectionColor: Color(0x40876543))));
+                Widget input() => const DefaultSelectionStyle(cursorColor: Color(0xFF123456),
+                  selectionColor: Color(0x40123456), child: TextField(cursorColor: Color(0xFFABCDEF)));
+                Widget themed(BuildContext context) => DefaultSelectionStyle.merge(
+                  cursorColor: Theme.of(context).colorScheme.primary,
+                  selectionColor: Theme.of(context).colorScheme.secondary,
+                  child: Text(DateTime.now().toString()));
+                Widget composition() => TickerMode(enabled: false,
+                  child: DefaultSelectionStyle.merge(child: const DefaultTextHeightBehavior(
+                    textHeightBehavior: TextHeightBehavior(), child: Text('Nested'))));
+                DefaultSelectionStyle fallbackValueOnly() => const DefaultSelectionStyle.fallback();
+                List<Widget> cursorMatrix() => <Widget>[
+                """);
+        List<String> systemPresets = List.of("none", "basic", "click", "forbidden", "wait", "progress",
+                "contextMenu", "help", "text", "verticalText", "cell", "precise", "move", "grab", "grabbing",
+                "noDrop", "alias", "copy", "disappearing", "allScroll", "resizeLeftRight", "resizeUpDown",
+                "resizeUpLeftDownRight", "resizeUpRightDownLeft", "resizeUp", "resizeDown", "resizeLeft",
+                "resizeRight", "resizeUpLeft", "resizeUpRight", "resizeDownLeft", "resizeDownRight",
+                "resizeColumn", "resizeRow", "zoomIn", "zoomOut");
+        ArrayList<String> cursors = new ArrayList<>();
+        systemPresets.forEach(value -> cursors.add("SystemMouseCursors." + value));
+        cursors.addAll(List.of("MouseCursor.defer", "MouseCursor.uncontrolled", "WidgetStateMouseCursor.clickable",
+                "WidgetStateMouseCursor.adaptiveClickable", "WidgetStateMouseCursor.textable"));
+        assertEquals(41, cursors.size());
+        for (String cursor : cursors) {
+            valid.append("const DefaultSelectionStyle(mouseCursor: ").append(cursor)
+                    .append(", child: Text('Direct')),\n");
+            valid.append("DefaultSelectionStyle.merge(mouseCursor: ").append(cursor)
+                    .append(", child: const Text('Merge')),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("DefaultSelectionStyle", "Color", "SystemMouseCursors", "MouseCursor",
+                "WidgetStateMouseCursor")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("selection-style-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/widgets.dart", flutterSdk));
+        }
+        probes.add(probe("selection-style-merge", candidate.indexOf(".merge(") + 1, "merge",
+                "package:flutter/widgets.dart", flutterSdk));
+        for (String member : List.of("defer", "uncontrolled", "clickable", "adaptiveClickable", "textable")) {
+            probes.add(probe("selection-cursor-" + member, candidate.indexOf('.' + member + ',') + 1, member,
+                    "package:flutter/widgets.dart", flutterSdk));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1600, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1601;
+        for (String invalid : List.of(
+                "const DefaultSelectionStyle()",
+                "const DefaultSelectionStyle(child: null)",
+                "const DefaultSelectionStyle(cursorColor: 123, child: Text('Bad'))",
+                "const DefaultSelectionStyle(selectionColor: 'red', child: Text('Bad'))",
+                "const DefaultSelectionStyle(mouseCursor: 'click', child: Text('Bad'))",
+                "const DefaultSelectionStyle(mouseCursor: SystemMouseCursors.invented, child: Text('Bad'))",
+                "const DefaultSelectionStyle(merge: true, child: Text('Leaked Designer field'))",
+                "DefaultSelectionStyle.merge()",
+                "DefaultSelectionStyle.merge(child: null)",
+                "DefaultSelectionStyle.merge(mouseCursor: 1, child: const Text('Bad'))",
+                "DefaultSelectionStyle.merge(merge: false, child: const Text('Bad'))",
+                "const DefaultSelectionStyle.merge(child: Text('Not a const constructor'))",
+                "const DefaultSelectionStyle(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

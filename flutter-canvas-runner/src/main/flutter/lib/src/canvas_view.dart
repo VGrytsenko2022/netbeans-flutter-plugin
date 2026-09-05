@@ -576,6 +576,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Visibility' ||
         node.type == 'flutter.widgets.TickerMode' ||
         node.type == 'flutter.widgets.DefaultTextHeightBehavior' ||
+        node.type == 'flutter.widgets.DefaultSelectionStyle' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -2529,6 +2530,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.DefaultTextHeightBehavior' => DefaultTextHeightBehavior(
         textHeightBehavior: _textHeightBehavior() ?? const TextHeightBehavior(),
         child: _single('child')!,
+      ),
+      'flutter.widgets.DefaultSelectionStyle' => _defaultSelectionStyle(
+        context,
       ),
       'flutter.widgets.Visibility' => _CanvasVisibility(
         visibility: Visibility(
@@ -5033,6 +5037,26 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _defaultSelectionStyle(BuildContext context) {
+    final cursorColor = _resolvedColor(context, 'cursorColor');
+    final selectionColor = _resolvedColor(context, 'selectionColor');
+    final mouseCursor = _mouseCursor('mouseCursor');
+    final child = _single('child')!;
+    return _boolean('merge')!
+        ? DefaultSelectionStyle.merge(
+            cursorColor: cursorColor,
+            selectionColor: selectionColor,
+            mouseCursor: mouseCursor,
+            child: child,
+          )
+        : DefaultSelectionStyle(
+            cursorColor: cursorColor,
+            selectionColor: selectionColor,
+            mouseCursor: mouseCursor,
+            child: child,
+          );
+  }
+
   TextDecoration? _textDecoration(String prefix) {
     final names = {
       '${prefix}DecorationUnderline',
@@ -5365,6 +5389,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   MouseCursor? _mouseCursor(String name) => switch (_enumOrString(name)) {
     'defer' => MouseCursor.defer,
     'uncontrolled' => MouseCursor.uncontrolled,
+    'clickable' => WidgetStateMouseCursor.clickable,
+    'adaptiveClickable' => WidgetStateMouseCursor.adaptiveClickable,
+    'textable' => WidgetStateMouseCursor.textable,
     'none' => SystemMouseCursors.none,
     'basic' => SystemMouseCursors.basic,
     'click' => SystemMouseCursors.click,

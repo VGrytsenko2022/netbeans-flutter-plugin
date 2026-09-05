@@ -89,6 +89,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Visibility", ICON_ROOT + "visibility.svg"),
             Map.entry("flutter.widgets.TickerMode", ICON_ROOT + "tickermode.svg"),
             Map.entry("flutter.widgets.DefaultTextHeightBehavior", ICON_ROOT + "defaulttextheightbehavior.svg"),
+            Map.entry("flutter.widgets.DefaultSelectionStyle", ICON_ROOT + "defaultselectionstyle.svg"),
             Map.entry("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg"),
             Map.entry("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg"),
             Map.entry("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg"),

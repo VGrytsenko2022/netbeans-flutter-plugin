@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode` and `DefaultTextHeightBehavior`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior` and `DefaultSelectionStyle`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,14 +241,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-64 reviewed Canvas widgets. Palette insertion evaluates 3,648 exact
-source/destination cells across 64 draggable sources and 57 insertable reviewed
-slots; 3,363 are accepted and 285 cells are rejected. Expanded and Flexible are
+65 reviewed Canvas widgets. Palette insertion evaluates 3,705 exact
+source/destination cells across 65 draggable sources and 57 insertable reviewed
+slots; 3,418 are accepted and 287 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode and DefaultTextHeightBehavior are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior and DefaultSelectionStyle are generic atomic wrappers around
 an existing widget,
 never an empty required-child prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
@@ -1073,10 +1073,23 @@ inheritance use the actual SDK. Dynamic text geometry, ordinary selection/semant
 focus, F2, wrapping, reparenting and inherited-theme capture preserve the same
 behavior without fake layout or a Canvas protocol change.
 
-The aggregate catalog now has 64 widgets and 58 reviewed const definitions,
-with 779 writable rows (762 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty Basic, four Material and six Accessibility items; the
-backlog is 64/92 complete with 28 remaining. The 64 sources across 57
-insertable destinations form 3,648 cells, with 3,363 accepted and 285 rejected.
+DefaultSelectionStyle renders the actual SDK constructor or .merge helper from
+the required Designer merge flag, initially false. False replaces all fields, including
+nulls; true inherits each omitted field. Both colors resolve the same typed
+literal/semantic theme values as generation. The cursor mapper covers all 41
+predefined SDK values, including defer/uncontrolled and the three WidgetState
+cursors. adaptiveClickable follows kIsWeb, not a simulated viewport platform;
+the Web build retains Flutter's real web branch. Existing TextField's domain is
+unchanged. TextField cursor-color and selectable Text selection/cursor precedence,
+inherited notifications and capture/wrap use the real SDK; the wrapper does not
+make plain Text selectable or override TextField's own mouse cursor. Required-child
+tree/Canvas wrapping, selection, F2 and lifecycle remain available in both modes.
+The invalid-child fallback constructor is not rendered as an insertable widget.
+
+The aggregate catalog now has 65 widgets and 59 reviewed const definitions,
+with 783 writable rows (766 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-one Basic, four Material and six Accessibility items; the
+backlog is 65/92 complete with 27 remaining. The 65 sources across 57
+insertable destinations form 3,705 cells, with 3,418 accepted and 287 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

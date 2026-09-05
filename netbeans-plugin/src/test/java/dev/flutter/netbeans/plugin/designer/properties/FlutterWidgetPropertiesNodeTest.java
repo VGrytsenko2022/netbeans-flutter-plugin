@@ -83,6 +83,114 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void defaultSelectionStyleProjectsOptionalSdkFieldsAndRequiredMergeWithoutRecreatingPropertyCells() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.DefaultSelectionStyle");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        WidgetNode widget = new WidgetNode(id, definition.typeId(),
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+        assertEquals(widget.properties(), WidgetNodePrototypeFactory.create(definition, id).properties());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length, "identity, selection style and required child Slots");
+        assertEquals(List.of("cursorColor", "selectionColor", "mouseCursor", "merge"),
+                names(propertySet(node, "defaultSelectionStyle").getProperties()));
+        for (String name : List.of("cursorColor", "selectionColor", "mouseCursor")) {
+            var cell = cellProperty(property(node, name));
+            assertTrue(cell.canWrite());
+            assertTrue(cell.supportsDefaultValue());
+            assertEquals(FlutterPropertyCellValue.unset(), cell.getValue());
+            assertTrue(cell.getShortDescription().contains("inherits each unset field"));
+            assertTrue(cell.getShortDescription().contains("unset fields are null, not inherited"));
+            assertTrue(cell.getShortDescription().contains("does not make a child selectable"));
+        }
+        var merge = cellProperty(property(node, "merge"));
+        assertTrue(merge.getShortDescription().contains("no merge argument is emitted"));
+        assertTrue(merge.canWrite());
+        assertFalse(merge.supportsDefaultValue());
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), merge.getValue());
+        for (String flag : List.of("true", "false")) {
+            PropertyEditor editor = merge.getPropertyEditor();
+            editor.setAsText(flag);
+            assertNull(editor.getTags());
+            assertTrue(editor.isPaintable());
+            assertEquals(new PropertyValue.BooleanValue(Boolean.parseBoolean(flag)), cell(editor).explicitValue().orElseThrow());
+        }
+        merge.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        assertEquals(List.of(new SetProperty(id, new PropertyName("merge"), new PropertyValue.BooleanValue(true))), commands);
+        var explicit = new WidgetNode(id, definition.typeId(),
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(true)), widget.slots());
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        assertSame(merge, property(node, "merge"));
+        commands.clear();
+        merge.restoreDefaultValue();
+        assertTrue(commands.isEmpty());
+        assertThrows(IllegalArgumentException.class, () -> merge.setValue(FlutterPropertyCellValue.unset()));
+        assertThrows(IllegalArgumentException.class,
+                () -> merge.getPropertyEditor().setAsText(FlutterPropertyCellValue.NOT_SET_TEXT));
+        assertTrue(commands.isEmpty());
+        assertSame(merge, property(node, "merge"));
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        for (String colorName : List.of("cursorColor", "selectionColor")) {
+            var color = cellProperty(property(node, colorName));
+            for (var value : List.of(new PropertyValue.ColorValue(0xFF123456L),
+                    new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")))) {
+                PropertyEditor editor = color.getPropertyEditor();
+                editor.setValue(FlutterPropertyCellValue.explicit(value));
+                assertTrue(editor.isPaintable());
+                assertTrue(editor.supportsCustomEditor());
+                editor.setAsText(editor.getAsText());
+                assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                commands.clear();
+                color.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(List.of(new SetProperty(id, new PropertyName(colorName), value)), commands);
+                var changed = new WidgetNode(id, definition.typeId(),
+                        Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false),
+                                new PropertyName(colorName), value), widget.slots());
+                node.refreshPresentation(changed, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(color, property(node, colorName));
+                assertEquals(List.of(sets), List.of(node.getPropertySets()));
+                commands.clear();
+                color.restoreDefaultValue();
+                assertEquals(List.of(new ResetProperty(id, new PropertyName(colorName))), commands);
+            }
+        }
+        var cursor = cellProperty(property(node, "mouseCursor"));
+        var presets = dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets();
+        assertEquals(41, presets.size());
+        var tags = new ArrayList<String>();
+        tags.add(FlutterPropertyCellValue.NOT_SET_TEXT);
+        tags.addAll(presets);
+        assertEquals(tags, List.of(cursor.getPropertyEditor().getTags()));
+        for (String preset : presets) {
+            PropertyEditor editor = cursor.getPropertyEditor();
+            editor.setAsText(preset);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(preset)), editor.getValue());
+        }
+        for (String invalid : List.of("SystemMouseCursors.custom", "MouseCursor.defer", "custom()", "basic; evil()")) {
+            assertThrows(IllegalArgumentException.class, () -> cursor.getPropertyEditor().setAsText(invalid));
+        }
+        commands.clear();
+        cursor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("adaptiveClickable")));
+        assertEquals(List.of(new SetProperty(id, new PropertyName("mouseCursor"), new PropertyValue.StringValue("adaptiveClickable"))), commands);
+        var changed = new WidgetNode(id, definition.typeId(),
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false),
+                        new PropertyName("mouseCursor"), new PropertyValue.StringValue("adaptiveClickable")), widget.slots());
+        node.refreshPresentation(changed, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertSame(cursor, property(node, "mouseCursor"));
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        commands.clear();
+        cursor.restoreDefaultValue();
+        assertEquals(List.of(new ResetProperty(id, new PropertyName("mouseCursor"))), commands);
+        cursor.getPropertyEditor().setAsText(FlutterPropertyCellValue.NOT_SET_TEXT);
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+    }
+
+    @Test
     void defaultTextHeightBehaviorProjectsAllThreeOptionalLeavesWithoutRecreatingPropertyCells() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.DefaultTextHeightBehavior");
         StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
@@ -1070,6 +1178,8 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(BigInteger.ZERO)));
         requiredValues.put("flutter.widgets.TickerMode",
                 Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
+        requiredValues.put("flutter.widgets.DefaultSelectionStyle",
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -1134,6 +1244,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.Visibility",
                     "flutter.widgets.TickerMode",
                     "flutter.widgets.DefaultTextHeightBehavior",
+                    "flutter.widgets.DefaultSelectionStyle",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1169,7 +1280,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(779, writableCount,
+        assertEquals(783, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1182,7 +1293,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(762, nonScaffoldWritableCount,
+        assertEquals(766, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6034,6 +6145,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.Visibility");
         typeIds.add("flutter.widgets.TickerMode");
         typeIds.add("flutter.widgets.DefaultTextHeightBehavior");
+        typeIds.add("flutter.widgets.DefaultSelectionStyle");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -6063,7 +6175,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(64, iconPaths.size(),
+        assertEquals(65, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

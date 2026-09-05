@@ -309,6 +309,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.DefaultTextHeightBehavior".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.DefaultTextHeightBehavior.Name"));
                 setShortDescription(message("Widget.DefaultTextHeightBehavior.Description"));
+            } else if ("flutter.widgets.DefaultSelectionStyle".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.DefaultSelectionStyle.Name"));
+                setShortDescription(message("Widget.DefaultSelectionStyle.Description"));
             } else if ("flutter.widgets.IndexedSemantics".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IndexedSemantics.Name"));
                 setShortDescription(message("Widget.IndexedSemantics.Description"));

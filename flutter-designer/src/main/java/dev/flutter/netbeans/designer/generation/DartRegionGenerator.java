@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetProperty
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -366,6 +367,11 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)
+                    && (property.name().value().equals("merge") || property.name().value().equals("mouseCursor"))) {
+                // merge selects a static helper, while mouseCursor is a closed SDK constant.
+                continue;
+            }
             if (node.type().equals(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE)) {
                 // All three flattened leaves belong inside the required composite.
                 continue;
@@ -498,13 +504,18 @@ public final class DartRegionGenerator {
             appendStaticScrollViewPhysics(
                     node, definition, path, context, arguments);
         }
+        if (node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
         arguments.sort(ARGUMENT_ORDER);
 
         // ClipPath.shape is a static Widget factory, not a named constructor.
         // Even a const ShapeBorder must not make the helper or its ancestors const.
         boolean clipPathShape = node.type().value().equals("flutter.widgets.ClipPath")
                 && node.properties().containsKey(new PropertyName("shape"));
-        boolean constant = !clipPathShape && definition.constConstructor()
+        boolean selectionMerge = node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)
+                && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
+        boolean constant = !clipPathShape && !selectionMerge && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
                 definition.dartLibraryUri(), definition.dartClassName());
@@ -523,6 +534,11 @@ public final class DartRegionGenerator {
                     "widget:" + node.id() + ":shapeFactory", constructor.length() + 1,
                     "shape", renderedClass.libraryUri(), path, Optional.of(node.id())));
             constructor += ".shape";
+        } else if (selectionMerge) {
+            constructorOccurrences.add(occurrence(
+                    "widget:" + node.id() + ":selectionMergeFactory", constructor.length() + 1,
+                    "merge", renderedClass.libraryUri(), path + "/properties/merge", Optional.of(node.id())));
+            constructor += ".merge";
         } else if (definition.namedConstructor().isPresent()) {
             constructor += "." + definition.namedConstructor().orElseThrow();
         }
@@ -3721,7 +3737,7 @@ public final class DartRegionGenerator {
                 widgetId,
                 context,
                 List.of(occurrence(
-                        "widget:" + widgetId + ":theme-token:" + token.wireId(),
+                        "widget:" + widgetId + ":theme-token:" + token.wireId() + ':' + path,
                         theme.nameOffset(),
                         theme.name(),
                         theme.libraryUri(),
@@ -4996,6 +5012,28 @@ public final class DartRegionGenerator {
                                 type.libraryUri(),
                                 propertyPath,
                                 Optional.of(node.id()))))));
+    }
+
+    private void appendDefaultSelectionStyleCursor(
+            WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        var name = new PropertyName("mouseCursor");
+        PropertyValue value = node.properties().get(name);
+        if (value == null) return;
+        String propertyPath = path + "/properties/mouseCursor";
+        if (!(value instanceof PropertyValue.StringValue preset)) {
+            throw catalogInconsistency(propertyPath, node.id(), "Selection mouse cursor must be a validated preset string.");
+        }
+        String owner = preset.value().equals("defer") || preset.value().equals("uncontrolled")
+                ? "MouseCursor" : Set.of("clickable", "adaptiveClickable", "textable").contains(preset.value())
+                        ? "WidgetStateMouseCursor" : "SystemMouseCursors";
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, owner);
+        arguments.add(new ConstructorArgument(definition.property(name).orElseThrow().parameter(), "mouseCursor", false,
+                scalar(type.text() + '.' + preset.value(), true, propertyPath, node.id(), context,
+                        List.of(occurrence("widget:" + node.id() + ":selectionCursor", type.nameOffset(),
+                                type.name(), type.libraryUri(), propertyPath, Optional.of(node.id())),
+                                occurrence("widget:" + node.id() + ":selectionCursorMember", type.text().length() + 1,
+                                        preset.value(), type.libraryUri(), propertyPath, Optional.of(node.id()))))));
     }
 
     private void appendTextFieldStaticPreset(

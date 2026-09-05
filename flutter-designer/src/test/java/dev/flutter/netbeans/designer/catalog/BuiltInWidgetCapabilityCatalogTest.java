@@ -81,6 +81,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Visibility",
             "flutter.widgets.TickerMode",
             "flutter.widgets.DefaultTextHeightBehavior",
+            "flutter.widgets.DefaultSelectionStyle",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
@@ -145,6 +146,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Visibility",
             "flutter.widgets.TickerMode",
             "flutter.widgets.DefaultTextHeightBehavior",
+            "flutter.widgets.DefaultSelectionStyle",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.IndexedSemantics",
@@ -183,7 +185,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(64, sources.size());
+        assertEquals(65, sources.size());
         assertEquals(57, destinations.size());
         assertEquals(55, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -193,9 +195,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3648, candidates);
-        assertEquals(3363, accepted);
-        assertEquals(285, candidates - accepted);
+        assertEquals(3705, candidates);
+        assertEquals(3418, accepted);
+        assertEquals(287, candidates - accepted);
     }
 
     @Test

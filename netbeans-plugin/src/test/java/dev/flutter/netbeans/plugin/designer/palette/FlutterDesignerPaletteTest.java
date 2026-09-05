@@ -70,6 +70,7 @@ class FlutterDesignerPaletteTest {
                     "flutter.widgets.Visibility",
                     "flutter.widgets.TickerMode",
                     "flutter.widgets.DefaultTextHeightBehavior",
+                    "flutter.widgets.DefaultSelectionStyle",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -104,6 +105,28 @@ class FlutterDesignerPaletteTest {
             SingleChildScrollViewWidgetPropertySchema
                     .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
+
+    @Test
+    void defaultSelectionStylePaletteExplainsDirectAndMergeModesWithDedicatedIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.DefaultSelectionStyle";
+        PaletteController controller = FlutterDesignerPalette.create(CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.basic", 300, 210, "DefaultSelectionStyle"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("DefaultSelectionStyle", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("required child"));
+        assertTrue(node.getShortDescription().contains("True uses DefaultSelectionStyle.merge and inherits unset fields"));
+        assertTrue(node.getShortDescription().contains("required Designer-only choice created as false"));
+        assertTrue(node.getShortDescription().contains("cannot be unset or reset"));
+        assertTrue(node.getShortDescription().contains("direct constructor and clears them"));
+        assertTrue(node.getShortDescription().contains("41 closed presets"));
+        assertTrue(node.getShortDescription().contains("does not make a child selectable"));
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node));
+    }
 
     @Test
     void defaultTextHeightBehaviorPaletteExplainsRequiredObjectAndNearestDefaultsWithDedicatedIcon()
@@ -168,8 +191,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(64, CATALOG.definitions().size());
-        assertEquals(58, CATALOG.definitions().stream()
+        assertEquals(65, CATALOG.definitions().size());
+        assertEquals(59, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -198,9 +221,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle"),
                 itemLabels(categories[3]));
-        assertEquals(20, itemLabels(categories[3]).size());
+        assertEquals(21, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
         assertEquals(6, itemLabels(categories[4]).size());
 
@@ -238,7 +261,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
 
@@ -1887,7 +1910,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(64, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(65, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

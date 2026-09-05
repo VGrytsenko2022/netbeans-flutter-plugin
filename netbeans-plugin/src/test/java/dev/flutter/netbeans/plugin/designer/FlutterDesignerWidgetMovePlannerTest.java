@@ -137,6 +137,37 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void completedDefaultSelectionStyleMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "selection style child");
+        WidgetNode defaultSelectionStyle = new WidgetNode(
+                A_ID,
+                new WidgetTypeId("flutter.widgets.DefaultSelectionStyle"),
+                Map.of(new PropertyName("merge"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(defaultSelectionStyle, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                defaultSelectionStyle.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(defaultSelectionStyle.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                defaultSelectionStyle.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, defaultSelectionStyle, result);
+    }
+
+    @Test
     void completedDefaultTextHeightBehaviorMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "focus child");
         WidgetNode defaultTextHeightBehavior = new WidgetNode(

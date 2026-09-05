@@ -1800,6 +1800,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Visibility", ICON_ROOT + "visibility.svg");
         expected.put("flutter.widgets.TickerMode", ICON_ROOT + "tickermode.svg");
         expected.put("flutter.widgets.DefaultTextHeightBehavior", ICON_ROOT + "defaulttextheightbehavior.svg");
+        expected.put("flutter.widgets.DefaultSelectionStyle", ICON_ROOT + "defaultselectionstyle.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

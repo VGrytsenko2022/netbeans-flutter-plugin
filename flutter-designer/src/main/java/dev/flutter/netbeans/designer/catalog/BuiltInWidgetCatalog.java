@@ -83,6 +83,7 @@ public final class BuiltInWidgetCatalog {
             mergeSemantics(),
             indexedSemantics(),
             excludeFocus(),
+            excludeFocusTraversal(),
             elevatedButton(),
             textField()));
 
@@ -1901,6 +1902,19 @@ public final class BuiltInWidgetCatalog {
                 ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.value(),
                 "ExcludeFocus", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.accessibility", 400, 50, "ExcludeFocus"), properties,
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition excludeFocusTraversal() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "excluding", 0, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != ExcludeFocusTraversalWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("ExcludeFocusTraversal catalog/property schema count mismatch");
+        }
+        return widget(
+                ExcludeFocusTraversalWidgetPropertySchema.EXCLUDE_FOCUS_TRAVERSAL_TYPE.value(),
+                "ExcludeFocusTraversal", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.accessibility", 400, 60, "ExcludeFocusTraversal"), properties,
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 

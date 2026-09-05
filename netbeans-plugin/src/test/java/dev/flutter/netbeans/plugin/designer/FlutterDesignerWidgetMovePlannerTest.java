@@ -340,6 +340,37 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void completedExcludeFocusTraversalMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "focus child");
+        WidgetNode excludeFocusTraversal = new WidgetNode(
+                A_ID,
+                new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"),
+                Map.of(new PropertyName("excluding"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(excludeFocusTraversal, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                excludeFocusTraversal.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(excludeFocusTraversal.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                excludeFocusTraversal.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, excludeFocusTraversal, result);
+    }
+
+    @Test
     void completedSafeAreaMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "safe child");
         WidgetNode safeArea = new WidgetNode(

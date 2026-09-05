@@ -213,7 +213,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.BlockSemantics", STATIC_EDITABLE),
             Map.entry("flutter.widgets.MergeSemantics", STATIC_STRUCTURAL),
             Map.entry("flutter.widgets.IndexedSemantics", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.ExcludeFocus", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.ExcludeFocus", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ExcludeFocusTraversal", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -695,6 +696,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                             SIGNED_PORTABLE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ExcludeFocus", projection(Map.ofEntries(
+                    property("excluding", PropertyValueKind.BOOLEAN)),
+                    Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.ExcludeFocusTraversal", projection(Map.ofEntries(
                     property("excluding", PropertyValueKind.BOOLEAN)),
                     Map.of("child", singleSlotSchema(true, 1)))),
             Map.entry("flutter.widgets.Container", containerProjection()),

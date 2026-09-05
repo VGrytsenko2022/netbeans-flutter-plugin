@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics` and `ExcludeFocus`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus` and `ExcludeFocusTraversal`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,14 +241,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-60 reviewed Canvas widgets. Palette insertion evaluates 3,360 exact
-source/destination cells across 60 draggable sources and 56 insertable reviewed
-slots; 3,086 are accepted and 274 cells are rejected. Expanded and Flexible are
+61 reviewed Canvas widgets. Palette insertion evaluates 3,416 exact
+source/destination cells across 61 draggable sources and 56 insertable reviewed
+slots; 3,140 are accepted and 276 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality and ExcludeFocus are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus and ExcludeFocusTraversal are generic atomic wrappers around
 an existing widget,
 never an empty required-child prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
@@ -1016,10 +1016,21 @@ controls excluded. Move-preview geometry rejects dragging a direct required chil
 out of its wrapper; intact wrappers and optional/list children remain movable,
 and final mutation validation remains host-authoritative.
 
-The aggregate catalog now has 60 widgets and 54 reviewed const definitions,
-with 766 writable rows (749 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, seventeen Basic, four Material and five Accessibility items; the
-backlog is 60/92 complete with 32 remaining. The 60 sources across 56
-insertable destinations form 3,360 cells, with 3,086 accepted and 274 rejected.
+ExcludeFocusTraversal uses the actual SDK widget with optional excluding (omitted
+true) and a required child. Its internal Focus sets descendantsAreTraversable to
+!excluding, canRequestFocus false, skipTraversal true and includeSemantics false.
+It removes descendants from Tab/Shift+Tab traversal but permits direct focus
+requests and retains existing focus, subject to other focus restrictions. Local
+configured skipTraversal flags are not rewritten; the effective getter observes
+ancestor exclusions. Nested false does not cancel an outer exclusion. Labels,
+layout, paint, pointer hits and F2 service editing remain. The same generic wrapper
+classification covers geometry, required-child move rejection and atomic wrapping;
+no synthetic child, root target, new authority or semantic boundary is introduced.
+
+The aggregate catalog now has 61 widgets and 55 reviewed const definitions,
+with 767 writable rows (750 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seventeen Basic, four Material and six Accessibility items; the
+backlog is 61/92 complete with 31 remaining. The 61 sources across 56
+insertable destinations form 3,416 cells, with 3,140 accepted and 276 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

@@ -85,6 +85,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.MergeSemantics"));
         assertTrue(typeIds(result).contains("flutter.widgets.IndexedSemantics"));
         assertTrue(typeIds(result).contains("flutter.widgets.ExcludeFocus"));
+        assertTrue(typeIds(result).contains("flutter.widgets.ExcludeFocusTraversal"));
     }
 
     @Test
@@ -172,7 +173,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(60, result.catalog().definitions().size());
+        assertEquals(61, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -205,7 +206,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(60, result.catalog().definitions().size());
+        assertEquals(61, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

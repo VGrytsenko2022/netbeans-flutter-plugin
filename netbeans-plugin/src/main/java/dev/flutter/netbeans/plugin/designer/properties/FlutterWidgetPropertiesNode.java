@@ -18,6 +18,7 @@ import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeFocusTraversalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -532,6 +533,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addAbsorbPointerPropertySets(sheet, hasSlotTab);
         } else if (ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.equals(widget.type())) {
             addExcludeFocusPropertySets(sheet, hasSlotTab);
+        } else if (ExcludeFocusTraversalWidgetPropertySchema.EXCLUDE_FOCUS_TRAVERSAL_TYPE.equals(widget.type())) {
+            addExcludeFocusTraversalPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -740,6 +743,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "Changing to true unfocuses descendants; false permits focus but does not automatically "
                     + "restore it or rewrite their local canRequestFocus configuration. Layout, paint and pointer hits remain "
                     + "available. Designer child and descendant editing remain available. Occupancy: "
+                    + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
+        if (ExcludeFocusTraversalWidgetPropertySchema.EXCLUDE_FOCUS_TRAVERSAL_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child whose descendants are skipped by keyboard focus traversal while Excluding is true. "
+                    + "Direct requestFocus remains allowed and existing focus is retained. Local skipTraversal "
+                    + "configuration is not rewritten, while the effective getter reflects ancestor exclusion. "
+                    + "Layout, paint, pointer hits and Designer child and descendant editing remain available. Occupancy: "
                     + count + "/" + maximum + "; minimum: " + slot.minChildren()
                     + ". Replace the child atomically; it cannot be removed or cleared.";
         }
@@ -2421,6 +2433,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "Descendant local canRequestFocus configuration is not rewritten; effective "
                             + "focusability remains constrained by ancestors. Layout, paint and pointer "
                             + "hits remain available; Designer selection and editing are not disabled. "
+                            + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addExcludeFocusTraversalPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ExcludeFocusTraversalWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ExcludeFocusTraversalWidgetPropertySchema.Group.class);
+        for (ExcludeFocusTraversalWidgetPropertySchema.Group group : ExcludeFocusTraversalWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = ExcludeFocusTraversalWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " <not set> preserves Flutter's true default. Tab traversal skips descendants, "
+                            + "but direct requestFocus remains allowed and existing focus is retained. "
+                            + "Local skipTraversal configuration is not rewritten; the effective getter "
+                            + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
+                            + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
         }
     }

@@ -6367,6 +6367,203 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteExcludeFocusTraversalSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId childId = FIRST_ID;
+        StableId replacementId = StableId.parse("94949494-9494-4494-8494-949494949494");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal");
+        PropertyName excluding = new PropertyName("excluding");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(excluding, new PropertyValue.BooleanValue(false));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("exclude_focus_traversal_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const ExcludeFocusTraversal("));
+                assertFalse(request.content().contains("excluding:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, childId, () -> surfaceId));
+            var added = applyExcludeFocusTraversalMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(),
+                    surface.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().orElseThrow().id());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("exclude_focus_traversal_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("excluding")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const ExcludeFocusTraversal("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyExcludeFocusTraversalMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            current = applyExcludeFocusTraversalMutation(fixture, current,
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("Child edited without requesting focus")),
+                    surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "explicit false survives descendant editing");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("excluding: false"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 2; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 2; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(2, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "exclude_focus_traversal_test_rejection", "ExcludeFocusTraversal candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, excluding, new PropertyValue.BooleanValue(true)),
+                    "ExcludeFocusTraversal.excluding").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("ExcludeFocusTraversal candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("exclude_focus_traversal_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var excludingCell = cellProperty(properties, "excluding");
+            excludingCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("excluding: true"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyExcludeFocusTraversalMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(excluding, new PropertyValue.BooleanValue(true));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            edited = applyExcludeFocusTraversalMutation(fixture, edited, new ResetProperty(surfaceId, excluding), surfaceId);
+            assertEquals(Map.of(), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertFalse(resetDart.contains("excluding:"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("exclude_focus_traversal_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.unset(), cellProperty(properties, "excluding").getValue());
+            assertTrue(cellProperty(properties, "excluding").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside traversal-excluded subtree after reopen")));
+            assertEquals(1, childEdits.size(), "traversal exclusion must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyExcludeFocusTraversalMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside traversal-excluded subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            byte[] beforeIllegalRemoval = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejectedRemoval = fixture.mutations().submit(current.token().orElseThrow(),
+                    new RemoveWidget(childId), "ExcludeFocusTraversal required child removal").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejectedRemoval.outcome(), rejectedRemoval::reason);
+            assertEquals(editedChild, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), childId));
+            assertArrayEquals(beforeIllegalRemoval, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = awaitReady(fixture.mutations());
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(),
+                    replacementId);
+            current = applyExcludeFocusTraversalMutation(fixture, current,
+                    new ReplaceSlotChild(surfaceId, CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), surfaceId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("exclude_focus_traversal_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside traversal-excluded subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
+        }
+    }
+
+    @Test
     void paletteBlockSemanticsSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
             throws Exception {
         StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
@@ -7089,6 +7286,16 @@ class FlutterDesignerMutationControllerIntegrationTest {
             DesignerCommand command, StableId wrapperId) throws Exception {
         var result = fixture.mutations().submit(before.token().orElseThrow(), command,
                 "ExcludeFocus properties and required child editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(wrapperId, SECOND_ID));
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyExcludeFocusTraversalMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "ExcludeFocusTraversal properties and required child editing").get(10, TimeUnit.SECONDS);
         assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
                 List.of(wrapperId, SECOND_ID));

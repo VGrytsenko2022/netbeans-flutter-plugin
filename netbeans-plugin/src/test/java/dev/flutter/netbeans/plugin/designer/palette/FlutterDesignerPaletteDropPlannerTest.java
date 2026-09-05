@@ -1376,7 +1376,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void excludeFocusCompletesExact3360CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
-        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> optionalTargets = preExcludeFocusTraversalDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> occupiedTarget(
@@ -1427,13 +1427,75 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(60, BUILT_INS.definitions().size()),
+                () -> assertEquals(60, Math.toIntExact(preExcludeFocusTraversalDefinitions().count())),
                 () -> assertEquals(56, optionalTargets.size()),
                 () -> assertEquals(54, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
                 () -> assertEquals(3360, 60 * optionalTargets.size()),
                 () -> assertEquals(3086, 3032 + accepted.get()),
                 () -> assertEquals(274, 272 + rejected.get()));
+    }
+
+    @Test
+    void excludeFocusTraversalCompletesExact3416CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
+        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> occupiedTarget(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(optionalTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "ExcludeFocusTraversal -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Wrapped success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                        result,
+                        "ExcludeFocusTraversal -> " + target.name());
+                WrapWidget command = success.command();
+                assertEquals(FIRST_ID, command.widgetId());
+                assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), command.wrapper().type());
+                assertTrue(command.wrapper().properties().isEmpty());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots());
+                assertEquals(CHILD, command.wrapperSlot());
+                assertEquals(0, command.wrapperIndex());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(61, BUILT_INS.definitions().size()),
+                () -> assertEquals(56, optionalTargets.size()),
+                () -> assertEquals(54, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(3416, 61 * optionalTargets.size()),
+                () -> assertEquals(3140, 3086 + accepted.get()),
+                () -> assertEquals(276, 274 + rejected.get()));
     }
 
     @Test
@@ -3818,6 +3880,44 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
+    void excludeFocusTraversalNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
+        AtomicInteger rejectedAllocations = new AtomicInteger();
+        Supplier<StableId> rejectedSupplier = () -> {
+            rejectedAllocations.incrementAndGet();
+            return NEW_ID;
+        };
+        FlutterDesignerPaletteDropPlanner.Rejected emptyList = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), ROOT_ID, CHILDREN, 0, rejectedSupplier));
+        FlutterDesignerPaletteDropPlanner.Rejected emptySingle = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(prototype(CENTER)), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), ROOT_ID, CHILD, 0, rejectedSupplier));
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptyList.code());
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptySingle.code());
+        assertEquals(0, rejectedAllocations.get());
+
+        WidgetNode root = text(ROOT_ID, "root target");
+        FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(
+                        document(root), BUILT_INS, new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), ROOT_ID, () -> NEW_ID));
+        assertEquals(ROOT_ID, wrapped.command().widgetId());
+        assertEquals(NEW_ID, wrapped.command().wrapper().id());
+        assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), wrapped.command().wrapper().type());
+        assertTrue(wrapped.command().wrapper().properties().isEmpty());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                wrapped.command().wrapper().slots());
+        assertEquals(CHILD, wrapped.command().wrapperSlot());
+        assertEquals(0, wrapped.command().wrapperIndex());
+    }
+
+    @Test
     void safeAreaNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
         AtomicInteger rejectedAllocations = new AtomicInteger();
         Supplier<StableId> rejectedSupplier = () -> {
@@ -3900,6 +4000,30 @@ class FlutterDesignerPaletteDropPlannerTest {
                     FlutterDesignerPaletteDropPlanner.Rejected.class,
                     planner.plan(document(parent(COLUMN, List.of(target))), BUILT_INS,
                             new WidgetTypeId("flutter.widgets.ExcludeFocus"), ROOT_ID, CHILDREN, 0, () -> {
+                                allocations.incrementAndGet();
+                                return NEW_ID;
+                            }));
+            assertEquals(
+                    FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REJECTED,
+                    failure.code());
+            assertTrue(failure.reason().contains("must be a direct child"),
+                    failure.reason());
+            assertEquals(0, allocations.get());
+        }));
+    }
+
+    @Test
+    void excludeFocusTraversalRejectsWrappingFlexParentDataTargetsBeforeIdAllocation() {
+        List<WidgetNode> targets = List.of(
+                expanded(FIRST_ID, text(indexedId(20), "expanded child")),
+                flexible(FIRST_ID, text(indexedId(21), "flexible child")),
+                WidgetNodePrototypeFactory.create(definition(SPACER), FIRST_ID));
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of(target))), BUILT_INS,
+                            new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), ROOT_ID, CHILDREN, 0, () -> {
                                 allocations.incrementAndGet();
                                 return NEW_ID;
                             }));
@@ -4813,8 +4937,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preExcludeFocusDefinitions() {
+    private static Stream<WidgetDefinition> preExcludeFocusTraversalDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !"flutter.widgets.ExcludeFocusTraversal".equals(definition.typeId().value()));
+    }
+
+    private static Stream<WidgetDefinition> preExcludeFocusDefinitions() {
+        return preExcludeFocusTraversalDefinitions().filter(definition ->
                 !"flutter.widgets.ExcludeFocus".equals(definition.typeId().value()));
     }
 

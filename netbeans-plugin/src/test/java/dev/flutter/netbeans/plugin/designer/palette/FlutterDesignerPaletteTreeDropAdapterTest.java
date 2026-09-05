@@ -3012,6 +3012,50 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void excludeFocusTraversalTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument rootDocument = document(text(ROOT_ID, "root target"));
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertEquals(ROOT_ID, prepared.treeTargetId()),
+                () -> assertEquals(Optional.of(ROOT_ID), prepared.wrapTargetId()));
+
+        FlutterDesignerPaletteTreeDropAdapter.Wrapped committed = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        () -> NEW_ID));
+        WrapWidget command = committed.command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.widgetId()),
+                () -> assertEquals(NEW_ID, command.wrapper().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), command.wrapper().type()),
+                () -> assertTrue(command.wrapper().properties().isEmpty()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots()),
+                () -> assertEquals(CHILD, command.wrapperSlot()),
+                () -> assertEquals(0, command.wrapperIndex()),
+                () -> assertTrue(fixture.lifecycle().resolve(transferable).isEmpty()));
+    }
+
+    @Test
     void safeAreaTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
         Fixture fixture = fixture(SAFE_AREA);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -3114,6 +3158,67 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                         () -> NEW_ID)).command();
         assertEquals(FIRST_ID, singleCommand.widgetId());
         assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocus"), singleCommand.wrapper().type());
+    }
+
+    @Test
+    void excludeFocusTraversalTreeDropWrapsExactExistingListAndSingleSlotChildren() {
+        WidgetNode listTarget = text(FIRST_ID, "list target");
+        DesignerDocument listDocument = document(column(List.of(listTarget)));
+        Fixture listFixture = fixture(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"));
+        StringSelection listTransfer = new StringSelection(listFixture.token());
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop listPrepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                listFixture.adapter().preview(
+                        listTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        listDocument,
+                        CATALOG,
+                        FIRST_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, listPrepared.parentId()),
+                () -> assertEquals(CHILDREN, listPrepared.slotName()),
+                () -> assertEquals(0, listPrepared.insertionIndex()),
+                () -> assertEquals(Optional.of(FIRST_ID), listPrepared.wrapTargetId()));
+        WrapWidget listCommand = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                listFixture.adapter().commit(
+                        listPrepared,
+                        listTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        listDocument,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, listCommand.widgetId());
+        assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), listCommand.wrapper().type());
+
+        WidgetNode singleTarget = text(FIRST_ID, "single target");
+        DesignerDocument singleDocument = document(center(singleTarget));
+        Fixture singleFixture = fixture(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"));
+        StringSelection singleTransfer = new StringSelection(singleFixture.token());
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop singlePrepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                singleFixture.adapter().preview(
+                        singleTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        singleDocument,
+                        CATALOG,
+                        FIRST_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, singlePrepared.parentId()),
+                () -> assertEquals(CHILD, singlePrepared.slotName()),
+                () -> assertEquals(0, singlePrepared.insertionIndex()),
+                () -> assertEquals(Optional.of(FIRST_ID), singlePrepared.wrapTargetId()));
+        WrapWidget singleCommand = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                singleFixture.adapter().commit(
+                        singlePrepared,
+                        singleTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        singleDocument,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, singleCommand.widgetId());
+        assertEquals(new WidgetTypeId("flutter.widgets.ExcludeFocusTraversal"), singleCommand.wrapper().type());
     }
 
     @Test

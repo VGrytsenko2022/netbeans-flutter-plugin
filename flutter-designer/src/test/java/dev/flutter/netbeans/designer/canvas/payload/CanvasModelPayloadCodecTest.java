@@ -133,7 +133,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
                 "flutter.widgets.IndexedSemantics",
-                "flutter.widgets.ExcludeFocus"),
+                "flutter.widgets.ExcludeFocus",
+                "flutter.widgets.ExcludeFocusTraversal"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -1346,6 +1347,48 @@ class CanvasModelPayloadCodecTest {
                 new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
                 new PropertyValue.DartExpressionValue("privateProjectFunction()"))) {
             var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.ExcludeFocus"),
+                    Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void excludeFocusTraversalPayloadPreservesAllBooleanStatesAndRealRequiredChildWithoutInternalFlags() throws Exception {
+        var child = text("dc52facb-cb38-41f5-ae2e-af97424c8ea4", "ExcludeFocusTraversal child");
+        for (Optional<Boolean> excluding : List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true))) {
+            Map<PropertyName, PropertyValue> properties = excluding.<Map<PropertyName, PropertyValue>>map(value ->
+                    Map.of(new PropertyName("excluding"), new PropertyValue.BooleanValue(value))).orElseGet(Map::of);
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.ExcludeFocusTraversal"), properties,
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.ExcludeFocusTraversal\""), json);
+            assertTrue(json.contains("ExcludeFocusTraversal child"), json);
+            assertEquals(excluding.isPresent(), json.contains("\"excluding\":"), json);
+            excluding.ifPresent(value -> assertTrue(json.contains(
+                    "\"excluding\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+            for (String internal : List.of("canRequestFocus", "descendantsAreFocusable", "descendantsAreTraversable", "skipTraversal", "includeSemantics", "key")) {
+                assertFalse(json.contains("\"" + internal + "\":"), json);
+            }
+        }
+    }
+
+    @Test
+    void excludeFocusTraversalPayloadRejectsMissingRequiredChildAndMalformedBooleansBeforeSerialization() {
+        var child = text("df33eade-ae49-4a34-bfd2-4e0f391d9f82", "Required child");
+        for (var slots : List.<Map<SlotName, WidgetSlot>>of(Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Map.of(new SlotName("child"), new WidgetSlot.ListSlot(List.of(child))))) {
+            var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.ExcludeFocusTraversal"), Map.of(), slots);
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
+                new PropertyValue.DartExpressionValue("privateProjectFunction()"))) {
+            var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.ExcludeFocusTraversal"),
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));

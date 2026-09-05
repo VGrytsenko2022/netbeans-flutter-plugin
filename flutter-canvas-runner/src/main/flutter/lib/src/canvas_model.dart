@@ -3883,6 +3883,12 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot},
   ),
+  'flutter.widgets.ExcludeFocusTraversal': _WidgetSpec(
+    {
+      'excluding': _PropertySpec({'boolean'}),
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.RepaintBoundary': _WidgetSpec({}, {
     'child': _optionalSingleSlot,
   }),
@@ -5767,6 +5773,10 @@ W|flutter.widgets.ExcludeFocus
 P|excluding|boolean|0|-|-|boolean:any
 S|child|single|1|1|1|any
 C|flutter.widgets.ExcludeFocus|paletteCreate|wrapExistingChild|child
+W|flutter.widgets.ExcludeFocusTraversal
+P|excluding|boolean|0|-|-|boolean:any
+S|child|single|1|1|1|any
+C|flutter.widgets.ExcludeFocusTraversal|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.ExcludeSemantics
 P|excluding|boolean|0|-|-|boolean:any
 S|child|single|0|0|1|any

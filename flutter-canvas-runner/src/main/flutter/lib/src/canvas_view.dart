@@ -572,6 +572,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
+        node.type == 'flutter.widgets.ExcludeFocusTraversal' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -2444,6 +2445,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.SafeArea' => _safeArea(),
       'flutter.widgets.Directionality' => _directionality(),
       'flutter.widgets.ExcludeFocus' => ExcludeFocus(
+        excluding: _boolean('excluding') ?? true,
+        child: _single('child')!,
+      ),
+      'flutter.widgets.ExcludeFocusTraversal' => ExcludeFocusTraversal(
         excluding: _boolean('excluding') ?? true,
         child: _single('child')!,
       ),

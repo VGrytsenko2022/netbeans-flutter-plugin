@@ -10,7 +10,7 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_view.dart';
 
 import 'canvas_model_test.dart' as fixture;
 
-const _type = 'flutter.widgets.ExcludeFocus';
+const _type = 'flutter.widgets.ExcludeFocusTraversal';
 const _id = 'a3867d28-9495-4dfc-8ec9-087075ffb9b3';
 const _childId = 'b37a51a0-598e-4189-8f08-0a7dd6d5a772';
 const _textId = 'bf6064c6-d24e-4f7d-802c-0cf1e54b0574';
@@ -19,12 +19,12 @@ const _columnId = 'dbed0e25-f4ee-4b41-b6df-c0d1fe0bb8ee';
 
 void main() {
   test(
-    'ExcludeFocus exact optional boolean and required child wrapper contract',
+    'ExcludeFocusTraversal exact optional boolean and required child wrapper contract',
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|$_type\n');
       final end = contract.indexOf(
-        'W|flutter.widgets.ExcludeFocusTraversal\n',
+        'W|flutter.widgets.ExcludeSemantics\n',
         start,
       );
       expect(
@@ -45,7 +45,7 @@ void main() {
   );
 
   test(
-    'ExcludeFocus rejects missing empty wrong-shaped child and unreviewed scalar states',
+    'ExcludeFocusTraversal rejects missing empty wrong-shaped child and unreviewed scalar states',
     () {
       for (final slots in [
         <String, Object?>{},
@@ -87,6 +87,8 @@ void main() {
         'autofocus',
         'canRequestFocus',
         'descendantsAreFocusable',
+        'descendantsAreTraversable',
+        'skipTraversal',
         'includeSemantics',
       ]) {
         final model = _model();
@@ -109,7 +111,7 @@ void main() {
   );
 
   test(
-    'ExcludeFocus atomically wraps ordinary occupied slots without adding a required-child insertion destination',
+    'ExcludeFocusTraversal atomically wraps ordinary occupied slots without adding a required-child insertion destination',
     () {
       final source = CanvasPaletteDragSource(
         token: _type,
@@ -174,15 +176,16 @@ void main() {
   );
 
   testWidgets(
-    'SDK ExcludeFocus blocks explicit TextField focus without disabling its local request setting',
+    'SDK ExcludeFocusTraversal permits explicit TextField focus and retains active focus when exclusion changes',
     (tester) async {
       final focus = FocusNode();
       addTearDown(focus.dispose);
       for (final excluding in [false, true, false]) {
+        final previouslyFocused = focus.hasFocus;
         await tester.pumpWidget(
           MaterialApp(
             home: Material(
-              child: ExcludeFocus(
+              child: ExcludeFocusTraversal(
                 excluding: excluding,
                 child: TextField(focusNode: focus),
               ),
@@ -192,29 +195,62 @@ void main() {
         await tester.pump();
         expect(
           focus.hasFocus,
-          isFalse,
-          reason: 'reenabling does not restore former focus',
+          previouslyFocused,
+          reason: 'traversal exclusion never unfocuses an active descendant',
         );
         focus.requestFocus();
         await tester.pump();
-        expect(focus.hasFocus, !excluding);
-        expect(focus.canRequestFocus, !excluding);
+        expect(focus.hasFocus, isTrue);
+        expect(focus.canRequestFocus, isTrue);
       }
       await tester.pumpWidget(const SizedBox.shrink());
     },
   );
 
+  testWidgets(
+    'SDK ExcludeFocusTraversal preserves the configured skipTraversal flag while the effective getter reflects ancestors',
+    (tester) async {
+      for (final configured in [false, true]) {
+        final focus = FocusNode(skipTraversal: configured);
+        addTearDown(focus.dispose);
+        for (final excluding in [false, true, false]) {
+          await tester.pumpWidget(
+            MaterialApp(
+              home: ExcludeFocusTraversal(
+                excluding: excluding,
+                child: Focus(
+                  focusNode: focus,
+                  skipTraversal: configured,
+                  child: const Text('Local focus settings'),
+                ),
+              ),
+            ),
+          );
+          await tester.pump();
+          expect(focus.skipTraversal, configured || excluding);
+          expect(focus.canRequestFocus, isTrue);
+          focus.requestFocus();
+          await tester.pump();
+          expect(focus.hasFocus, isTrue);
+        }
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(focus.skipTraversal, configured);
+      }
+    },
+  );
+
   for (final platform in ['windows', 'web']) {
     testWidgets(
-      'ExcludeFocus uses actual SDK Focus properties and live retained button focus on $platform',
+      'ExcludeFocusTraversal uses actual SDK Focus properties and live retained button focus on $platform',
       (tester) async {
         FocusNode? retained;
         for (final excluding in [null, false, true, false]) {
+          final previouslyFocused = retained?.hasFocus ?? false;
           await _pump(
             tester,
             _model(platform: platform, excluding: excluding, child: _button()),
           );
-          final widget = tester.widget<ExcludeFocus>(_excludeFinder());
+          final widget = tester.widget<ExcludeFocusTraversal>(_excludeFinder());
           expect(widget.excluding, excluding ?? true);
           final focusWidget = tester.widget<Focus>(
             find
@@ -224,27 +260,29 @@ void main() {
           expect(focusWidget.canRequestFocus, isFalse);
           expect(focusWidget.skipTraversal, isTrue);
           expect(focusWidget.includeSemantics, isFalse);
-          expect(focusWidget.descendantsAreFocusable, !(excluding ?? true));
+          expect(focusWidget.descendantsAreFocusable, isTrue);
+          expect(focusWidget.descendantsAreTraversable, !(excluding ?? true));
           final node = _buttonFocus(tester, 'Focus target');
           retained ??= node;
           expect(node, same(retained));
           expect(
             node.hasFocus,
-            isFalse,
+            previouslyFocused,
             reason:
-                'active descendants lose focus, false never automatically restores it',
+                'changing traversal exclusion retains active descendant focus',
           );
           node.requestFocus();
           await tester.pump();
-          expect(node.hasFocus, !(excluding ?? true));
-          expect(node.canRequestFocus, !(excluding ?? true));
+          expect(node.hasFocus, isTrue);
+          expect(node.canRequestFocus, isTrue);
+          expect(node.skipTraversal, excluding ?? true);
           expect(tester.takeException(), isNull);
         }
       },
     );
 
     testWidgets(
-      'ExcludeFocus real traversal skips only the excluded subtree on $platform',
+      'ExcludeFocusTraversal real traversal skips only the excluded subtree on $platform',
       (tester) async {
         for (final excluding in [null, false, true]) {
           final model = _model(
@@ -293,13 +331,31 @@ void main() {
             FocusManager.instance.primaryFocus,
             same((excluding ?? true) ? before : target),
           );
+          before.requestFocus();
+          await tester.pump();
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.pump();
+          expect(
+            FocusManager.instance.primaryFocus,
+            same((excluding ?? true) ? after : target),
+          );
+          after.requestFocus();
+          await tester.pump();
+          await tester.sendKeyDownEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.sendKeyEvent(LogicalKeyboardKey.tab);
+          await tester.sendKeyUpEvent(LogicalKeyboardKey.shiftLeft);
+          await tester.pump();
+          expect(
+            FocusManager.instance.primaryFocus,
+            same((excluding ?? true) ? before : target),
+          );
           expect(tester.takeException(), isNull);
         }
       },
     );
 
     testWidgets(
-      'ExcludeFocus nested exclusions compose and reparenting restores application focus on $platform',
+      'ExcludeFocusTraversal nested exclusions compose and reparenting restores traversal without blocking direct focus on $platform',
       (tester) async {
         for (final outer in [false, true]) {
           for (final inner in [false, true]) {
@@ -321,7 +377,9 @@ void main() {
             final focus = _buttonFocus(tester, 'Focus target');
             focus.requestFocus();
             await tester.pump();
-            expect(focus.hasFocus, !outer && !inner);
+            expect(focus.hasFocus, isTrue);
+            expect(focus.canRequestFocus, isTrue);
+            expect(focus.skipTraversal, outer || inner);
             expect(tester.takeException(), isNull);
           }
         }
@@ -348,13 +406,67 @@ void main() {
           final focus = _buttonFocus(tester, 'Focus target');
           focus.requestFocus();
           await tester.pump();
-          expect(focus.hasFocus, outside);
+          expect(focus.hasFocus, isTrue);
+          expect(focus.canRequestFocus, isTrue);
+          expect(focus.skipTraversal, !outside);
         }
       },
     );
 
     testWidgets(
-      'ExcludeFocus retains application semantics and pointer selection on $platform',
+      'ExcludeFocusTraversal and ExcludeFocus retain independent gates in either nesting order on $platform',
+      (tester) async {
+        for (final traversalOutside in [false, true]) {
+          for (final excludeFocus in [false, true]) {
+            for (final excludeTraversal in [false, true]) {
+              final model = _model(
+                platform: platform,
+                excluding: excludeTraversal,
+                child: _button(),
+              );
+              final traversal = _findJson(
+                model['root']! as Map<String, Object?>,
+                _id,
+              )!;
+              if (traversalOutside) {
+                ((traversal['slots']! as Map<String, Object?>)['child']!
+                    as Map<String, Object?>)['child'] = _node(
+                  _otherId,
+                  'flutter.widgets.ExcludeFocus',
+                  properties: {
+                    'excluding': {'kind': 'boolean', 'value': excludeFocus},
+                  },
+                  child: _button(),
+                );
+              } else {
+                _replaceCentered(
+                  model,
+                  _node(
+                    _otherId,
+                    'flutter.widgets.ExcludeFocus',
+                    properties: {
+                      'excluding': {'kind': 'boolean', 'value': excludeFocus},
+                    },
+                    child: traversal,
+                  ),
+                );
+              }
+              await _pump(tester, model);
+              final focus = _buttonFocus(tester, 'Focus target');
+              focus.requestFocus();
+              await tester.pump();
+              expect(focus.hasFocus, !excludeFocus);
+              expect(focus.canRequestFocus, !excludeFocus);
+              expect(focus.skipTraversal, excludeTraversal);
+              expect(tester.takeException(), isNull);
+            }
+          }
+        }
+      },
+    );
+
+    testWidgets(
+      'ExcludeFocusTraversal retains application semantics and pointer selection on $platform',
       (tester) async {
         final handle = tester.ensureSemantics();
         final selected = <String>[];
@@ -388,7 +500,7 @@ void main() {
             selected.last,
             _textId,
             reason:
-                'ordinary Designer semantic selection remains available; ExcludeFocus does not exclude semantics',
+                'ordinary Designer semantic selection remains available; ExcludeFocusTraversal does not exclude semantics',
           );
           await tester.tap(find.text('Focus target'));
           await tester.pump();
@@ -400,7 +512,7 @@ void main() {
     );
 
     testWidgets(
-      'ExcludeFocus preserves layout paint hit testing and child updates on $platform',
+      'ExcludeFocusTraversal preserves layout paint hit testing and child updates on $platform',
       (tester) async {
         RenderBox? retained;
         for (final entry in [
@@ -460,7 +572,7 @@ void main() {
     );
 
     testWidgets(
-      'ExcludeFocus zero-size required child uses external selection without a fake child on $platform',
+      'ExcludeFocusTraversal zero-size required child uses external selection without a fake child on $platform',
       (tester) async {
         final selected = <String>[];
         CanvasMovePreviewResolver? move;
@@ -514,83 +626,7 @@ void main() {
     );
 
     testWidgets(
-      'required-child move previews reject source underflow for all reviewed wrappers on $platform',
-      (tester) async {
-        const destination = '0bc023cc-361b-4abc-a0ce-5a2765d2c7d9';
-        const bound = '16791a40-5145-41a1-a6c3-7f6f5c8100ae';
-        for (final type in [
-          'ExcludeFocus',
-          'ExcludeFocusTraversal',
-          'SafeArea',
-          'Directionality',
-          'Expanded',
-          'Flexible',
-          'Center',
-          'Column',
-        ]) {
-          CanvasMovePreviewResolver? move;
-          final model = _model(platform: platform);
-          final wrapper = type == 'Column'
-              ? _list(_id, [_sized(80, 60)])
-              : _node(
-                  _id,
-                  'flutter.widgets.$type',
-                  properties: {
-                    if (type == 'Directionality')
-                      'textDirection': {
-                        'kind': 'enum',
-                        'type': 'TextDirection',
-                        'value': 'rtl',
-                      },
-                  },
-                  child: _sized(80, 60),
-                );
-          _replaceCentered(
-            model,
-            _list(_columnId, [
-              wrapper,
-              _node(
-                bound,
-                'flutter.widgets.SizedBox',
-                properties: {
-                  'height': {'kind': 'integer', 'value': 60},
-                },
-                child: _list(destination, []),
-              ),
-            ]),
-          );
-          await tester.pumpWidget(
-            CanvasModelApp(
-              model: _decode(model),
-              selectedWidgetId: null,
-              onSelected: (_) {},
-              onMovePreviewResolverChanged: (value) => move = value,
-            ),
-          );
-          await tester.pump();
-          final required = !['Center', 'Column'].contains(type);
-          expect(
-            move!(_textId, destination, 'children', 0),
-            required ? isNull : isNotNull,
-            reason: type,
-          );
-          expect(
-            move!(_textId, _id, type == 'Column' ? 'children' : 'child', 0),
-            isNotNull,
-            reason: '$type same-slot no-op stays valid',
-          );
-          expect(
-            move!(_id, destination, 'children', 0),
-            isNotNull,
-            reason: '$type wrapper can move intact without losing its child',
-          );
-          expect(tester.takeException(), isNull);
-        }
-      },
-    );
-
-    testWidgets(
-      'ExcludeFocus keeps the separate project TextField preview focus guard intact on $platform',
+      'ExcludeFocusTraversal keeps the separate project TextField preview focus guard intact on $platform',
       (tester) async {
         for (final excluding in [null, false, true]) {
           await _pump(
@@ -627,10 +663,10 @@ void main() {
             editable.focusNode.canRequestFocus,
             isFalse,
             reason:
-                'the existing safe project preview guard is independent of ExcludeFocus.excluding',
+                'the existing safe project preview guard is independent of ExcludeFocusTraversal.excluding',
           );
           expect(
-            tester.widget<ExcludeFocus>(_excludeFinder()).excluding,
+            tester.widget<ExcludeFocusTraversal>(_excludeFinder()).excluding,
             excluding ?? true,
           );
           expect(
@@ -646,7 +682,7 @@ void main() {
     );
 
     testWidgets(
-      'ExcludeFocus preserves Indexed and Merge application semantics scopes on $platform',
+      'ExcludeFocusTraversal preserves Indexed and Merge application semantics scopes on $platform',
       (tester) async {
         final handle = tester.ensureSemantics();
         for (final type in [
@@ -691,7 +727,7 @@ void main() {
     );
 
     testWidgets(
-      'ExcludeFocus supports nested required-child wrapping and descendant geometric insertion on $platform',
+      'ExcludeFocusTraversal supports nested required-child wrapping and descendant geometric insertion on $platform',
       (tester) async {
         CanvasDropResolver? resolver;
         await tester.pumpWidget(
@@ -753,7 +789,7 @@ void main() {
     );
 
     testWidgets(
-      'ExcludeFocus F2 Designer editor remains focusable without reenabling the application subtree on $platform',
+      'ExcludeFocusTraversal F2 Designer editor remains focusable without making application descendants traversable on $platform',
       (tester) async {
         final commits = <(String, String)>[];
         await tester.pumpWidget(
@@ -797,29 +833,37 @@ void main() {
           find.descendant(of: editor, matching: find.byType(TextField)),
         );
         expect(field.focusNode!.hasFocus, isTrue);
-        expect(tester.widget<ExcludeFocus>(_excludeFinder()).excluding, isTrue);
+        expect(
+          tester.widget<ExcludeFocusTraversal>(_excludeFinder()).excluding,
+          isTrue,
+        );
         final appFocus = _buttonFocus(tester, 'Excluded real button');
-        expect(appFocus.canRequestFocus, isFalse);
-        appFocus.requestFocus();
-        await tester.pump();
-        expect(appFocus.hasFocus, isFalse);
+        expect(appFocus.canRequestFocus, isTrue);
+        expect(appFocus.skipTraversal, isTrue);
+        expect(field.focusNode!.skipTraversal, isFalse);
         expect(field.focusNode!.hasFocus, isTrue);
         await tester.enterText(
           find.byType(TextField),
-          'Designer edit inside ExcludeFocus',
+          'Designer edit inside ExcludeFocusTraversal',
         );
         await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
         await tester.sendKeyEvent(LogicalKeyboardKey.enter);
         await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
         await tester.pump();
-        expect(commits, [(_textId, 'Designer edit inside ExcludeFocus')]);
+        expect(commits, [
+          (_textId, 'Designer edit inside ExcludeFocusTraversal'),
+        ]);
         expect(editor, findsNothing);
+        expect(appFocus.skipTraversal, isTrue);
+        appFocus.requestFocus();
+        await tester.pump();
+        expect(appFocus.hasFocus, isTrue);
         expect(tester.takeException(), isNull);
       },
     );
 
     testWidgets(
-      'ExcludeFocus F2 Escape cancels without changing exclusion or emitting a commit on $platform',
+      'ExcludeFocusTraversal F2 Escape cancels without changing exclusion or emitting a commit on $platform',
       (tester) async {
         var commits = 0;
         await tester.pumpWidget(
@@ -849,7 +893,10 @@ void main() {
         expect(find.byType(TextField), findsNothing);
         expect(find.text('Focus target'), findsOneWidget);
         expect(commits, 0);
-        expect(tester.widget<ExcludeFocus>(_excludeFinder()).excluding, isTrue);
+        expect(
+          tester.widget<ExcludeFocusTraversal>(_excludeFinder()).excluding,
+          isTrue,
+        );
         await tester.sendKeyEvent(LogicalKeyboardKey.f2);
         await tester.pump();
         expect(
@@ -881,8 +928,9 @@ CanvasDropTarget? _resolve(
 }
 
 Finder _widget() => find.byKey(const ValueKey('canvas-widget-$_id'));
-Finder _excludeFinder() =>
-    find.descendant(of: _widget(), matching: find.byType(ExcludeFocus)).first;
+Finder _excludeFinder() => find
+    .descendant(of: _widget(), matching: find.byType(ExcludeFocusTraversal))
+    .first;
 Future<void> _pump(WidgetTester tester, Map<String, Object?> model) async {
   await tester.pumpWidget(
     CanvasModelApp(

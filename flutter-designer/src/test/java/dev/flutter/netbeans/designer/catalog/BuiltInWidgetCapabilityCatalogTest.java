@@ -82,7 +82,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
             "flutter.widgets.IndexedSemantics",
-            "flutter.widgets.ExcludeFocus");
+            "flutter.widgets.ExcludeFocus",
+            "flutter.widgets.ExcludeFocusTraversal");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -141,7 +142,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.IndexedSemantics",
-            "flutter.widgets.ExcludeFocus");
+            "flutter.widgets.ExcludeFocus",
+            "flutter.widgets.ExcludeFocusTraversal");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -175,7 +177,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(60, sources.size());
+        assertEquals(61, sources.size());
         assertEquals(56, destinations.size());
         assertEquals(54, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -185,9 +187,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3360, candidates);
-        assertEquals(3086, accepted);
-        assertEquals(274, candidates - accepted);
+        assertEquals(3416, candidates);
+        assertEquals(3140, accepted);
+        assertEquals(276, candidates - accepted);
     }
 
     @Test

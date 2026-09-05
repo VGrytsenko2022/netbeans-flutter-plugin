@@ -6,6 +6,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `ExcludeFocusTraversal` in Accessibility at order 60 with the complete const
+  constructor: optional excluding (omitted true), required child and managed key.
+  Centered checkbox unset/false/true and reset, generic atomic wrapping and required
+  child replacement preserve existing content without an empty/fake child. Actual
+  Canvas traversal exclusion retains direct focus requests and existing focus,
+  unlike ExcludeFocus; layout, paint, pointer hits and labels remain. Includes
+  Properties/Slots, Palette/tree/Canvas wrapping/moves, Save/reopen/further edits,
+  Undo/Redo, rollback, F2 editing and four distinct SVGs. Current surface: 61 widgets,
+  55 const definitions, 767 rows (750 outside Scaffold), 3,416 placements
+  (3,140 accepted / 276 rejected), Accessibility 6. Historical target 61/92 with
+  31 remaining; schema/API/model stay 13/14/18. Full physical desktop acceptance
+  remains deferred.
+
 - `ExcludeFocus` in Accessibility at order 50 with its complete const constructor:
   optional excluding (SDK true), required child and managed key. Centered checkbox
   values remain distinct from unset. Generic atomic wrapping reuses an existing
@@ -14,7 +27,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   layout, paint or labels; exclusion unfocuses current descendants, and disabling
   exclusion does not automatically refocus them. Includes Properties/Slots,
   Palette/tree/Canvas wrapping and moves, Save/reopen/further edits, Undo/Redo,
-  rollback and four SVGs. Current surface: 60 widgets, 54 const definitions,
+  rollback and four SVGs. At that milestone: 60 widgets, 54 const definitions,
   766 rows (749 outside Scaffold), 3,360 placements (3,086 accepted / 274 rejected),
   Accessibility 5. Historical target 60/92 with 32 remaining; schema/API/model
   stay 13/14/18. Full physical desktop acceptance remains deferred.

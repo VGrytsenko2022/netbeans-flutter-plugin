@@ -1264,6 +1264,83 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesExcludeFocusTraversalCompleteConstructor() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("exclude_focus_traversal_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget omitted() => const ExcludeFocusTraversal(child: Text('Default true'));
+                Widget traversable() => const ExcludeFocusTraversal(excluding: false, child: TextField());
+                Widget excluded() => const ExcludeFocusTraversal(excluding: true, child: TextField());
+                Widget emptyGeometry() => const ExcludeFocusTraversal(child: SizedBox.shrink());
+                Widget nested() => const ExcludeFocusTraversal(
+                  child: ExcludeFocusTraversal(excluding: false, child: TextField(autofocus: true)));
+                Widget focusEligibility() => const ExcludeFocus(excluding: false,
+                  child: ExcludeFocusTraversal(child: TextField()));
+                Widget ancestorFocusExclusion() => const ExcludeFocus(
+                  child: ExcludeFocusTraversal(excluding: false, child: TextField()));
+                Widget themed(BuildContext context) => ExcludeFocusTraversal(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface));
+                Widget changing(bool excluding) => ExcludeFocusTraversal(excluding: excluding,
+                  child: Text(DateTime.now().toString()));
+                Widget controls(FocusNode node) => ExcludeFocusTraversal(child: Row(children: [
+                  ElevatedButton(onPressed: node.requestFocus, child: const Text('Request focus')),
+                  SizedBox(width: 100, child: TextField(focusNode: node)),
+                ]));
+                Widget semantics() => const IndexedSemantics(index: 0,
+                  child: MergeSemantics(child: ExcludeFocusTraversal(child: Text('Retained label'))));
+                Widget scrolling() => ListView(children: const [
+                  ExcludeFocusTraversal(excluding: false, child: Text('First')),
+                  ExcludeFocusTraversal(child: Text('Second')),
+                ]);
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("exclude-focus-traversal",
+                valid.indexOf("ExcludeFocusTraversal"), "ExcludeFocusTraversal",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 1200, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1201;
+        for (String invalid : List.of(
+                "const ExcludeFocusTraversal()",
+                "const ExcludeFocusTraversal(child: null)",
+                "const ExcludeFocusTraversal(excluding: null, child: Text('Bad'))",
+                "const ExcludeFocusTraversal(excluding: 1, child: Text('Bad'))",
+                "const ExcludeFocusTraversal(excluding: 'true', child: Text('Bad'))",
+                "const ExcludeFocusTraversal(descendantsAreTraversable: false, child: Text('Bad'))",
+                "const ExcludeFocusTraversal(descendantsAreFocusable: false, child: Text('Bad'))",
+                "const ExcludeFocusTraversal(skipTraversal: true, child: Text('Bad'))",
+                "const ExcludeFocusTraversal(children: <Widget>[])",
+                "const ExcludeFocusTraversal(child: 'not a widget')",
+                "const ExcludeFocusTraversal(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

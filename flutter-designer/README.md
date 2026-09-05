@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical fifty-one-widget Canvas
+responsive render profiles and the bounded canonical fifty-two-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,17 +40,17 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded typed read/write slice for all fifty-one canonical widgets: `Scaffold`,
+bounded typed read/write slice for all fifty-two canonical widgets: `Scaffold`,
 `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics`. Forty-five
-definitions use reviewed const constructors. The exact catalog currently contains 748 writable property
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics`. Forty-six
+definitions use reviewed const constructors. The exact catalog currently contains 754 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-2,448-cell candidate matrix: fifty-one exact capability-reviewed sources target
-forty-six insertable any-widget and two `PreferredSizeWidget` destinations,
-with exactly 2,216 accepted and 232 rejected cells, subject to
+2,548-cell candidate matrix: fifty-two exact capability-reviewed sources target
+forty-seven insertable any-widget and two `PreferredSizeWidget` destinations,
+with exactly 2,311 accepted and 237 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -112,7 +112,7 @@ and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics` from the reviewed
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics` from the reviewed
 built-in catalog and excludes project paths, Dart source, callback identifiers,
 extensions and persistence authority. The frame-kind whitelist is control JSON,
 model JSON, negotiated NBFC kind 4 `IMAGE_BYTES`, and reserved catalog JSON.
@@ -130,7 +130,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical fifty-one-widget model, renders it
+tests. The isolated runner decodes the canonical fifty-two-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -254,8 +254,8 @@ OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero,
 IntrinsicWidth two, Offstage one, SizedOverflowBox two, Transform five,
 RotatedBox one, ListBody two, OverflowBar six, SafeArea six, GridView.count 21,
 SingleChildScrollView 10, ColoredBox two, Placeholder four, Directionality one,
-DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three and ExcludeSemantics one, bringing the non-`Scaffold` total to
-731; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 748 writable rows across fifty-one
+DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three, PhysicalModel six and ExcludeSemantics one, bringing the non-`Scaffold` total to
+737; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 754 writable rows across fifty-two
 canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
@@ -889,13 +889,23 @@ Canvas widget uses continuous superellipse geometry and Flutter radius clamping;
 custom delegates retain the child with an explicit preview warning, ignoring but
 preserving the saved radius as Flutter does. Reopen/further-edit and Undo/Redo
 preserve the typed properties and reference.
-The current practical backlog is 51/92 complete with 41
-remaining. The catalog contains 51 widgets and 45 reviewed const definitions,
-with 748 writable rows (731 outside Scaffold); Palette categories contain 31
-Layout, three Scrolling, twelve Basic, four Material and one Accessibility item.
-The 51 sources and 48 insertable destinations form 2,448 cells, with 2,216
-admitted and 232 rejected. The typed Dart-object reference advances `.fd` to
-v12, Catalog API to 12 and Canvas model to v17; NBFC framing/control/wire remain
+`PhysicalModel` adds six typed properties: rectangle/circle shape, all four clip
+behaviors, physical-only elliptical border radius, finite non-negative elevation,
+required fill color and optional shadow color. Both colors admit literals/theme
+tokens; the required color's creation value is `0xFF2196F3`. Its child is optional.
+The SDK ignores radius for a circle without discarding its value, and non-square
+circle bounds paint an oval. Shared `BorderRadiusValues.directionalAllowed` keeps
+this concrete BorderRadius API distinct from the earlier directional clip widgets.
+Native/exact-Web Canvas constructs real PhysicalModel painting and shadows. Typed
+editors, generation, all placement routes, configured Save/reopen/further-edit and
+Undo/Redo preserve the same contract, including empty external drop affordances.
+The current practical backlog is 52/92 complete with 40
+remaining. The catalog contains 52 widgets and 46 reviewed const definitions,
+with 754 writable rows (737 outside Scaffold); Palette categories contain 31
+Layout, three Scrolling, thirteen Basic, four Material and one Accessibility item.
+The 52 sources and 49 insertable destinations form 2,548 cells, with 2,311
+admitted and 237 rejected. The physical-only radius constraint advances Catalog
+API to 13; `.fd` stays v12 and Canvas model v17. NBFC framing/control/wire remain
 v1.
 
 `Container` exposes its complete reviewed non-widget constructor surface; its
@@ -1265,7 +1275,7 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the fifty-one-source insertion matrix
+disconnected. That stage is superseded by the fifty-two-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled Apache NetBeans IDE 31 runtime,
@@ -1273,19 +1283,19 @@ strict NBM verifier and isolated install lifecycle have an established passing
 baseline; this does not imply physical acceptance of every new palette widget.
 The global physical gate remains deferred until the palette target is complete.
 The accepted ADR-021
-Windows native read-only `FlutterView`, fifty-one-widget projection, responsive
-profiles, stable-ID tree selection, exact fifty-one-item context Palette and
+Windows native read-only `FlutterView`, fifty-two-widget projection, responsive
+profiles, stable-ID tree selection, exact fifty-two-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-748 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+754 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
 `AppBar`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the fifty-one exact capability-reviewed source
-definitions and forty-eight insertable catalog-authorized slots, for 2,448
-candidate cells: 2,216 admitted and 232 rejected. Expanded and Flexible each
+Palette DnD is enabled for the fifty-two exact capability-reviewed source
+definitions and forty-nine insertable catalog-authorized slots, for 2,548
+candidate cells: 2,311 admitted and 237 rejected. Expanded and Flexible each
 admit only direct `Row.children` or `Column.children` wrapping, while Spacer is
 inserted only into those two slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea and
@@ -1307,19 +1317,20 @@ remains raw/read-only and cannot be down-saved. Canonical output is
 UTF-8 without BOM, two-space/LF formatted, has one final LF, fixed core-field
 order and lexically sorted dynamic keys. `$schema` is never fetched.
 
-Catalog contributors use a reverse-DNS id, target catalog API version 12, and
+Catalog contributors use a reverse-DNS id, target catalog API version 13, and
 own only widget type ids below `<contributorId>.`. Composition is atomic per
 contributor: invalid metadata never partially enters the effective catalog.
 Every effective Palette category id also has one stable category order;
 conflicting contributors are rejected before type resolution. API-1 through
-API-11 contributors are rejected explicitly because successive exported
+API-12 contributors are rejected explicitly because successive exported
 contracts changed incompatibly for directional edge insets, typed `IconData`,
 the initial four Container structured kinds, the reusable `IMAGE_PROVIDER`
 kind, finite-or-positive-infinity BoxConstraints bounds, atomic Size, atomic
 signed Offset, SafeArea's physical-only
 `EdgeInsetsValues.directionalAllowed` constraint, the exact payload-free null
-property value, the top-level typed border-radius geometry, and the analyzed
-typed Dart-object reference used by custom clippers.
+property value, the top-level typed border-radius geometry, the analyzed
+typed Dart-object reference used by custom clippers and PhysicalModel's
+physical-only `BorderRadiusValues.directionalAllowed` constraint.
 
 The accepted contract and module boundaries are documented in
 `docs/FLUTTER_DESIGNER_ARCHITECTURE.md`.

@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -2545,7 +2546,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void clipRSuperellipseCompletesExact2448CellModelWithOptionalRadiusClipAndChild() {
-        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> allTargets = prePhysicalModelDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2597,7 +2598,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = prePhysicalModelDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2656,7 +2657,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(51, BUILT_INS.definitions().size()),
+                () -> assertEquals(51, prePhysicalModelWidgetCount()),
                 () -> assertEquals(48, allTargets.size()),
                 () -> assertEquals(46, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2665,11 +2666,142 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2448,
                         2350 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + prePhysicalModelWidgetCount() - 1),
                 () -> assertEquals(2216,
                         2123 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(232,
                         227 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void physicalModelCompletesExact2548CellModelWithAllSurfacePropertiesAndChild() {
+        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, PHYSICAL_MODEL, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "PhysicalModel -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "PhysicalModel -> " + target.name());
+                assertEquals(PHYSICAL_MODEL, success.command().widget().type());
+                assertEquals(Map.of(new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF2196F3L)),
+                        success.command().widget().properties(),
+                        "required surface color has an explicit safe prototype");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !PHYSICAL_MODEL.equals(type))
+                .toList();
+        MatrixTargetCase physicalModelTarget = target(
+                "PhysicalModel.child", PHYSICAL_MODEL, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    physicalModelTarget.document(), BUILT_INS, source, ROOT_ID,
+                    physicalModelTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> PhysicalModel.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> PhysicalModel.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedPhysicalModel = occupiedTarget(
+                "PhysicalModel.child", PHYSICAL_MODEL, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedPhysicalModel.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(52, BUILT_INS.definitions().size()),
+                () -> assertEquals(49, allTargets.size()),
+                () -> assertEquals(47, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(49, previousOrdinarySources.size()),
+                () -> assertEquals(48, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(2548,
+                        2448 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2311,
+                        2216 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(237,
+                        232 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -3629,8 +3761,20 @@ class FlutterDesignerPaletteDropPlannerTest {
         return Math.toIntExact(preClipPathDefinitions().count());
     }
 
-    private static Stream<WidgetDefinition> preClipRSuperellipseDefinitions() {
+    private static final WidgetTypeId PHYSICAL_MODEL =
+            PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE;
+
+    private static Stream<WidgetDefinition> prePhysicalModelDefinitions() {
         return BUILT_INS.definitions().stream()
+                .filter(definition -> !PHYSICAL_MODEL.equals(definition.typeId()));
+    }
+
+    private static int prePhysicalModelWidgetCount() {
+        return Math.toIntExact(prePhysicalModelDefinitions().count());
+    }
+
+    private static Stream<WidgetDefinition> preClipRSuperellipseDefinitions() {
+        return prePhysicalModelDefinitions()
                 .filter(definition -> !CLIP_RSUPERELLIPSE.equals(definition.typeId()));
     }
 

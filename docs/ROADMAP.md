@@ -1485,11 +1485,23 @@ accepted architecture is documented in
   clipper overrides it, and show an explicit custom-code preview limitation in the
   isolated Canvas. Include full editors, stable tree/Canvas selection, Palette/slot
   placement, deterministic generation, analyzer type proof, Save/reopen/further
-  editing, Undo/Redo, accessibility and four SVG variants. Current surface: 51 widgets,
+  editing, Undo/Redo, accessibility and four SVG variants. At that milestone: 51 widgets,
   45 const-capable definitions, 748 rows (731 outside Scaffold), 46 any-widget plus
   two trait destinations; 2,448 candidates (2,216 accepted / 232 rejected).
   Basic has 12 items; historical target is 51/92 with 41 remaining. Schema/API/model
   remain 12/12/17; the full physical desktop gate remains deferred.
+- [x] Add `PhysicalModel` after `ClipRSuperellipse` (Basic order 130) with its full
+  constructor surface: shape, clipping, physical elliptical border radius, finite
+  non-negative elevation, required fill color, optional shadow color and child.
+  Both colors support literals/theme tokens; circle ignores but retains radius.
+  Use real PhysicalModel rendering/shadows and keep empty selection/drop targets
+  external. Include typed Properties/Slots, Palette/tree/Canvas insertion and
+  movement, generation, validation, Save/reopen/further-edit, Undo/Redo, accessibility
+  and four SVG variants. Current surface: 52 widgets, 46 const definitions, 754 rows
+  (737 outside Scaffold), 47 any-widget plus two trait destinations, 2,548 cells
+  (2,311 accepted / 237 rejected). Basic 13; historical target 52/92, 40 remaining.
+  Physical-only radius constraints advance Catalog API to 13; `.fd` 12 and Canvas
+  model 17 stay unchanged. The full physical desktop gate remains deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1507,7 +1519,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current typed Properties slice spans all fifty-one
+  vertical slices. The current typed Properties slice spans all fifty-two
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

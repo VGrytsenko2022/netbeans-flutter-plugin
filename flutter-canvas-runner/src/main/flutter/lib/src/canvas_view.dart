@@ -581,6 +581,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ClipOval' ||
         node.type == 'flutter.widgets.ClipRRect' ||
         node.type == 'flutter.widgets.ClipRSuperellipse' ||
+        node.type == 'flutter.widgets.PhysicalModel' ||
         node.type == 'flutter.widgets.ClipPath' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
@@ -2394,6 +2395,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ClipPath' => _clipPath(),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
+      'flutter.widgets.PhysicalModel' => _physicalModel(context),
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
@@ -4399,6 +4401,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     isAntiAlias: _boolean('isAntiAlias') ?? true,
     child: _single('child'),
   );
+
+  Widget _physicalModel(BuildContext context) {
+    final radius = node.properties['borderRadius']?.value;
+    return PhysicalModel(
+      shape: _enum('shape') == 'circle' ? BoxShape.circle : BoxShape.rectangle,
+      clipBehavior: _clipBehavior() ?? Clip.none,
+      borderRadius: radius is CanvasPhysicalBorderRadiusValue
+          ? _borderRadius(radius) as BorderRadius
+          : null,
+      elevation: _number('elevation') ?? 0.0,
+      color: _resolvedColor(context, 'color')!,
+      shadowColor:
+          _resolvedColor(context, 'shadowColor') ?? const Color(0xFF000000),
+      child: _single('child'),
+    );
+  }
 
   Widget _center() => Center(
     widthFactor: _number('widthFactor'),

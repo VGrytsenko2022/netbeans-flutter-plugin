@@ -576,6 +576,94 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesPhysicalModelSurfaceAndRejectsInvalidSdkArguments() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("physical_model_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder candidate = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaults() => const PhysicalModel(color: Color(0xFF2196F3));
+                Widget themed(BuildContext context) => Center(child: PhysicalModel(
+                  color: Theme.of(context).colorScheme.surface,
+                  shadowColor: Theme.of(context).colorScheme.shadow,
+                  elevation: 6.5,
+                  child: const SizedBox(width: 120, height: 80),
+                ));
+                """);
+        for (String shape : List.of("rectangle", "circle")) {
+            for (String clip : List.of("none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")) {
+                candidate.append("""
+                        Widget %s_%s() => const Center(child: PhysicalModel(
+                          shape: BoxShape.%s,
+                          clipBehavior: Clip.%s,
+                          borderRadius: BorderRadius.only(
+                            topLeft: Radius.elliptical(180, 240),
+                            topRight: Radius.circular(20),
+                            bottomRight: Radius.elliptical(6, 18),
+                            bottomLeft: Radius.circular(0)),
+                          elevation: 8.25,
+                          color: Color(0x882196F3),
+                          shadowColor: Color(0x55000000),
+                          child: SizedBox(width: 120, height: 80),
+                        ));
+                        """.formatted(shape, clip, shape, clip));
+            }
+        }
+        String valid = candidate.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("PhysicalModel", "BoxShape", "Clip", "BorderRadius",
+                "Radius", "Color", "Theme")) {
+            boolean engineSymbol = List.of("Clip", "Radius", "Color").contains(symbol);
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b")
+                    .matcher(valid);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("physical-model-" + symbol, occurrence.start(), symbol,
+                    engineSymbol ? "dart:ui" : "package:flutter/material.dart",
+                    flutterSdk.resolve(engineSymbol
+                            ? "bin/cache/pkg/sky_engine/lib" : "packages/flutter/lib")));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 300, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(),
+                () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+
+        long version = 301;
+        for (String invalid : List.of(
+                "const PhysicalModel()",
+                "const PhysicalModel(color: Color(0xFF2196F3), elevation: -1)",
+                "const PhysicalModel(color: Color(0xFF2196F3), borderRadius: "
+                        + "BorderRadiusDirectional.all(Radius.circular(8)))",
+                "const PhysicalModel(color: Color(0xFF2196F3), shape: BoxShape.circle, "
+                        + "borderRadius: BorderRadiusDirectional.all(Radius.circular(8)))",
+                "const PhysicalModel(color: Theme.of(context).colorScheme.surface)")) {
+            String content = "import 'package:flutter/material.dart';\n"
+                    + "Widget invalid(BuildContext context) => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(),
+                    () -> invalid + ": " + rejected + " stderr=" + stderr);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic ->
+                    diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

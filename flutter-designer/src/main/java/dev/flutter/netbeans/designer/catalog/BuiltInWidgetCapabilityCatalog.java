@@ -74,6 +74,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             + "resize(1..16384,exact,fit,allowUpscaling)";
     private static final String BORDER_RADIUS_CONTRACT_FINGERPRINT =
             "borderRadius:v1:physical,directional:finiteNonNegative";
+    private static final String PHYSICAL_BORDER_RADIUS_CONTRACT_FINGERPRINT =
+            "borderRadius:v1:physical:finiteNonNegative";
     private static final String DART_OBJECT_REFERENCE_CONTRACT_PREFIX =
             "dartObjectReference:v1:";
     private static final List<String> REVIEWED_COLOR_THEME_TOKENS = List.of(
@@ -201,6 +203,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ClipRRect", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipPath", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRSuperellipse", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.PhysicalModel", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -570,6 +573,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.ColoredBox", coloredBoxProjection()),
+            Map.entry("flutter.widgets.PhysicalModel", physicalModelProjection()),
             Map.entry("flutter.widgets.Placeholder", placeholderProjection()),
             Map.entry("flutter.widgets.Directionality", projection(Map.ofEntries(
                     requiredDefaultConstrainedProperty(
@@ -988,6 +992,19 @@ public final class BuiltInWidgetCapabilityCatalog {
                 requiredDefaultColorOrThemeProperty(
                         "color", "color:0xFF2196F3"),
                 property("isAntiAlias", PropertyValueKind.BOOLEAN)),
+                Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection physicalModelProjection() {
+        return projection(Map.ofEntries(
+                enumProperty("shape", "BoxShape", "rectangle", "circle"),
+                enumProperty("clipBehavior", "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                Map.entry("borderRadius", constrainedSchema(PropertyValueKind.BORDER_RADIUS,
+                        PHYSICAL_BORDER_RADIUS_CONTRACT_FINGERPRINT)),
+                numericProperty("elevation", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                requiredDefaultColorOrThemeProperty("color", "color:0xFF2196F3"),
+                colorOrThemeProperty("shadowColor")),
                 Map.of("child", singleSlotSchema(false, 0)));
     }
 
@@ -2211,8 +2228,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         if (constraint instanceof PropertyValueConstraint.ImageProviderValues) {
             return IMAGE_PROVIDER_CONTRACT_FINGERPRINT;
         }
-        if (constraint instanceof PropertyValueConstraint.BorderRadiusValues) {
-            return BORDER_RADIUS_CONTRACT_FINGERPRINT;
+        if (constraint instanceof PropertyValueConstraint.BorderRadiusValues values) {
+            return values.directionalAllowed() ? BORDER_RADIUS_CONTRACT_FINGERPRINT
+                    : PHYSICAL_BORDER_RADIUS_CONTRACT_FINGERPRINT;
         }
         if (constraint instanceof PropertyValueConstraint.DartObjectReferenceValues values) {
             return DART_OBJECT_REFERENCE_CONTRACT_PREFIX

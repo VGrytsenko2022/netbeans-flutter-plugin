@@ -57,6 +57,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
             "flutter.widgets.ClipRSuperellipse",
+            "flutter.widgets.PhysicalModel",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -97,8 +98,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(51, CATALOG.definitions().size());
-        assertEquals(45, CATALOG.definitions().stream()
+        assertEquals(52, CATALOG.definitions().size());
+        assertEquals(46, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -127,9 +128,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse"),
+                "ClipRSuperellipse", "PhysicalModel"),
                 itemLabels(categories[3]));
-        assertEquals(12, itemLabels(categories[3]).size());
+        assertEquals(13, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
         assertEquals(1, itemLabels(categories[4]).size());
 
@@ -167,7 +168,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse"),
+                "ClipRSuperellipse", "PhysicalModel"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
 
@@ -1257,6 +1258,27 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void physicalModelPaletteSelectionExplainsFullSurfaceAndDistinctIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.PhysicalModel";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(),
+                "flutter.basic", 300, 130, "PhysicalModel"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("PhysicalModel", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("elevated physical surface"));
+        assertTrue(node.getShortDescription().contains("physical elliptical"));
+        assertTrue(node.getShortDescription().contains("ignores but preserves"));
+        assertFalse(node.getShortDescription().contains("clipper"));
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void clipPathPaletteSelectionExplainsExclusiveTypedBranchesAndIcon()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.ClipPath";
@@ -1605,7 +1627,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(51, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(52, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

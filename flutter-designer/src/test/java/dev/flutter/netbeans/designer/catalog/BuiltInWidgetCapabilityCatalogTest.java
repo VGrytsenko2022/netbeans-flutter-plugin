@@ -73,6 +73,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
             "flutter.widgets.ClipRSuperellipse",
+            "flutter.widgets.PhysicalModel",
             "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
@@ -125,6 +126,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
             "flutter.widgets.ClipRSuperellipse",
+            "flutter.widgets.PhysicalModel",
             "flutter.widgets.ExcludeSemantics");
 
     @Test
@@ -159,9 +161,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(51, sources.size());
-        assertEquals(48, destinations.size());
-        assertEquals(46, destinations.stream()
+        assertEquals(52, sources.size());
+        assertEquals(49, destinations.size());
+        assertEquals(47, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -169,9 +171,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(2448, candidates);
-        assertEquals(2216, accepted);
-        assertEquals(232, candidates - accepted);
+        assertEquals(2548, candidates);
+        assertEquals(2311, accepted);
+        assertEquals(237, candidates - accepted);
     }
 
     @Test
@@ -749,6 +751,42 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "root,optionalMember:reference,zeroArgumentInvocation:"
                 + "requiredConstnessBoolean(false,true)\n"
                 + "S|child|single|0|0|1|any\n"), contract);
+    }
+
+    @Test
+    void physicalModelHasExactRequiredColorShapeClippingRadiusElevationAndShadowProjection() {
+        var definition = definition("flutter.widgets.PhysicalModel");
+        assertEquals(Set.of(WidgetCapability.PROPERTIES, WidgetCapability.CANVAS,
+                WidgetCapability.CREATE, WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog.canvasProjection(definition).orElseThrow();
+        assertEquals(6, projection.propertyContracts().size());
+        assertEquals("borderRadius:v1:physical:finiteNonNegative", projection.propertyContracts()
+                .get(new PropertyName("borderRadius")).constraintFingerprints().get(PropertyValueKind.BORDER_RADIUS));
+        assertEquals(Optional.of("color:0xFF2196F3"), projection.propertyContracts()
+                .get(new PropertyName("color")).creationDefaultFingerprint());
+        assertTrue(projection.propertyContracts().get(new PropertyName("color")).required());
+        for (String property : List.of("color", "shadowColor")) {
+            assertEquals(Set.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN),
+                    projection.propertyContracts().get(new PropertyName(property)).acceptedKinds());
+        }
+        assertFalse(projection.propertyContracts().get(new PropertyName("shadowColor")).required());
+        assertEquals(Set.of(PropertyValueKind.DOUBLE, PropertyValueKind.INTEGER), projection.propertyContracts()
+                .get(new PropertyName("elevation")).acceptedKinds());
+        assertEquals(BigDecimal.ZERO, projection.propertyContracts().get(new PropertyName("elevation"))
+                .numericBounds().get(PropertyValueKind.DOUBLE).minimum());
+        assertTrue(projection.propertyContracts().get(new PropertyName("shape"))
+                .constraintFingerprints().get(PropertyValueKind.ENUM).endsWith(":BoxShape:circle,rectangle"));
+        assertEquals(new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+        var changed = definition.properties().stream().map(property -> property.name().value().equals("borderRadius")
+                ? new PropertyDefinition(property.name(), property.parameter(),
+                        List.of(new PropertyValueConstraint.BorderRadiusValues()), property.creationDefault()) : property).toList();
+        var broadened = new WidgetDefinition(definition.typeId(), definition.dartClassName(),
+                definition.namedConstructor(), definition.constConstructor(), definition.dartLibraryUri(),
+                definition.importUris(), definition.traits(), definition.palette(), changed, definition.slots());
+        assertTrue(BuiltInWidgetCapabilityCatalog.canvasProjection(broadened).isEmpty(),
+                "Directional broadening must fail the exact reviewed Canvas contract");
     }
 
     @Test

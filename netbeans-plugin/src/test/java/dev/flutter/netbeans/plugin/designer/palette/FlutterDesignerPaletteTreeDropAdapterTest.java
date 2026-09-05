@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -116,6 +117,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId PHYSICAL_MODEL =
+            PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE;
     private static final WidgetTypeId CLIP_RSUPERELLIPSE =
             ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
     private static final WidgetTypeId CLIP_PATH =
@@ -1824,6 +1827,52 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit consumes the ClipRSuperellipse palette authority once"));
+    }
+
+    @Test
+    void physicalModelTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(PHYSICAL_MODEL);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(PHYSICAL_MODEL, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(PHYSICAL_MODEL, command.widget().type()),
+                () -> assertEquals(Map.of(new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF2196F3L)),
+                        command.widget().properties(),
+                        "required color is explicit; other defaults are omitted"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the PhysicalModel palette authority once"));
     }
 
     @Test

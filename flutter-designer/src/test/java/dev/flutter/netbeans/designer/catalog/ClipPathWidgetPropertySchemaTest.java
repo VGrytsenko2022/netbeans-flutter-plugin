@@ -146,7 +146,7 @@ class ClipPathWidgetPropertySchemaTest {
     @Test
     void remainsCompatibleWithTheCurrentDesignerContracts() {
         assertEquals(12, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(12, WidgetCatalog.API_VERSION);
+        assertEquals(13, WidgetCatalog.API_VERSION);
         assertEquals(17, CanvasModelPayloadCodec.VERSION);
     }
 }

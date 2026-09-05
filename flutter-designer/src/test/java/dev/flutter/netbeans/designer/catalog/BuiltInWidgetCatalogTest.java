@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFiftyOneTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFiftyTwoTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -73,6 +73,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.OverflowBar",
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
+                "flutter.widgets.PhysicalModel",
                 "flutter.widgets.Placeholder",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
@@ -90,8 +91,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(51, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(45, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(52, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(46, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -105,10 +106,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(748, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(754, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(731, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(737, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -130,6 +131,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.ClipPath", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRSuperellipse", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.PhysicalModel", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
@@ -219,6 +221,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "BorderStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "BoxFit"),
                 new DartSymbolReference(DART_UI_IMPORT, "BoxHeightStyle"),
+                new DartSymbolReference(WIDGETS_IMPORT, "BoxShape"),
                 new DartSymbolReference(DART_UI_IMPORT, "BoxWidthStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Brightness"),
                 new DartSymbolReference(WIDGETS_IMPORT, "Clip"),
@@ -311,6 +314,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ClipRRect",
                 "flutter.widgets.ClipPath",
                 "flutter.widgets.ClipRSuperellipse",
+                "flutter.widgets.PhysicalModel",
                 "flutter.widgets.ExcludeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
@@ -324,7 +328,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(12, palette.stream()
+        assertEquals(13, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

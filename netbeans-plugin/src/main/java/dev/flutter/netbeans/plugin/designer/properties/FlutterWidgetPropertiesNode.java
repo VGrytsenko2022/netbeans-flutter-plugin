@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -529,6 +530,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
                 widget.type())) {
             addClipPathPropertySets(sheet, hasSlotTab);
+        } else if (PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.equals(
+                widget.type())) {
+            addPhysicalModelPropertySets(sheet, hasSlotTab);
         } else if (ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.equals(
                 definition.typeId())) {
             addClipRSuperellipsePropertySets(sheet, hasSlotTab);
@@ -988,6 +992,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "symbol as CustomClipper<RRect>; Flutter then ignores borderRadius. "
                     + "The isolated Canvas cannot execute project Dart and displays an "
                     + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted on an elevated physical surface. Shape, color, "
+                    + "shadow color, elevation and clip behavior control the surface. "
+                    + "Circle shape ignores but preserves physical borderRadius. "
+                    + "Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
@@ -2470,6 +2484,43 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description() + boundary));
+        }
+    }
+
+    private void addPhysicalModelPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<PhysicalModelWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(PhysicalModelWidgetPropertySchema.Group.class);
+        for (PhysicalModelWidgetPropertySchema.Group group
+                : PhysicalModelWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            PhysicalModelWidgetPropertySchema.Definition schema =
+                    PhysicalModelWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in PhysicalModel property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "shape" -> " Omission preserves BoxShape.rectangle. Circle shape "
+                        + "ignores but preserves borderRadius; changing shape does not remove it.";
+                case "borderRadius" -> " Physical elliptical corners only; "
+                        + "BorderRadiusDirectional is not accepted. Omission preserves "
+                        + "Flutter's null default. Circle shape ignores but preserves this value.";
+                case "clipBehavior" -> " Omission preserves Clip.none.";
+                case "elevation" -> " Must be finite and non-negative. Omission preserves 0.";
+                case "color" -> " Required surface color; literal ARGB and reviewed "
+                        + "Material ColorScheme roles are supported. Cannot be unset.";
+                case "shadowColor" -> " Literal ARGB and reviewed Material ColorScheme "
+                        + "roles are supported. Omission preserves Flutter's black default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected PhysicalModel property: " + property.name().value());
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + boundary));
         }
     }
 

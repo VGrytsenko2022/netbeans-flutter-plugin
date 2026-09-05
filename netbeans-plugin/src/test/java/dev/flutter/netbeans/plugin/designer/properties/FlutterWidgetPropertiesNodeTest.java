@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -814,6 +815,8 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("color"),
                         new PropertyValue.ColorValue(0xFF2196F3L)));
+        requiredValues.put("flutter.widgets.PhysicalModel",
+                Map.of(new PropertyName("color"), new PropertyValue.ColorValue(0xFF2196F3L)));
         requiredValues.put(
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
                 Map.of(
@@ -873,6 +876,7 @@ class FlutterWidgetPropertiesNodeTest {
                 ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
                 ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
                 ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
+                PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value(),
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -908,7 +912,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(748, writableCount,
+        assertEquals(754, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -921,7 +925,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(731, nonScaffoldWritableCount,
+        assertEquals(737, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -5411,6 +5415,8 @@ class FlutterWidgetPropertiesNodeTest {
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
         Set<String> iconPaths = new HashSet<>();
+        typeIds = new ArrayList<>(typeIds);
+        typeIds.add(PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value());
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -5437,9 +5443,88 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(51, iconPaths.size(),
+        assertEquals(52, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
+
+    @Test
+    void physicalModelProjectsAllPropertiesPreservesRadiusAcrossCircleRefreshAndRejectsBadEdits()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.PhysicalModel");
+        StableId id = StableId.parse("f93b867a-a162-47c4-841f-bd22936629bb");
+        PropertyValue.BoxDecorationValue.Radius radius =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        BigDecimal.valueOf(12), BigDecimal.valueOf(8));
+        PropertyValue.BorderRadiusValue corners = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        radius, radius, radius, radius));
+        PropertyName colorName = new PropertyName("color");
+        PropertyName radiusName = new PropertyName("borderRadius");
+        PropertyValue.ColorValue color = new PropertyValue.ColorValue(0xFF2196F3L);
+        WidgetNode widget = new WidgetNode(id, definition.typeId(),
+                Map.of(colorName, color, radiusName, corners),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+        assertEquals(2 + PhysicalModelWidgetPropertySchema.Group.values().length,
+                node.getPropertySets().length);
+        for (String name : List.of("shape", "clipBehavior", "borderRadius", "elevation",
+                "color", "shadowColor")) {
+            assertTrue(property(node, name).canWrite(), name);
+            assertEquals(FlutterPropertyCellValue.class, property(node, name).getValueType());
+            assertFalse(property(node, name).getShortDescription().contains("clipper"), name);
+        }
+        Node.Property<FlutterPropertyCellValue> shape = cellProperty(property(node, "shape"));
+        Node.Property<FlutterPropertyCellValue> borderRadius =
+                cellProperty(property(node, "borderRadius"));
+        Node.Property<FlutterPropertyCellValue> surface = cellProperty(property(node, "color"));
+        Node.Property<FlutterPropertyCellValue> elevation =
+                cellProperty(property(node, "elevation"));
+        assertEquals(List.of(FlutterWidgetPropertiesNode.NOT_SET, "rectangle", "circle"),
+                List.of(shape.getPropertyEditor().getTags()));
+        assertEquals(List.of(FlutterWidgetPropertiesNode.NOT_SET,
+                "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                List.of(property(node, "clipBehavior").getPropertyEditor().getTags()));
+        assertTrue(borderRadius.getShortDescription().contains("null default"));
+        assertTrue(borderRadius.getShortDescription().contains("ignores but preserves"));
+        assertTrue(borderRadius.getPropertyEditor().supportsCustomEditor());
+        assertFalse(surface.supportsDefaultValue());
+        assertThrows(IllegalArgumentException.class,
+                () -> surface.setValue(FlutterPropertyCellValue.unset()));
+        assertThrows(IllegalArgumentException.class, () -> elevation.setValue(
+                FlutterPropertyCellValue.explicit(
+                        new PropertyValue.DoubleValue(BigDecimal.ONE.negate()))));
+        assertThrows(IllegalArgumentException.class, () -> borderRadius.setValue(
+                FlutterPropertyCellValue.explicit(new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                radius, radius, radius, radius)))));
+        assertTrue(commands.isEmpty());
+        PropertyValue.EnumValue circle = new PropertyValue.EnumValue("BoxShape", "circle");
+        shape.setValue(FlutterPropertyCellValue.explicit(circle));
+        assertEquals(List.of(new SetProperty(id, new PropertyName("shape"), circle)), commands,
+                "shape change must not issue a radius-reset patch");
+        Node.PropertySet[] sets = node.getPropertySets();
+        WidgetNode round = new WidgetNode(id, definition.typeId(),
+                Map.of(colorName, color, radiusName, corners, new PropertyName("shape"), circle),
+                widget.slots());
+        commands.clear();
+        node.refreshPresentation(round, definition, commands::add, null, null,
+                FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        assertSame(shape, property(node, "shape"));
+        assertSame(borderRadius, property(node, "borderRadius"));
+        assertEquals(FlutterPropertyCellValue.explicit(corners), borderRadius.getValue());
+        shape.restoreDefaultValue();
+        borderRadius.restoreDefaultValue();
+        assertEquals(List.of(new ResetProperty(id, new PropertyName("shape")),
+                new ResetProperty(id, radiusName)), commands);
+        Node.Property<?> child = property(node, "child");
+        assertEquals("Empty", child.getValue());
+        assertTrue(child.getShortDescription().contains("elevated physical surface"));
+        assertTrue(child.getShortDescription().contains("Occupancy: 0/1"));
+    }
+
 
     private static WidgetDefinition definition(String typeId) {
         return BuiltInWidgetCatalog.getDefault()

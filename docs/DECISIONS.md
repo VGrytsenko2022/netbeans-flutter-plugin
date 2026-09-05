@@ -32,10 +32,10 @@ surface, ADR-073 establishes the historical `ExcludeSemantics` surface,
 ADR-074 establishes the historical `IndexedStack` surface, ADR-075 establishes
 the historical `ClipRect` surface, ADR-076 establishes the historical
 `ClipOval` surface, ADR-077 establishes `ClipRRect`, ADR-078 adds `ClipPath`,
-and ADR-079 establishes the current `ClipRSuperellipse` surface:
-748 typed rows across fifty-one widgets, forty-five const-constructor
-definitions and 2,448 Palette/DnD candidates, including 2,216 accepted and 232
-rejected cells. The 731-field
+ADR-079 adds `ClipRSuperellipse`, and ADR-080 establishes the current
+`PhysicalModel` surface: 754 typed rows across fifty-two widgets, forty-six
+const-constructor definitions and 2,548 Palette/DnD candidates, including 2,311
+accepted and 237 rejected cells. The 737-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -45,7 +45,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-079 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-080 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -122,8 +122,9 @@ established `API_VERSION == 8`. ADR-069 adds the exported
 SafeArea's concrete physical `EdgeInsets` parameter from broader
 `EdgeInsetsGeometry` parameters and established `API_VERSION == 9`.
 `NullValue` established API 10, top-level typed border-radius geometry
-established API 11, and ADR-077's typed Dart-object reference establishes the
-current `API_VERSION == 12`. API-1 through API-11 contributors fail closed
+established API 11, and ADR-077's typed Dart-object reference establishes API 12.
+ADR-080's `BorderRadiusValues.directionalAllowed` physical-radius distinction
+establishes the current `API_VERSION == 13`. API-1 through API-12 contributors fail closed
 before their definitions are loaded. This is not yet a permanent 1.0
 compatibility promise. Further incompatible evolution should move the SPI to a
 dedicated module/new package boundary rather than silently breaking extensions
@@ -383,8 +384,9 @@ the historical forty-eight-source, 2,160-candidate matrix (1,943 accepted and
 217 rejected), ADR-077 establishes the historical forty-nine-source,
 2,254-candidate matrix (2,032 accepted and 222 rejected), ADR-078 adds the
 fifty-source, 2,350-candidate matrix (2,123 accepted and 227 rejected), and
-ADR-079 establishes the current fifty-one-source, 2,448-candidate matrix
-(2,216 accepted and 232 rejected).
+ADR-079 establishes the historical fifty-one-source, 2,448-candidate matrix
+(2,216 accepted and 232 rejected). ADR-080 establishes the current fifty-two-source,
+2,548-candidate matrix (2,311 accepted and 237 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -395,7 +397,7 @@ protocol-v17 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `ExcludeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -409,12 +411,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated fifty-one-widget model for Mobile, Tablet,
+Canvas now renders the validated fifty-two-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those fifty-one Create-capable definitions, and the DnD-capable set uses the
-reviewed 2,448-cell candidate matrix across forty-six insertable any-widget and two
-trait-bound destination slots; 2,216 cells are accepted and 232 rejected.
+those fifty-two Create-capable definitions, and the DnD-capable set uses the
+reviewed 2,548-cell candidate matrix across forty-seven insertable any-widget and two
+trait-bound destination slots; 2,311 cells are accepted and 237 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3393,3 +3395,58 @@ pair reopen, typed property edit and subsequent save passed in the 70-case
 controller integration suite. The release verifier confirms a fresh NBM with
 correct metadata; installed-userdir and full physical desktop acceptance were not
 run. NBM SHA-256: `e990665361392ee4e1df6b82a84af9b4c08e52d3d7845b8216b3075cf61f5bba`.
+
+## ADR-080 — PhysicalModel with concrete radius geometry and real shadow rendering
+
+Status: accepted, 2026-09-05.
+
+Add `flutter.widgets.PhysicalModel` in Basic at order 130 after ClipRSuperellipse.
+All six non-key constructor arguments from pinned Flutter 3.44.8 are supported:
+shape, clipBehavior, borderRadius, elevation, required color and shadowColor, plus
+an optional any-widget child. Framework key remains managed identity. The Palette
+prototype supplies literal color `0xFF2196F3`, consistent with ColoredBox. Shape,
+clipping, elevation and shadow omission preserve rectangle, none, zero and black
+defaults. Both colors support literal ARGB and reviewed theme colors, with correct
+const propagation through parents. Elevation is finite and non-negative.
+
+PhysicalModel takes concrete `BorderRadius?`, not BorderRadiusGeometry. Extend the
+reusable exported constraint with `BorderRadiusValues.directionalAllowed`, keeping
+the zero-argument constructor equivalent to `true` for existing callers. This
+widget uses `false`; model validation, property controls and the independent Canvas
+decoder reject directional values even with circle shape. The exact physical-only
+fingerprint differs from the existing broad geometry fingerprint, which stays
+unchanged for prior clipping widgets. The exported record contract raises Catalog
+API from 12 to 13, rejecting older contributors before loading their definitions.
+No value-algebra change is needed: `.fd` stays 12, Canvas model 17,
+NBFC framing/control/wire 1.
+
+Physical radius omission stays omitted/null; the SDK treats it like zero corners.
+Circle ignores but retains a stored radius, so switching back to rectangle recovers
+the exact geometry. Non-square circle bounds form an oval in the pinned renderer.
+Canvas instantiates actual PhysicalModel/RenderPhysicalModel and delegates fill,
+shadow, clipping, radius clamping and translucent occluder behavior to Flutter.
+An absent child is not replaced by a preview helper; selection/drop targets stay
+external to real layout and paint. There is no project-code preview branch here.
+
+The slice includes grouped Properties, physical-radius and color editors, child
+management, Palette/tree/Canvas placement, same-tree movement, generation, validation,
+save/reopen/further-edit, Undo/Redo, rejected-change rollback, accessibility and
+four reviewed SVG variants. Current totals: 52 widgets, 46 const definitions,
+754 rows (737 outside Scaffold), 47 any-widget plus two trait-bound destinations.
+The 52×49 matrix has 2,548 cells: 2,311 accepted and 237 rejected. Categories are
+Layout 31, Scrolling 3, Basic 13, Material 4, Accessibility 1. The historical practical
+target is 52/92 with 40 remaining, not a recovered ordered full Flutter inventory. The global
+physical desktop gate remains deferred until that target is complete.
+
+Validation for this milestone: clean Maven install and cluster assembly passed.
+Surefire recorded 3,255 cases (six optional skips), Failsafe 13 (one optional skip),
+with zero failures/errors. Flutter analysis was clean and all 478 Flutter tests
+passed, including real rectangle/oval paint, shadows, translucent occluders, theme
+colors and childless targets on Windows/Web profiles. The pinned Flutter 3.44.8
+analyzer accepted all constructor branches and rejected missing required color,
+negative const elevation, directional radii (including circle) and invalid theme
+constness. The configured save/reopen/further-edit and rejection rollback passed
+in the 71-case mutation controller suite. All 41 packaged Web build/cache and exact
+artifact cases passed. Release verification confirmed the fresh NBM and metadata;
+installed-userdir and global physical desktop acceptance were not run.
+NBM SHA-256: `bb1c78b11964427c7c108ebbcff995fa97407c2a163454678fef252ff149bffb`.

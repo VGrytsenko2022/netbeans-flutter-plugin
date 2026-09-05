@@ -231,6 +231,20 @@ final class FlutterTypedPropertyEditors {
                     .directionalAllowed();
         }
 
+        boolean directionalBorderRadiusAllowed() {
+            if (editorKind != EditorKind.BORDER_RADIUS) {
+                throw new IllegalStateException(
+                        "Directional BorderRadius capability is only defined for radius editors.");
+            }
+            return definition.constraints().stream()
+                    .filter(PropertyValueConstraint.BorderRadiusValues.class::isInstance)
+                    .map(PropertyValueConstraint.BorderRadiusValues.class::cast)
+                    .findFirst()
+                    .orElseThrow(() -> new IllegalStateException(
+                            "BorderRadius editor is missing its typed constraint."))
+                    .directionalAllowed();
+        }
+
         List<ThemeToken> allowedThemeTokens() {
             return definition.constraints().stream()
                     .filter(PropertyValueConstraint.ThemeTokenValues.class::isInstance)

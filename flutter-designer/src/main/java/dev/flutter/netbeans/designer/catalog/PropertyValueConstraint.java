@@ -318,8 +318,13 @@ public sealed interface PropertyValueConstraint permits
         }
     }
 
-    /** Accepts physical or directional finite non-negative border radii. */
-    record BorderRadiusValues() implements PropertyValueConstraint {
+    /** Typed finite non-negative radii, optionally accepting directional geometry. */
+    record BorderRadiusValues(boolean directionalAllowed) implements PropertyValueConstraint {
+        /** Preserves the historical BorderRadiusGeometry-capable contract. */
+        public BorderRadiusValues() {
+            this(true);
+        }
+
         @Override
         public PropertyValueKind kind() {
             return PropertyValueKind.BORDER_RADIUS;
@@ -341,7 +346,7 @@ public sealed interface PropertyValueConstraint permits
             }
             PropertyValue.BoxDecorationValue.DirectionalBorderRadius directional =
                     (PropertyValue.BoxDecorationValue.DirectionalBorderRadius) geometry;
-            return acceptsRadius(directional.topStart())
+            return directionalAllowed && acceptsRadius(directional.topStart())
                     && acceptsRadius(directional.topEnd())
                     && acceptsRadius(directional.bottomEnd())
                     && acceptsRadius(directional.bottomStart());
@@ -349,7 +354,9 @@ public sealed interface PropertyValueConstraint permits
 
         @Override
         public String description() {
-            return "physical or directional finite non-negative BorderRadiusGeometry";
+            return directionalAllowed
+                    ? "physical or directional finite non-negative BorderRadiusGeometry"
+                    : "physical finite non-negative BorderRadius (directional geometry is not accepted)";
         }
 
         private static boolean acceptsRadius(

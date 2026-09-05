@@ -6,6 +6,16 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `PhysicalModel` in Basic at order 130 with all six properties and optional child:
+  rectangle/circle shape, all four clip behaviors, physical elliptical border radius,
+  finite non-negative elevation, required fill color and optional shadow color.
+  Colors support literal ARGB and reviewed theme tokens. Circle ignores but retains
+  saved radii. The real native/exact-Web renderer, typed editors, child management,
+  Palette/tree/Canvas DnD, generation, Save/reopen/further-edit, Undo/Redo and four SVG
+  variants are included. `BorderRadiusValues.directionalAllowed` advances contributor
+  Catalog API to 13; `.fd` 12 and Canvas model 17 remain unchanged. Current surface:
+  52 widgets, 46 const definitions, 754 rows (737 outside Scaffold), 2,548 placements
+  (2,311 accepted / 237 rejected), Basic 13; historical target 52/92, 40 remaining.
 - `ClipRSuperellipse` in Basic at order 120, with all non-key constructor arguments:
   typed physical/directional elliptical `borderRadius`, closed
   `CustomClipper<RSuperellipse>` references and const/non-const zero-argument calls,

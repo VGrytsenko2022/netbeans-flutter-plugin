@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(51, javaTypes.size(),
+        assertEquals(52, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -74,6 +74,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.ClipRRect"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipPath"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipRSuperellipse"));
+        assertTrue(javaTypes.contains("flutter.widgets.PhysicalModel"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(17, CanvasModelPayloadCodec.VERSION);
@@ -103,6 +104,9 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.widgets.ClipRRect\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.ClipPath\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.ClipRSuperellipse\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.PhysicalModel\n"));
+        assertTrue(dartContract.contains(
+                "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
                 "dartObjectReference:v1:CustomClipper<Path>:currentOrPackage"));
         assertTrue(dartContract.contains(
@@ -198,6 +202,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ClipPath.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.ClipRSuperellipse"),
                 "ClipRSuperellipse.child is an ordinary optional any-widget insertion target");
+        assertTrue(javaContainers.contains("flutter.widgets.PhysicalModel"),
+                "PhysicalModel.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
                 "Baseline.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicHeight"),

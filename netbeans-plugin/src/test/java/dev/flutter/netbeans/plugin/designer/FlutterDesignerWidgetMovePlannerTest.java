@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
@@ -104,6 +105,8 @@ class FlutterDesignerWidgetMovePlannerTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId PHYSICAL_MODEL =
+            PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE;
     private static final WidgetTypeId CLIP_RSUPERELLIPSE =
             ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
@@ -630,6 +633,57 @@ class FlutterDesignerWidgetMovePlannerTest {
                 A_ID,
                 CLIP_RSUPERELLIPSE,
                 Map.of(
+                        new PropertyName("borderRadius"), borderRadius,
+                        new PropertyName("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertAll(
+                () -> assertEquals(widget.id(), command.widgetId()),
+                () -> assertEquals(
+                        new WidgetPlacement(stack.id(), CHILDREN, 0),
+                        command.destination()),
+                () -> assertEquals(borderRadius,
+                        widget.properties().get(new PropertyName("borderRadius"))),
+                () -> assertEquals(
+                        new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer"),
+                        widget.properties().get(new PropertyName("clipBehavior"))),
+                () -> assertEquals(child, ((WidgetSlot.SingleSlot)
+                        widget.slots().get(CHILD)).child().orElseThrow()));
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
+    void completedPhysicalModelMovesWithBorderRadiusClipBehaviorChildAndIdsPreserved() {
+        PropertyValue.BorderRadiusValue borderRadius = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(12), BigDecimal.valueOf(8)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(10), BigDecimal.valueOf(6)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.valueOf(4), BigDecimal.valueOf(2)),
+                        new PropertyValue.BoxDecorationValue.Radius(
+                                BigDecimal.ONE, BigDecimal.valueOf(3))));
+        WidgetNode child = validText(D_ID, "rounded-clipped child");
+        WidgetNode widget = new WidgetNode(
+                A_ID,
+                PHYSICAL_MODEL,
+                Map.of(
+                        new PropertyName("color"), new PropertyValue.ColorValue(0xFF2196F3L),
+                        new PropertyName("shape"), new PropertyValue.EnumValue("BoxShape", "circle"),
+                        new PropertyName("elevation"), new PropertyValue.DoubleValue(BigDecimal.TEN),
+                        new PropertyName("shadowColor"), new PropertyValue.ColorValue(0xFF000000L),
                         new PropertyName("borderRadius"), borderRadius,
                         new PropertyName("clipBehavior"),
                         new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer")),
@@ -1432,6 +1486,26 @@ class FlutterDesignerWidgetMovePlannerTest {
         WidgetNode source = validText(A_ID, "move into ClipRSuperellipse");
         WidgetNode empty = WidgetNodePrototypeFactory.create(
                 definition(CLIP_RSUPERELLIPSE), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyPhysicalModelChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into PhysicalModel");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(PHYSICAL_MODEL), B_ID);
         DesignerDocument document = document(listParent(
                 ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
 

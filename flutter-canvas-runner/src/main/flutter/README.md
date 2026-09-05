@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-51 reviewed Canvas widgets. Palette insertion evaluates 2,448 exact
-source/destination cells across 51 draggable sources and 48 insertable reviewed
-slots; 2,216 are accepted and 232 cells are rejected. Expanded and Flexible are
+52 reviewed Canvas widgets. Palette insertion evaluates 2,548 exact
+source/destination cells across 52 draggable sources and 49 insertable reviewed
+slots; 2,311 are accepted and 237 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -900,10 +900,20 @@ warning and the otherwise retained radius is ignored. Selection/drop affordances
 remain external even when the custom node has no child. This extends the reviewed
 v17 model contract without adding project-code execution or a protocol bump.
 
-The aggregate catalog now has 51 widgets and 45 reviewed const definitions,
-with 748 writable rows (731 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twelve Basic, four Material and one Accessibility item; the
-backlog is 51/92 complete with 41 remaining. The 51 sources across 48
-insertable destinations form 2,448 cells, with 2,216 accepted and 232 rejected.
-The typed Dart-object reference advances `.fd` schema to v12, Catalog API to 12
-and Canvas model protocol to v17; NBFC framing, control and wire remain v1.
+`PhysicalModel` adds a real physical layer with required fill color, shadow color,
+finite non-negative elevation, rectangle/circle shape, all four clip modes and
+physical-only elliptical radii. Both colors resolve from literal ARGB or reviewed
+theme tokens. Decoder admission and the exact fingerprint reject directional radii,
+including on a circle. The renderer preserves the radius value when the circle
+ignores it; non-square circle bounds form an oval. Windows/Web tests exercise
+native paint/shadows, translucent occluders, radius clamping, theme colors, property
+changes and optional child. Empty nodes keep external selection/drop affordances
+without fabricated paint or layout. Canvas model remains v17.
+
+The aggregate catalog now has 52 widgets and 46 reviewed const definitions,
+with 754 writable rows (737 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, thirteen Basic, four Material and one Accessibility item; the
+backlog is 52/92 complete with 40 remaining. The 52 sources across 49
+insertable destinations form 2,548 cells, with 2,311 accepted and 237 rejected.
+The physical-only radius constraint advances Catalog API to 13; `.fd` schema stays
+v12 and Canvas model protocol v17. NBFC framing, control and wire remain v1.

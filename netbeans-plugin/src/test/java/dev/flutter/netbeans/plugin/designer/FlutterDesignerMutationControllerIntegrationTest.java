@@ -5820,6 +5820,181 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void palettePhysicalModelSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8a8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a8a");
+        StableId childId = StableId.parse("8b8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.PhysicalModel");
+        PropertyName colorName = new PropertyName("color");
+        PropertyName elevationName = new PropertyName("elevation");
+        PropertyName shadowName = new PropertyName("shadowColor");
+        PropertyValue.BoxDecorationValue.Radius r =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        new java.math.BigDecimal("12.5"), new java.math.BigDecimal("7.25"));
+        PropertyValue.BorderRadiusValue corners = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(r, r, r, r));
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(BORDER_RADIUS, corners);
+        configured.put(SHAPE, new PropertyValue.EnumValue("BoxShape", "circle"));
+        configured.put(CLIP_BEHAVIOR, new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer"));
+        configured.put(elevationName, new PropertyValue.DoubleValue(java.math.BigDecimal.TEN));
+        configured.put(colorName, new PropertyValue.ColorValue(0xFF884422L));
+        configured.put(shadowName, new PropertyValue.ColorValue(0x80112233L));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("physical_model_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const PhysicalModel("));
+                assertTrue(request.content().contains("color: const Color(0xFF2196F3)"));
+                assertFalse(request.content().contains("borderRadius:"));
+                assertFalse(request.content().contains("elevation:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> surfaceId));
+            var added = applyPhysicalModelMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(colorName, new PropertyValue.ColorValue(0xFF2196F3L)),
+                    surface.properties());
+            assertTrue(((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().isEmpty());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("physical_model_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("shape", "clipBehavior", "borderRadius", "elevation",
+                    "color", "shadowColor")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const PhysicalModel("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyPhysicalModelMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            var childPlan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            current.document().orElseThrow(), current.catalog().orElseThrow(),
+                            new WidgetTypeId("flutter.widgets.Text"), surfaceId, CHILD, 0, () -> childId));
+            current = applyPhysicalModelMutation(fixture, current, childPlan.command(), surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "circle shape must retain the configured physical radius");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("shape: BoxShape.circle"));
+            assertTrue(generated.contains("borderRadius: const BorderRadius.only("));
+            assertTrue(generated.contains("Radius.elliptical(12.5, 7.25)"));
+            assertTrue(generated.contains("elevation: 10.0"));
+            assertTrue(generated.contains("shadowColor: const Color(0x80112233)"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 7; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, surfaceId));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 7; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, surfaceId));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(7, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "physical_model_test_rejection", "PhysicalModel candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, elevationName,
+                            new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(20))),
+                    "PhysicalModel.elevation").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("PhysicalModel candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("physical_model_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var shape = cellProperty(properties, "shape");
+            shape.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.EnumValue("BoxShape", "rectangle")));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("shape: BoxShape.rectangle"));
+                assertTrue(request.content().contains("borderRadius: const BorderRadius.only("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyPhysicalModelMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(SHAPE, new PropertyValue.EnumValue("BoxShape", "rectangle"));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyPhysicalModelMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId surfaceId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(),
+                command, "PhysicalModel complete surface").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(),
+                before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, surfaceId));
+    }
+
+    private static ExactPair savePhysicalModelPair(MutationFixture fixture) throws Exception {
+        PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+        assertNotNull(evidence);
+        byte[] dart = evidence.candidateDartBytes();
+        byte[] fd = evidence.preparedPairIdentity().prospectiveFdBytes();
+        SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+        assertNotNull(save);
+        save.save();
+        awaitCurrentWithPair(fixture.controller(), fd, dart);
+        assertEquals(PairSaveCoordinatorStatus.CLEAN, fixture.coordinator().state().status());
+        return new ExactPair(dart, fd);
+    }
+
+
+    @Test
     void paletteClipPathSaveReopenSwitchRestoreUndoAndSaveRemainExact()
             throws Exception {
         StableId clipPathId = StableId.parse(

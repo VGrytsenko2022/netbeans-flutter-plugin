@@ -358,6 +358,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.ClipOval' ||
       'flutter.widgets.ClipRRect' ||
       'flutter.widgets.ClipRSuperellipse' ||
+      'flutter.widgets.PhysicalModel' ||
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||

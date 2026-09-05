@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly fifty-one
+The current capability-gated Palette and native Canvas admit exactly fifty-two
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics`.
-Forty-five definitions use reviewed const constructors. Their `General`
-Properties expose exactly 748 typed writable rows: 731 across the fifty
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics`.
+Forty-six definitions use reviewed const constructors. Their `General`
+Properties expose exactly 754 typed writable rows: 737 across the fifty-one
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -584,9 +584,19 @@ the real Flutter superellipse on Canvas. Project delegates generate correctly bu
 show an explicit preview-unavailable warning rather than execute in Canvas.
 Save/reopen, further edits and Undo/Redo retain these typed editors.
 
-The practical backlog is now 51/92 complete with 41 remaining; Layout contains
-31 items, Scrolling 3, Basic 12, Material 4 and Accessibility 1. The aggregate
-is 45 reviewed const definitions and 748 writable rows, including 731 outside
+Basic → **PhysicalModel** adds shape, clipping, border radius, elevation, fill
+color and shadow color, plus an optional child. Its required Color starts at
+`0xFF2196F3`; both color editors offer ARGB and theme tokens. Elevation must be finite
+and non-negative. Radius accepts physical corners only, with separate X/Y axes.
+Changing Shape to circle preserves the radius while Flutter ignores it; changing
+back restores its effect. A non-square circle occupies an oval. All four clip modes
+and real fill/shadow painting are supported. A childless node can remain zero-size;
+its external Designer target still permits selection and child insertion. Save,
+reopen, further property/child edits and Undo/Redo use the normal transaction flow.
+
+The practical backlog is now 52/92 complete with 40 remaining; Layout contains
+31 items, Scrolling 3, Basic 13, Material 4 and Accessibility 1. The aggregate
+is 46 reviewed const definitions and 754 writable rows, including 737 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -635,12 +645,13 @@ without removing Container selection/layout/drop overlays. Exact-Web product
 selection is still gated; the routed Web choice remains the native-engine
 responsive layout preview.
 
-The current surface uses `.fd` schema v12, contributor Catalog API 12 and Canvas
+The current surface uses `.fd` schema v12, contributor Catalog API 13 and Canvas
 model protocol 17. SafeArea's exported
 `EdgeInsetsValues.directionalAllowed` constraint established API 9, while the
 exact payload-free null value used by `IndexedStack.index` establishes API 10,
 and ClipRRect's top-level typed radius geometry establishes API 11, while its
-typed Dart-object reference establishes API 12; API-1 through API-11
+typed Dart-object reference establishes API 12. PhysicalModel's physical-only
+`BorderRadiusValues.directionalAllowed` establishes API 13; API-1 through API-12
 contributors fail closed. Schema v1-v11 files migrate in
 memory and are written as v12
 only after an admitted edit. Version 7 represents positive infinity as `null`
@@ -650,8 +661,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 10 adds the exact payload-free null property value; version 11 adds the
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference.
-Fifty-one sources across forty-six insertable any-widget and two trait-bound
-slots produce 2,448 compatibility candidates: 2,216 accepted and 232
+Fifty-two sources across forty-seven insertable any-widget and two trait-bound
+slots produce 2,548 compatibility candidates: 2,311 accepted and 237
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -659,7 +670,7 @@ replacement-only and excluded from the destination matrix. SafeArea and
 Directionality use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and neither can wrap
-Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse and ExcludeSemantics
+Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse, PhysicalModel and ExcludeSemantics
 contribute optional insertable `child` destinations; IndexedStack contributes
 the insertable ordered `children` destination. NBFC framing
 and Canvas control/wire remain v1.

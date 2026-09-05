@@ -800,6 +800,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.ClipRRect",
                     "flutter.widgets.ClipPath",
                     "flutter.widgets.ClipRSuperellipse",
+                    "flutter.widgets.PhysicalModel",
                     "flutter.widgets.ExcludeSemantics"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(

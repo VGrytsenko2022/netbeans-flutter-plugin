@@ -109,8 +109,7 @@ final class FlutterContainerPropertyEditorComponents {
     private static final class BorderRadiusPanel extends DraftPanel {
         private final JCheckBox useDefault = new JCheckBox(
                 "Use Flutter default BorderRadius.zero (omit argument)");
-        private final JComboBox<String> basis = new JComboBox<>(
-                new String[]{"Physical corners", "Directional corners"});
+        private final JComboBox<String> basis;
         private final DefaultTableModel model = nonEditableFirstColumn(
                 new String[]{"Corner", "X radius", "Y radius"});
         private final JTable radii = table(model, BORDER_RADIUS_TABLE_NAME);
@@ -124,9 +123,18 @@ final class FlutterContainerPropertyEditorComponents {
             setPreferredSize(new Dimension(620, 280));
             setName("flutter.borderRadius.custom");
             getAccessibleContext().setAccessibleName("Flutter border radius editor");
-            getAccessibleContext().setAccessibleDescription(
-                    "Edits physical BorderRadius or direction-aware "
-                    + "BorderRadiusDirectional corner ellipses without raw Dart.");
+            boolean directionalAllowed = binding.directionalBorderRadiusAllowed();
+            basis = new JComboBox<>(directionalAllowed
+                    ? new String[]{"Physical corners", "Directional corners"}
+                    : new String[]{"Physical corners"});
+            if (!directionalAllowed) {
+                useDefault.setText("Use Flutter default (omit argument)");
+            }
+            getAccessibleContext().setAccessibleDescription(directionalAllowed
+                    ? "Edits physical BorderRadius or direction-aware "
+                            + "BorderRadiusDirectional corner ellipses without raw Dart."
+                    : "Edits physical BorderRadius corner ellipses without raw Dart. "
+                            + "Directional corners are not accepted by this property.");
 
             JPanel controls = new JPanel(new FlowLayout(FlowLayout.LEADING, 6, 0));
             if (binding.optional()) {
@@ -138,9 +146,10 @@ final class FlutterContainerPropertyEditorComponents {
             controls.add(basis);
             basis.setName(BORDER_RADIUS_BASIS_NAME);
             basis.getAccessibleContext().setAccessibleName("Border radius basis");
-            basis.getAccessibleContext().setAccessibleDescription(
-                    "Choose physical left and right corners or directional "
-                    + "start and end corners resolved by text direction.");
+            basis.getAccessibleContext().setAccessibleDescription(directionalAllowed
+                    ? "Choose physical left and right corners or directional "
+                            + "start and end corners resolved by text direction."
+                    : "This property accepts physical left and right corners only.");
             radii.getAccessibleContext().setAccessibleDescription(
                     "Four corner rows with finite non-negative horizontal and "
                     + "vertical radius values.");

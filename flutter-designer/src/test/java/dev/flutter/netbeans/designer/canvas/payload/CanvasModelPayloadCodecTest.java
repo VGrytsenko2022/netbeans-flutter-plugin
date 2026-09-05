@@ -124,11 +124,50 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ClipRRect",
                 "flutter.widgets.ClipPath",
                 "flutter.widgets.ClipRSuperellipse",
+                "flutter.widgets.PhysicalModel",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
                         .toList());
+    }
+
+    @Test
+    void projectsAllPhysicalModelValuesAndRetainsIgnoredCircleRadiusWithoutPrivateMetadata()
+            throws Exception {
+        for (boolean themed : List.of(false, true)) {
+            var physical = dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.physicalModel(
+                    dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.fullProperties(
+                            "circle", "antiAliasWithSaveLayer", themed), true);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), physical))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":17"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.PhysicalModel\""), json);
+            assertTrue(json.contains("\"shape\":{\"kind\":\"enum\",\"type\":\"BoxShape\",\"value\":\"circle\"}"), json);
+            assertTrue(json.contains("\"geometry\":{\"kind\":\"physical\""), json);
+            assertTrue(json.contains("\"topLeft\":{\"x\":1.5,\"y\":2.5}"), json);
+            assertTrue(json.contains("\"bottomLeft\":{\"x\":7.5,\"y\":8.5}"), json);
+            assertTrue(json.contains("\"elevation\":{\"kind\":\"double\",\"value\":12.5}"), json);
+            assertTrue(json.contains("\"shadowColor\""), json);
+            assertTrue(json.contains("Preserved child"), json);
+            for (String privateField : List.of("sample.dart", "libraryUri", "dartClassName", "creationDefault")) {
+                assertFalse(json.contains(privateField), json);
+            }
+        }
+    }
+
+    @Test
+    void rejectsPhysicalModelDirectionalRadiusAndMissingRequiredColorBeforePayloadEncoding() {
+        var values = new java.util.LinkedHashMap<>(
+                dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.defaults());
+        values.put(new PropertyName("borderRadius"),
+                dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.radius(true));
+        for (var invalid : List.of(
+                dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.physicalModel(values, false),
+                dev.flutter.netbeans.designer.catalog.PhysicalModelTestSupport.physicalModel(Map.of(), false))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
     }
 
     @Test

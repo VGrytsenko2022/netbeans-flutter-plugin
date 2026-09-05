@@ -73,6 +73,7 @@ public final class BuiltInWidgetCatalog {
             clipRRect(),
             clipPath(),
             clipRSuperellipse(),
+            physicalModel(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1412,6 +1413,27 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.basic", 300, 120, "ClipRSuperellipse"),
                 properties,
                 List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition physicalModel() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("shape", 0, false, enumValues("BoxShape", "rectangle", "circle")),
+                namedProperty("clipBehavior", 1, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")),
+                namedProperty("borderRadius", 2, false,
+                        List.of(new PropertyValueConstraint.BorderRadiusValues(false))),
+                namedProperty("elevation", 3, false, nonNegativeNumbers()),
+                namedProperty("color", 4, true, colorOrTheme(),
+                        new PropertyValue.ColorValue(0xFF2196F3L)),
+                namedProperty("shadowColor", 5, false, colorOrTheme()));
+        if (properties.size() != PhysicalModelWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("PhysicalModel catalog/property schema count mismatch");
+        }
+        return widget(
+                PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value(),
+                "PhysicalModel", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 130, "PhysicalModel"), properties,
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

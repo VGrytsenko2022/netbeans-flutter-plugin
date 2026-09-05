@@ -1136,10 +1136,16 @@ class CanvasValue {
         );
       case 'borderRadius':
         _exactKeys(object, path, const {'kind', 'geometry'});
-        return CanvasValue(
-          kind as String,
-          _decodeBorderRadius(object['geometry'], '$path/geometry'),
+        final radius = _decodeBorderRadius(
+          object['geometry'],
+          '$path/geometry',
         );
+        _expect(
+          !spec.borderRadiusPhysicalOnly ||
+              radius is CanvasPhysicalBorderRadiusValue,
+          'Canvas property requires a physical BorderRadius: $path/geometry',
+        );
+        return CanvasValue(kind as String, radius);
       default:
         throw FormatException('Unsupported Canvas property kind at $path.');
     }
@@ -3050,6 +3056,7 @@ class _PropertySpec {
     this.edgeInsetsNonNegative = false,
     this.materialIconsOnly = false,
     this.dartObjectExpectedType,
+    this.borderRadiusPhysicalOnly = false,
   });
   final Set<String> kinds;
   final bool required;
@@ -3066,6 +3073,7 @@ class _PropertySpec {
   final bool edgeInsetsNonNegative;
   final bool materialIconsOnly;
   final String? dartObjectExpectedType;
+  final bool borderRadiusPhysicalOnly;
 }
 
 class _NumericBounds {
@@ -3954,6 +3962,32 @@ final _widgetSpecifications = <String, _WidgetSpec>{
         themeTokens: canvasColorSchemeThemeTokens,
       ),
       'isAntiAlias': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
+  'flutter.widgets.PhysicalModel': _WidgetSpec(
+    {
+      'shape': _PropertySpec(
+        {'enum'},
+        enumLibraryUri: _widgetsLibraryUri,
+        enumType: 'BoxShape',
+        enumValues: {'rectangle', 'circle'},
+      ),
+      'clipBehavior': _clipBehaviorProperty,
+      'borderRadius': _PropertySpec({
+        'borderRadius',
+      }, borderRadiusPhysicalOnly: true),
+      'elevation': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'color': _PropertySpec(
+        {'color', 'themeToken'},
+        required: true,
+        creationDefaultFingerprint: 'color:0xFF2196F3',
+        themeTokens: canvasColorSchemeThemeTokens,
+      ),
+      'shadowColor': _themeAwareColorProperty,
     },
     {'child': _optionalSingleSlot},
   ),
@@ -5748,6 +5782,14 @@ S|child|single|0|0|1|any
 W|flutter.widgets.Padding
 P|padding|edgeInsets,edgeInsetsDirectional|1|edgeInsets:16,16,16,16|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
 S|child|single|0|0|1|any
+W|flutter.widgets.PhysicalModel
+P|borderRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical:finiteNonNegative
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|color|color,themeToken|1|color:0xFF2196F3|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|elevation|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|shadowColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|shape|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BoxShape:circle,rectangle
+S|child|single|0|0|1|any
 W|flutter.widgets.Placeholder
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|fallbackHeight|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -6083,7 +6125,9 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
         '${tokens.join(',')}';
   }
   if (kind == 'borderRadius') {
-    return 'borderRadius:v1:physical,directional:finiteNonNegative';
+    return spec.borderRadiusPhysicalOnly
+        ? 'borderRadius:v1:physical:finiteNonNegative'
+        : 'borderRadius:v1:physical,directional:finiteNonNegative';
   }
   if (kind == 'dartObjectReference') {
     final expectedType = spec.dartObjectExpectedType;

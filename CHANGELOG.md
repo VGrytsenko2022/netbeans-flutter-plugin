@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `IgnorePointer` in Basic at order 160 with its complete constructor: optional
+  ignoring (SDK true), deprecated ignoringSemantics (SDK null), optional child and
+  managed key. Both boolean fields retain explicit checkbox values versus unset;
+  the editor explains deprecation and all three semantics modes. Real Canvas
+  rendering keeps layout/paint and passes ignored pointer hits through, preserving
+  the SDK semantics matrix. Includes Properties/Slots, all insertion/move routes,
+  save/reopen/further edits, Undo/Redo, rollback and four SVG variants.
+  Schema/API/model stay 13/14/18. Current surface: 55 widgets, 49 const definitions,
+  761 rows (744 outside Scaffold), 2,860 placements (2,608 accepted / 252 rejected),
+  Basic 16; historical practical target 55/92, 37 remaining. Full desktop acceptance
+  remains deferred.
+
 - `RepaintBoundary` in Basic at order 150 with its full default constructor:
   optional child and managed key, no scalar properties. Its structural capability
   provides child-slot editing without invented property rows. Canvas creates the
@@ -13,7 +25,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   hit testing. Includes all Palette/tree/Canvas placements, child replace/clear,
   move, Save/reopen/further child and descendant edits, Undo/Redo, rollback and
   four SVG variants. SDK wrap/wrapAll only derive keys, not extra rendering fields.
-  Schema/API/model stay 13/14/18. Current surface: 54 widgets, 48 const definitions,
+  Schema/API/model stay 13/14/18. At that milestone: 54 widgets, 48 const definitions,
   759 rows (742 outside Scaffold), 2,754 placements (2,507 accepted / 247 rejected),
   Basic 15; historical practical target 54/92, 38 remaining. Full desktop acceptance
   remains deferred; no general performance or raster-caching guarantee is claimed.

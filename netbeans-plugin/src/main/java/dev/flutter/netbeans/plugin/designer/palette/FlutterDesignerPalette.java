@@ -285,6 +285,9 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ClipPath.Name"));
                 setShortDescription(message("Widget.ClipPath.Description"));
+            } else if ("flutter.widgets.IgnorePointer".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.IgnorePointer.Name"));
+                setShortDescription(message("Widget.IgnorePointer.Description"));
             } else if ("flutter.widgets.RepaintBoundary".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.RepaintBoundary.Name"));
                 setShortDescription(message("Widget.RepaintBoundary.Description"));

@@ -861,6 +861,71 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesIgnorePointerCompleteConstructorIncludingDeprecatedSemantics() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("ignore_pointer_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const IgnorePointer();
+                Widget nullableDefaults() => const IgnorePointer(ignoringSemantics: null, child: null);
+                Widget nested() => const Center(child: IgnorePointer(
+                  ignoring: false, child: IgnorePointer(child: Text('Nested pointer filter')),
+                ));
+                Widget themed(BuildContext context) => IgnorePointer(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+                );
+                Widget nonConstDescendant() => IgnorePointer(child: Text(DateTime.now().toString()));
+                List<Widget> completeBooleanMatrix() => const <Widget>[
+                  IgnorePointer(ignoring: true, child: Text('default semantics')),
+                  IgnorePointer(ignoring: false, child: Text('default semantics')),
+                  IgnorePointer(ignoring: true, ignoringSemantics: false, child: Text('legacy retained')),
+                  IgnorePointer(ignoring: false, ignoringSemantics: false, child: Text('legacy retained')),
+                  IgnorePointer(ignoring: true, ignoringSemantics: true, child: Text('excluded')),
+                  IgnorePointer(ignoring: false, ignoringSemantics: true, child: Text('excluded')),
+                ];
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("ignore-pointer",
+                valid.indexOf("IgnorePointer"), "IgnorePointer",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 600, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 601;
+        for (String invalid : List.of(
+                "const IgnorePointer(ignoring: null)",
+                "const IgnorePointer(ignoring: 'true')",
+                "const IgnorePointer(ignoringSemantics: 1)",
+                "const IgnorePointer(absorbing: true)",
+                "const IgnorePointer(child: 'not a widget')",
+                "const IgnorePointer(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

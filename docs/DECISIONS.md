@@ -297,7 +297,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-077 make 725 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-083 make 744 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -326,7 +326,11 @@ and Directionality's required `textDirection` plus its required child assembled
 by the generic atomic wrapper workflow, DecoratedBox's two properties,
 ExcludeSemantics' optional excluding flag, ClipRect's and ClipOval's optional
 clip behavior, and ClipRRect's typed radius geometry, typed project Dart-object
-reference and optional clip behavior.
+reference and optional clip behavior, ClipPath's custom-clipper/shape helper and
+clip behavior, ClipRSuperellipse's radius/clipper/clip behavior, PhysicalModel's
+six properties, PhysicalShape's five properties, RepaintBoundary's property-free
+child slot and IgnorePointer's two optional boolean fields including its deprecated
+semantics override. Scaffold separately contributes 17 rows, giving 761 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -385,19 +389,23 @@ the historical forty-eight-source, 2,160-candidate matrix (1,943 accepted and
 2,254-candidate matrix (2,032 accepted and 222 rejected), ADR-078 adds the
 fifty-source, 2,350-candidate matrix (2,123 accepted and 227 rejected), and
 ADR-079 establishes the historical fifty-one-source, 2,448-candidate matrix
-(2,216 accepted and 232 rejected). ADR-080 establishes the current fifty-two-source,
-2,548-candidate matrix (2,311 accepted and 237 rejected).
+(2,216 accepted and 232 rejected). ADR-080 establishes the historical fifty-two-source,
+2,548-candidate matrix (2,311 accepted and 237 rejected); ADR-081 establishes the
+fifty-three-source matrix with 2,650 candidates (2,408 accepted / 242 rejected),
+and ADR-082 establishes fifty-four sources with 2,754 candidates (2,507 accepted /
+247 rejected). ADR-083 establishes the current fifty-five-source, 2,860-candidate
+matrix (2,608 accepted / 252 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
 validated revision, admits its layout acknowledgement, synchronizes stable-ID
 selection and capability-gates the narrow palette-drop intent. The canonical
-protocol-v17 model payload accepts only exact reviewed Canvas-capable built-ins:
+protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Text`,
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `ExcludeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -3574,3 +3582,79 @@ release verifier pass. The NBM is 7,258,788 bytes with SHA-256
 66700A14512B8965E5C98DE051F8643BF74C26D2A2AFC25B53C76FF31F531B54.
 Installed-userdir and physical desktop acceptance were not performed; optional
 skips and the deferred global acceptance are not claimed as verified.
+
+## ADR-083 — IgnorePointer retains the full pointer and deprecated semantics contract
+
+Status: accepted, 2026-09-05.
+
+After RepaintBoundary, admit `flutter.widgets.IgnorePointer` in Basic at order 160.
+The official constructor and pinned Flutter 3.44.8 widgets/basic.dart agree: const,
+optional bool ignoring (default true), deprecated bool? ignoringSemantics (default
+null), optional child and managed key. Both non-key scalar parameters are supported;
+deprecation is not a reason to leave a constructor branch unimplemented. Runtime
+RenderObject methods, AbsorbPointer and SliverIgnorePointer are not constructor
+parameters or aliases for this widget.
+
+The catalog uses two optional BOOLEAN-only properties at orders 0 and 1, with child
+at order 2 and exact STATIC_EDITABLE capability. No creation default is persisted.
+Omission of ignoring preserves true; omission of ignoringSemantics preserves null,
+which is behaviorally identical to explicit literal null. Explicit false and true
+remain separate stored values. NullValue and arbitrary expressions are not added
+as alternative encodings. Both fields use the shared centered checkbox editor and
+Restore Default, preserving the independent `<not set>` state and edit identity.
+The semantics field is clearly labeled deprecated with an explanation of all modes.
+
+Canvas constructs actual IgnorePointer/RenderIgnorePointer: layout and painting
+remain unchanged while ignored pointer hits can pass through to content behind the
+subtree instead of being absorbed. Pinned RenderIgnorePointer blocks semantic user
+actions when ignoring && (ignoringSemantics ?? true). Null keeps semantic labels and
+other properties while following ignoring for action blocking; explicit false keeps
+actions; explicit true drops the entire semantic subtree regardless of ignoring.
+Designer selection/drop affordances remain separate from runtime pointer filtering.
+The ignored node's generic body selection recognizer and opaque mouse region must
+not capture a tap intended for a lower Stack child. A compact 36px external handle
+preserves direct Designer selection, searching adjacent placements outside the
+body, including at viewport corners. If none fits, its explicit compact hit target
+may overlap the body; this is a Designer control, not runtime widget behavior.
+Tree selection, geometric DnD and selected-descendant F2/keyboard editing remain
+available regardless of the pointer setting.
+
+The complete slice includes typed validation, deterministic const/non-const
+generation, analyzer symbol evidence, codec/payload projection, Properties/Slots,
+Palette/tree/Canvas insertion and movement, child replace/clear/cancel,
+Save/reopen/further property and child edits, Undo/Redo, rejected-change rollback,
+accessibility hints and four reviewed light/dark 16/32px SVGs. Existing encodings
+cover the contract, so `.fd`/Catalog API/Canvas model stay 13/14/18 and NBFC framing,
+control and wire stay 1.
+
+Current totals: 55 widgets, 49 const definitions, 761 writable rows (744 outside
+Scaffold); 53 definitions have scalar properties and IntrinsicHeight/RepaintBoundary
+remain structural. Fifty any-widget plus two trait destinations produce 55x52 =
+2,860 compatibility cells, 2,608 accepted and 252 rejected. Categories: Layout 31,
+Scrolling 3, Basic 16, Material 4, Accessibility 1. The historical practical target
+is 55/92 with 37 remaining, not a recovered ordered full Flutter inventory.
+Full physical desktop acceptance remains deferred until the palette target is done.
+
+Validation (2026-09-05): final Flutter format/analyze checks pass; all 539 Flutter
+tests pass, including 22 dedicated IgnorePointer cases. They verify all default/
+boolean states, SDK semantics, live retained rendering, real Stack hit pass-through,
+small bodies at all four viewport corners, the viewport-filling compact-handle
+exception, empty/tight layout, geometric DnD and tree-selected Text F2/keyboard
+commit on Windows/Web model profiles. The complete core suite passes 1,101 tests
+and the focused NetBeans suite passes 509. The pinned Flutter 3.44.8 analyzer test
+accepts every constructor branch (including deprecated/null semantics), validates
+symbol provenance and rejects wrong/null ignoring, invalid types, invented
+absorbing and invalid const descendants without changing the original project file.
+
+Clean Maven install with real SDK and actual Web artifact/build options succeeds
+across all 11 modules. Surefire records 3,329 tests, zero failures/errors and six
+declared optional skips; Failsafe records 13 tests, zero failures/errors and one
+optional native-desktop skip. The complete mutation integration class passes all
+74 tests, and both actual Web suites pass all 41 cases without skips. Final sources
+produce the refreshed source manifest and 35-file offline Web manifest; main.dart.js
+is 2,861,398 bytes, SHA-256
+c1999500feeac0e60073542845ad6976320fce472ef80f98ffdb98a658478247.
+nbm:cluster and the release metadata/freshness verifier pass. NBM size: 7,266,662
+bytes; SHA-256 DABC6EE4297808FDC480B8F55CA75AD4EF775D918EFD26D983E475CFADD21944.
+Installed-userdir and full physical desktop acceptance were not performed; optional
+skips are recorded and not presented as passed physical tests.

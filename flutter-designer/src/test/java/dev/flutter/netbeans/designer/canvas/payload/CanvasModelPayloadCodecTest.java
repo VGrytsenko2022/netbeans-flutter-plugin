@@ -127,6 +127,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.PhysicalModel",
                 "flutter.widgets.PhysicalShape",
                 "flutter.widgets.RepaintBoundary",
+                "flutter.widgets.IgnorePointer",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -1106,6 +1107,47 @@ class CanvasModelPayloadCodecTest {
                 Map.of(new PropertyName("toImage"), new PropertyValue.BooleanValue(true)), Map.of());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                 new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+    }
+
+    @Test
+    void ignorePointerPayloadRetainsBothExplicitFalseFlagsAndExactOmissionWithoutProtocolBump() throws Exception {
+        var states = List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true));
+        for (var ignoring : states) {
+            for (var semantics : states) {
+                for (boolean child : List.of(false, true)) {
+                    var values = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                    ignoring.ifPresent(value -> values.put(new PropertyName("ignoring"), new PropertyValue.BooleanValue(value)));
+                    semantics.ifPresent(value -> values.put(new PropertyName("ignoringSemantics"), new PropertyValue.BooleanValue(value)));
+                    var node = new WidgetNode(StableId.random(), type("flutter.widgets.IgnorePointer"), values,
+                            Map.of(new SlotName("child"), child ? WidgetSlot.SingleSlot.of(text(
+                                    "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb", "IgnorePointer child")) : WidgetSlot.SingleSlot.empty()));
+                    String json = new String(new CanvasModelPayloadCodec().encode(request(
+                            new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                    assertTrue(json.contains("\"protocolVersion\":18"), json);
+                    assertTrue(json.contains("\"type\":\"flutter.widgets.IgnorePointer\""), json);
+                    assertEquals(ignoring.isPresent(), json.contains("\"ignoring\":"), json);
+                    assertEquals(semantics.isPresent(), json.contains("\"ignoringSemantics\":"), json);
+                    ignoring.ifPresent(value -> assertTrue(json.contains(
+                            "\"ignoring\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                    semantics.ifPresent(value -> assertTrue(json.contains(
+                            "\"ignoringSemantics\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                    assertEquals(child, json.contains("IgnorePointer child"), json);
+                }
+            }
+        }
+    }
+
+    @Test
+    void ignorePointerPayloadRejectsRawOrNullBooleanSubstitutionBeforeSerialization() {
+        for (String property : List.of("ignoring", "ignoringSemantics")) {
+            for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                    new PropertyValue.DartExpressionValue("secretProjectCode()"))) {
+                var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.IgnorePointer"),
+                        Map.of(new PropertyName(property), value), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+            }
+        }
     }
 
     @Test

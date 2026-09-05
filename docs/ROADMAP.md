@@ -1521,10 +1521,22 @@ accepted architecture is documented in
   external. Complete Slots replace/clear, all insertion/move routes, generation,
   Save/reopen/further child/descendant edits, Undo/Redo, rollback and four SVGs.
   SDK wrap/wrapAll derive keys only and are not extra persisted properties.
-  Current surface: 54 widgets, 48 const definitions, 759 rows (742 outside Scaffold),
+  At that milestone: 54 widgets, 48 const definitions, 759 rows (742 outside Scaffold),
   49 any-widget plus two trait destinations, 2,754 cells (2,507 accepted / 247
   rejected), Basic 15; historical target 54/92 with 38 remaining. Schema/API/model
   remain 13/14/18. Full physical desktop acceptance remains deferred.
+- [x] Add `IgnorePointer` after RepaintBoundary (Basic order 160) with both optional
+  boolean constructor fields: ignoring (SDK true) and deprecated ignoringSemantics
+  (SDK null), plus optional child and managed key. Keep false distinct from unset
+  in the centered checkbox editors and document all three semantics modes. Render
+  real pointer pass-through without changing layout/paint, retain the SDK semantics
+  matrix and separate Designer selection/drop controls. Cover typed validation,
+  generation, Palette/tree/Canvas placement and moves, Slots replace/clear,
+  Save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current surface:
+  55 widgets, 49 const definitions, 761 rows (744 outside Scaffold), 50 any-widget
+  plus two trait destinations, 2,860 cells (2,608 accepted / 252 rejected), Basic 16.
+  Historical target 55/92 with 37 remaining; schema/API/model remain 13/14/18.
+  Full physical desktop acceptance remains deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1542,8 +1554,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all fifty-four admitted built-ins.
-  The 52 definitions with scalar fields expose typed Properties; IntrinsicHeight
+  vertical slices. The current catalog presents all fifty-five admitted built-ins.
+  The 53 definitions with scalar fields expose typed Properties; IntrinsicHeight
   and RepaintBoundary have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

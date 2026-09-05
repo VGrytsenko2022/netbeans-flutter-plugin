@@ -76,6 +76,7 @@ public final class BuiltInWidgetCatalog {
             physicalModel(),
             physicalShape(),
             repaintBoundary(),
+            ignorePointer(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1436,6 +1437,20 @@ public final class BuiltInWidgetCatalog {
                 "PhysicalModel", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 130, "PhysicalModel"), properties,
                 List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition ignorePointer() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("ignoring", 0, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("ignoringSemantics", 1, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != IgnorePointerWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("IgnorePointer catalog/property schema count mismatch");
+        }
+        return widget(
+                IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.value(),
+                "IgnorePointer", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 160, "IgnorePointer"), properties,
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition repaintBoundary() {

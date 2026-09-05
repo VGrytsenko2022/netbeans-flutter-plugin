@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-54 reviewed Canvas widgets. Palette insertion evaluates 2,754 exact
-source/destination cells across 54 draggable sources and 51 insertable reviewed
-slots; 2,507 are accepted and 247 cells are rejected. Expanded and Flexible are
+55 reviewed Canvas widgets. Palette insertion evaluates 2,860 exact
+source/destination cells across 55 draggable sources and 52 insertable reviewed
+slots; 2,608 are accepted and 252 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -932,10 +932,25 @@ child, clipping, forced caching policy or performance guarantee is introduced. S
 wrap/wrapAll only derive keys; the Designer's default constructor keeps stable
 model identity. This slice keeps model 18, schema 13 and Catalog API 14 unchanged.
 
-The aggregate catalog now has 54 widgets and 48 reviewed const definitions,
-with 759 writable rows (742 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, fifteen Basic, four Material and one Accessibility item; the
-backlog is 54/92 complete with 38 remaining. The 54 sources across 51
-insertable destinations form 2,754 cells, with 2,507 accepted and 247 rejected.
+IgnorePointer constructs the real Flutter IgnorePointer/RenderIgnorePointer with
+optional child, ignoring default true and ignoringSemantics default null. The
+deprecated semantics boolean is supported deliberately, with a narrow analyzer
+suppression only at the SDK call site. Ignored subtrees still paint and lay out,
+but hit testing may reach widgets behind them. Null retains semantic labels and
+blocks actions when ignoring; false preserves actions; true excludes the subtree.
+Native/Web profile tests cover the complete boolean/semantics matrix, live updates,
+layout, pass-through hit testing and external Designer selection/drop affordances.
+The ignored node's generic body selection/opaque mouse region is disabled; its
+36px external Designer handle tries all adjacent placements to avoid covering even
+a small body at a viewport corner. If no outside placement fits, only the compact
+explicit handle overlaps the body, not a full-body selection layer. Geometric DnD
+and tree-selected Text F2/keyboard commit remain independent of pointer filtering.
+No replacement AbsorbPointer, fake child or protocol change is introduced.
+
+The aggregate catalog now has 55 widgets and 49 reviewed const definitions,
+with 761 writable rows (744 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, sixteen Basic, four Material and one Accessibility item; the
+backlog is 55/92 complete with 37 remaining. The 55 sources across 52
+insertable destinations form 2,860 cells, with 2,608 accepted and 252 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

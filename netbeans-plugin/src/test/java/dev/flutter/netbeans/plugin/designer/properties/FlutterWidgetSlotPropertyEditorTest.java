@@ -1347,6 +1347,71 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void ignorePointerOptionalChildUsesTheGenericTransactionalAddFlow()
+            throws Exception {
+        WidgetDefinition definition = CATALOG
+                .find(new WidgetTypeId("flutter.widgets.IgnorePointer"))
+                .orElseThrow();
+        WidgetNode widget = WidgetNodePrototypeFactory.create(
+                definition,
+                id("c7bb8a8c-985e-48b7-9211-cc845cd98ff6"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(widget),
+                CATALOG,
+                List.of(type("flutter.widgets.Text")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                widget,
+                definition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> child = slotProperty(node, "child");
+        PropertyEditor editor = child.getPropertyEditor();
+        editor.setValue(child.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+
+            assertEquals("Empty", editor.getAsText());
+            assertEquals(List.of("No change", "Add new widget"), labels(action));
+            selectLabel(action, "Add new widget");
+            assertEquals(List.of("Text"), labels(addType));
+            selectLabel(addType, "Text");
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertEquals(List.of(), submitted);
+
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotCellValue staged = assertInstanceOf(
+                    FlutterWidgetSlotCellValue.class, editor.getValue());
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    staged.mutation().orElseThrow());
+            assertEquals(widget.id(), add.ownerId());
+            assertEquals(CHILD, add.slotName());
+            assertEquals(type("flutter.widgets.Text"), add.widgetType());
+            assertEquals(0, add.index());
+
+            child.setValue(staged);
+            child.setValue(staged);
+            assertEquals(List.of(add), submitted,
+                    "one accepted IgnorePointer child dialog consumes one revision lease");
+            return null;
+        });
+    }
+
+    @Test
     void repaintBoundaryOptionalChildUsesTheGenericTransactionalAddFlow()
             throws Exception {
         WidgetDefinition definition = CATALOG
@@ -2438,6 +2503,48 @@ class FlutterWidgetSlotPropertyEditorTest {
             assertEquals(type("flutter.widgets.Text"), fresh.widgetType());
             return null;
         });
+    }
+
+    @Test
+    void ignorePointerOccupiedChildSupportsExplicitReplaceClearAndCancelledDrafts() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.IgnorePointer");
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                id("e7a3ed63-209c-49fc-9bb7-d61a967522bd"));
+        WidgetNode boundary = new WidgetNode(id("e40a3e9a-abf4-4a26-8af4-8fb1192f9d3b"),
+                definition.typeId(), Map.of(), Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        for (String actionLabel : List.of("Replace with new widget", "Clear single child")) {
+            var editor = new FlutterWidgetSlotPropertyEditor(boundary, definition,
+                    definition.slot(CHILD).orElseThrow(), new FlutterWidgetSlotEditorContext(
+                            document(boundary), CATALOG, List.of(type("flutter.widgets.Icon"))));
+            PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+            editor.attachEnv(environment);
+            onEdt(() -> {
+                Component panel = editor.getCustomEditor();
+                JComboBox<?> action = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertTrue(labels(action).contains("Replace with new widget"));
+                assertTrue(labels(action).contains("Clear single child"));
+                assertFalse(labels(action).contains("Add new widget"));
+                selectLabel(action, actionLabel);
+                if (actionLabel.startsWith("Replace")) {
+                    selectLabel(component(panel, FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME, JComboBox.class), "Icon");
+                }
+                assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(),
+                        "Cancel before OK must not publish the replacement/removal draft");
+                environment.setState(PropertyEnv.STATE_VALID);
+                var mutation = ((FlutterWidgetSlotCellValue) editor.getValue()).mutation().orElseThrow();
+                assertEquals(boundary.id(), mutation.ownerId());
+                assertEquals(CHILD, mutation.slotName());
+                if (actionLabel.startsWith("Replace")) {
+                    var replace = assertInstanceOf(FlutterWidgetSlotMutation.Replace.class, mutation);
+                    assertEquals(child.id(), replace.expectedChildId());
+                    assertEquals(type("flutter.widgets.Icon"), assertInstanceOf(
+                            FlutterWidgetSlotMutation.Replace.NewWidget.class, replace.replacement()).widgetType());
+                } else {
+                    assertEquals(child.id(), assertInstanceOf(FlutterWidgetSlotMutation.Remove.class, mutation).childId());
+                }
+                return null;
+            });
+        }
     }
 
     @Test

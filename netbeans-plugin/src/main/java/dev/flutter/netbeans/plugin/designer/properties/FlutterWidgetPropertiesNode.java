@@ -13,6 +13,7 @@ import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -517,6 +518,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.equals(
                 widget.type())) {
             addDecoratedBoxPropertySets(sheet, hasSlotTab);
+        } else if (IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.equals(widget.type())) {
+            addIgnorePointerPropertySets(sheet, hasSlotTab);
         } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
                 widget.type())) {
             addExcludeSemanticsPropertySets(sheet, hasSlotTab);
@@ -1099,6 +1102,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out and painted normally. Ignoring pointer hits lets targets behind "
+                    + "the subtree receive events; Designer selection and editing remain available. "
+                    + "Deprecated Ignoring semantics controls accessible actions or subtree exclusion. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child.";
         }
         if ("flutter.widgets.RepaintBoundary".equals(widget.type().value())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2319,6 +2330,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addIgnorePointerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<IgnorePointerWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(IgnorePointerWidgetPropertySchema.Group.class);
+        for (IgnorePointerWidgetPropertySchema.Group group : IgnorePointerWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = IgnorePointerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String hint = property.name().value().equals("ignoring")
+                    ? " <not set> omits the argument and preserves Flutter's true default. "
+                            + "True removes this subtree from pointer hit testing; false restores normal hit testing. "
+                            + "Layout and painting are unchanged; Designer editing is not disabled."
+                    : " Deprecated Flutter argument, retained for compatibility. <not set> means default null: "
+                            + "while Ignoring is true, labels and other semantics remain but user actions are blocked. "
+                            + "Explicit false preserves semantics including actions even when Ignoring is true. "
+                            + "Explicit true removes the whole semantics subtree regardless of Ignoring. "
+                            + "Prefer leaving this unset; use ExcludeSemantics for intentional subtree exclusion.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + hint
+                            + " Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
         }
     }
 

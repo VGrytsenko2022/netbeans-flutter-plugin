@@ -723,7 +723,7 @@ void main() {
     );
   });
 
-  test('closes the 54-source by 51-destination compatibility matrix', () {
+  test('closes the 55-source by 52-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -753,6 +753,7 @@ void main() {
       'flutter.widgets.PhysicalModel',
       'flutter.widgets.PhysicalShape',
       'flutter.widgets.RepaintBoundary',
+      'flutter.widgets.IgnorePointer',
       'flutter.widgets.ConstrainedBox',
       'flutter.widgets.UnconstrainedBox',
       'flutter.widgets.LimitedBox',
@@ -788,8 +789,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(54));
-    expect(destinations, hasLength(51));
+    expect(sourceTypes, hasLength(55));
+    expect(destinations, hasLength(52));
 
     var accepted = 0;
     var rejected = 0;
@@ -815,9 +816,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 2507);
-    expect(rejected, 247);
-    expect(accepted + rejected, 2754);
+    expect(accepted, 2608);
+    expect(rejected, 252);
+    expect(accepted + rejected, 2860);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (

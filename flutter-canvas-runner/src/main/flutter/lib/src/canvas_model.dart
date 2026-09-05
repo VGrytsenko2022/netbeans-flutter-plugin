@@ -3853,6 +3853,13 @@ final _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.widgets.RepaintBoundary': _WidgetSpec({}, {
     'child': _optionalSingleSlot,
   }),
+  'flutter.widgets.IgnorePointer': _WidgetSpec(
+    {
+      'ignoring': _PropertySpec({'boolean'}),
+      'ignoringSemantics': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.ExcludeSemantics': _WidgetSpec(
     {
       'excluding': _PropertySpec({'boolean'}),
@@ -5779,6 +5786,10 @@ P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,ma
 P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+W|flutter.widgets.IgnorePointer
+P|ignoring|boolean|0|-|-|boolean:any
+P|ignoringSemantics|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.Image
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|centerSliceBottom|double|0|-|double:0:1:*:1|double:range:0:1:*:1

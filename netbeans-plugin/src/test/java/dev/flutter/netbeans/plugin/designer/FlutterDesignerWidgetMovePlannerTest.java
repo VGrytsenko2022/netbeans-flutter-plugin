@@ -1502,6 +1502,43 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void existingTextMovesIntoEmptyIgnorePointerChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into IgnorePointer");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(new WidgetTypeId("flutter.widgets.IgnorePointer")), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void configuredIgnorePointerMovesWithoutLosingBooleansChildOrStableIds() {
+        WidgetNode child = validText(D_ID, "ignored child remains editable");
+        WidgetNode widget = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.IgnorePointer"),
+                Map.of(new PropertyName("ignoring"), new PropertyValue.BooleanValue(true),
+                        new PropertyName("ignoringSemantics"), new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+        var result = planner.plan(document, BUILT_INS, widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+        assertEquals(widget.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
     void existingTextMovesIntoEmptyRepaintBoundaryChildWithStableIdPreserved() {
         WidgetNode source = validText(A_ID, "move into RepaintBoundary");
         WidgetNode empty = WidgetNodePrototypeFactory.create(

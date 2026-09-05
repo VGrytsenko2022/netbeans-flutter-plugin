@@ -1830,6 +1830,51 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void ignorePointerTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.IgnorePointer"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.IgnorePointer"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.IgnorePointer"), command.widget().type()),
+                () -> assertEquals(Map.of(),
+                        command.widget().properties(),
+                        "omission preserves ignoring=true and ignoringSemantics=null"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the IgnorePointer palette authority once"));
+    }
+
+    @Test
     void repaintBoundaryTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.RepaintBoundary"));
         StringSelection transferable = new StringSelection(fixture.token());

@@ -516,7 +516,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         // Spacer owns no child where instrumentation can safely live. An
         // external target is therefore required even when stretch gives its
         // internal SizedBox a non-zero cross-axis extent.
-        final alwaysUsesSurfaceOverlay = node.type == canvasSpacerWidgetType;
+        final ignoresPointers = _ignoresPointersForNode(node);
+        final alwaysUsesSurfaceOverlay =
+            node.type == canvasSpacerWidgetType || ignoresPointers;
         if (box == null || (!alwaysUsesSurfaceOverlay && !box.size.isEmpty)) {
           continue;
         }
@@ -525,8 +527,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           continue;
         }
         final rendered = globalRect.shift(-surfaceRect.topLeft);
+        // The real IgnorePointer must remain transparent to pointer hits.
+        // Put its Designer selection handle outside a nonempty body when
+        // space permits; never replace the body with a full-area hit target.
+        final handleRect = ignoresPointers && !box.size.isEmpty
+            ? _ignorePointerHandleRect(rendered, viewportRect)
+            : rendered;
         final target = _boundedDesignerHitRect(
-          rendered,
+          handleRect,
           viewportRect,
           minimumExtent: _minimumZeroSizedWidgetTarget,
         );
@@ -562,6 +570,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
+        node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.RepaintBoundary' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
@@ -1426,6 +1435,32 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     for (var index = 0; index < slot.children.length; index++) {
       yield index;
     }
+  }
+
+  Rect _ignorePointerHandleRect(Rect body, Rect viewport) {
+    const extent = _minimumZeroSizedWidgetTarget;
+    Rect? fallback;
+    for (final origin in [
+      body.topLeft - const Offset(extent, extent),
+      body.topLeft - const Offset(extent, 0),
+      body.topLeft - const Offset(0, extent),
+      body.topRight,
+      body.bottomLeft,
+      body.topRight - const Offset(0, extent),
+      body.bottomRight,
+      body.bottomLeft - const Offset(extent, 0),
+    ]) {
+      final candidate = _boundedDesignerHitRect(
+        origin & const Size.square(extent),
+        viewport,
+        minimumExtent: extent,
+      );
+      fallback ??= candidate;
+      if (!candidate.overlaps(body)) return candidate;
+    }
+    // A body filling the viewport leaves no outside space. Only this compact
+    // explicit Designer handle may overlap it; the remaining body stays inert.
+    return fallback!;
   }
 
   Rect _boundedDesignerHitRect(
@@ -2403,6 +2438,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
+      'flutter.widgets.IgnorePointer' => _ignorePointer(),
       'flutter.widgets.RepaintBoundary' => RepaintBoundary(
         child: _single('child'),
       ),
@@ -2478,12 +2514,18 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       selected: selected,
       child: MouseRegion(
         cursor: editing ? SystemMouseCursors.text : SystemMouseCursors.click,
+        opaque: !_ignoresPointersForNode(node),
+        hitTestBehavior: _ignoresPointersForNode(node)
+            ? HitTestBehavior.deferToChild
+            : null,
         child: KeyedSubtree(
           key: ValueKey('canvas-widget-${node.id}'),
           child: GestureDetector(
             key: nodeKey(node.id),
             behavior: HitTestBehavior.translucent,
-            onTap: editing ? null : () => onSelected(node.id),
+            onTap: editing || _ignoresPointersForNode(node)
+                ? null
+                : () => onSelected(node.id),
             onDoubleTap:
                 !editing &&
                     inlineTextEditEnabled &&
@@ -4529,6 +4571,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
+  Widget _ignorePointer() => IgnorePointer(
+    ignoring: _boolean('ignoring') ?? true,
+    // The pinned SDK still supports this deprecated compatibility branch.
+    // ignore: deprecated_member_use
+    ignoringSemantics: _boolean('ignoringSemantics'),
+    child: _single('child'),
+  );
+
   Widget _excludeSemantics() => ExcludeSemantics(
     excluding: _boolean('excluding') ?? true,
     child: _single('child'),
@@ -5589,6 +5639,10 @@ class _CanvasInlineTextEditorState extends State<_CanvasInlineTextEditor> {
   }
 }
 
+bool _ignoresPointersForNode(CanvasNode node) =>
+    node.type == 'flutter.widgets.IgnorePointer' &&
+    (node.properties['ignoring']?.value as bool? ?? true);
+
 class _ZeroSizedWidgetTargetGroup {
   const _ZeroSizedWidgetTargetGroup({
     required this.rect,
@@ -5633,7 +5687,8 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       widgetTypes.every((type) => type == 'flutter.widgets.SizedBox')
       ? '${widgetIds.length} overlapping empty SizedBox widgets. '
             'Activate repeatedly to cycle selection.'
-      : '${widgetIds.length} overlapping zero-size widgets. '
+      : '${widgetIds.length} overlapping '
+            '${widgetTypes.contains('flutter.widgets.IgnorePointer') ? 'Designer targets' : 'zero-size widgets'}. '
             'Activate repeatedly to cycle selection.';
 
   String? get _previewUnavailableMessage {
@@ -5735,7 +5790,11 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       (true, final String warning) => '$_cyclingMessage $warning',
       (true, null) => _cyclingMessage,
       (false, final String warning) => warning,
-      (false, null) => null,
+      (false, null) =>
+        widgetTypes.single == 'flutter.widgets.IgnorePointer'
+            ? 'IgnorePointer Designer selection handle. '
+                  'The widget body keeps the configured pointer behavior.'
+            : null,
     };
     return Semantics(
       key: ValueKey('canvas-zero-size-widget-semantics-$_keySuffix'),

@@ -361,6 +361,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.PhysicalModel' ||
       'flutter.widgets.PhysicalShape' ||
       'flutter.widgets.RepaintBoundary' ||
+      'flutter.widgets.IgnorePointer' ||
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||

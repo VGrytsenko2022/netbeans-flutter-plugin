@@ -74,6 +74,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.OverflowBox",
                 "flutter.widgets.Padding",
                 "flutter.widgets.PhysicalModel",
+                "flutter.widgets.PhysicalShape",
                 "flutter.widgets.Placeholder",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
@@ -91,8 +92,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(52, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(46, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(53, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(47, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -106,10 +107,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(754, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(759, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(737, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(742, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -132,6 +133,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.ClipRRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRSuperellipse", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.PhysicalModel", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.PhysicalShape", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
@@ -315,6 +317,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ClipPath",
                 "flutter.widgets.ClipRSuperellipse",
                 "flutter.widgets.PhysicalModel",
+                "flutter.widgets.PhysicalShape",
                 "flutter.widgets.ExcludeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
@@ -328,7 +331,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(13, palette.stream()
+        assertEquals(14, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

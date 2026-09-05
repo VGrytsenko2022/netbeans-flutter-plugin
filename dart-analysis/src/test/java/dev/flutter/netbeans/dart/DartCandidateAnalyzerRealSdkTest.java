@@ -664,6 +664,135 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesPhysicalShapePresetsAndRequiredCustomClipperTypes() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("physical_shape_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLib = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Files.writeString(dependencyLib.resolve("clippers.dart"), """
+                import 'package:flutter/widgets.dart';
+                class ImportedPathClipper extends CustomClipper<Path> {
+                  const ImportedPathClipper.compact();
+                  ImportedPathClipper.configured();
+                  @override
+                  Path getClip(Size size) => Path()..addRect(Offset.zero & size);
+                  @override
+                  bool shouldReclip(covariant ImportedPathClipper oldClipper) => false;
+                }
+                """, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder methods = new StringBuilder("""
+                Widget defaults() => const PhysicalShape(
+                  clipper: ShapeBorderClipper(shape: RoundedRectangleBorder()),
+                  color: Color(0xFF2196F3),
+                );
+                Widget themed(BuildContext context) => PhysicalShape(
+                  clipper: const ShapeBorderClipper(shape: StadiumBorder()),
+                  color: Theme.of(context).colorScheme.surface,
+                  shadowColor: Theme.of(context).colorScheme.shadow,
+                  elevation: 6.5,
+                  child: const SizedBox(width: 120, height: 80),
+                );
+                Widget current() => PhysicalShape(
+                  clipper: currentPathClipper, color: const Color(0xFF2196F3));
+                Widget genericConstructor() => const PhysicalShape(
+                  clipper: GenericCtorClipper(), color: Color(0xFF2196F3));
+                Widget genericFactory() => const PhysicalShape(
+                  clipper: GenericFactoryClipper(), color: Color(0xFF2196F3));
+                Widget importedConst() => const PhysicalShape(
+                  clipper: const project_clippers.ImportedPathClipper.compact(),
+                  color: Color(0xFF2196F3));
+                Widget importedNonConst() => PhysicalShape(
+                  clipper: project_clippers.ImportedPathClipper.configured(),
+                  color: const Color(0xFF2196F3));
+                """);
+        for (String shape : List.of("RoundedRectangleBorder", "BeveledRectangleBorder",
+                "ContinuousRectangleBorder", "RoundedSuperellipseBorder", "CircleBorder", "StadiumBorder")) {
+            for (String clip : List.of("none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")) {
+                for (boolean directional : List.of(false, true)) {
+                    String radius = shape.equals("CircleBorder") || shape.equals("StadiumBorder") ? ""
+                            : directional
+                                    ? "borderRadius: BorderRadiusDirectional.only(topStart: Radius.elliptical(180, 240), bottomEnd: Radius.circular(8))"
+                                    : "borderRadius: BorderRadius.only(topLeft: Radius.elliptical(180, 240), bottomRight: Radius.circular(8))";
+                    methods.append("""
+                            Widget %s_%s_%s() => const PhysicalShape(
+                              clipper: ShapeBorderClipper(shape: %s(%s), textDirection: TextDirection.rtl),
+                              color: Color(0x882196F3), shadowColor: Color(0x55000000),
+                              elevation: 8.25, clipBehavior: Clip.%s,
+                              child: SizedBox(width: 120, height: 80),
+                            );
+                            """.formatted(shape, clip, directional, shape, radius, clip));
+                }
+            }
+        }
+        String valid = "import 'package:flutter/material.dart';\n" + clipPathCandidate(methods.toString());
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("PhysicalShape", "ShapeBorderClipper", "RoundedRectangleBorder",
+                "BeveledRectangleBorder", "ContinuousRectangleBorder", "RoundedSuperellipseBorder",
+                "CircleBorder", "StadiumBorder", "BorderRadius", "BorderRadiusDirectional",
+                "Radius", "TextDirection", "Clip", "Color", "Theme")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(valid);
+            assertTrue(occurrence.find(), symbol);
+            boolean engineSymbol = List.of("Radius", "TextDirection", "Clip", "Color").contains(symbol);
+            probes.add(probe("physical-shape-" + symbol, occurrence.start(), symbol,
+                    engineSymbol ? "dart:ui" : "package:flutter/material.dart",
+                    flutterSdk.resolve(engineSymbol ? "bin/cache/pkg/sky_engine/lib" : "packages/flutter/lib")));
+        }
+        for (String expression : List.of("currentPathClipper", "GenericCtorClipper()", "GenericFactoryClipper()")) {
+            int offset = valid.lastIndexOf(expression);
+            String symbol = expression.replace("()", "");
+            probes.add(typedProbe("current-" + symbol, offset, symbol, "project:current", lib,
+                    offset, expression.length(), valid, "CustomClipper<Path>"));
+        }
+        for (String member : List.of("compact", "configured")) {
+            String expression = (member.equals("compact") ? "const " : "")
+                    + "project_clippers.ImportedPathClipper." + member + "()";
+            int offset = valid.lastIndexOf(expression);
+            probes.add(typedProbe("imported-" + member, valid.indexOf(member, offset), member,
+                    "package:clipper_dependency/clippers.dart", dependencyLib,
+                    offset, expression.length(), valid, "CustomClipper<Path>"));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, valid, 400, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        long version = 401;
+        for (String expression : List.of("dynamicPathClipper", "nullablePathClipper", "currentClipper", "currentRectClipper")) {
+            String content = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n"
+                    + clipPathCandidate("Widget invalid() => PhysicalShape(clipper: " + expression
+                            + ", color: const Color(0xFF2196F3));\n");
+            int offset = content.lastIndexOf(expression);
+            DartSymbolProbe typed = typedProbe("invalid-" + expression, offset, expression, "project:current", lib,
+                    offset, expression.length(), content, "CustomClipper<Path>");
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of(typed))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> expression + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        for (String invalid : List.of(
+                "const PhysicalShape(color: Color(0xFF2196F3))",
+                "const PhysicalShape(clipper: ShapeBorderClipper(shape: CircleBorder()))",
+                "const PhysicalShape(clipper: ShapeBorderClipper(shape: CircleBorder()), color: Color(0xFF2196F3), elevation: -1)",
+                "const PhysicalShape(clipper: ShapeBorderClipper(shape: CircleBorder()), color: Theme.of(context).colorScheme.surface)")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid(BuildContext context) => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

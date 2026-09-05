@@ -54,6 +54,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.MATRIX4,
                     PropertyValueKind.IMAGE_PROVIDER,
                     PropertyValueKind.BORDER_RADIUS,
+                    PropertyValueKind.SHAPE_BORDER_CLIPPER,
                     PropertyValueKind.DART_OBJECT_REFERENCE,
                     PropertyValueKind.BOX_DECORATION,
                     PropertyValueKind.NULL,
@@ -204,6 +205,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ClipPath", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRSuperellipse", STATIC_EDITABLE),
             Map.entry("flutter.widgets.PhysicalModel", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.PhysicalShape", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -574,6 +576,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.widgets.ColoredBox", coloredBoxProjection()),
             Map.entry("flutter.widgets.PhysicalModel", physicalModelProjection()),
+            Map.entry("flutter.widgets.PhysicalShape", physicalShapeProjection()),
             Map.entry("flutter.widgets.Placeholder", placeholderProjection()),
             Map.entry("flutter.widgets.Directionality", projection(Map.ofEntries(
                     requiredDefaultConstrainedProperty(
@@ -993,6 +996,25 @@ public final class BuiltInWidgetCapabilityCatalog {
                         "color", "color:0xFF2196F3"),
                 property("isAntiAlias", PropertyValueKind.BOOLEAN)),
                 Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static final String SHAPE_BORDER_CLIPPER_FINGERPRINT =
+            "shapeBorderClipper:v1:roundedRectangle,beveledRectangle,continuousRectangle,roundedSuperellipse,circle,stadium:finiteNonNegativeRadius:explicitDirectional:ltr,rtl";
+
+    private static CanvasProjection physicalShapeProjection() {
+        return projection(Map.ofEntries(
+                Map.entry("clipper", new CanvasPropertyContract(
+                        Set.of(PropertyValueKind.SHAPE_BORDER_CLIPPER, PropertyValueKind.DART_OBJECT_REFERENCE),
+                        true, Optional.of("shapeBorderClipper:roundedRectangle:physicalZero:none"), Map.of(),
+                        Map.of(PropertyValueKind.SHAPE_BORDER_CLIPPER, SHAPE_BORDER_CLIPPER_FINGERPRINT,
+                                PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                + "CustomClipper<Path>:currentOrPackage:root,optionalMember:reference,"
+                                + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)"))),
+                enumProperty("clipBehavior", "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                numericProperty("elevation", NON_NEGATIVE_NUMBER_BOUNDS,
+                        PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                requiredDefaultColorOrThemeProperty("color", "color:0xFF2196F3"),
+                colorOrThemeProperty("shadowColor")), Map.of("child", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection physicalModelProjection() {
@@ -2232,6 +2254,9 @@ public final class BuiltInWidgetCapabilityCatalog {
             return values.directionalAllowed() ? BORDER_RADIUS_CONTRACT_FINGERPRINT
                     : PHYSICAL_BORDER_RADIUS_CONTRACT_FINGERPRINT;
         }
+        if (constraint instanceof PropertyValueConstraint.ShapeBorderClipperValues) {
+            return SHAPE_BORDER_CLIPPER_FINGERPRINT;
+        }
         if (constraint instanceof PropertyValueConstraint.DartObjectReferenceValues values) {
             return DART_OBJECT_REFERENCE_CONTRACT_PREFIX
                     + values.expectedDartType()
@@ -2293,6 +2318,12 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static String defaultFingerprint(PropertyValue value) {
+        if (value instanceof PropertyValue.ShapeBorderClipperValue clipper) {
+            if (!clipper.equals(PropertyValue.ShapeBorderClipperValue.defaultValue())) {
+                throw new ExceptionInInitializerError("Canvas shape clipper default must be reviewed rounded rectangle with zero radii");
+            }
+            return "shapeBorderClipper:roundedRectangle:physicalZero:none";
+        }
         if (value instanceof PropertyValue.NullValue) {
             return "null";
         }

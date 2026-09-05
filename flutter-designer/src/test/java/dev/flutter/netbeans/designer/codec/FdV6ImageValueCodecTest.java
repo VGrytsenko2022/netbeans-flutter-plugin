@@ -39,7 +39,7 @@ class FdV6ImageValueCodecTest {
         OriginalFdBytes encoded = codec.encode(document);
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 12"), json);
+        assertTrue(json.contains("\"schemaVersion\": 13"), json);
         assertTrue(json.contains("\"kind\": \"imageProvider\""), json);
         assertTrue(json.contains("\"providerKind\": \"exactAsset\""), json);
         assertTrue(json.contains("\"packageName\": \"reviewed_icons\""), json);
@@ -58,14 +58,14 @@ class FdV6ImageValueCodecTest {
         assertTrue(json.contains("\"repeat\": \"repeatX\""), json);
         assertTrue(json.contains("\"filterQuality\": \"high\""), json);
         assertEquals(
-                "1cc7daf769c7e718901b4fd789145301bde25c483ec08b06eae71000f44cd455",
+                "d623cae68786cae8e9cb0d0eaf44931560b6227c966d09a31060e53c460d87ea",
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(encoded.copyBytes())),
                 "The canonical all-image current fixture is a byte-for-byte golden");
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(encoded));
-        assertEquals(12, decoded.sourceSchemaVersion());
+        assertEquals(13, decoded.sourceSchemaVersion());
         assertFalse(decoded.migrated());
         assertEquals(document, decoded.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(decoded.document()).copyBytes());
@@ -83,7 +83,7 @@ class FdV6ImageValueCodecTest {
                 Extensions.empty());
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         DesignerDocument document = new DesignerDocument(
-                Optional.of("../fd-v12.schema.json"),
+                Optional.of("../fd-v13.schema.json"),
                 StableId.parse("dddddddd-dddd-4ddd-8ddd-dddddddddddd"),
                 new DartSourceDescriptor(
                         "unresolved_image_page.dart",
@@ -118,8 +118,8 @@ class FdV6ImageValueCodecTest {
         String current = new String(
                 codec.encode(document).copyBytes(), StandardCharsets.UTF_8);
         String v5 = current
-                .replace("\"schemaVersion\": 12", "\"schemaVersion\": 5")
-                .replace("../fd-v12.schema.json", "../fd-v5.schema.json")
+                .replace("\"schemaVersion\": 13", "\"schemaVersion\": 5")
+                .replace("../fd-v13.schema.json", "../fd-v5.schema.json")
                 .replaceAll("(?m)^\\s*\"image\": null,\\R", "");
 
         FdDecodeResult.Current decoded = assertInstanceOf(
@@ -127,7 +127,7 @@ class FdV6ImageValueCodecTest {
                 codec.decode(v5.getBytes(StandardCharsets.UTF_8)));
         assertEquals(5, decoded.sourceSchemaVersion());
         assertTrue(decoded.migrated());
-        assertEquals("../fd-v12.schema.json",
+        assertEquals("../fd-v13.schema.json",
                 decoded.document().schemaReference().orElseThrow());
         PropertyValue.BoxDecorationValue decoration = assertInstanceOf(
                 PropertyValue.BoxDecorationValue.class,
@@ -148,7 +148,7 @@ class FdV6ImageValueCodecTest {
                         new PropertyName("provider"), provider))).copyBytes(),
                 StandardCharsets.UTF_8);
         String claimedV5 = providerJson.replace(
-                "\"schemaVersion\": 12", "\"schemaVersion\": 5");
+                "\"schemaVersion\": 13", "\"schemaVersion\": 5");
         FdDecodeResult.Invalid old = assertInstanceOf(
                 FdDecodeResult.Invalid.class,
                 codec.decode(claimedV5.getBytes(StandardCharsets.UTF_8)));
@@ -327,7 +327,7 @@ class FdV6ImageValueCodecTest {
                 "image_page.dart", "ImagePage", WidgetClassKind.STATELESS,
                 Optional.of("test"), new ManagedRegions(region, region));
         return new DesignerDocument(
-                Optional.of("../fd-v12.schema.json"),
+                Optional.of("../fd-v13.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 source,
                 Optional.empty(),

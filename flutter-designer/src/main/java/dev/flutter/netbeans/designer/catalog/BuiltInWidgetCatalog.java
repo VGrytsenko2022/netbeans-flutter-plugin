@@ -74,6 +74,7 @@ public final class BuiltInWidgetCatalog {
             clipPath(),
             clipRSuperellipse(),
             physicalModel(),
+            physicalShape(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1434,6 +1435,26 @@ public final class BuiltInWidgetCatalog {
                 "PhysicalModel", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 130, "PhysicalModel"), properties,
                 List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition physicalShape() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("clipper", 0, true,
+                        List.of(new PropertyValueConstraint.ShapeBorderClipperValues(),
+                                new PropertyValueConstraint.DartObjectReferenceValues("CustomClipper<Path>")),
+                        PropertyValue.ShapeBorderClipperValue.defaultValue()),
+                namedProperty("clipBehavior", 1, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")),
+                namedProperty("elevation", 2, false, nonNegativeNumbers()),
+                namedProperty("color", 3, true, colorOrTheme(), new PropertyValue.ColorValue(0xFF2196F3L)),
+                namedProperty("shadowColor", 4, false, colorOrTheme()));
+        if (properties.size() != PhysicalShapeWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("PhysicalShape catalog/property schema count mismatch");
+        }
+        return widget(PhysicalShapeWidgetPropertySchema.PHYSICAL_SHAPE_TYPE.value(),
+                "PhysicalShape", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 140, "PhysicalShape"), properties,
+                List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listView() {

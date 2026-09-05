@@ -103,7 +103,8 @@ final class FlutterPropertyEditorComponents {
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
-                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE -> true;
+                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
+                    SHAPE_BORDER_CLIPPER -> true;
             default -> false;
         };
     }
@@ -140,6 +141,9 @@ final class FlutterPropertyEditorComponents {
                     editor, binding, environment);
             case IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.customEditor(
                     editor, binding, environment);
+            case SHAPE_BORDER_CLIPPER ->
+                FlutterShapeBorderClipperEditorComponent.customEditor(
+                        editor, binding, environment);
             case DART_OBJECT_REFERENCE ->
                 FlutterDartObjectReferenceEditorComponent.customEditor(
                         editor, binding, environment);
@@ -667,6 +671,22 @@ final class FlutterPropertyEditorComponents {
         /** Gives compound controls a last chance to finish their local cell edit. */
         boolean prepareCommit() {
             return true;
+        }
+
+        /** Reads a nested local draft without publishing it or consuming its dialog. */
+        final FlutterPropertyCellValue validatedDraftValue() {
+            if (!prepareCommit()) {
+                throw new IllegalArgumentException("Correct the active clipper settings before applying.");
+            }
+            return stagedDraftValue();
+        }
+
+        /** Live validation must not stop a nested table's active cell editor. */
+        final FlutterPropertyCellValue stagedDraftValue() {
+            if (!draftValid) {
+                throw new IllegalArgumentException("Correct the active clipper settings before applying.");
+            }
+            return binding.validate(draft);
         }
 
         @Override

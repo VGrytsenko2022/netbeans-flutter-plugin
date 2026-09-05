@@ -303,8 +303,6 @@ class FdSchemaResourceTest {
                 V12_DOCUMENTATION_SCHEMA));
         assertArrayEquals(documented, packaged,
                 "The bundled and browsable schema v12 copies must remain byte-identical");
-        assertArrayEquals(packaged, loadCurrentSchema(),
-                "The current schema pointer must resolve to v12");
         String schema = new String(packaged, StandardCharsets.UTF_8);
 
         assertFalse(schema.contains("\r"));
@@ -330,6 +328,23 @@ class FdSchemaResourceTest {
         assertTrue(definition.contains(
                 "\"$ref\": \"#/$defs/publicDartObjectIdentifier\""));
         assertTrue(definition.contains("\"additionalProperties\": false"));
+    }
+
+    @Test
+    void packagesCanonicalV13WithClosedShapeBorderClipperAndPreservesFrozenV12() throws IOException {
+        byte[] packaged;
+        try (InputStream input = FdSchemas.openV13()) { packaged = input.readAllBytes(); }
+        assertArrayEquals(Files.readAllBytes(findRepositoryFile(
+                Path.of("docs", "flutter-designer", "fd-v13.schema.json"))), packaged);
+        assertArrayEquals(packaged, loadCurrentSchema());
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:13"));
+        assertTrue(schema.contains("\"const\": \"shapeBorderClipper\""));
+        assertTrue(schema.contains("\"$ref\": \"#/$defs/shapeBorderClipperValue\""));
+        for (String shape : java.util.List.of("roundedRectangle", "beveledRectangle", "continuousRectangle",
+                "roundedSuperellipse", "circle", "stadium")) { assertTrue(schema.contains(shape)); }
+        assertFalse(new String(loadPackagedV12Schema(), StandardCharsets.UTF_8).contains("shapeBorderClipperValue"));
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {

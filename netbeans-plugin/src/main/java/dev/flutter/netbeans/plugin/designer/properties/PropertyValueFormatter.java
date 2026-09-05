@@ -80,6 +80,11 @@ public final class PropertyValueFormatter {
                 decoration(decoration);
             case PropertyValue.BorderRadiusValue borderRadius ->
                 borderRadius(borderRadius.geometry());
+            case PropertyValue.ShapeBorderClipperValue clipper ->
+                "ShapeBorderClipper(" + clipper.shape().wireName() + ", "
+                        + borderRadius(clipper.borderRadius())
+                        + clipper.textDirection().map(direction -> ", " + direction.wireName()).orElse("")
+                        + ")";
             case PropertyValue.DartObjectReferenceValue reference ->
                 dartObjectReference(reference);
         };

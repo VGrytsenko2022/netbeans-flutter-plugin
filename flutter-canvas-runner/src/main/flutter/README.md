@@ -4,7 +4,7 @@ Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v17 may additionally carry
+screenshots or framebuffer pixels. Model protocol v18 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
 
@@ -80,11 +80,11 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
-Model protocol v17 carries the resolved project-theme id, seed, brightness,
+Model protocol v18 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. Version 17 adds the presence-only typed
 project Dart-object reference used by the clipping widgets' `clipper` rows and
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-52 reviewed Canvas widgets. Palette insertion evaluates 2,548 exact
-source/destination cells across 52 draggable sources and 49 insertable reviewed
-slots; 2,311 are accepted and 237 cells are rejected. Expanded and Flexible are
+53 reviewed Canvas widgets. Palette insertion evaluates 2,650 exact
+source/destination cells across 53 draggable sources and 50 insertable reviewed
+slots; 2,408 are accepted and 242 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -908,12 +908,24 @@ including on a circle. The renderer preserves the radius value when the circle
 ignores it; non-square circle bounds form an oval. Windows/Web tests exercise
 native paint/shadows, translucent occluders, radius clamping, theme colors, property
 changes and optional child. Empty nodes keep external selection/drop affordances
-without fabricated paint or layout. Canvas model remains v17.
+without fabricated paint or layout. That milestone retained Canvas model v17.
 
-The aggregate catalog now has 52 widgets and 46 reviewed const definitions,
-with 754 writable rows (737 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, thirteen Basic, four Material and one Accessibility item; the
-backlog is 52/92 complete with 40 remaining. The 52 sources across 49
-insertable destinations form 2,548 cells, with 2,311 accepted and 237 rejected.
-The physical-only radius constraint advances Catalog API to 13; `.fd` schema stays
-v12 and Canvas model protocol v17. NBFC framing, control and wire remain v1.
+`PhysicalShape` uses real PhysicalShape and ShapeBorderClipper with six reviewed
+ShapeBorder classes: rounded rectangle, beveled rectangle, continuous rectangle,
+rounded superellipse, circle and stadium. The v18 `shapeBorderClipper` payload has
+exactly kind, shape, borderRadius and nullable textDirection fields. Cornered shapes
+accept physical/directional elliptical radii; directional corners require explicit
+LTR/RTL because the SDK helper does not read ambient directionality. Circle/stadium
+retain ignored radii/direction. Colors, all four clip modes, elevation/shadows, theme
+resolution and SDK radius clamping are real Flutter paint, on Windows/Web profiles.
+The alternative project clipper is presence-only: preserve its child with an
+accessible preview-unavailable warning, never fabricate fill, shadow or clipping.
+Childless targets retain full warning text outside actual zero-size widget layout.
+
+The aggregate catalog now has 53 widgets and 47 reviewed const definitions,
+with 759 writable rows (742 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, fourteen Basic, four Material and one Accessibility item; the
+backlog is 53/92 complete with 39 remaining. The 53 sources across 50
+insertable destinations form 2,650 cells, with 2,408 accepted and 242 rejected.
+The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
+model protocol to v18. NBFC framing, control and wire remain v1.

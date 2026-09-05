@@ -37,8 +37,8 @@ class FdV9OffsetValueCodecTest {
         OriginalFdBytes first = codec.encode(document(Optional.of(expected)));
         String json = new String(first.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 12"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v12.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 13"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v13.schema.json\""), json);
         assertTrue(json.contains("\"kind\": \"offset\""), json);
         assertTrue(json.contains("\"dx\": -12.5"), json);
         assertTrue(json.contains("\"dy\": 8.25"), json);
@@ -47,7 +47,7 @@ class FdV9OffsetValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(first));
-        assertEquals(12, decoded.sourceSchemaVersion());
+        assertEquals(13, decoded.sourceSchemaVersion());
         assertFalse(decoded.migrated());
         assertEquals(expected, origin(decoded.document()).orElseThrow());
         assertArrayEquals(first.copyBytes(),
@@ -60,15 +60,15 @@ class FdV9OffsetValueCodecTest {
                 codec.encode(document(Optional.empty())).copyBytes(),
                 StandardCharsets.UTF_8);
         String legacy = currentWithoutOrigin
-                .replace("\"schemaVersion\": 12", "\"schemaVersion\": 8")
-                .replace("../fd-v12.schema.json", "../fd-v8.schema.json");
+                .replace("\"schemaVersion\": 13", "\"schemaVersion\": 8")
+                .replace("../fd-v13.schema.json", "../fd-v8.schema.json");
 
         FdDecodeResult.Current migrated = assertInstanceOf(
                 FdDecodeResult.Current.class,
                 codec.decode(legacy.getBytes(StandardCharsets.UTF_8)));
         assertEquals(8, migrated.sourceSchemaVersion());
         assertTrue(migrated.migrated());
-        assertEquals(Optional.of("../fd-v12.schema.json"),
+        assertEquals(Optional.of("../fd-v13.schema.json"),
                 migrated.document().schemaReference());
         assertTrue(origin(migrated.document()).isEmpty());
 
@@ -77,8 +77,8 @@ class FdV9OffsetValueCodecTest {
                         BigDecimal.ONE.negate(), BigDecimal.ONE)))).copyBytes(),
                 StandardCharsets.UTF_8);
         assertInvalid(currentWithOrigin
-                        .replace("\"schemaVersion\": 12", "\"schemaVersion\": 8")
-                        .replace("../fd-v12.schema.json", "../fd-v8.schema.json"),
+                        .replace("\"schemaVersion\": 13", "\"schemaVersion\": 8")
+                        .replace("../fd-v13.schema.json", "../fd-v8.schema.json"),
                 "/root/properties/origin/kind");
     }
 
@@ -133,7 +133,7 @@ class FdV9OffsetValueCodecTest {
                 Extensions.empty());
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v12.schema.json"),
+                Optional.of("../fd-v13.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "transform_page.dart", "TransformPage",

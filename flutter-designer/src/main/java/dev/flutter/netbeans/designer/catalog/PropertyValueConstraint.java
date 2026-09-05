@@ -30,6 +30,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.Matrix4Values,
         PropertyValueConstraint.ImageProviderValues,
         PropertyValueConstraint.BorderRadiusValues,
+        PropertyValueConstraint.ShapeBorderClipperValues,
         PropertyValueConstraint.DartObjectReferenceValues,
         PropertyValueConstraint.BoxDecorationValues,
         PropertyValueConstraint.IntegerRange,
@@ -63,6 +64,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.MATRIX4
                     || kind == PropertyValueKind.IMAGE_PROVIDER
                     || kind == PropertyValueKind.BORDER_RADIUS
+                    || kind == PropertyValueKind.SHAPE_BORDER_CLIPPER
                     || kind == PropertyValueKind.DART_OBJECT_REFERENCE
                     || kind == PropertyValueKind.BOX_DECORATION
                     || kind == PropertyValueKind.ICON_DATA
@@ -315,6 +317,18 @@ public sealed interface PropertyValueConstraint permits
         @Override
         public String description() {
             return "asset-only ImageProvider with optional bounded ResizeImage";
+        }
+    }
+
+    /** Closed shape presets with validated radii and explicit directional resolution. */
+    record ShapeBorderClipperValues() implements PropertyValueConstraint {
+        @Override public PropertyValueKind kind() { return PropertyValueKind.SHAPE_BORDER_CLIPPER; }
+        @Override public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.ShapeBorderClipperValue clipper
+                    && new BorderRadiusValues().accepts(new PropertyValue.BorderRadiusValue(clipper.borderRadius()));
+        }
+        @Override public String description() {
+            return "ShapeBorderClipper preset with finite non-negative radii and explicit directional resolution";
         }
     }
 

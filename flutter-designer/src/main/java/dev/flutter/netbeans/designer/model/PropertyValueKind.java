@@ -26,6 +26,7 @@ public enum PropertyValueKind {
     MATRIX4("matrix4"),
     IMAGE_PROVIDER("imageProvider"),
     BORDER_RADIUS("borderRadius"),
+    SHAPE_BORDER_CLIPPER("shapeBorderClipper"),
     BOX_DECORATION("boxDecoration"),
     NULL("null");
 

@@ -82,7 +82,7 @@ void main() {
   test('PhysicalModel contract is exact, required-color and physical-only', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.PhysicalModel\n');
-    final end = contract.indexOf('W|flutter.widgets.Placeholder\n', start);
+    final end = contract.indexOf('W|flutter.widgets.PhysicalShape\n', start);
     final tokens = canvasColorSchemeThemeTokens.toList()..sort();
     final colorConstraint = 'color:any;themeToken:tokens:${tokens.join(',')}';
     expect(start, greaterThanOrEqualTo(0));

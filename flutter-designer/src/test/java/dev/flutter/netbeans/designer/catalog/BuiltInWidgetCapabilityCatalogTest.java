@@ -74,6 +74,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipPath",
             "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.PhysicalModel",
+            "flutter.widgets.PhysicalShape",
             "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
@@ -127,6 +128,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipPath",
             "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.PhysicalModel",
+            "flutter.widgets.PhysicalShape",
             "flutter.widgets.ExcludeSemantics");
 
     @Test
@@ -161,9 +163,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(52, sources.size());
-        assertEquals(49, destinations.size());
-        assertEquals(47, destinations.stream()
+        assertEquals(53, sources.size());
+        assertEquals(50, destinations.size());
+        assertEquals(48, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -171,9 +173,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(2548, candidates);
-        assertEquals(2311, accepted);
-        assertEquals(237, candidates - accepted);
+        assertEquals(2650, candidates);
+        assertEquals(2408, accepted);
+        assertEquals(242, candidates - accepted);
     }
 
     @Test

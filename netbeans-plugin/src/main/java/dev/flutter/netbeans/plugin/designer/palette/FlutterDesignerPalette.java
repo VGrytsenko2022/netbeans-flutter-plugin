@@ -285,6 +285,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ClipPath.Name"));
                 setShortDescription(message("Widget.ClipPath.Description"));
+            } else if ("flutter.widgets.PhysicalShape".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.PhysicalShape.Name"));
+                setShortDescription(message("Widget.PhysicalShape.Description"));
             } else if ("flutter.widgets.PhysicalModel".equals(
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.PhysicalModel.Name"));

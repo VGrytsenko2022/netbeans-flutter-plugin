@@ -5343,6 +5343,29 @@ public final class DartRegionGenerator {
                     borderRadius.geometry(), valueIndent,
                     path + "/geometry", widgetId, context);
         }
+        if (value instanceof PropertyValue.ShapeBorderClipperValue clipper) {
+            String shapeClass = switch (clipper.shape()) {
+                case ROUNDED_RECTANGLE -> "RoundedRectangleBorder";
+                case BEVELED_RECTANGLE -> "BeveledRectangleBorder";
+                case CONTINUOUS_RECTANGLE -> "ContinuousRectangleBorder";
+                case ROUNDED_SUPERELLIPSE -> "RoundedSuperellipseBorder";
+                case CIRCLE -> "CircleBorder";
+                case STADIUM -> "StadiumBorder";
+            };
+            List<CompositeMember> shapeMembers = clipper.shape().supportsRadius()
+                    ? List.of(new CompositeMember("borderRadius", 0, renderBorderRadius(
+                            clipper.borderRadius(), valueIndent + 4, path + "/borderRadius", widgetId, context)))
+                    : List.of();
+            ArrayList<CompositeMember> members = new ArrayList<>();
+            members.add(new CompositeMember("shape", 0, renderNamedCompositeMembers(
+                    shapeClass, Optional.empty(), shapeMembers, valueIndent + 2,
+                    path + "/shape", widgetId, context)));
+            clipper.textDirection().ifPresent(direction -> members.add(new CompositeMember(
+                    "textDirection", 1, renderEnumSymbol("TextDirection", direction.wireName(),
+                            "shape-clipper-direction", path + "/textDirection", widgetId, context))));
+            return renderNamedCompositeMembers("ShapeBorderClipper", Optional.empty(), members,
+                    valueIndent, path, widgetId, context);
+        }
         if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             return renderBoxDecoration(
                     decoration, valueIndent, path, widgetId, context);

@@ -359,6 +359,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.ClipRRect' ||
       'flutter.widgets.ClipRSuperellipse' ||
       'flutter.widgets.PhysicalModel' ||
+      'flutter.widgets.PhysicalShape' ||
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||

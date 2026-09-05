@@ -18,6 +18,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalogContributor;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdCodecLimits;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.designer.source.DartManagedRegionHashing;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityDiagnosticCode;
@@ -277,16 +278,17 @@ class FlutterDesignerDocumentControllerTest {
 
     @Test
     void exposesFutureSchemaOnlyAsReadOnlyRawResult() throws Exception {
+        int futureVersion = DesignerDocument.SCHEMA_VERSION + 1;
         String future = """
-                {"format":"netbeans-flutter-designer","schemaVersion":13,"future":true}
-                """;
+                {"format":"netbeans-flutter-designer","schemaVersion":%d,"future":true}
+                """.formatted(futureVersion);
         Pair pair = pair("home_page", future);
 
         FlutterDesignerDocumentState.UnsupportedNewer newer = assertInstanceOf(
                 FlutterDesignerDocumentState.UnsupportedNewer.class,
                 load(pair));
 
-        assertEquals("13", newer.decoded().declaredSchemaVersion().toString());
+        assertEquals(Integer.toString(futureVersion), newer.decoded().declaredSchemaVersion().toString());
         assertArrayEquals(
                 future.getBytes(StandardCharsets.UTF_8),
                 newer.decoded().original().copyBytes());
@@ -589,8 +591,8 @@ class FlutterDesignerDocumentControllerTest {
         assertTrue(currentPublished.await(5, TimeUnit.SECONDS));
 
         write(pair.modelFile(), """
-                {"format":"netbeans-flutter-designer","schemaVersion":13}
-                """);
+                {"format":"netbeans-flutter-designer","schemaVersion":%d}
+                """.formatted(DesignerDocument.SCHEMA_VERSION + 1));
 
         assertTrue(futurePublished.await(5, TimeUnit.SECONDS));
         assertInstanceOf(

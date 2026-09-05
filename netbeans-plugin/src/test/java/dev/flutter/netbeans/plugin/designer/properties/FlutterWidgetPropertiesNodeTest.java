@@ -815,6 +815,9 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(
                         new PropertyName("color"),
                         new PropertyValue.ColorValue(0xFF2196F3L)));
+        requiredValues.put("flutter.widgets.PhysicalShape",
+                Map.of(new PropertyName("color"), new PropertyValue.ColorValue(0xFF2196F3L),
+                        new PropertyName("clipper"), PropertyValue.ShapeBorderClipperValue.defaultValue()));
         requiredValues.put("flutter.widgets.PhysicalModel",
                 Map.of(new PropertyName("color"), new PropertyValue.ColorValue(0xFF2196F3L)));
         requiredValues.put(
@@ -877,6 +880,7 @@ class FlutterWidgetPropertiesNodeTest {
                 ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
                 ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
                 PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value(),
+                "flutter.widgets.PhysicalShape",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -912,7 +916,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(754, writableCount,
+        assertEquals(759, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -925,7 +929,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(737, nonScaffoldWritableCount,
+        assertEquals(742, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -5417,6 +5421,7 @@ class FlutterWidgetPropertiesNodeTest {
         Set<String> iconPaths = new HashSet<>();
         typeIds = new ArrayList<>(typeIds);
         typeIds.add(PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value());
+        typeIds.add("flutter.widgets.PhysicalShape");
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -5443,7 +5448,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(52, iconPaths.size(),
+        assertEquals(53, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 
@@ -5523,6 +5528,56 @@ class FlutterWidgetPropertiesNodeTest {
         assertEquals("Empty", child.getValue());
         assertTrue(child.getShortDescription().contains("elevated physical surface"));
         assertTrue(child.getShortDescription().contains("Occupancy: 0/1"));
+    }
+
+    @Test
+    void physicalShapeProjectsAllFivePropertiesAndRequiredUnionRefreshKeepsFieldIdentity()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.PhysicalShape");
+        StableId id = StableId.parse("d73b867a-a162-47c4-841f-bd22936629bb");
+        PropertyName clipperName = new PropertyName("clipper");
+        PropertyName colorName = new PropertyName("color");
+        var preset = PropertyValue.ShapeBorderClipperValue.defaultValue();
+        var color = new PropertyValue.ColorValue(0xFF2196F3L);
+        WidgetNode widget = new WidgetNode(id, definition.typeId(),
+                Map.of(colorName, color, clipperName, preset),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+        for (String name : List.of("clipper", "clipBehavior", "elevation", "color", "shadowColor")) {
+            assertTrue(property(node, name).canWrite(), name);
+            assertEquals(FlutterPropertyCellValue.class, property(node, name).getValueType());
+            assertNotNull(property(node, name).getPropertyEditor(), name);
+        }
+        var clipper = cellProperty(property(node, "clipper"));
+        var surface = cellProperty(property(node, "color"));
+        assertFalse(clipper.supportsDefaultValue());
+        assertFalse(surface.supportsDefaultValue());
+        assertThrows(IllegalArgumentException.class, () -> clipper.setValue(FlutterPropertyCellValue.unset()));
+        assertThrows(IllegalArgumentException.class, () -> surface.setValue(FlutterPropertyCellValue.unset()));
+        assertTrue(clipper.getPropertyEditor().supportsCustomEditor());
+        assertTrue(clipper.getShortDescription().contains("CustomClipper<Path>"));
+        assertEquals(List.of(FlutterWidgetPropertiesNode.NOT_SET,
+                "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"),
+                List.of(property(node, "clipBehavior").getPropertyEditor().getTags()));
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_pathClipper",
+                Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        clipper.setValue(FlutterPropertyCellValue.explicit(reference));
+        assertEquals(List.of(new SetProperty(id, clipperName, reference)), commands);
+        Node.PropertySet[] sets = node.getPropertySets();
+        WidgetNode configured = new WidgetNode(id, definition.typeId(),
+                Map.of(colorName, color, clipperName, reference), widget.slots());
+        commands.clear();
+        node.refreshPresentation(configured, definition, commands::add, null, null,
+                FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        assertSame(clipper, property(node, "clipper"));
+        assertSame(surface, property(node, "color"));
+        assertEquals(FlutterPropertyCellValue.explicit(reference), clipper.getValue());
+        clipper.setValue(FlutterPropertyCellValue.explicit(preset));
+        assertEquals(List.of(new SetProperty(id, clipperName, preset)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("Occupancy: 0/1"));
     }
 
 

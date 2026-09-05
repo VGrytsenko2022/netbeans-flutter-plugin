@@ -6,11 +6,11 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
 import 'package:netbeans_flutter_canvas_runner/src/sha256.dart';
 
 void main() {
-  test('Canvas model protocol v17 is exact and rejects v16 payloads', () {
-    expect(canvasModelProtocolVersion, 17);
+  test('Canvas model protocol v18 is exact and rejects v17 payloads', () {
+    expect(canvasModelProtocolVersion, 18);
     expect(() => _decode(_modelJson()), returnsNormally);
 
-    final oldProtocol = _modelJson()..['protocolVersion'] = 16;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 17;
     expect(() => _decode(oldProtocol), throwsFormatException);
   });
 
@@ -10327,7 +10327,7 @@ class _AbsentTestValue {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 17,
+  'protocolVersion': 18,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

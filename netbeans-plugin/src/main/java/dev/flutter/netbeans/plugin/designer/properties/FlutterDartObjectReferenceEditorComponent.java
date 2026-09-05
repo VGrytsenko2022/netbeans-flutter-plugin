@@ -166,7 +166,9 @@ final class FlutterDartObjectReferenceEditorComponent {
             useDefault.getAccessibleContext().setAccessibleDescription(
                     "When selected, removes the optional " + argumentName
                     + " Dart object reference.");
-            add(useDefault, BorderLayout.NORTH);
+            if (binding.optional()) {
+                add(useDefault, BorderLayout.NORTH);
+            }
 
             JPanel form = new JPanel(new GridBagLayout());
             scope.setName(SCOPE_NAME);
@@ -387,7 +389,7 @@ final class FlutterDartObjectReferenceEditorComponent {
             } else if ("CustomClipper<RSuperellipse>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores "
                         + "ClipRSuperellipse.borderRadius. ";
-            } else if ("CustomClipper<Path>".equals(expectedDartType)) {
+            } else if ("CustomClipper<Path>".equals(expectedDartType) && binding.optional()) {
                 base += "Setting Clipper first clears Shape and selects the unnamed "
                         + "ClipPath constructor. ";
             } else if ("ShapeBorder".equals(expectedDartType)) {

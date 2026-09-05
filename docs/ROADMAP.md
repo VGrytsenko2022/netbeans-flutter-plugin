@@ -693,7 +693,7 @@ accepted architecture is documented in
   Canvas hover, while Java repeats the canonical planner before mutation.
 - [x] Supersede the AppBar milestone with the complete `ElevatedButton`
   vertical slice. The slice originally landed on Canvas payload protocol v8
-  (the current aggregate model is v17); deterministic generation and the
+  (the current aggregate model is v18); deterministic generation and the
   native runner share 286 typed leaves: seven direct behavior/callback fields,
   five 54-leaf default/disabled/pressed/hovered/focused style groups and nine
   common layout/feedback fields. Callback values are strict Dart identifiers;
@@ -1497,11 +1497,23 @@ accepted architecture is documented in
   Use real PhysicalModel rendering/shadows and keep empty selection/drop targets
   external. Include typed Properties/Slots, Palette/tree/Canvas insertion and
   movement, generation, validation, Save/reopen/further-edit, Undo/Redo, accessibility
-  and four SVG variants. Current surface: 52 widgets, 46 const definitions, 754 rows
+  and four SVG variants. At that milestone: 52 widgets, 46 const definitions, 754 rows
   (737 outside Scaffold), 47 any-widget plus two trait destinations, 2,548 cells
   (2,311 accepted / 237 rejected). Basic 13; historical target 52/92, 40 remaining.
   Physical-only radius constraints advance Catalog API to 13; `.fd` 12 and Canvas
   model 17 stay unchanged. The full physical desktop gate remains deferred.
+- [x] Add `PhysicalShape` after PhysicalModel (Basic order 140) with all five
+  non-key properties and optional child. Support six typed ShapeBorderClipper presets
+  with physical/directional elliptical radii and explicit direction, plus exact
+  current/package CustomClipper<Path> references. Preserve ignored radius/direction,
+  render real presets/shadows/theme colors, and show accessible custom-code preview
+  warnings without fabricated geometry. Complete typed editors, slots, all placement
+  routes, generation, save/reopen/further-edit, Undo/Redo, rollback and four SVGs.
+  The closed value advances schema/API/model to 13/14/18; frozen v1-v12 schemas and
+  NBFC framing/control/wire v1 stay unchanged. Current surface: 53 widgets, 47 const
+  definitions, 759 rows (742 outside Scaffold), 48 any-widget plus two trait
+  destinations, 2,650 cells (2,408 accepted / 242 rejected). Basic 14; historical
+  target 53/92, 39 remaining. Full physical desktop acceptance remains deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1519,7 +1531,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current typed Properties slice spans all fifty-two
+  vertical slices. The current typed Properties slice spans all fifty-three
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

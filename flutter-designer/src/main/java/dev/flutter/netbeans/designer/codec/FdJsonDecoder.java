@@ -611,15 +611,16 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:8",
                     "urn:netbeans-flutter-designer:schema:fd:9",
                     "urn:netbeans-flutter-designer:schema:fd:10",
-                    "urn:netbeans-flutter-designer:schema:fd:11" ->
-                    "urn:netbeans-flutter-designer:schema:fd:12";
+                    "urn:netbeans-flutter-designer:schema:fd:11",
+                    "urn:netbeans-flutter-designer:schema:fd:12" ->
+                    "urn:netbeans-flutter-designer:schema:fd:13";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
                     "../fd-v7.schema.json", "../fd-v8.schema.json",
                     "../fd-v9.schema.json", "../fd-v10.schema.json",
-                    "../fd-v11.schema.json" ->
-                    "../fd-v12.schema.json";
+                    "../fd-v11.schema.json", "../fd-v12.schema.json" ->
+                    "../fd-v13.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1171,6 +1172,10 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Dart object reference values require schema version 12.");
         }
+        if (sourceVersion < 13 && kind.equals("shapeBorderClipper")) {
+            throw invalidValue(parser, pointer(base, "kind"),
+                    "ShapeBorderClipper values require schema version 13.");
+        }
         return switch (kind) {
             case "null" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind"));
@@ -1466,6 +1471,30 @@ final class FdJsonDecoder {
                                 requiredJson(fields, "geometry", base),
                                 pointer(base, "geometry"));
                 yield new PropertyValue.BorderRadiusValue(geometry);
+            }
+            case "shapeBorderClipper" -> {
+                enforceAllowedFields(parser, fields, base,
+                        Set.of("kind", "shape", "borderRadius", "textDirection"));
+                String shapeWire = jsonString(fields, "shape", base);
+                PropertyValue.ShapeBorderClipperValue.Shape shape =
+                        java.util.Arrays.stream(PropertyValue.ShapeBorderClipperValue.Shape.values())
+                                .filter(item -> item.wireName().equals(shapeWire)).findFirst()
+                                .orElseThrow(() -> failure(FdCodecDiagnosticCode.INVALID_VALUE,
+                                        pointer(base, "shape"), "Unknown shape preset."));
+                PropertyValue.BoxDecorationValue.BorderRadiusGeometry radius = readBorderRadius(
+                        requiredJson(fields, "borderRadius", base), pointer(base, "borderRadius"));
+                requiredJson(fields, "textDirection", base);
+                Optional<JsonValue> directionJson = optionalJson(fields, "textDirection", base);
+                Optional<PropertyValue.ShapeBorderClipperValue.TextDirection> direction = Optional.empty();
+                if (directionJson.isPresent()) {
+                    String wire = jsonString(fields, "textDirection", base);
+                    direction = Optional.of(java.util.Arrays.stream(PropertyValue.ShapeBorderClipperValue.TextDirection.values())
+                            .filter(item -> item.wireName().equals(wire)).findFirst()
+                            .orElseThrow(() -> failure(FdCodecDiagnosticCode.INVALID_VALUE,
+                                    pointer(base, "textDirection"), "Unknown text direction.")));
+                }
+                Optional<PropertyValue.ShapeBorderClipperValue.TextDirection> resolvedDirection = direction;
+                yield modelValue(base, () -> new PropertyValue.ShapeBorderClipperValue(shape, radius, resolvedDirection));
             }
             case "boxDecoration" -> {
                 Set<String> allowed = sourceVersion >= 6

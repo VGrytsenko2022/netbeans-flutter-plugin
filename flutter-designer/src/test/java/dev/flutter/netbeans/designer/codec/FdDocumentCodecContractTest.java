@@ -60,7 +60,7 @@ class FdDocumentCodecContractTest {
                 () -> assertEquals(1, first.sourceSchemaVersion()),
                 () -> assertTrue(first.migrated()),
                 () -> assertTrue(first.original().contentEquals(documented)),
-                () -> assertEquals("../fd-v12.schema.json",
+                () -> assertEquals("../fd-v13.schema.json",
                         first.document().schemaReference().orElseThrow()),
                 () -> assertEquals("home_page.dart", first.document().source().dartFile()),
                 () -> assertEquals("HomePage", first.document().source().className()),
@@ -68,13 +68,13 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(first.document());
         String encodedJson = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(encodedJson.contains("\"schemaVersion\": 12"));
-        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v12.schema.json\""));
+        assertTrue(encodedJson.contains("\"schemaVersion\": 13"));
+        assertTrue(encodedJson.contains("\"$schema\": \"../fd-v13.schema.json\""));
         assertFalse(Arrays.equals(documented, encoded.copyBytes()));
 
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertFalse(roundTrip.migrated());
-        assertEquals(12, roundTrip.sourceSchemaVersion());
+        assertEquals(13, roundTrip.sourceSchemaVersion());
         assertEquals(first.document(), roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes(),
                 "decode/encode must reach a stable fixed point");
@@ -87,7 +87,7 @@ class FdDocumentCodecContractTest {
         byte[] versionThirteen = replaceAscii(
                 Files.readAllBytes(findRepositoryFile(GOLDEN_DOCUMENT)),
                 "\"schemaVersion\": 1",
-                "\"schemaVersion\": 13");
+                "\"schemaVersion\": 14");
         String futureJson = new String(versionThirteen, StandardCharsets.UTF_8);
         int closingBrace = futureJson.lastIndexOf('}');
         byte[] future = utf8(futureJson.substring(0, closingBrace)
@@ -98,7 +98,7 @@ class FdDocumentCodecContractTest {
                 FdDecodeResult.UnsupportedNewer.class,
                 codec.decode(future));
         assertAll(
-                () -> assertEquals(BigInteger.valueOf(13), result.declaredSchemaVersion()),
+                () -> assertEquals(BigInteger.valueOf(14), result.declaredSchemaVersion()),
                 () -> assertArrayEquals(future, result.original().copyBytes()));
 
         future[0] ^= 1;
@@ -108,14 +108,14 @@ class FdDocumentCodecContractTest {
 
     @Test
     void malformedFutureInputIsInvalidRatherThanUnsupported() throws Exception {
-        byte[] future = utf8(minimalDocument("13", "{}"));
+        byte[] future = utf8(minimalDocument("14", "{}"));
         byte[] withTrailingGarbage = Arrays.copyOf(future, future.length + 1);
         withTrailingGarbage[withTrailingGarbage.length - 1] = 'x';
 
         FdDecodeResult.Invalid invalid = invalid(codec.decode(withTrailingGarbage));
         assertAll(
                 () -> assertEquals(
-                        BigInteger.valueOf(13),
+                        BigInteger.valueOf(14),
                         invalid.declaredSchemaVersion().orElseThrow()),
                 () -> assertTrue(hasDiagnostic(invalid, FdCodecDiagnosticCode.TRAILING_CONTENT)),
                 () -> assertArrayEquals(withTrailingGarbage, invalid.original().copyBytes()));
@@ -236,19 +236,24 @@ class FdDocumentCodecContractTest {
             assertTrue(result.migrated(), migratedVersion);
         }
 
-        for (String currentVersion : new String[]{"12", "12.0", "12e0", "120e-1"}) {
+        for (String migratedVersion : new String[]{"12", "12.0", "12e0", "120e-1"}) {
+            FdDecodeResult.Current result = current(codec.decode(utf8(minimalDocument(migratedVersion, "{}"))));
+            assertEquals(12, result.sourceSchemaVersion());
+            assertTrue(result.migrated());
+        }
+        for (String currentVersion : new String[]{"13", "13.0", "13e0", "130e-1"}) {
             FdDecodeResult.Current result = current(
                     codec.decode(utf8(minimalDocument(currentVersion, "{}"))));
-            assertEquals(12, result.sourceSchemaVersion(), currentVersion);
+            assertEquals(13, result.sourceSchemaVersion(), currentVersion);
             assertFalse(result.migrated(), currentVersion);
         }
 
-        for (String futureVersion : new String[]{"13", "13.0", "13e0", "130e-1"}) {
+        for (String futureVersion : new String[]{"14", "14.0", "14e0", "140e-1"}) {
             FdDecodeResult.UnsupportedNewer result = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(utf8(minimalDocument(futureVersion, "{}"))),
                     futureVersion);
-            assertEquals(BigInteger.valueOf(13), result.declaredSchemaVersion(), futureVersion);
+            assertEquals(BigInteger.valueOf(14), result.declaredSchemaVersion(), futureVersion);
         }
 
         FdDecodeResult.Invalid fractional = invalid(
@@ -264,13 +269,13 @@ class FdDocumentCodecContractTest {
                 + "  \"format\"");
         FdDecodeResult.Current migrated = current(codec.decode(utf8(canonical)));
         assertEquals(
-                "urn:netbeans-flutter-designer:schema:fd:12",
+                "urn:netbeans-flutter-designer:schema:fd:13",
                 migrated.document().schemaReference().orElseThrow());
         String encoded = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
         assertTrue(encoded.contains(
-                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:12\""));
-        assertTrue(encoded.contains("\"schemaVersion\": 12"));
+                "\"$schema\": \"urn:netbeans-flutter-designer:schema:fd:13\""));
+        assertTrue(encoded.contains("\"schemaVersion\": 13"));
 
         String arbitrary = canonical.replace(
                 "urn:netbeans-flutter-designer:schema:fd:1",
@@ -378,7 +383,7 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(decoded.document());
         String canonical = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonical.contains("\"schemaVersion\": 12"), canonical);
+        assertTrue(canonical.contains("\"schemaVersion\": 13"), canonical);
         assertTrue(canonical.contains(
                 "\"type\": \"flutter.widgets.LimitedBox\""), canonical);
         FdDecodeResult.Current reopened = current(codec.decode(encoded));
@@ -465,7 +470,7 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(decoded.document());
         String canonical = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonical.contains("\"schemaVersion\": 12"), canonical);
+        assertTrue(canonical.contains("\"schemaVersion\": 13"), canonical);
         assertTrue(canonical.contains(
                 "\"type\": \"flutter.widgets.OverflowBox\""), canonical);
         assertTrue(canonical.contains("\"basis\": \"directional\""), canonical);
@@ -659,7 +664,7 @@ class FdDocumentCodecContractTest {
         OriginalFdBytes encoded = codec.encode(document);
         assertFalse(Arrays.equals(source, encoded.copyBytes()));
         assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8)
-                .contains("\"schemaVersion\": 12"));
+                .contains("\"schemaVersion\": 13"));
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertEquals(document, roundTrip.document());
         assertArrayEquals(encoded.copyBytes(), codec.encode(roundTrip.document()).copyBytes());
@@ -720,7 +725,7 @@ class FdDocumentCodecContractTest {
 
         OriginalFdBytes encoded = codec.encode(decoded.document());
         String canonical = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonical.contains("\"schemaVersion\": 12"));
+        assertTrue(canonical.contains("\"schemaVersion\": 13"));
         assertFalse(canonical.contains("textFieldValue"));
         FdDecodeResult.Current roundTrip = current(codec.decode(encoded));
         assertEquals(decoded.document(), roundTrip.document());
@@ -825,7 +830,7 @@ class FdDocumentCodecContractTest {
 
         String canonical = new String(
                 codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8);
-        assertTrue(canonical.contains("\"schemaVersion\": 12"), canonical);
+        assertTrue(canonical.contains("\"schemaVersion\": 13"), canonical);
         assertTrue(canonical.contains("\"kind\": \"iconData\""), canonical);
         assertFalse(canonical.contains("Icons.star"), canonical);
 

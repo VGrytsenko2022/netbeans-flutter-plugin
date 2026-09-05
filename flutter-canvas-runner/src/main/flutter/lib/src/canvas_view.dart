@@ -43,7 +43,8 @@ String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
     'flutter.widgets.ClipOval' => 'CustomClipper<Rect>',
     'flutter.widgets.ClipRRect' => 'CustomClipper<RRect>',
     'flutter.widgets.ClipRSuperellipse' => 'CustomClipper<RSuperellipse>',
-    'flutter.widgets.ClipPath' => 'CustomClipper<Path>',
+    'flutter.widgets.ClipPath' ||
+    'flutter.widgets.PhysicalShape' => 'CustomClipper<Path>',
     _ => null,
   };
   return expectedType == null
@@ -582,6 +583,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ClipRRect' ||
         node.type == 'flutter.widgets.ClipRSuperellipse' ||
         node.type == 'flutter.widgets.PhysicalModel' ||
+        node.type == 'flutter.widgets.PhysicalShape' ||
         node.type == 'flutter.widgets.ClipPath' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
@@ -2396,6 +2398,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.PhysicalModel' => _physicalModel(context),
+      'flutter.widgets.PhysicalShape' => _physicalShape(context),
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
@@ -4410,6 +4413,43 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       borderRadius: radius is CanvasPhysicalBorderRadiusValue
           ? _borderRadius(radius) as BorderRadius
           : null,
+      elevation: _number('elevation') ?? 0.0,
+      color: _resolvedColor(context, 'color')!,
+      shadowColor:
+          _resolvedColor(context, 'shadowColor') ?? const Color(0xFF000000),
+      child: _single('child'),
+    );
+  }
+
+  Widget _physicalShape(BuildContext context) {
+    final clipper = node.properties['clipper']!;
+    if (clipper.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'PhysicalShape',
+        expectedType: 'CustomClipper<Path>',
+      );
+    }
+    final value = clipper.value as CanvasShapeBorderClipperValue;
+    final radius = _borderRadius(value.borderRadius);
+    final ShapeBorder shape = switch (value.shape) {
+      'roundedRectangle' => RoundedRectangleBorder(borderRadius: radius),
+      'beveledRectangle' => BeveledRectangleBorder(borderRadius: radius),
+      'continuousRectangle' => ContinuousRectangleBorder(borderRadius: radius),
+      'roundedSuperellipse' => RoundedSuperellipseBorder(borderRadius: radius),
+      'circle' => const CircleBorder(),
+      'stadium' => const StadiumBorder(),
+      _ => throw StateError('Unreviewed ShapeBorderClipper shape.'),
+    };
+    return PhysicalShape(
+      clipper: ShapeBorderClipper(
+        shape: shape,
+        textDirection: switch (value.textDirection) {
+          'ltr' => TextDirection.ltr,
+          'rtl' => TextDirection.rtl,
+          _ => null,
+        },
+      ),
+      clipBehavior: _clipBehavior() ?? Clip.none,
       elevation: _number('elevation') ?? 0.0,
       color: _resolvedColor(context, 'color')!,
       shadowColor:

@@ -828,7 +828,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .contains("\"schemaVersion\": 1"));
             assertTrue(new String(
                     c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 12"));
+                    .contains("\"schemaVersion\": 13"));
 
             SetProperty background = new SetProperty(
                     ROOT_ID,
@@ -844,7 +844,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .encode(c1.current().decoded().document()).copyBytes();
             assertTrue(new String(
                     canonicalC0Fd, StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 12"));
+                    .contains("\"schemaVersion\": 13"));
             assertFalse(Arrays.equals(
                     c1.prepared().baselineFdBytes(), canonicalC0Fd));
 
@@ -6533,11 +6533,11 @@ class PairSaveCoordinatorIntegrationTest {
             String canonical = new String(
                     baselineFd, StandardCharsets.UTF_8);
             String legacy = canonical.replace(
-                    "\"schemaVersion\": 12",
+                    "\"schemaVersion\": 13",
                     "\"schemaVersion\": 1");
             if (legacy.equals(canonical)) {
                 throw new AssertionError(
-                        "The canonical fixture did not declare schema v12");
+                        "The canonical fixture did not declare schema v13");
             }
             baselineFd = legacy.getBytes(StandardCharsets.UTF_8);
         }

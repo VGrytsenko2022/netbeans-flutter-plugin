@@ -6,6 +6,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `PhysicalShape` in Basic at order 140, covering required clipper/color,
+  clipBehavior, elevation, shadowColor and optional child. The structured clipper
+  editor supports six real ShapeBorderClipper presets, physical/directional
+  elliptical corners, explicit direction and retained ignored radius/direction.
+  A typed current/package CustomClipper<Path> value or zero-argument call is the
+  alternate branch, with strict analyzer proof and an explicit isolated-Canvas
+  preview limitation. Presets render actual geometry/shadows/colors. Typed editors,
+  slots, all placement routes, Save/reopen/further-edit, Undo/Redo, rollback and four
+  SVG variants are included. The new value advances schema/API/model to 13/14/18;
+  framing/control/wire remain 1. Current surface: 53 widgets, 47 const definitions,
+  759 rows (742 outside Scaffold), 2,650 placements (2,408 accepted / 242 rejected),
+  Basic 14; historical target 53/92, 39 remaining. Global desktop acceptance is deferred.
+
 - `PhysicalModel` in Basic at order 130 with all six properties and optional child:
   rectangle/circle shape, all four clip behaviors, physical elliptical border radius,
   finite non-negative elevation, required fill color and optional shadow color.
@@ -13,7 +26,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   saved radii. The real native/exact-Web renderer, typed editors, child management,
   Palette/tree/Canvas DnD, generation, Save/reopen/further-edit, Undo/Redo and four SVG
   variants are included. `BorderRadiusValues.directionalAllowed` advances contributor
-  Catalog API to 13; `.fd` 12 and Canvas model 17 remain unchanged. Current surface:
+  Catalog API to 13; `.fd` 12 and Canvas model 17 remained unchanged. At that milestone:
   52 widgets, 46 const definitions, 754 rows (737 outside Scaffold), 2,548 placements
   (2,311 accepted / 237 rejected), Basic 13; historical target 52/92, 40 remaining.
 - `ClipRSuperellipse` in Basic at order 120, with all non-key constructor arguments:

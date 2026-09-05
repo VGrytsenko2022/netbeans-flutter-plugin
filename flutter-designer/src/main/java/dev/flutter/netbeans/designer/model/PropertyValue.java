@@ -38,6 +38,7 @@ public sealed interface PropertyValue permits
         PropertyValue.Matrix4Value,
         PropertyValue.ImageProviderValue,
         PropertyValue.BorderRadiusValue,
+        PropertyValue.ShapeBorderClipperValue,
         PropertyValue.BoxDecorationValue,
         PropertyValue.NullValue {
 
@@ -1265,6 +1266,58 @@ public sealed interface PropertyValue permits
                         values(), wireName, ImageRepeat::wireName,
                         "image repeat");
             }
+        }
+    }
+
+    /** Closed no-code {@code ShapeBorderClipper}; arbitrary clippers use typed project references. */
+    record ShapeBorderClipperValue(Shape shape,
+            BoxDecorationValue.BorderRadiusGeometry borderRadius,
+            Optional<TextDirection> textDirection) implements PropertyValue {
+        public ShapeBorderClipperValue {
+            Objects.requireNonNull(shape, "shape");
+            Objects.requireNonNull(borderRadius, "borderRadius");
+            Objects.requireNonNull(textDirection, "textDirection");
+            List<BoxDecorationValue.Radius> corners = borderRadius
+                    instanceof BoxDecorationValue.PhysicalBorderRadius physical
+                    ? List.of(physical.topLeft(), physical.topRight(), physical.bottomRight(), physical.bottomLeft())
+                    : List.of(((BoxDecorationValue.DirectionalBorderRadius) borderRadius).topStart(),
+                            ((BoxDecorationValue.DirectionalBorderRadius) borderRadius).topEnd(),
+                            ((BoxDecorationValue.DirectionalBorderRadius) borderRadius).bottomEnd(),
+                            ((BoxDecorationValue.DirectionalBorderRadius) borderRadius).bottomStart());
+            if (corners.stream().anyMatch(radius -> !Double.isFinite(radius.x().doubleValue())
+                    || !Double.isFinite(radius.y().doubleValue()))) {
+                throw new IllegalArgumentException("Shape clipper radii must be finite Dart doubles");
+            }
+            if (shape.supportsRadius()
+                    && borderRadius instanceof BoxDecorationValue.DirectionalBorderRadius
+                    && textDirection.isEmpty()) {
+                throw new IllegalArgumentException("Directional ShapeBorderClipper radii require explicit text direction");
+            }
+        }
+
+        public static ShapeBorderClipperValue defaultValue() {
+            BoxDecorationValue.Radius zero = new BoxDecorationValue.Radius(BigDecimal.ZERO, BigDecimal.ZERO);
+            return new ShapeBorderClipperValue(Shape.ROUNDED_RECTANGLE,
+                    new BoxDecorationValue.PhysicalBorderRadius(zero, zero, zero, zero), Optional.empty());
+        }
+
+        @Override public PropertyValueKind kind() { return PropertyValueKind.SHAPE_BORDER_CLIPPER; }
+
+        public enum Shape {
+            ROUNDED_RECTANGLE("roundedRectangle"), BEVELED_RECTANGLE("beveledRectangle"),
+            CONTINUOUS_RECTANGLE("continuousRectangle"), ROUNDED_SUPERELLIPSE("roundedSuperellipse"),
+            CIRCLE("circle"), STADIUM("stadium");
+            private final String wireName;
+            Shape(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
+            public boolean supportsRadius() { return this != CIRCLE && this != STADIUM; }
+        }
+
+        public enum TextDirection {
+            LTR("ltr"), RTL("rtl");
+            private final String wireName;
+            TextDirection(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
         }
     }
 

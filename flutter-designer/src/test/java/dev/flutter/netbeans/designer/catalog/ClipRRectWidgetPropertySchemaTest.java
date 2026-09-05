@@ -179,9 +179,9 @@ class ClipRRectWidgetPropertySchemaTest {
 
     @Test
     void advancesContractsForTheNewPersistedAndCanvasValueKind() {
-        assertEquals(12, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(13, WidgetCatalog.API_VERSION);
-        assertEquals(17, CanvasModelPayloadCodec.VERSION);
+        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(14, WidgetCatalog.API_VERSION);
+        assertEquals(18, CanvasModelPayloadCodec.VERSION);
     }
 
     private static PropertyValue.BorderRadiusValue physicalRadius(

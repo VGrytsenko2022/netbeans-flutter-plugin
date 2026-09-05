@@ -524,6 +524,12 @@ final class FdJsonEncoder {
         } else if (value instanceof PropertyValue.BorderRadiusValue borderRadius) {
             context.fieldName("geometry", pointer + "/geometry");
             writeBorderRadius(borderRadius.geometry(), pointer + "/geometry", context);
+        } else if (value instanceof PropertyValue.ShapeBorderClipperValue clipper) {
+            context.stringField("shape", clipper.shape().wireName(), pointer + "/shape");
+            context.fieldName("borderRadius", pointer + "/borderRadius");
+            writeBorderRadius(clipper.borderRadius(), pointer + "/borderRadius", context);
+            writeOptionalStringField("textDirection", clipper.textDirection().map(
+                    PropertyValue.ShapeBorderClipperValue.TextDirection::wireName), pointer, context);
         } else if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             writeBoxDecoration(decoration, pointer, context);
         } else {

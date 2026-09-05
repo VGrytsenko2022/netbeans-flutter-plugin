@@ -3450,3 +3450,72 @@ in the 71-case mutation controller suite. All 41 packaged Web build/cache and ex
 artifact cases passed. Release verification confirmed the fresh NBM and metadata;
 installed-userdir and global physical desktop acceptance were not run.
 NBM SHA-256: `bb1c78b11964427c7c108ebbcff995fa97407c2a163454678fef252ff149bffb`.
+
+## ADR-081 — PhysicalShape with structured ShapeBorderClipper and typed project paths
+
+Status: accepted, 2026-09-05.
+
+Add `flutter.widgets.PhysicalShape` in Basic at order 140. Implement all five
+non-key constructor arguments from pinned Flutter 3.44.8: required clipper, clip
+behavior, finite non-negative elevation, required color and optional shadowColor,
+plus optional any-widget child. Framework key remains Designer-managed identity.
+Colors accept literal ARGB and reviewed theme tokens with correct const propagation.
+Omitted clipping/elevation/shadow preserve SDK none/zero/black defaults.
+
+The required CustomClipper<Path> cannot be instantiated by the existing zero-argument
+project-reference value without user code. Introduce a typed ShapeBorderClipperValue
+as a closed union branch, rather than raw generated Dart or a synthetic enum. Its
+six reviewed SDK ShapeBorder implementations are rounded rectangle, beveled rectangle,
+continuous rectangle, rounded superellipse, circle and stadium. The value always
+retains physical/directional elliptical radius geometry and nullable explicit
+textDirection. Cornered shapes with directional radii require LTR or RTL because
+ShapeBorderClipper does not derive ambient Directionality. Circle/stadium ignore but
+retain radius/direction, supporting lossless shape switching. The creation prototype
+uses zero physical rounded corners and literal fill color 0xFF2196F3.
+
+The same property accepts exact non-null CustomClipper<Path> references from the
+current library or a declared package, including members and const/non-const
+zero-argument constructor/factory/function calls. Configured arguments live in a
+project getter/factory, not executable text in .fd. The analyzer verifies actual
+assignment compatibility and symbol provenance, rejecting nullable, dynamic and
+wrong generic types even under suppressed assignment diagnostics.
+
+The compound editor composes unpublished preset/radius/reference drafts and flushes
+an active radius-table cell only at final validation. Cancel is non-mutating; mode
+changes, invalid drafts and subsequent edits retain the normal transaction boundary.
+Generation emits real ShapeBorderClipper/ShapeBorder SDK constructors with accurate
+helper/radius/direction probes. Canvas instantiates real PhysicalShape geometry,
+shadows and translucent/theme paint for presets. Custom code is never executed in
+the isolated runner: transmit reference presence only, retain child and expose an
+accessible preview-unavailable warning without invented fill/shadow/clipping. Empty
+targets carry the full reason outside real widget layout.
+
+The new exported sealed value/constraint requires Catalog API 14. Canonical .fd
+schema 13 adds exactly kind, shape, borderRadius and nullable textDirection fields;
+frozen schemas 1-12 remain immutable and migrate only on an admitted edit. Canvas
+model 18 mirrors the closed structured graph; NBFC framing/control/wire remain 1.
+Properties/Slots, Palette/tree/Canvas DnD, movement, generation, validation,
+Save/reopen/further-edit, Undo/Redo, rejected-change rollback and four SVG variants
+form one reviewed vertical slice.
+
+Totals: 53 widgets, 47 reviewed const definitions, 759 writable rows (742 outside
+Scaffold), 48 any-widget plus two trait destinations. The 53×50 matrix contains
+2,650 candidates: 2,408 accepted and 242 rejected. Categories: Layout 31, Scrolling 3,
+Basic 14, Material 4, Accessibility 1. The historical practical target is 53/92,
+with 39 remaining; this does not claim recovery of the missing ordered inventory.
+Full physical desktop acceptance remains deferred until the palette target is done.
+
+Validation for this milestone: the clean-build pipeline and the assembled-NetBeans
+runtime rerun completed successfully after refreshing current-schema fixtures.
+Surefire records 3,289 cases (six optional skips), Failsafe 13 (one optional skip),
+with zero failures/errors. Flutter analysis is clean and all 500 Flutter tests
+passed. Real Flutter 3.44.8 analysis accepts all six presets across clip modes and
+physical/directional geometry, imported/current/generic Path references, and
+rejects missing required values, wrong/nullable/dynamic clippers and invalid const
+arguments. All 72 mutation-controller integration cases pass, including both saved
+clipper branches, repeated reopening/further edits, Undo/Redo and rejected-change
+rollback followed by a successful edit. Both 32px SVGs have validated 32×32 geometry.
+All 41 actual packaged Web artifact/build/cache cases pass. Cluster assembly and
+release metadata/freshness verification pass; installed-userdir and full physical
+desktop acceptance were not run. NBM size: 7,257,085 bytes.
+NBM SHA-256: `712c0ad7c3bd0d626fdba25bc6c74f721ae22f36ec281102a53ff224752285b1`.

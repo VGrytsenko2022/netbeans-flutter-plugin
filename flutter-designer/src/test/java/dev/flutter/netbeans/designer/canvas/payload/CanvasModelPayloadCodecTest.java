@@ -125,6 +125,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ClipPath",
                 "flutter.widgets.ClipRSuperellipse",
                 "flutter.widgets.PhysicalModel",
+                "flutter.widgets.PhysicalShape",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -141,7 +142,7 @@ class CanvasModelPayloadCodecTest {
                             "circle", "antiAliasWithSaveLayer", themed), true);
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), physical))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":17"), json);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.PhysicalModel\""), json);
             assertTrue(json.contains("\"shape\":{\"kind\":\"enum\",\"type\":\"BoxShape\",\"value\":\"circle\"}"), json);
             assertTrue(json.contains("\"geometry\":{\"kind\":\"physical\""), json);
@@ -153,6 +154,32 @@ class CanvasModelPayloadCodecTest {
             for (String privateField : List.of("sample.dart", "libraryUri", "dartClassName", "creationDefault")) {
                 assertFalse(json.contains(privateField), json);
             }
+        }
+    }
+
+    @Test
+    void projectsAllPhysicalShapePresetsAndRedactsProjectClipperNames() throws Exception {
+        for (var shape : PropertyValue.ShapeBorderClipperValue.Shape.values()) {
+            var values = dev.flutter.netbeans.designer.catalog.PhysicalShapeTestSupport.fullProperties(
+                    shape, "antiAliasWithSaveLayer", true);
+            var node = dev.flutter.netbeans.designer.catalog.PhysicalShapeTestSupport.physicalShape(values, true);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"kind\":\"shapeBorderClipper\",\"shape\":\"" + shape.wireName() + "\""), json);
+            assertTrue(json.contains("\"topLeft\":{\"x\":1.5,\"y\":2.5}"), json);
+            assertTrue(json.contains("Preserved child"), json);
+        }
+        var values = new java.util.LinkedHashMap<>(dev.flutter.netbeans.designer.catalog.PhysicalShapeTestSupport.defaults());
+        values.put(new PropertyName("clipper"), new PropertyValue.DartObjectReferenceValue(
+                Optional.of("package:private_app/private_clippers.dart"), "PrivateClipper", Optional.of("hidden"),
+                PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(true)));
+        var node = dev.flutter.netbeans.designer.catalog.PhysicalShapeTestSupport.physicalShape(values, true);
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+        for (String privateName : List.of("PrivateClipper", "private_clippers", "hidden", "libraryUri", "rootSymbol")) {
+            assertFalse(json.contains(privateName), json);
         }
     }
 
@@ -190,7 +217,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), coloredBox))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.ColoredBox\""), json);
         assertTrue(json.contains("\"color\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
@@ -233,7 +260,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), explicit))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(omittedJson.contains("\"protocolVersion\":17"), omittedJson);
+        assertTrue(omittedJson.contains("\"protocolVersion\":18"), omittedJson);
         assertTrue(omittedJson.contains(
                 "\"type\":\"flutter.widgets.Placeholder\""), omittedJson);
         assertTrue(omittedJson.contains(
@@ -244,7 +271,7 @@ class CanvasModelPayloadCodecTest {
         assertFalse(omittedJson.contains("\"fallbackWidth\":"), omittedJson);
         assertFalse(omittedJson.contains("\"fallbackHeight\":"), omittedJson);
 
-        assertTrue(explicitJson.contains("\"protocolVersion\":17"), explicitJson);
+        assertTrue(explicitJson.contains("\"protocolVersion\":18"), explicitJson);
         assertTrue(explicitJson.contains(
                 "\"type\":\"flutter.widgets.Placeholder\""), explicitJson);
         assertTrue(explicitJson.contains("\"color\":{\"kind\":\"themeToken\","
@@ -283,7 +310,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), safeArea))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.SafeArea\""), json);
         assertTrue(json.contains("\"minimum\":{\"kind\":\"edgeInsets\","
                 + "\"left\":-12.5,\"top\":2.25,"
@@ -334,7 +361,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), directionality))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Directionality\""), json);
         assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
@@ -390,7 +417,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), decoratedBox))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.DecoratedBox\""), json);
         assertTrue(json.contains(
@@ -451,7 +478,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), physical))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(physicalJson.contains("\"protocolVersion\":17"), physicalJson);
+        assertTrue(physicalJson.contains("\"protocolVersion\":18"), physicalJson);
         assertTrue(physicalJson.contains(
                 "\"type\":\"flutter.widgets.ClipRRect\""), physicalJson);
         assertTrue(physicalJson.contains(
@@ -512,7 +539,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), clipRRect))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"),
                 json);
@@ -552,7 +579,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), physical))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(physicalJson.contains("\"protocolVersion\":17"), physicalJson);
+        assertTrue(physicalJson.contains("\"protocolVersion\":18"), physicalJson);
         assertTrue(physicalJson.contains(
                 "\"type\":\"flutter.widgets.ClipRSuperellipse\""), physicalJson);
         assertTrue(physicalJson.contains(
@@ -613,7 +640,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), clipRSuperellipse))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"),
                 json);
@@ -644,7 +671,7 @@ class CanvasModelPayloadCodecTest {
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), clipPath))),
                     StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":17"), json);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
             assertTrue(json.contains("\"" + property
                     + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
             assertTrue(json.contains("\"child\":null"), json);
@@ -669,7 +696,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), omitted))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(omittedJson.contains("\"protocolVersion\":17"), omittedJson);
+        assertTrue(omittedJson.contains("\"protocolVersion\":18"), omittedJson);
         assertTrue(omittedJson.contains(
                 "\"type\":\"flutter.widgets.ExcludeSemantics\""), omittedJson);
         assertFalse(omittedJson.contains("\"excluding\""), omittedJson);
@@ -707,7 +734,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":17"));
+        assertTrue(json.contains("\"protocolVersion\":18"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -805,7 +832,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), constrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.ConstrainedBox\""), json);
         assertTrue(json.contains(
@@ -843,7 +870,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), unconstrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.UnconstrainedBox\""), json);
         assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
@@ -879,7 +906,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), limited))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.LimitedBox\""), json);
         assertTrue(json.contains(
@@ -925,7 +952,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), overflow))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.OverflowBox\""), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","
@@ -968,7 +995,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Flexible\""), json);
         assertTrue(json.contains(
@@ -998,7 +1025,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Spacer\""), json);
         assertTrue(json.contains(
@@ -1024,7 +1051,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), baseline))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Baseline\""), json);
         assertTrue(json.contains(
@@ -1049,7 +1076,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicHeight))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicHeight\""), json);
         assertTrue(json.contains("\"properties\":{}"), json);
@@ -1077,7 +1104,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicWidth))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicWidth\""), json);
         assertTrue(json.contains(
@@ -1104,7 +1131,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), offstage))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.Offstage\""), json);
         assertTrue(json.contains(
                 "\"offstage\":{\"kind\":\"boolean\",\"value\":false}"), json);
@@ -1133,7 +1160,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), box))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.SizedOverflowBox\""), json);
         assertTrue(json.contains(
@@ -1179,7 +1206,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), transform))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.Transform\""), json);
         assertTrue(json.contains(
                 "\"transform\":{\"kind\":\"matrix4\",\"storage\":["
@@ -1214,7 +1241,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), rotated))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.RotatedBox\""), json);
         assertTrue(json.contains(
@@ -1242,7 +1269,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), listBody))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.ListBody\""), json);
         assertTrue(json.contains(
                 "\"mainAxis\":{\"kind\":\"enum\","
@@ -1283,7 +1310,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), indexedStack))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.IndexedStack\""), json);
         assertTrue(json.contains("\"index\":{\"kind\":\"null\"}"), json);
         assertFalse(json.contains("\"index\":{\"kind\":\"null\",\"value\""), json);
@@ -1334,7 +1361,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), overflowBar))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.OverflowBar\""), json);
         assertTrue(json.contains(
                 "\"spacing\":{\"kind\":\"double\",\"value\":-3.5}"), json);
@@ -1429,7 +1456,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -1607,7 +1634,7 @@ class CanvasModelPayloadCodecTest {
                 request(new DesignerDocument(DOCUMENT_ID, source(), container))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
         assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
@@ -1694,7 +1721,7 @@ class CanvasModelPayloadCodecTest {
                         PROFILE, document, bundle)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains("\"protocolVersion\":18"), json);
         assertTrue(json.contains("\"image\":{\"image\":{"), json);
         assertTrue(json.contains("\"kind\":\"asset\""), json);
         assertTrue(json.contains("\"assetName\":\"assets/background.png\""), json);

@@ -154,6 +154,9 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BorderRadiusValues.class::isInstance)) {
             editorKind = EditorKind.BORDER_RADIUS;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SHAPE_BORDER_CLIPPER,
+                PropertyValueKind.DART_OBJECT_REFERENCE))) {
+            editorKind = EditorKind.SHAPE_BORDER_CLIPPER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
@@ -193,7 +196,8 @@ final class FlutterTypedPropertyEditors {
         IMAGE_PROVIDER,
         BOX_DECORATION,
         BORDER_RADIUS,
-        DART_OBJECT_REFERENCE
+        DART_OBJECT_REFERENCE,
+        SHAPE_BORDER_CLIPPER
     }
 
     record Binding(
@@ -311,7 +315,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE ->
+                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER ->
                     new StructuredEditor(this);
             };
         }

@@ -1502,6 +1502,51 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void existingTextMovesIntoEmptyPhysicalShapeChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into PhysicalShape");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(new WidgetTypeId("flutter.widgets.PhysicalShape")), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void configuredPhysicalShapeMovesWithBothClipperBranchesPropertiesAndChildPreserved() {
+        for (PropertyValue clipper : List.of(
+                PropertyValue.ShapeBorderClipperValue.defaultValue(),
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_pathClipper",
+                        Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()))) {
+            WidgetNode child = validText(D_ID, "physical child");
+            WidgetNode widget = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.PhysicalShape"),
+                    Map.of(new PropertyName("clipper"), clipper,
+                            new PropertyName("color"), new PropertyValue.ColorValue(0xFF123456L),
+                            new PropertyName("shadowColor"), new PropertyValue.ColorValue(0xFF654321L),
+                            new PropertyName("elevation"), new PropertyValue.DoubleValue(BigDecimal.TEN),
+                            new PropertyName("clipBehavior"), new PropertyValue.EnumValue("Clip", "hardEdge")),
+                    Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+            WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+            DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+            var result = planner.plan(document, BUILT_INS, widget.id(),
+                    new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+            MoveWidget command = accepted(result).command();
+            assertEquals(widget.id(), command.widgetId());
+            assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+            assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+        }
+    }
+
+    @Test
     void existingTextMovesIntoEmptyPhysicalModelChildWithStableIdPreserved() {
         WidgetNode source = validText(A_ID, "move into PhysicalModel");
         WidgetNode empty = WidgetNodePrototypeFactory.create(

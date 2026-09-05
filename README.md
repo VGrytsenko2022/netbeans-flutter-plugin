@@ -2,12 +2,39 @@
 
 Starter architecture for first-class Dart + Flutter support in Apache NetBeans 31.
 
-Current palette milestone: **52 widgets / the historical 92-widget practical target**
-(40 remaining), now including `PhysicalModel`. The repository does not preserve
+Current palette milestone: **53 widgets / the historical 92-widget practical target**
+(39 remaining), now including `PhysicalShape`. The repository does not preserve
 the full ordered 92-item inventory; widgets are being admitted from the pinned
 Flutter API rather than claiming a recovered fixed-order plan.
-The current catalog has 754 writable rows (737 outside `Scaffold`), 46 const-capable
-definitions, and 2,548 DnD candidates (2,311 accepted / 237 rejected).
+The current catalog has 759 writable rows (742 outside `Scaffold`), 47 const-capable
+definitions, and 2,650 DnD candidates (2,408 accepted / 242 rejected).
+
+### PhysicalShape: reviewed shapes and custom path clippers
+
+Basic → **PhysicalShape** exposes all five non-key properties from the
+[Flutter constructor](https://api.flutter.dev/flutter/widgets/PhysicalShape/PhysicalShape.html):
+required `clipper`, `clipBehavior`, `elevation`, required `color` and `shadowColor`,
+plus an optional `child`. The structured clipper editor offers rounded rectangle,
+beveled rectangle, continuous rectangle, rounded superellipse, circle and stadium,
+using real `ShapeBorderClipper` and Flutter border classes. Four corner X/Y radii
+support physical or directional geometry; directional shapes require explicit LTR
+or RTL because this SDK helper does not resolve ambient directionality. Circle and
+stadium ignore but retain stored radii/direction when switching shapes.
+
+The same editor accepts an existing current/declared-package `CustomClipper<Path>`
+value or a const/non-const zero-argument call. Configured arguments belong in a
+project getter/factory, not raw `.fd` source. Exact non-null analyzer proof gates
+these references. The isolated Canvas cannot run project code: custom references
+retain the child with an accessible preview-unavailable warning, without fabricated
+fill, shadow or clipping. Built-in presets render actual PhysicalShape geometry,
+shadows, translucent/theme colors and all four clip modes on native/Web profiles.
+
+Creation starts with a rounded rectangle and literal color `0xFF2196F3`, so no
+project helper is required to drag it from the Palette. Properties/Slots, DnD,
+save/reopen/further-edit, Undo/Redo and rollback share the existing transaction flow.
+The closed `shapeBorderClipper` value advances `.fd` to 13, Catalog API to 14 and
+Canvas model to 18; NBFC framing/control/wire remain 1. Older `.fd` schemas migrate
+only on an admitted edit. Full physical desktop acceptance remains deferred.
 
 ### PhysicalModel: shape, clipping and elevation shadows
 
@@ -28,8 +55,8 @@ empty nodes use external Designer selection/drop targets without fake children.
 
 Properties/Slots, Palette/tree/Canvas placement, generation, Save/reopen/further
 editing, Undo/Redo and four light/dark SVG variants are covered. The reusable
-physical-only radius constraint advances contributor Catalog API to 13; persisted
-`.fd` 12 and Canvas model 17 stay unchanged.
+physical-only radius constraint established contributor Catalog API 13; that
+milestone retained `.fd` 12 and Canvas model 17. PhysicalShape advances them above.
 
 ### ClipRSuperellipse: rounded-superellipse clipping
 
@@ -52,8 +79,8 @@ accessible preview-unavailable warning. Default geometry renders as the real
 
 Properties/Slots, Palette/tree/Canvas DnD, stable selection, Save/reopen/further edits,
 Undo/Redo and four light/dark SVG variants share the same contract. This slice
-introduced no value-format change; the current boundary is `.fd` 12 / Catalog API
-13 / Canvas model 17.
+introduced no value-format change; the current aggregate boundary is `.fd` 13 /
+Catalog API 14 / Canvas model 18.
 
 ### ClipPath: complete API branches within the typed Designer boundary
 
@@ -75,8 +102,8 @@ editing and Palette/tree/Canvas placement use the same revision-bound workflow.
 As with the earlier custom clippers, the isolated Canvas cannot execute project
 code: a custom clipper or shape receives a visible, accessible **preview unavailable**
 warning while preserving the child. Default `ClipPath` renders as the real widget.
-The shared value algebra is unchanged: `.fd` 12 and Canvas model 17. Catalog API
-is now 13 for the later physical-only radius constraint.
+This slice left the value algebra unchanged. The later PhysicalShape value sets
+the current `.fd` 13 / Catalog API 14 / Canvas model 18 boundary.
 
 ## Direction
 
@@ -103,13 +130,13 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the fifty-two capability-authorized Palette widgets (`Scaffold`,
+    accepts the fifty-three capability-authorized Palette widgets (`Scaffold`,
     `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
     `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
     `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
     `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`,
-    `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel` and `ExcludeSemantics`) through a
-    fail-closed 2,548-cell catalog matrix with 2,311 accepted and 237 rejected
+    `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape` and `ExcludeSemantics`) through a
+    fail-closed 2,650-cell catalog matrix with 2,408 accepted and 242 rejected
     combinations, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
@@ -191,7 +218,7 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
 - Choose `File > New File > Flutter Designer > Flutter Designer Form` to create
   a complete Designer pair. The target is restricted to `lib` or one of its
   subfolders. A Dart target such as `lib/account/profile.dart` is paired with
-  the JSON model `.fd_templates/account/profile.fd`; the current schema-v12
+  the JSON model `.fd_templates/account/profile.fd`; the current schema-v13
   `source.dartFile` value remains the Dart basename `profile.dart`. Schema v5
   added structured `AlignmentGeometry`, `BoxConstraints`, `Matrix4` and
   `BoxDecoration` values for `Container`; schema v6 adds the shared asset-only
@@ -206,8 +233,8 @@ If discovery finds nothing, open `Tools > Options > Flutter`, select the SDK fol
   a current-library or canonical `package:` root symbol declared by the
   project's `.dart_tool/package_config.json`, optional member and
   reference or zero-argument invocation. Schema v4's closed nullable `IconData`
-  remains supported. Schema v1-v11 forms migrate in memory and become canonical
-  v12 only
+  remains supported. Schema v13 adds the structured ShapeBorderClipper value.
+  Schema v1-v12 forms migrate in memory and become canonical v13 only
   after an admitted edit. The model stores a safe
   logical app/package asset identity, never image bytes, a filesystem path or
   an executable Dart expression.
@@ -356,11 +383,11 @@ This is an architectural starter, not yet a production Flutter plugin. Flutter/D
 The unreleased 0.1.3 Designer now includes the first Windows native Canvas
 slice. Each eligible `.fd` Design tab embeds an isolated real
 `FlutterView` without PNG, screenshot or pixel-frame transport and publishes one
-bounded validated protocol-v17 model restricted by the exact built-in capability
+bounded validated protocol-v18 model restricted by the exact built-in capability
 gate to `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `ExcludeSemantics`, `Container`
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `ExcludeSemantics`, `Container`
 and `Opacity`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
@@ -369,7 +396,7 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The fifty-one non-`Scaffold` widgets expose 737 typed
+tree and standard Properties. The fifty-two non-`Scaffold` widgets expose 742 typed
 read/write property rows. `AppBar` contributes 120 independently resettable
 leaves across behavior, layout, colors/elevation, shape, icon themes, text
 styles and system-UI overlay groups, plus exact `leading`, `title`, `actions`,
@@ -396,7 +423,7 @@ so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
 remain direct local arguments. Generated Dart and the native Canvas have exact
 argument parity. The active Design lookup supplies the standard NetBeans Palette
-with the exact fifty-two widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
+with the exact fifty-three widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
 behavior/callback fields, five 54-leaf state groups for default, disabled,
 pressed, hovered and focused values, and nine common layout/feedback fields.
 Its callbacks store strict Dart identifiers only—never arbitrary expressions.
@@ -457,7 +484,7 @@ dimensions, rejects absolute/backslash/traversal/symlink-escape paths and applie
 the exact Flutter 3.44.8 DPR algorithm pinned to framework revision
 `058e0af2c2b57e369d905a03ac9748b0ebf543c6`.
 
-Canvas model protocol v17 over NBFC framing v1 negotiates
+Canvas model protocol v18 over NBFC framing v1 negotiates
 `asset.imageBytes.v1` and sends referenced,
 revision-scoped compressed resources only, each addressed by the lowercase raw
 SHA-256 of its immutable bytes and checked against exact descriptor size, digest
@@ -477,10 +504,10 @@ logical identity, code and reason. Selection/layout frames, guides and drop zone
 the decorated/transformed `Container`. The Image tab exposes typed accessible
 controls and inventory status, and one accepted structured/dependent edit is
 one Undo/Redo unit. The optional `child` remains a named single any-widget slot
-rather than a property row. The current catalog therefore exposes exactly 754
-writable rows across fifty-two widgets, including 737 across the fifty-one
-non-`Scaffold` definitions; forty-six definitions use reviewed const constructors.
-`.fd` is v12 and the Canvas model protocol is 17. SafeArea's physical-insets
+rather than a property row. The current catalog therefore exposes exactly 759
+writable rows across fifty-three widgets, including 742 across the fifty-two
+non-`Scaffold` definitions; forty-seven definitions use reviewed const constructors.
+`.fd` is v13 and the Canvas model protocol is 18. SafeArea's physical-insets
 constraint adds the exported `EdgeInsetsValues.directionalAllowed` component,
 and `IndexedStack.index` adds the exact payload-free null value; the top-level
 typed border-radius geometry used by `ClipRRect` established contributor Catalog
@@ -1111,32 +1138,33 @@ routes construct the real widget. Designer selection and empty drop affordances
 remain outside clipping. With an omitted child, the zero-size real node uses
 the same external 36x36 Designer target for the warning and complete reason.
 The practical
-backlog is now 52/92 complete with 40 remaining; Layout contains 31 items,
-Scrolling 3, Basic 13, Material 4 and Accessibility 1. The surface has 46
-reviewed const definitions and 754 writable rows, including 737 outside
-`Scaffold`; `.fd` remains v12 and Canvas model v17. PhysicalModel's constrained
-radius contract advances Catalog API to 13. NBFC framing/control/wire remains v1.
+backlog is now 53/92 complete with 39 remaining; Layout contains 31 items,
+Scrolling 3, Basic 14, Material 4 and Accessibility 1. The surface has 47
+reviewed const definitions and 759 writable rows, including 742 outside
+`Scaffold`. PhysicalShape adds five rows, six structured shape presets and a typed
+project clipper branch. Its closed value sets `.fd` v13, Catalog API 14 and Canvas
+model v18. NBFC framing/control/wire remains v1.
 
-Forty-seven any-widget slots provide the reusable destination contract:
+Forty-eight any-widget slots provide the reusable destination contract:
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
 `Row.children`, `ListView.children`, `GridView.count.children`, `ListBody.children`, `OverflowBar.children`,
 `Wrap.children`, `Center.child`, `Align.child`,
 `FractionallySizedBox.child`, `FittedBox.child`, `ConstrainedBox.child`,
 `UnconstrainedBox.child`, `LimitedBox.child`, `OverflowBox.child`,
 `Padding.child`, `SizedBox.child`, `AspectRatio.child`, `Container.child`,
-`Opacity.child`, `ColoredBox.child`, `Placeholder.child`, `DecoratedBox.child`, `ClipRect.child`, `ClipOval.child`, `ClipRRect.child`, `ClipPath.child`, `ClipRSuperellipse.child`, `PhysicalModel.child`, `ExcludeSemantics.child`, `Baseline.child`, `IntrinsicHeight.child`, `IntrinsicWidth.child`, `Offstage.child`, `SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `SingleChildScrollView.child`, `Stack.children`, `IndexedStack.children`,
+`Opacity.child`, `ColoredBox.child`, `Placeholder.child`, `DecoratedBox.child`, `ClipRect.child`, `ClipOval.child`, `ClipRRect.child`, `ClipPath.child`, `ClipRSuperellipse.child`, `PhysicalModel.child`, `PhysicalShape.child`, `ExcludeSemantics.child`, `Baseline.child`, `IntrinsicHeight.child`, `IntrinsicWidth.child`, `Offstage.child`, `SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `SingleChildScrollView.child`, `Stack.children`, `IndexedStack.children`,
 `ElevatedButton.child`, and AppBar's `leading`, `title`, `actions` and
 `flexibleSpace`. `Scaffold.appBar` and `AppBar.bottom` accept only
-`PreferredSizeWidget`, currently the reviewed AppBar. The 49 insertable
-destinations and 52 sources form 2,548 candidate cells: 2,311 accepted and 237
+`PreferredSizeWidget`, currently the reviewed AppBar. The 50 insertable
+destinations and 53 sources form 2,650 candidate cells: 2,408 accepted and 242
 rejected. Expanded and Flexible each wrap only an existing direct
 `Row.children`/`Column.children` child; Spacer inserts only into those same two
-list slots. The other 49 sources enter all 47 any-widget slots, and only AppBar
+list slots. The other 50 sources enter all 48 any-widget slots, and only AppBar
 enters the two trait-bound slots. Expanded and Flexible's required `child` slots
 are replacement-only and are therefore not insertable matrix destinations.
 SafeArea and Directionality use the generic required-child wrapper mode without
 a Row/Column-only outer placement restriction. Their required children are
-likewise excluded from the insertable matrix; both sources enter all 47
+likewise excluded from the insertable matrix; both sources enter all 48
 any-widget destinations, and neither can wrap Expanded, Flexible or Spacer because
 their ParentData must remain directly under Row/Column.
 `ElevatedButton.child` is an optional-single, required-named-but-nullable slot;

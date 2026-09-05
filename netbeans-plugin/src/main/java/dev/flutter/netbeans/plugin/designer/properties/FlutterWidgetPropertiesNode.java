@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PhysicalModelWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PhysicalShapeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -530,6 +531,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
                 widget.type())) {
             addClipPathPropertySets(sheet, hasSlotTab);
+        } else if (PhysicalShapeWidgetPropertySchema.PHYSICAL_SHAPE_TYPE.equals(widget.type())) {
+            addPhysicalShapePropertySets(sheet, hasSlotTab);
         } else if (PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.equals(
                 widget.type())) {
             addPhysicalModelPropertySets(sheet, hasSlotTab);
@@ -1005,6 +1008,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (PhysicalShapeWidgetPropertySchema.PHYSICAL_SHAPE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted on an elevated path-shaped surface. Built-in ShapeBorderClipper "
+                    + "geometry renders in Canvas; project CustomClipper<Path> code is not executed. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child widget.";
         }
         if (ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2484,6 +2494,42 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description() + boundary));
+        }
+    }
+
+    private void addPhysicalShapePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<PhysicalShapeWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(PhysicalShapeWidgetPropertySchema.Group.class);
+        for (PhysicalShapeWidgetPropertySchema.Group group
+                : PhysicalShapeWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            PhysicalShapeWidgetPropertySchema.Definition schema =
+                    PhysicalShapeWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in PhysicalShape property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "clipper" -> " Required CustomClipper<Path>: select a built-in ShapeBorderClipper "
+                        + "or an analyzer-verified project reference. Cannot be unset. Directional "
+                        + "radii need explicit text direction for rounded shapes. Project clipper code "
+                        + "is not executed in Canvas; custom clip, fill and shadow preview is unavailable.";
+                case "clipBehavior" -> " Omission preserves Clip.none.";
+                case "elevation" -> " Must be finite and non-negative. Omission preserves 0.";
+                case "color" -> " Required surface color; literal ARGB and reviewed "
+                        + "Material ColorScheme roles are supported. Cannot be unset.";
+                case "shadowColor" -> " Literal ARGB and reviewed Material ColorScheme "
+                        + "roles are supported. Omission preserves Flutter's black default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected PhysicalShape property: " + property.name().value());
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + boundary));
         }
     }
 

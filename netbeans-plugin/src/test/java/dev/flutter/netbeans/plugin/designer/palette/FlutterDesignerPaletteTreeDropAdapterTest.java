@@ -1830,6 +1830,53 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void physicalShapeTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.PhysicalShape"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.PhysicalShape"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.PhysicalShape"), command.widget().type()),
+                () -> assertEquals(Map.of(new PropertyName("color"),
+                        new PropertyValue.ColorValue(0xFF2196F3L), new PropertyName("clipper"),
+                        PropertyValue.ShapeBorderClipperValue.defaultValue()),
+                        command.widget().properties(),
+                        "required color is explicit; other defaults are omitted"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the PhysicalShape palette authority once"));
+    }
+
+    @Test
     void physicalModelTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
         Fixture fixture = fixture(PHYSICAL_MODEL);
         StringSelection transferable = new StringSelection(fixture.token());

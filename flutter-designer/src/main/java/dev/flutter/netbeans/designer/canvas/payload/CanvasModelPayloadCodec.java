@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 17;
+    public static final int VERSION = 18;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -395,6 +395,17 @@ public final class CanvasModelPayloadCodec {
                 json.writeStringField("kind", "borderRadius");
                 json.writeFieldName("geometry");
                 writeBorderRadius(json, borderRadius.geometry());
+            }
+            case PropertyValue.ShapeBorderClipperValue clipper -> {
+                json.writeStringField("kind", "shapeBorderClipper");
+                json.writeStringField("shape", clipper.shape().wireName());
+                json.writeFieldName("borderRadius");
+                writeBorderRadius(json, clipper.borderRadius());
+                if (clipper.textDirection().isPresent()) {
+                    json.writeStringField("textDirection", clipper.textDirection().orElseThrow().wireName());
+                } else {
+                    json.writeNullField("textDirection");
+                }
             }
             case PropertyValue.BoxDecorationValue decoration ->
                 writeBoxDecoration(json, decoration, context);

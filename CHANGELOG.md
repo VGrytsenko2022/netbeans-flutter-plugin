@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `TickerMode` in Basic at order 190 with the complete const constructor: required
+  enabled, optional forceFrames and required child. Enabled starts true as a
+  Designer creation value and cannot be unset; forceFrames preserves unset/false/
+  true with SDK omission default false. Actual Canvas uses ancestor AND for enabled
+  and OR for forceFrames, mutes ticker callbacks without pausing elapsed time, and
+  retains visible content, state and editing. Includes required-child wrapping,
+  replacement/movement protection, generation/provenance, codec/payload,
+  save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current surface:
+  63 widgets, 57 const definitions, 776 rows (759 outside Scaffold), 3,591 placements
+  (3,308 accepted / 283 rejected), Basic 19. Historical target 63/92 with 29 remaining;
+  schema/API/model stay 13/14/18. Full physical desktop acceptance remains deferred.
+
 - `Visibility` in Basic at order 180 with all seven optional Boolean fields,
   required child, optional non-null replacement and managed key. Centered
   checkboxes preserve unset/false/true; dependent maintenance edits are one atomic
@@ -18,7 +30,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   repairs a reproduced Flutter 3.44.8 hide/reveal defect without patching the SDK
   used by generated applications. Includes typed validation/generation,
   both slots, Palette/tree/Canvas moves, Save/reopen/further edits, Undo/Redo,
-  rollback and four SVGs. Current surface: 62 widgets, 56 const definitions,
+  rollback and four SVGs. At that milestone: 62 widgets, 56 const definitions,
   774 rows (757 outside Scaffold), 3,534 placements (3,253 accepted / 281 rejected),
   Basic 18. Historical target 62/92 with 30 remaining; schema/API/model remain
   13/14/18. Full physical desktop acceptance remains deferred.

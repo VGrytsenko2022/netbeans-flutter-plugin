@@ -79,6 +79,7 @@ public final class BuiltInWidgetCatalog {
             ignorePointer(),
             absorbPointer(),
             visibility(),
+            tickerMode(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -1931,6 +1932,20 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.basic", 300, 180, "Visibility"), properties,
                 List.of(singleSlot("child", 0, true, 1, ANY_WIDGET),
                         singleSlot("replacement", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition tickerMode() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("enabled", 0, true, any(PropertyValueKind.BOOLEAN),
+                        new PropertyValue.BooleanValue(true)),
+                namedProperty("forceFrames", 2, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != TickerModeWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("TickerMode catalog/property schema count mismatch");
+        }
+        return widget(TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.value(), "TickerMode", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 190, "TickerMode"), properties,
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

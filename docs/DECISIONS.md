@@ -36,10 +36,10 @@ ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 `PhysicalShape`, ADR-082 adds `RepaintBoundary`, ADR-083 adds `IgnorePointer`,
 ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
-ADR-089 adds `ExcludeFocusTraversal`, and ADR-090 establishes the current
-`Visibility` surface: 774 typed rows across sixty-two widgets, fifty-six
-const-constructor definitions and 3,534 Palette/DnD candidates, including 3,253
-accepted and 281 rejected cells. The 757-field
+ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, and ADR-091
+establishes the current `TickerMode` surface: 776 typed rows across sixty-three
+widgets, fifty-seven const-constructor definitions and 3,591 Palette/DnD candidates,
+including 3,308 accepted and 283 rejected cells. The 759-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -49,7 +49,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-090 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-091 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -301,7 +301,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-090 make 757 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-091 make 759 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -340,8 +340,9 @@ without a scalar row. IndexedSemantics adds one required signed index and an
 optional child slot. ExcludeFocus adds one optional excluding boolean and a
 required child wrapper slot. ExcludeFocusTraversal adds one optional excluding
 boolean and its required child wrapper slot. Visibility adds seven optional
-booleans, required child and optional replacement slots. Scaffold separately
-contributes 17 rows, giving 774 overall.
+booleans, required child and optional replacement slots. TickerMode adds required
+enabled and optional forceFrames booleans with a required child wrapper slot.
+Scaffold separately contributes 17 rows, giving 776 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -413,8 +414,9 @@ establishes the historical fifty-eight-source, 3,190-candidate matrix (2,923 acc
 matrix (3,032 accepted / 272 rejected). ADR-088 establishes the historical sixty-source,
 3,360-candidate matrix (3,086 accepted / 274 rejected). ADR-089 establishes the historical
 sixty-one-source, 3,416-candidate matrix (3,140 accepted / 276 rejected). ADR-090
-establishes the current sixty-two-source, 3,534-candidate matrix
-(3,253 accepted / 281 rejected).
+establishes the historical sixty-two-source, 3,534-candidate matrix
+(3,253 accepted / 281 rejected). ADR-091 establishes the current sixty-three-source,
+3,591-candidate matrix (3,308 accepted / 283 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -425,7 +427,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -439,16 +441,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-two-widget model for Mobile, Tablet,
+Canvas now renders the validated sixty-three-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-two Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,534-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,253 cells are accepted and 281 rejected.
+those sixty-three Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,591-cell candidate matrix across fifty-five insertable any-widget and two
+trait-bound destination slots; 3,308 cells are accepted and 283 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal and Visibility use the same generic atomic required-child wrapper
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility and TickerMode use the same generic atomic required-child wrapper
 mode, with tree root/non-root and Canvas non-root-only targets; none can wrap Expanded,
 Flexible or Spacer.
 Canvas model
@@ -4262,7 +4264,7 @@ editing of both subtrees, Undo/Redo, failed-change rollback, accessibility hints
 four distinct light/dark 16/32px SVGs. No format/protocol bump is necessary:
 FD schema 13, API model 14, Canvas model 18 and NBFC1 remain unchanged.
 
-Current totals: 62 widgets, 56 const definitions, 774 writable rows (757 outside
+At that milestone: 62 widgets, 56 const definitions, 774 writable rows (757 outside
 Scaffold); 59 scalar plus structural IntrinsicHeight/RepaintBoundary/MergeSemantics.
 The 55 any-widget plus two trait destinations give 57 insertable slots:
 62x57 = 3,534 cells, 3,253 accepted and 281 rejected. Categories: Layout 31,
@@ -4292,5 +4294,98 @@ main.dart.js is 2,869,298 bytes, SHA-256
 88e4b056dccc69927b410dd1476f1d8aada8340ac1f097cd9ca1d72632f27ed4.
 nbm:cluster and release metadata/freshness verification pass. NBM size: 7,310,919
 bytes; SHA-256 EC00CA39F96FC70DE06D39ABF1CADF25BD075F1BCBBF1D498BF1C596488B689A.
+Installed-userdir and full physical desktop acceptance were not performed; optional
+skips are recorded and not presented as passed physical tests.
+
+## ADR-091 — TickerMode completes required enabled and forceFrames control
+
+Accepted: 2026-09-05.
+
+Add flutter.widgets.TickerMode as one STATIC_EDITABLE Basic palette definition at
+order 190. The official API and pinned Flutter 3.44.8 ticker_provider.dart define
+the complete const constructor: required bool enabled, required Widget child and
+optional bool forceFrames=false, plus managed key. Project enabled as required
+BOOLEAN at Dart order 0 with explicit Designer creation value true; this is not a
+Flutter default. Project required SINGLE any-widget child at order 1 with min=max=1,
+and optional BOOLEAN forceFrames at order 2 without a persisted default.
+
+Both flags are editable with the shared centered checkbox. Enabled allows true and
+false but cannot be unset or reset because its constructor argument is required.
+Force frames retains unset/false/true, with unset omitting the Dart argument and
+preserving false. False enabled combined with true forceFrames is valid; there is
+no cross-property dependency. Validate missing/wrong-type enabled, invalid optional
+types and missing/null/empty required child at the model boundary. Imported malformed
+values must not gain authority through Canvas or command replay.
+
+The existing generic atomic wrapper path already accepts required scalar arguments
+when the catalog provides creation values. Reuse it without changing wrapper rules
+or adding fake children. Tree drops can wrap a root or non-root target; the current
+Canvas wire offers non-root targets only. Required child replacement is atomic,
+while clearing/removing/moving it away is forbidden. Moving the intact wrapper is
+allowed by the normal catalog matrix. Expanded/Flexible/Spacer remain invalid child
+targets because their ParentData needs direct Row/Column ownership.
+
+Use actual SDK TickerMode, including both widget-aware ticker-provider mixins.
+Effective enabled is ancestorEnabled AND localEnabled, and effective forceFrames is
+ancestorForceFrames OR localForceFrames. Enabled true cannot undo ancestor disabling;
+forceFrames false cannot undo ancestor forcing. The widgets mute callbacks, not
+elapsed time: an animation can advance on resuming rather than restarting from its
+last painted value. Disabling does not dispose the child, change its layout/paint,
+hide its semantics, reject ordinary pointer hits or prevent focus. Canvas must not
+reuse Visibility's hidden-branch filter for merely muted tickers. Both fields update
+the real SDK notifiers, including inherited changes and reparenting.
+
+TickerMode.merge is a static Widget-returning helper, not another constructor. It
+adds a Builder and substitutes ambient values for null requests; after TickerMode's
+AND/OR combination, null enabled has the same effective behavior as true and null
+forceFrames as false. The palette can represent every effective flag combination
+with the bare constructor; it does not preserve that helper's Builder source shape
+or introduce a redundant catalog type. SDK static value/notifier accessors work
+normally through the actual rendered widget.
+
+The full slice covers typed schema/capability projection, generation/provenance and
+const propagation, codec/payload, both checkbox contracts, Slots replacement,
+palette/tree/Canvas placement and movement, save/reopen/further editing, Undo/Redo,
+rollback, accessibility and four light/dark 16/32px SVGs. No format/protocol bump:
+FD schema 13, API model 14, Canvas model 18 and NBFC1 remain unchanged.
+
+Current totals: 63 widgets, 57 const definitions, 776 writable rows (759 outside
+Scaffold); 60 scalar plus structural IntrinsicHeight/RepaintBoundary/MergeSemantics.
+The 55 any-widget plus two trait destinations remain 57 insertable slots:
+63x57 = 3,591 cells, 3,308 accepted and 283 rejected. Categories: Layout 31,
+Scrolling 3, Basic 19, Material 4, Accessibility 6. Historical practical target:
+63/92 with 29 remaining. This is an API-reviewed successor; the historical ordered
+92-widget inventory has not been recovered. Full physical desktop acceptance stays
+deferred until the palette target is complete.
+
+Focused validation: all 29 new TickerMode Flutter cases and the complete 752-test
+Canvas suite pass; analyze and formatting are clean. Tests exercise all 16 nested
+flag combinations, single/multiple ticker providers, mute/unmute with elapsed-time
+catch-up, AnimationController completion after unmuting, stable value notifiers,
+inherited changes, GlobalKey reparenting, merge-null effective equivalence,
+unmanaged ticker limitations and Visibility composition. Real paint/layout,
+intrinsics, hit testing, labels, retained focus, Canvas wrapping/moves and F2
+commit/cancel/reopen remain correct on Windows/Web model profiles.
+
+Core tests pass all 1,208 cases, including 17 new TickerMode contract/command/payload
+cases. The focused NetBeans suite passes 671 cases, including 12 new tests, 83
+mutation lifecycle cases and the shared 122-Boolean editor contract. Required
+Enabled rejects unset/reset and toggles both ways; Force frames preserves optional
+states without changing Enabled. Persistence tests cover save/reopen/further widget
+and descendant editing, child replacement, Undo/Redo and rejected-change rollback.
+
+Clean Maven install succeeds across all 11 modules. Surefire records 3,533 tests,
+zero failures/errors and six declared optional skips; Failsafe records 13 tests,
+zero failures/errors and one optional native-desktop skip. The complete real-SDK
+analyzer class passes 16 cases, including all TickerMode constructor combinations,
+static merge and canonical effective behavior, nested/theme/focus/semantics/scroll
+compositions, invalid required/optional values, const rejection, exact SDK symbol
+provenance and original-file preservation. Mutation-controller integration passes
+83 cases. Both actual Web artifact/build suites pass all 41 cases without skips.
+Release Web build succeeds; all 40 source-manifest and 35 offline Web-manifest
+entries match final files. main.dart.js is 2,869,722 bytes, SHA-256
+17f429b26c097190ef17f15bf0d8fbf46e171b227abb22ee18bc590562d92835.
+nbm:cluster and release metadata/freshness verification pass. NBM size: 7,317,721
+bytes; SHA-256 BF68C564A21ABA133396CF1E1773944752ADFD416BB0B95B53A7810059520DED.
 Installed-userdir and full physical desktop acceptance were not performed; optional
 skips are recorded and not presented as passed physical tests.

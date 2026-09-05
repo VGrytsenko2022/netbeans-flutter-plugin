@@ -83,6 +83,67 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void tickerModeRequiredEnabledAndOptionalForceFramesPreserveCheckboxIdentityAndIndependentEdits() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.TickerMode");
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName enabledName = new PropertyName("enabled");
+        PropertyName forceName = new PropertyName("forceFrames");
+        WidgetNode prototype = WidgetNodePrototypeFactory.create(definition, id);
+        WidgetNode widget = new WidgetNode(id, definition.typeId(), prototype.properties(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+        assertEquals(Map.of(enabledName, new PropertyValue.BooleanValue(true)), widget.properties());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        var enabled = cellProperty(property(node, "enabled"));
+        var force = cellProperty(property(node, "forceFrames"));
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertTrue(enabled.canWrite());
+        assertFalse(enabled.supportsDefaultValue());
+        assertFalse(enabled.isDefaultValue());
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)), enabled.getValue());
+        assertEquals(FlutterPropertyCellValue.unset(), force.getValue());
+        assertTrue(force.supportsDefaultValue());
+        assertTrue(enabled.getShortDescription().contains("not an SDK default"));
+        assertTrue(enabled.getShortDescription().contains("AND"));
+        assertTrue(force.getShortDescription().contains("OR"));
+        assertTrue(force.getShortDescription().contains("battery usage"));
+        assertTrue(force.getShortDescription().contains("does not unmute disabled tickers"));
+        for (var cell : List.of(enabled, force)) {
+            for (String flag : List.of("true", "false")) {
+                PropertyEditor editor = cell.getPropertyEditor();
+                editor.setAsText(flag);
+                assertNull(editor.getTags());
+                assertTrue(editor.isPaintable());
+            }
+        }
+        assertThrows(IllegalArgumentException.class, () -> enabled.setValue(FlutterPropertyCellValue.unset()));
+        enabled.restoreDefaultValue();
+        assertTrue(commands.isEmpty(), "required Enabled never dispatches ResetProperty");
+        enabled.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        force.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        assertEquals(List.of(new SetProperty(id, enabledName, new PropertyValue.BooleanValue(false)),
+                new SetProperty(id, forceName, new PropertyValue.BooleanValue(true))), commands,
+                "both flags are independent; never invent maintenance dependency patches");
+        WidgetNode explicit = new WidgetNode(id, definition.typeId(),
+                Map.of(enabledName, new PropertyValue.BooleanValue(false), forceName, new PropertyValue.BooleanValue(true)), widget.slots());
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        assertSame(enabled, property(node, "enabled"));
+        assertSame(force, property(node, "forceFrames"));
+        assertNull(enabled.getPropertyEditor().getTags());
+        assertNull(force.getPropertyEditor().getTags());
+        commands.clear();
+        force.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        force.restoreDefaultValue();
+        assertEquals(List.of(new SetProperty(id, forceName, new PropertyValue.BooleanValue(false)),
+                new ResetProperty(id, forceName)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+        assertTrue(property(node, "child").getShortDescription().contains("does not pause the timeline"));
+    }
+
+    @Test
     void visibilityProjectsAllSevenCheckboxUnsetCellsAndRetainsPropertyIdentity() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.Visibility");
         WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
@@ -940,6 +1001,8 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("decoration"), emptyDecoration()));
         requiredValues.put("flutter.widgets.IndexedSemantics",
                 Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        requiredValues.put("flutter.widgets.TickerMode",
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -1002,6 +1065,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.ExcludeFocus",
                     "flutter.widgets.ExcludeFocusTraversal",
                     "flutter.widgets.Visibility",
+                    "flutter.widgets.TickerMode",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1037,7 +1101,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(774, writableCount,
+        assertEquals(776, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1050,7 +1114,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(757, nonScaffoldWritableCount,
+        assertEquals(759, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -5900,6 +5964,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.ExcludeFocus");
         typeIds.add("flutter.widgets.ExcludeFocusTraversal");
         typeIds.add("flutter.widgets.Visibility");
+        typeIds.add("flutter.widgets.TickerMode");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -5929,7 +5994,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(62, iconPaths.size(),
+        assertEquals(63, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

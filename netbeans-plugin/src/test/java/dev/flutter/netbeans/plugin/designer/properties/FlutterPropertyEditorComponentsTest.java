@@ -75,6 +75,32 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void tickerModeRequiredEnabledCheckboxTogglesButNeverAcceptsUnset() throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(property("flutter.widgets.TickerMode", "enabled"));
+        assertFalse(binding.optional());
+        assertEquals(Optional.of(new PropertyValue.BooleanValue(true)), binding.definition().creationDefault());
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT));
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(FlutterPropertyCellValue.unset()));
+        onEdt(() -> {
+            InplaceEditor inplace = FlutterPropertyEditorComponents.inplaceFactory(binding).orElseThrow().getInplaceEditor();
+            inplace.connect(editor, PropertyEnv.create(descriptor("enabled", "Required enabled")));
+            JCheckBox checkbox = assertInstanceOf(JCheckBox.class, inplace.getComponent());
+            assertTrue(checkbox.isSelected());
+            assertEquals(SwingConstants.CENTER, checkbox.getHorizontalAlignment());
+            assertFalse(checkbox.getAccessibleContext().getAccessibleDescription().contains("Restore Default"));
+            checkbox.doClick();
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), inplace.getValue());
+            checkbox.doClick();
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)), inplace.getValue());
+            assertThrows(IllegalArgumentException.class, () -> inplace.setValue(FlutterPropertyCellValue.unset()));
+            inplace.clear();
+            return null;
+        });
+    }
+
+    @Test
     void containerStructuredPropertiesUseTransactionalTypedEditors()
             throws Exception {
         FlutterTypedPropertyEditors.Binding alignmentBinding = binding(
@@ -2603,7 +2629,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(120, booleanProperties.size(),
+        assertEquals(122, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));
@@ -2614,6 +2640,8 @@ class FlutterPropertyEditorComponentsTest {
         assertTrue(booleanProperties.contains("flutter.widgets.BlockSemantics.blocking"));
         assertTrue(booleanProperties.contains("flutter.widgets.ExcludeFocus.excluding"));
         assertTrue(booleanProperties.contains("flutter.widgets.ExcludeFocusTraversal.excluding"));
+        assertTrue(booleanProperties.contains("flutter.widgets.TickerMode.enabled"));
+        assertTrue(booleanProperties.contains("flutter.widgets.TickerMode.forceFrames"));
         for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
                 "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
             assertTrue(booleanProperties.contains("flutter.widgets.Visibility." + name));
@@ -2660,6 +2688,15 @@ class FlutterPropertyEditorComponentsTest {
                         checkBox.getVerticalAlignment(), qualifiedName
                         + " must center the checkbox vertically");
                 inplace.clear();
+                if (binding.optional()) {
+                    editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT);
+                    assertEquals(FlutterPropertyCellValue.unset(), editor.getValue(), qualifiedName);
+                } else {
+                    assertThrows(IllegalArgumentException.class,
+                            () -> editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT), qualifiedName);
+                    assertThrows(IllegalArgumentException.class,
+                            () -> editor.setValue(FlutterPropertyCellValue.unset()), qualifiedName);
+                }
             }
             return null;
         });

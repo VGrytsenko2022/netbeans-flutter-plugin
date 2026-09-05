@@ -303,6 +303,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.Visibility".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Visibility.Name"));
                 setShortDescription(message("Widget.Visibility.Description"));
+            } else if ("flutter.widgets.TickerMode".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.TickerMode.Name"));
+                setShortDescription(message("Widget.TickerMode.Description"));
             } else if ("flutter.widgets.IndexedSemantics".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IndexedSemantics.Name"));
                 setShortDescription(message("Widget.IndexedSemantics.Description"));

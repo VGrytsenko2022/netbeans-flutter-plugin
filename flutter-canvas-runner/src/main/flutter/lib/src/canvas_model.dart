@@ -3901,6 +3901,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot, 'replacement': _optionalSingleSlot},
   ),
+  'flutter.widgets.TickerMode': _WidgetSpec(
+    {
+      'enabled': _PropertySpec(
+        {'boolean'},
+        required: true,
+        creationDefaultFingerprint: 'boolean:true',
+      ),
+      'forceFrames': _PropertySpec({'boolean'}),
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.RepaintBoundary': _WidgetSpec({}, {
     'child': _optionalSingleSlot,
   }),
@@ -6084,6 +6095,11 @@ P|textHeightApplyLastDescent|boolean|0|-|-|boolean:any
 P|textHeightLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
 P|textScalerFactor|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|textWidthBasis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextWidthBasis:longestLine,parent
+W|flutter.widgets.TickerMode
+P|enabled|boolean|1|boolean:true|-|boolean:any
+P|forceFrames|boolean|0|-|-|boolean:any
+S|child|single|1|1|1|any
+C|flutter.widgets.TickerMode|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.Transform
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none

@@ -87,6 +87,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.ExcludeFocus", ICON_ROOT + "excludefocus.svg"),
             Map.entry("flutter.widgets.ExcludeFocusTraversal", ICON_ROOT + "excludefocustraversal.svg"),
             Map.entry("flutter.widgets.Visibility", ICON_ROOT + "visibility.svg"),
+            Map.entry("flutter.widgets.TickerMode", ICON_ROOT + "tickermode.svg"),
             Map.entry("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg"),
             Map.entry("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg"),
             Map.entry("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg"),

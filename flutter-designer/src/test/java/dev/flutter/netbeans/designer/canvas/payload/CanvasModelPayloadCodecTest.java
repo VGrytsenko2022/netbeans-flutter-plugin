@@ -130,6 +130,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.Visibility",
+                "flutter.widgets.TickerMode",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -1351,6 +1352,59 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void tickerModePayloadPreservesAllSixBooleanCombinationsAndRequiredChildWithoutTickerRuntimeData() throws Exception {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "TickerMode child");
+        for (boolean enabled : List.of(false, true)) {
+            for (Optional<Boolean> force : List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true))) {
+                var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(enabled));
+                force.ifPresent(value -> properties.put(new PropertyName("forceFrames"), new PropertyValue.BooleanValue(value)));
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.TickerMode"), properties,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"type\":\"flutter.widgets.TickerMode\""), json);
+                assertTrue(json.contains("TickerMode child"), json);
+                assertTrue(json.contains("\"enabled\":{\"kind\":\"boolean\",\"value\":" + enabled + "}"), json);
+                assertEquals(force.isPresent(), json.contains("\"forceFrames\":"), json);
+                force.ifPresent(value -> assertTrue(json.contains("\"forceFrames\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                for (String name : List.of("key", "merge", "muted", "ticker", "vsync", "elapsed", "visible")) {
+                    assertFalse(json.contains("\"" + name + "\":"), json);
+                }
+            }
+        }
+    }
+
+    @Test
+    void tickerModePayloadRejectsMissingEnabledRequiredChildAndMalformedBooleanValues() {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "TickerMode child");
+        for (String name : List.of("enabled", "forceFrames")) {
+            for (PropertyValue invalid : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                    new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), new PropertyValue.DartExpressionValue("false"))) {
+                var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+                properties.put(new PropertyName(name), invalid);
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.TickerMode"), properties,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        for (var node : List.of(
+                new WidgetNode(StableId.random(), type("flutter.widgets.TickerMode"), Map.of(),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))),
+                new WidgetNode(StableId.random(), type("flutter.widgets.TickerMode"),
+                        Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), Map.of()),
+                new WidgetNode(StableId.random(), type("flutter.widgets.TickerMode"),
+                        Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

@@ -79,6 +79,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IgnorePointer",
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.Visibility",
+            "flutter.widgets.TickerMode",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
@@ -141,6 +142,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IgnorePointer",
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.Visibility",
+            "flutter.widgets.TickerMode",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.IndexedSemantics",
@@ -156,7 +158,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasSixtyTwoSourcesAndFiftySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasSixtyThreeSourcesAndFiftySevenInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -179,7 +181,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(62, sources.size());
+        assertEquals(63, sources.size());
         assertEquals(57, destinations.size());
         assertEquals(55, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -189,9 +191,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3534, candidates);
-        assertEquals(3253, accepted);
-        assertEquals(281, candidates - accepted);
+        assertEquals(3591, candidates);
+        assertEquals(3308, accepted);
+        assertEquals(283, candidates - accepted);
     }
 
     @Test

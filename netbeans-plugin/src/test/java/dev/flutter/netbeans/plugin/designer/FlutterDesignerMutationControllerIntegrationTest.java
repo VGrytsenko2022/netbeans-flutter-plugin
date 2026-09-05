@@ -561,6 +561,205 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
+    void paletteTickerModeSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId childId = FIRST_ID;
+        StableId replacementId = StableId.parse("94949494-9494-4494-8494-949494949494");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.TickerMode");
+        PropertyName forceFrames = new PropertyName("forceFrames");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(false));
+        configured.put(forceFrames, new PropertyValue.BooleanValue(false));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("ticker_mode_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const TickerMode("));
+                assertFalse(request.content().contains("forceFrames:"));
+                assertTrue(request.content().contains("enabled: true"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, childId, () -> surfaceId));
+            var added = applyTickerModeMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)),
+                    surface.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().orElseThrow().id());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("ticker_mode_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("enabled", "forceFrames")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const TickerMode("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyTickerModeMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            current = applyTickerModeMutation(fixture, current,
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("Child edited while tickers are muted")),
+                    surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "explicit false survives descendant editing");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("forceFrames: false"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 3; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 3; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(3, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "ticker_mode_test_rejection", "TickerMode candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, forceFrames, new PropertyValue.BooleanValue(true)),
+                    "TickerMode.forceFrames").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("TickerMode candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("ticker_mode_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var forceFramesCell = cellProperty(properties, "forceFrames");
+            forceFramesCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("forceFrames: true"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyTickerModeMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(forceFrames, new PropertyValue.BooleanValue(true));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            edited = applyTickerModeMutation(fixture, edited, new ResetProperty(surfaceId, forceFrames), surfaceId);
+            assertEquals(Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertFalse(resetDart.contains("forceFrames:"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("ticker_mode_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.unset(), cellProperty(properties, "forceFrames").getValue());
+            assertTrue(cellProperty(properties, "forceFrames").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside ticker-muted subtree after reopen")));
+            assertEquals(1, childEdits.size(), "ticker muting must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyTickerModeMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside ticker-muted subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            byte[] beforeIllegalRemoval = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejectedRemoval = fixture.mutations().submit(current.token().orElseThrow(),
+                    new RemoveWidget(childId), "TickerMode required child removal").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejectedRemoval.outcome(), rejectedRemoval::reason);
+            assertEquals(editedChild, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), childId));
+            assertArrayEquals(beforeIllegalRemoval, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = awaitReady(fixture.mutations());
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(),
+                    replacementId);
+            current = applyTickerModeMutation(fixture, current,
+                    new ReplaceSlotChild(surfaceId, CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), surfaceId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("ticker_mode_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside ticker-muted subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
+        }
+    }
+
+    @Test
     void visibilityAtomicDependenciesAndBothSlotsSurviveSaveReopenHistoryAndRollback() throws Exception {
         StableId wrapperId = StableId.parse("8a8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
         StableId replacementId = StableId.parse("9a949494-9494-4494-8494-949494949494");
@@ -7634,6 +7833,16 @@ class FlutterDesignerMutationControllerIntegrationTest {
             DesignerCommand command, StableId wrapperId) throws Exception {
         var result = fixture.mutations().submit(before.token().orElseThrow(), command,
                 "Visibility properties and both child slots editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(wrapperId, SECOND_ID));
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyTickerModeMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "TickerMode properties and required child editing").get(10, TimeUnit.SECONDS);
         assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
                 List.of(wrapperId, SECOND_ID));

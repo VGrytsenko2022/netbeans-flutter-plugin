@@ -1436,6 +1436,85 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesTickerModeCompleteConstructorAndMergeBehavior() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("ticker_mode_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String candidate = """
+                import 'package:flutter/material.dart';
+                Widget enabledDefault() => const TickerMode(enabled: true, child: Text('Enabled'));
+                Widget disabledDefault() => const TickerMode(enabled: false, child: Text('Muted'));
+                List<Widget> matrix() => const <Widget>[
+                  TickerMode(enabled: true, forceFrames: false, child: Text('Regular')),
+                  TickerMode(enabled: true, forceFrames: true, child: Text('Forced')),
+                  TickerMode(enabled: false, forceFrames: false, child: Text('Muted')),
+                  TickerMode(enabled: false, forceFrames: true, child: Text('Muted forced request')),
+                ];
+                Widget nested() => const TickerMode(enabled: false, forceFrames: true,
+                  child: TickerMode(enabled: true, forceFrames: false, child: TextField()));
+                Widget visibility() => const Visibility(visible: false, maintainState: true,
+                  child: TickerMode(enabled: true, forceFrames: true, child: TextField()));
+                Widget inheritedMerge() => TickerMode.merge(child: const Text('Inherited'));
+                Widget nullMerge() => TickerMode.merge(enabled: null, forceFrames: null,
+                  child: const Text('Inherited'));
+                Widget canonicalMergeBehavior() => const TickerMode(enabled: true, child: Text('Inherited'));
+                Widget explicitMerge() => TickerMode.merge(enabled: false, forceFrames: true,
+                  child: const Text('Explicit requests'));
+                Widget themed(BuildContext context) => TickerMode(enabled: true,
+                  child: Text('Theme', style: TextStyle(color: Theme.of(context).colorScheme.primary)));
+                Widget changing(bool enabled, bool forceFrames) => TickerMode(enabled: enabled,
+                  forceFrames: forceFrames, child: Text(DateTime.now().toString()));
+                Widget semanticsAndFocus() => const IndexedSemantics(index: 0,
+                  child: ExcludeFocusTraversal(child: TickerMode(enabled: false, child: TextField())));
+                Widget scrolling() => ListView(children: const [
+                  TickerMode(enabled: true, child: Text('First')),
+                  TickerMode(enabled: false, child: Text('Second')),
+                ]);
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(
+                probe("ticker-mode", candidate.indexOf("TickerMode"), "TickerMode",
+                        "package:flutter/widgets.dart", flutterLibrary),
+                probe("ticker-mode-merge", candidate.indexOf("TickerMode.merge") + "TickerMode.".length(),
+                        "merge", "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1400, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1401;
+        for (String invalid : List.of(
+                "const TickerMode()", "const TickerMode(child: Text('Missing enabled'))",
+                "const TickerMode(enabled: true)", "const TickerMode(enabled: null, child: Text('Bad'))",
+                "const TickerMode(enabled: 'true', child: Text('Bad'))",
+                "const TickerMode(enabled: true, child: null)",
+                "const TickerMode(enabled: true, child: 'not a widget')",
+                "const TickerMode(enabled: true, forceFrames: null, child: Text('Bad'))",
+                "const TickerMode(enabled: true, forceFrames: 1, child: Text('Bad'))",
+                "const TickerMode(enabled: true, paused: true, child: Text('Bad'))",
+                "const TickerMode(enabled: true, child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

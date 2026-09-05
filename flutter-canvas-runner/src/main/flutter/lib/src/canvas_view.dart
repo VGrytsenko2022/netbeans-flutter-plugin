@@ -574,6 +574,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ExcludeFocus' ||
         node.type == 'flutter.widgets.ExcludeFocusTraversal' ||
         node.type == 'flutter.widgets.Visibility' ||
+        node.type == 'flutter.widgets.TickerMode' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -2517,6 +2518,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'flutter.widgets.ExcludeFocusTraversal' => ExcludeFocusTraversal(
         excluding: _boolean('excluding') ?? true,
+        child: _single('child')!,
+      ),
+      'flutter.widgets.TickerMode' => TickerMode(
+        enabled: _boolean('enabled')!,
+        forceFrames: _boolean('forceFrames') ?? false,
         child: _single('child')!,
       ),
       'flutter.widgets.Visibility' => _CanvasVisibility(

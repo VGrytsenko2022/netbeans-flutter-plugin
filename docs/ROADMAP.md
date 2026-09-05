@@ -1637,12 +1637,27 @@ accepted architecture is documented in
   suppress inactive branch geometry/F2 without making hidden content visible,
   and retain tree/property editing. Cover generation/provenance, codec/payload,
   both slots, all wrapping/move routes, Save/reopen/further editing, Undo/Redo,
-  rollback and four SVGs. Current surface: 62 widgets, 56 const definitions,
+  rollback and four SVGs. At that milestone: 62 widgets, 56 const definitions,
   774 rows (757 outside Scaffold), 59 scalar plus three structural definitions;
   55 any-widget plus two trait slots form 57 destinations, 3,534 cells
   (3,253 accepted / 281 rejected), Basic 18. Historical target 62/92 with 30
   remaining; schema/API/model stay 13/14/18. This is an API-reviewed successor,
   not a recovered fixed-order inventory. Full physical acceptance stays deferred.
+- [x] Add `TickerMode` in Basic at order 190 with all constructor arguments:
+  required enabled/order 0, required child/order 1 and optional forceFrames/order 2.
+  Create enabled=true explicitly; allow false but no unset/reset of that required
+  field. Keep forceFrames unset/false/true with omitted SDK false. Actual Canvas
+  combines enabled by ancestor AND and forceFrames by ancestor OR, retaining child
+  state and content while muting callbacks rather than pausing elapsed time.
+  Reuse generic required-child wrapping/replacement and movement protection.
+  Cover generation/provenance, codec/payload, Properties/Slots, placement, save/
+  reopen/further editing, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  63 widgets, 57 const definitions, 776 rows (759 outside Scaffold), 60 scalar plus
+  three structural definitions; 55 any-widget plus two trait slots remain 57
+  destinations, 3,591 cells (3,308 accepted / 283 rejected), Basic 19. Historical
+  target 63/92 with 29 remaining; schema/API/model stay 13/14/18. This is an
+  API-reviewed successor, not a recovered fixed-order inventory. Full physical
+  desktop acceptance remains deferred until the palette is complete.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1660,8 +1675,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-two admitted built-ins.
-  The 59 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-three admitted built-ins.
+  The 60 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

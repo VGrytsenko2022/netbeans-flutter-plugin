@@ -20,6 +20,7 @@ import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusTraversalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VisibilityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TickerModeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -538,6 +539,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addExcludeFocusTraversalPropertySets(sheet, hasSlotTab);
         } else if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(widget.type())) {
             addVisibilityPropertySets(sheet, hasSlotTab);
+        } else if (TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.equals(widget.type())) {
+            addTickerModePropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -732,6 +735,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child whose widget-aware tickers inherit Enabled and Force frames. "
+                    + "Muted tickers do not invoke callbacks, but time continues to elapse; this does not pause the timeline. "
+                    + "Layout, painting, pointer hits, focus and Designer selection/editing remain available. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
         if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(widget.type())) {
             if (CHILD_SLOT.equals(slot.name())) {
                 return "Required child controlled by Visible and the six Maintain flags. "
@@ -2474,6 +2485,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
                             + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addTickerModePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<TickerModeWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(TickerModeWidgetPropertySchema.Group.class);
+        for (TickerModeWidgetPropertySchema.Group group : TickerModeWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = TickerModeWidgetPropertySchema.find(property.name()).orElseThrow();
+            String help = "enabled".equals(property.name().value())
+                    ? " Required boolean: palette creation supplies true; this is not an SDK default. "
+                            + "False is valid. Enabled cannot be unset or reset. Effective enabled is combined with ancestors using AND. "
+                    : " <not set> preserves Flutter's false default. True requests frames when normal frame scheduling is suspended; "
+                            + "it does not unmute disabled tickers and may increase battery usage. Effective force frames is combined with ancestors using OR, "
+                            + "independently of Enabled. Restore Default returns to <not set>. ";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + help
+                            + "Explicit true/false uses the centered checkbox. Muting suppresses callbacks, not elapsed time; "
+                            + "Designer selection and editing remain available."));
         }
     }
 

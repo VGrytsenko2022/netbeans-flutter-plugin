@@ -130,7 +130,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.ExcludeSemantics",
-                "flutter.widgets.BlockSemantics"),
+                "flutter.widgets.BlockSemantics",
+                "flutter.widgets.MergeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -1230,6 +1231,40 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName(invented), new PropertyValue.BooleanValue(false)), Map.of());
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void mergeSemanticsPayloadPreservesZeroPropertiesAndOptionalChildWithoutInventedFlags() throws Exception {
+        var child = text("03b89f77-f150-461f-bdce-5ba43e87e264", "MergeSemantics child");
+        for (var slots : List.<Map<SlotName, WidgetSlot>>of(
+                Map.of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)))) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.MergeSemantics"), Map.of(), slots);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.MergeSemantics\""), json);
+            assertTrue(json.contains("\"properties\":{}"), json);
+            assertEquals(slots.containsKey(new SlotName("child")), json.contains("\"child\":"), json);
+            assertEquals(slots.values().stream().anyMatch(slot -> ((WidgetSlot.SingleSlot) slot).child().isPresent()),
+                    json.contains("MergeSemantics child"), json);
+            assertFalse(json.contains("\"blocking\":"), json);
+            assertFalse(json.contains("\"excluding\":"), json);
+            assertFalse(json.contains("\"mergeAllDescendantsIntoThisNode\":"), json);
+        }
+    }
+
+    @Test
+    void mergeSemanticsPayloadRejectsEveryInventedScalarAndRawValueBeforeSerialization() {
+        for (String invented : List.of("key", "blocking", "excluding", "mergeAllDescendantsIntoThisNode", "label")) {
+            for (PropertyValue value : List.of(new PropertyValue.BooleanValue(true), new PropertyValue.NullValue(),
+                    new PropertyValue.DartExpressionValue("secretProjectCode()"))) {
+                var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.MergeSemantics"),
+                        Map.of(new PropertyName(invented), value), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+            }
         }
     }
 

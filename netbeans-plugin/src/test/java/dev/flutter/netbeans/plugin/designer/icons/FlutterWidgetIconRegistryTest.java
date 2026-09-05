@@ -1793,6 +1793,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.PhysicalModel", ICON_ROOT + "physicalmodel.svg");
         expected.put("flutter.widgets.PhysicalShape", ICON_ROOT + "physicalshape.svg");
         expected.put("flutter.widgets.RepaintBoundary", ICON_ROOT + "repaintboundary.svg");
+        expected.put("flutter.widgets.MergeSemantics", ICON_ROOT + "mergesemantics.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

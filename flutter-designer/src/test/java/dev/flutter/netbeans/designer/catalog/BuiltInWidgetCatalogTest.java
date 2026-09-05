@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFiftySevenTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedFiftyEightTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -71,6 +71,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.LimitedBox",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.ListView",
+                "flutter.widgets.MergeSemantics",
                 "flutter.widgets.Offstage",
                 "flutter.widgets.Opacity",
                 "flutter.widgets.OverflowBar",
@@ -96,10 +97,15 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(57, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(51, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(58, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(52, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
+        assertEquals(55, BuiltInWidgetCatalog.getDefault().definitions().stream()
+                .filter(value -> !value.properties().isEmpty()).count());
+        assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
+                "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
+                .filter(value -> value.properties().isEmpty()).map(value -> value.typeId().value()).toList());
         assertEquals(List.of(
                         "flutter.material.AppBar",
                         "flutter.material.ElevatedButton",
@@ -150,6 +156,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Directionality", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ExcludeSemantics", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.BlockSemantics", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.MergeSemantics", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Expanded", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.FittedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Flexible", WIDGETS_IMPORT),
@@ -330,7 +337,8 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.ExcludeSemantics",
-                "flutter.widgets.BlockSemantics"), typeIds(palette));
+                "flutter.widgets.BlockSemantics",
+                "flutter.widgets.MergeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
@@ -347,7 +355,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());
-        assertEquals(2, palette.stream()
+        assertEquals(3, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.accessibility"))
                 .count());

@@ -6700,6 +6700,137 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void mergeSemanticsSaveReopenDescendantEditReplaceClearUndoRedoAndRollback() throws Exception {
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.MergeSemantics");
+        StableId boundaryId = StableId.parse("da8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a8a");
+        StableId childId = StableId.parse("db8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b");
+        StableId replacementId = StableId.parse("dc8b8b8b-8b8b-4b8b-8b8b-8b8b8b8b8b8b");
+        ExactPair emptyPair;
+        try (MutationFixture fixture = fixture("merge_semantics_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) -> {
+                assertTrue(request.content().contains("const MergeSemantics("));
+                assertFalse(request.content().contains("childIndex:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> boundaryId));
+            var added = applyRepaintBoundaryMutation(fixture, ready, plan.command(), boundaryId);
+            WidgetNode boundary = findModelWidget(added.document().orElseThrow().root(), boundaryId);
+            assertEquals(Map.of(), boundary.properties());
+            assertTrue(((WidgetSlot.SingleSlot) boundary.slots().get(CHILD)).child().isEmpty());
+            emptyPair = savePhysicalModelPair(fixture);
+        }
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("merge_semantics_empty_reopened", emptyPair)) {
+            var ready = fixture.ready();
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const MergeSemantics("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(), new WidgetTypeId("flutter.widgets.Text"),
+                            boundaryId, CHILD, 0, () -> childId));
+            var current = applyRepaintBoundaryMutation(fixture, ready, plan.command(), boundaryId);
+            WidgetNode child = findModelWidget(current.document().orElseThrow().root(), childId);
+            List<DesignerCommand> edits = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF,
+                    child, current.catalog().orElseThrow().find(child.type()).orElseThrow(), edits::add);
+            assertTrue(cellProperty(properties, "data").canWrite());
+            cellProperty(properties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Merged child edited")));
+            current = applyRepaintBoundaryMutation(fixture, current, edits.getFirst(), boundaryId);
+            WidgetNode configured = findModelWidget(current.document().orElseThrow().root(), boundaryId);
+            byte[] dart = fixture.coordinator().stagedEvidence().candidateDartBytes();
+            byte[] fd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            assertTrue(new String(dart, StandardCharsets.UTF_8).contains("Merged child edited"));
+            var combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 2; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, boundaryId));
+            }
+            assertTrue(((WidgetSlot.SingleSlot) findModelWidget(current.document().orElseThrow().root(),
+                    boundaryId).slots().get(CHILD)).child().isEmpty());
+            for (int index = 0; index < 2; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, boundaryId));
+            }
+            assertEquals(2, analyses.get(), "Undo/Redo reuses exact analyzed pairs");
+            assertEquals(configured, findModelWidget(current.document().orElseThrow().root(), boundaryId));
+            assertArrayEquals(dart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "merge_semantics_edit_rejected", "Descendant edit rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("rejected")),
+                    "MergeSemantics child.data").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            current = awaitReady(fixture.mutations());
+            assertEquals(configured, findModelWidget(current.document().orElseThrow().root(), boundaryId));
+            assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(dart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("merge_semantics_configured_reopened", configuredPair)) {
+            var current = fixture.ready();
+            WidgetNode child = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Merged child edited"), child.properties().get(DATA));
+            List<DesignerCommand> edits = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF,
+                    child, current.catalog().orElseThrow().find(child.type()).orElseThrow(), edits::add);
+            cellProperty(properties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Still editable after reopen")));
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            current = applyRepaintBoundaryMutation(fixture, current, edits.getFirst(), boundaryId);
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(), replacementId);
+            current = applyRepaintBoundaryMutation(fixture, current, new ReplaceSlotChild(boundaryId,
+                    CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), boundaryId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(current.document().orElseThrow().root(),
+                    boundaryId).slots().get(CHILD)).child().orElseThrow());
+            current = applyRepaintBoundaryMutation(fixture, current, new RemoveWidget(replacementId), boundaryId);
+            assertEquals(Map.of(), findModelWidget(current.document().orElseThrow().root(), boundaryId).slots(),
+                    "RemoveWidget omits the optional single slot in the exact model");
+            var combined = fixture.dataObject().getCombinedUndoRedo();
+            var beforeUndo = current.token().orElseThrow();
+            onEdt(combined::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), beforeUndo,
+                    List.of(FIRST_ID, SECOND_ID, boundaryId));
+            assertEquals(replacement, findModelWidget(current.document().orElseThrow().root(), replacementId));
+            var beforeRedo = current.token().orElseThrow();
+            onEdt(combined::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), beforeRedo,
+                    List.of(FIRST_ID, SECOND_ID, boundaryId));
+            assertEquals(Map.of(), findModelWidget(current.document().orElseThrow().root(), boundaryId).slots());
+            emptyPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("merge_semantics_cleared_reopened", emptyPair)) {
+            var current = fixture.ready();
+            WidgetNode boundary = findModelWidget(current.document().orElseThrow().root(), boundaryId);
+            assertEquals(Map.of(), boundary.properties());
+            assertEquals(Map.of(), boundary.slots());
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(current.document().orElseThrow(),
+                            current.catalog().orElseThrow(), new WidgetTypeId("flutter.widgets.Text"),
+                            boundaryId, CHILD, 0, () -> childId));
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            applyRepaintBoundaryMutation(fixture, current, plan.command(), boundaryId);
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
     void repaintBoundarySaveReopenDescendantEditReplaceClearUndoRedoAndRollback() throws Exception {
         WidgetTypeId type = new WidgetTypeId("flutter.widgets.RepaintBoundary");
         StableId boundaryId = StableId.parse("da8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a8a");

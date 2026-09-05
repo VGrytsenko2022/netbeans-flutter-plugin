@@ -1557,12 +1557,27 @@ accepted architecture is documented in
   normal pointer hits, layout and paint. Cover full Canvas semantics through
   Designer instrumentation, typed validation/projection, generation/provenance,
   Properties/Slots, all insertion/move routes, Save/reopen/further edits, Undo/Redo,
-  rollback, empty external targets, accessibility and four SVGs. Current surface:
+  rollback, empty external targets, accessibility and four SVGs. At that milestone:
   57 widgets, 51 const definitions, 764 rows (747 outside Scaffold), 52 any-widget
   plus two trait destinations, 3,078 cells (2,816 accepted / 262 rejected), Basic
   17 and Accessibility 2. Historical target 57/92 with 35 remaining; this is an
   API-reviewed successor, not a recovered full ordered 92-item inventory.
   Schema/API/model remain 13/14/18; full physical desktop acceptance stays deferred.
+- [x] Add `MergeSemantics` after BlockSemantics (Accessibility order 30) with its
+  complete const constructor: optional any-widget child and managed key, no scalar
+  fields. Use exact structural capability with identity/Slots and descendant
+  editing, not invented Properties rows. Render actual semantic merging with
+  combined labels/states and first-tree-order shared-action dispatch, keeping
+  layout, paint and ordinary hits unchanged. Separate synthetic Designer semantics
+  inside the merged subtree while preserving mouse/tree/F2/slot editing and
+  accessible diagnostics. Cover typed validation/projection, generation/provenance,
+  codec/payload, all insertion/move routes, child replace/clear, Save/reopen/further
+  descendant edits, Undo/Redo, rollback and four SVGs. Current surface: 58 widgets,
+  52 const definitions, 764 rows (747 outside Scaffold), 55 scalar plus three
+  structural definitions, 53 any-widget plus two trait destinations, 3,190 cells
+  (2,923 accepted / 267 rejected), Accessibility 3. Historical target 58/92 with
+  34 remaining; schema/API/model remain 13/14/18. Full physical desktop acceptance
+  stays deferred; the full ordered historical inventory has not been recovered.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1580,9 +1595,9 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all fifty-seven admitted built-ins.
-  The 55 definitions with scalar fields expose typed Properties; IntrinsicHeight
-  and RepaintBoundary have structural child-slot editors. This does not
+  vertical slices. The current catalog presents all fifty-eight admitted built-ins.
+  The 55 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

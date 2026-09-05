@@ -79,7 +79,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IgnorePointer",
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.ExcludeSemantics",
-            "flutter.widgets.BlockSemantics");
+            "flutter.widgets.BlockSemantics",
+            "flutter.widgets.MergeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -147,7 +148,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFiftySevenSourcesAndFiftyFourInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFiftyEightSourcesAndFiftyFiveInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -170,9 +171,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(57, sources.size());
-        assertEquals(54, destinations.size());
-        assertEquals(52, destinations.stream()
+        assertEquals(58, sources.size());
+        assertEquals(55, destinations.size());
+        assertEquals(53, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -180,9 +181,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3078, candidates);
-        assertEquals(2816, accepted);
-        assertEquals(262, candidates - accepted);
+        assertEquals(3190, candidates);
+        assertEquals(2923, accepted);
+        assertEquals(267, candidates - accepted);
     }
 
     @Test

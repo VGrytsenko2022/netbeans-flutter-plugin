@@ -331,6 +331,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     displayName + " — " + widget.id()
                     + ". Runtime typed text, selection, controller state, and focus "
                     + "state are not stored by Designer.");
+        } else if ("flutter.widgets.MergeSemantics".equals(widget.type().value())) {
+            setShortDescription(displayName + " — " + widget.id()
+                    + ". Merge the optional child's semantics subtree into one node. No scalar constructor "
+                    + "properties: edit Child in Slots or select a descendant in the widget tree to edit its properties.");
         } else if ("flutter.widgets.RepaintBoundary".equals(widget.type().value())) {
             setShortDescription(displayName + " — " + widget.id()
                     + ". Separate display list for its optional child. No scalar constructor "
@@ -1135,6 +1139,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove the child.";
         }
+        if ("flutter.widgets.MergeSemantics".equals(widget.type().value())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child whose semantics subtree is merged into one node. Labels are joined with "
+                    + "newlines; the first handler in tree order wins for a shared action. Conflicting states "
+                    + "follow Flutter semantics rules. Layout and pointer hit testing remain unchanged; "
+                    + "isolated preview does not execute project callbacks. Occupancy: "
+                    + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child; "
+                    + "select a descendant in the widget tree to edit its own properties.";
+        }
         if ("flutter.widgets.RepaintBoundary".equals(widget.type().value())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted in a separate display list. Layout, hit testing and semantics "
@@ -1150,6 +1164,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private Sheet.Set createGenericPropertySet() {
+        boolean mergeSemantics = "flutter.widgets.MergeSemantics".equals(widget.type().value());
         boolean repaintBoundary = "flutter.widgets.RepaintBoundary".equals(widget.type().value());
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean baseline = BASELINE_TYPE.equals(widget.type());
@@ -1178,7 +1193,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
-                repaintBoundary
+                mergeSemantics
+                        ? "MergeSemantics combines its optional child's semantics subtree into one node. "
+                                + "There are no scalar constructor properties; edit Child in Slots or select "
+                                + "a descendant in the widget tree to edit its properties. The Designer owns widget identity. "
+                                + "Labels are joined with newlines; the first handler in tree order wins for "
+                                + "a shared action, and conflicting states follow Flutter semantics rules. "
+                                + "Layout and pointer hit testing remain unchanged; isolated preview does "
+                                + "not execute project callbacks."
+                        : repaintBoundary
                         ? "RepaintBoundary isolates its optional child's painting in a separate display list. "
                                 + "There are no scalar constructor properties; edit Child in Slots or select "
                                 + "a descendant to edit its properties. The Designer owns widget identity. "

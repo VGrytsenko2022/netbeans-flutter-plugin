@@ -34,10 +34,10 @@ the historical `ClipRect` surface, ADR-076 establishes the historical
 `ClipOval` surface, ADR-077 establishes `ClipRRect`, ADR-078 adds `ClipPath`,
 ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 `PhysicalShape`, ADR-082 adds `RepaintBoundary`, ADR-083 adds `IgnorePointer`,
-ADR-084 adds `AbsorbPointer`, and ADR-085 establishes the current
-`BlockSemantics` surface: 764 typed rows across fifty-seven widgets, fifty-one
-const-constructor definitions and 3,078 Palette/DnD candidates, including 2,816
-accepted and 262 rejected cells. The 747-field
+ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, and ADR-086
+establishes the current `MergeSemantics` surface: 764 typed rows across fifty-eight
+widgets, fifty-two const-constructor definitions and 3,190 Palette/DnD candidates,
+including 2,923 accepted and 267 rejected cells. The 747-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -47,7 +47,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-085 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-086 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -299,7 +299,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-085 make 747 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-086 make 747 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -333,8 +333,8 @@ clip behavior, ClipRSuperellipse's radius/clipper/clip behavior, PhysicalModel's
 six properties, PhysicalShape's five properties, RepaintBoundary's property-free
 child slot and IgnorePointer's and AbsorbPointer's two optional boolean fields each,
 including their deprecated semantics overrides, plus BlockSemantics' optional
-blocking boolean and child slot. Scaffold separately contributes 17 rows, giving
-764 overall.
+blocking boolean and child slot. MergeSemantics adds structural child-slot editing
+without a scalar row. Scaffold separately contributes 17 rows, giving 764 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -399,8 +399,10 @@ fifty-three-source matrix with 2,650 candidates (2,408 accepted / 242 rejected),
 and ADR-082 establishes fifty-four sources with 2,754 candidates (2,507 accepted /
 247 rejected). ADR-083 establishes the historical fifty-five-source, 2,860-candidate
 matrix (2,608 accepted / 252 rejected). ADR-084 establishes the historical fifty-six-source,
-2,968-candidate matrix (2,711 accepted / 257 rejected). ADR-085 establishes the current
-fifty-seven-source, 3,078-candidate matrix (2,816 accepted / 262 rejected).
+2,968-candidate matrix (2,711 accepted / 257 rejected). ADR-085 establishes the historical
+fifty-seven-source, 3,078-candidate matrix (2,816 accepted / 262 rejected). ADR-086
+establishes the current fifty-eight-source, 3,190-candidate matrix (2,923 accepted /
+267 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -411,7 +413,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -425,12 +427,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated fifty-two-widget model for Mobile, Tablet,
+Canvas now renders the validated fifty-eight-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those fifty-two Create-capable definitions, and the DnD-capable set uses the
-reviewed 2,548-cell candidate matrix across forty-seven insertable any-widget and two
-trait-bound destination slots; 2,311 cells are accepted and 237 rejected.
+those fifty-eight Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,190-cell candidate matrix across fifty-three insertable any-widget and two
+trait-bound destination slots; 2,923 cells are accepted and 267 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3817,5 +3819,85 @@ main.dart.js is 2,862,308 bytes, SHA-256
 efeb9a9cd5fe35360c301449a1d611341cac2779ce673590b0844aad4b3f083c.
 nbm:cluster and release metadata/freshness verification pass. NBM size: 7,279,469
 bytes; SHA-256 D03DC01119F921D2A7920EB3200783BA5D44A84F71FBEF816989DDC27FBAD73D.
+Installed-userdir and full physical desktop acceptance were not performed; optional
+skips are recorded and not presented as passed physical tests.
+
+## ADR-086 — MergeSemantics completes structural child editing and semantic merging
+
+Status: accepted, 2026-09-05.
+
+After BlockSemantics, admit `flutter.widgets.MergeSemantics` in Accessibility at
+order 30. This is a reviewed API-based successor, not a recovered ordered entry
+from the historical 92-widget target. The official constructor and pinned Flutter
+3.44.8 basic.dart define const, optional child and key. Key remains Designer-managed
+identity. There are no scalar constructor fields to postpone or invent.
+
+Use exact STATIC_STRUCTURAL capability like IntrinsicHeight/RepaintBoundary: Canvas,
+Create and DnD with identity/child-slot editing, not scalar Properties mutation.
+The optional any-widget child has constructor order 0. Unknown properties and
+schema/capability drift, including required/list children, fail closed. Empty slot,
+omitted slot and populated child preserve their deterministic encoding/generation.
+Const propagation follows descendants; project/theme-dependent children remove
+const only where required. Analyzer evidence proves the actual SDK constructor.
+
+Canvas constructs actual MergeSemantics/RenderMergeSemantics. The pinned render
+object sets isSemanticBoundary and isMergingSemanticsOfDescendants. Descendant
+labels, flags and actions merge into one semantic node. Labels concatenate with
+newlines; when descendants share an action, its first tree-order handler wins.
+Conflicting flags can produce a misleading combined description; no Designer-only
+validation or reconciliation policy is invented. Layout, paint, intrinsic sizing
+and ordinary hits still proxy the child. Project callbacks remain isolated/no-op
+in Canvas and are emitted normally in generated Dart.
+
+Designer selection gestures must not override merged application semantic actions.
+Suppress only synthetic Designer gesture semantics and identity/selected annotations
+inside the merged subtree, retaining actual widget semantics and accessible preview
+diagnostics. Keep outer MergeSemantics Designer identity, individual NetBeans tree
+navigation, mouse selection/double-click, keys/outlines, geometric DnD and F2 editing.
+Nested merging carries this scope; children moved outside regain normal Designer
+semantics. No blanket ExcludeSemantics or fake application node is introduced.
+
+The full slice includes exact validation/projection, const/non-const generation and
+provenance, codec/payload round-trip, identity/Slots, all Palette/tree/Canvas insertion
+and movement routes, child add/replace/clear/cancel, Save/reopen/further child and
+descendant edits, Undo/Redo, rejected-change rollback, accessibility hints and four
+distinct light/dark 16/32px SVGs. Existing encodings suffice: schema/API/model stay
+13/14/18 and NBFC framing/control/wire stay 1.
+
+Current totals: 58 widgets, 52 const definitions, 764 writable rows (747 outside
+Scaffold); 55 scalar definitions plus structural IntrinsicHeight/RepaintBoundary/
+MergeSemantics. Fifty-three any-widget plus two trait destinations form 58x55 =
+3,190 cells, 2,923 accepted and 267 rejected. Categories: Layout 31, Scrolling 3,
+Basic 17, Material 4, Accessibility 3. Historical practical target: 58/92 with 34
+remaining. Full physical desktop acceptance remains deferred until the palette
+target is done.
+
+Validation (2026-09-05): final Flutter format/analyze checks pass and all 602 Flutter
+tests pass, including 24 dedicated MergeSemantics cases. Full Canvas verifies one
+exported merged descendant node, separate outside and outer Designer nodes,
+combined labels/states, nested groups and normal pointer/layout/paint/intrinsic
+behavior. Plain Text does not acquire a synthetic tap; real button semantic taps
+do not select a Designer ancestor, and TextField contributes its genuine state.
+Image-unavailable diagnostics remain accessible. Actual reparenting of the same
+descendant outside and back restores/removes only synthetic Designer contributions.
+Childless/tight nodes, replacement/clear, DnD/moves and F2 descendant editing pass
+on Windows/Web model profiles. A complementary real-SDK callback-counter test
+proves tree-order handler selection and conflicting checked-state behavior without
+executing project callbacks. The complete core suite passes 1,135 tests and the
+focused NetBeans suite passes 533. The dedicated pinned Flutter 3.44.8 analyzer
+test accepts all structural/const/non-const constructor branches, verifies symbol
+provenance and rejects invented fields, wrong child types and invalid const without
+changing the original project file.
+
+Clean Maven install succeeds across all 11 modules. Surefire records 3,393 tests,
+zero failures/errors and six declared optional skips; Failsafe records 13 tests,
+zero failures/errors and one optional native-desktop skip. The complete real-SDK
+analyzer class passes 11 cases and mutation-controller integration passes 77.
+Both actual Web artifact/build suites pass all 41 cases without skips. Release
+Web build succeeds; all 40 source-manifest and 35 offline Web-manifest entries
+match final files. main.dart.js is 2,864,282 bytes, SHA-256
+70c080b1e8def70ddd5ee0aa991364e62e875b3ef5a37f4933f1adea27b42edd.
+nbm:cluster and release metadata/freshness verification pass. NBM size: 7,281,998
+bytes; SHA-256 ABFA580A8DB3B95B994CA6795771DD8A45A0DFB760809A18AE6B8984100B5664.
 Installed-userdir and full physical desktop acceptance were not performed; optional
 skips are recorded and not presented as passed physical tests.

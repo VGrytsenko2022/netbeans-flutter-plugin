@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(57, javaTypes.size(),
+        assertEquals(58, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -80,6 +80,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.IgnorePointer"));
         assertTrue(javaTypes.contains("flutter.widgets.AbsorbPointer"));
         assertTrue(javaTypes.contains("flutter.widgets.BlockSemantics"));
+        assertTrue(javaTypes.contains("flutter.widgets.MergeSemantics"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -115,6 +116,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.widgets.IgnorePointer\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.AbsorbPointer\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.BlockSemantics\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.MergeSemantics\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -220,6 +222,8 @@ class FlutterWidgetCapabilityParityTest {
                 "AbsorbPointer.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.BlockSemantics"),
                 "BlockSemantics.child is an ordinary optional any-widget insertion target");
+        assertTrue(javaContainers.contains("flutter.widgets.MergeSemantics"),
+                "MergeSemantics.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.RepaintBoundary"),
                 "RepaintBoundary.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.PhysicalShape"),

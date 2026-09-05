@@ -3788,6 +3788,9 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.MergeSemantics': _WidgetSpec(const {}, {
+    'child': _optionalSingleSlot,
+  }),
   'flutter.widgets.BlockSemantics': _WidgetSpec(
     {
       'blocking': _PropertySpec({'boolean'}),
@@ -5873,6 +5876,8 @@ P|scrollDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Ax
 P|semanticChildCount|integer|0|-|integer:0:1:9007199254740991:1|integer:range:0:1:9007199254740991:1
 P|shrinkWrap|boolean|0|-|-|boolean:any
 S|children|list|0|0|10000|any
+W|flutter.widgets.MergeSemantics
+S|child|single|0|0|1|any
 W|flutter.widgets.Offstage
 P|offstage|boolean|0|-|-|boolean:any
 S|child|single|0|0|1|any

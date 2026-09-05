@@ -80,6 +80,7 @@ public final class BuiltInWidgetCatalog {
             absorbPointer(),
             excludeSemantics(),
             blockSemantics(),
+            mergeSemantics(),
             elevatedButton(),
             textField()));
 
@@ -1865,6 +1866,14 @@ public final class BuiltInWidgetCatalog {
                 "BlockSemantics", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.accessibility", 400, 20, "BlockSemantics"), properties,
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition mergeSemantics() {
+        return widget(
+                "flutter.widgets.MergeSemantics", "MergeSemantics", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.accessibility", 400, 30, "MergeSemantics"), List.of(),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

@@ -1057,6 +1057,72 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesMergeSemanticsCompleteStructuralConstructor() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("merge_semantics_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const MergeSemantics();
+                Widget nullableChild() => const MergeSemantics(child: null);
+                Widget nested() => const Center(child: MergeSemantics(
+                  child: MergeSemantics(child: Row(children: [Text('First'), Text('Second')])),
+                ));
+                Widget themed(BuildContext context) => MergeSemantics(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+                );
+                Widget nonConstDescendant() => MergeSemantics(child: Text(DateTime.now().toString()));
+                Widget controls() => MergeSemantics(child: Row(children: [
+                  Checkbox(value: true, onChanged: (value) {}),
+                  const Text('Settings'),
+                ]));
+                Widget actions() => MergeSemantics(child: Row(children: [
+                  ElevatedButton(onPressed: () {}, child: const Text('First action')),
+                  ElevatedButton(onPressed: () {}, child: const Text('Second action')),
+                ]));
+                Widget editable() => const MergeSemantics(child: TextField());
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("merge-semantics",
+                valid.indexOf("MergeSemantics"), "MergeSemantics",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 900, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 901;
+        for (String invalid : List.of(
+                "const MergeSemantics(blocking: true)",
+                "const MergeSemantics(excluding: true)",
+                "const MergeSemantics(mergeAllDescendantsIntoThisNode: true)",
+                "const MergeSemantics(children: <Widget>[])",
+                "const MergeSemantics(child: 'not a widget')",
+                "const MergeSemantics(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

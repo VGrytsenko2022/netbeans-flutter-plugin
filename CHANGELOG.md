@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `MergeSemantics` in Accessibility at order 30 with its complete constructor:
+  optional child and managed key, no scalar fields. Exact structural capability
+  retains identity/Slots and descendant editing without invented property rows.
+  The real Canvas widget merges descendant labels/states/actions into one node,
+  preserving layout, paint and ordinary hits. Includes placement/move routes,
+  child add/replace/clear, Save/reopen/further editing, Undo/Redo, rollback,
+  accessibility and four SVGs. Hints explain conflicting states and Flutter's
+  first-tree-order handler rule. Schema/API/model remain 13/14/18. Current surface:
+  58 widgets, 52 const definitions, 764 rows (747 outside Scaffold), 3,190 placements
+  (2,923 accepted / 267 rejected), Accessibility 3. Historical target 58/92 with
+  34 remaining; full physical desktop acceptance remains deferred.
+
 - `BlockSemantics` in Accessibility at order 20 with its complete constructor:
   optional blocking (SDK true), optional child and managed key. Centered checkbox
   values remain distinct from unset. The real Canvas widget hides earlier-painted
@@ -13,7 +25,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   content without changing pointer hits, layout or paint. Includes Properties/Slots,
   all insertion/move routes, Save/reopen/further editing, Undo/Redo, rollback,
   accessibility and four unique SVGs. Schema/API/model remain 13/14/18.
-  Current surface: 57 widgets, 51 const definitions, 764 rows (747 outside Scaffold),
+  At that milestone: 57 widgets, 51 const definitions, 764 rows (747 outside Scaffold),
   3,078 placements (2,816 accepted / 262 rejected), Accessibility 2. Historical
   practical target 57/92 with 35 remaining; full physical desktop gate is deferred.
 

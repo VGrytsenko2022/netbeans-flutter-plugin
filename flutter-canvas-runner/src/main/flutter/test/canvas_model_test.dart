@@ -5318,7 +5318,7 @@ void main() {
   test('ListView reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ListView\n');
-    final end = contract.indexOf('W|flutter.widgets.Offstage\n', start);
+    final end = contract.indexOf('W|flutter.widgets.MergeSemantics\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);

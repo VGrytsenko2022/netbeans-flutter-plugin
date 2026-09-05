@@ -6911,10 +6911,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Directionality\n');
-      final end = contract.indexOf(
-        'W|flutter.widgets.ExcludeFocus\n',
-        start,
-      );
+      final end = contract.indexOf('W|flutter.widgets.ExcludeFocus\n', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(
@@ -7217,7 +7214,10 @@ void main() {
   test('DecoratedBox reviewed schema is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.DecoratedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.Directionality\n', start);
+    final end = contract.indexOf(
+      'W|flutter.widgets.DefaultTextHeightBehavior\n',
+      start,
+    );
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

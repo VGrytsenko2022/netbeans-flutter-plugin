@@ -36,10 +36,11 @@ ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 `PhysicalShape`, ADR-082 adds `RepaintBoundary`, ADR-083 adds `IgnorePointer`,
 ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
-ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, and ADR-091
-establishes the current `TickerMode` surface: 776 typed rows across sixty-three
-widgets, fifty-seven const-constructor definitions and 3,591 Palette/DnD candidates,
-including 3,308 accepted and 283 rejected cells. The 759-field
+ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
+`TickerMode`, and ADR-092 establishes the current `DefaultTextHeightBehavior`
+surface: 779 typed rows across sixty-four widgets, fifty-eight const-constructor
+definitions and 3,648 Palette/DnD candidates, including 3,363 accepted and 285
+rejected cells. The 762-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -49,7 +50,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-091 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-092 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -301,7 +302,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-091 make 759 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-092 make 762 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -342,7 +343,9 @@ required child wrapper slot. ExcludeFocusTraversal adds one optional excluding
 boolean and its required child wrapper slot. Visibility adds seven optional
 booleans, required child and optional replacement slots. TickerMode adds required
 enabled and optional forceFrames booleans with a required child wrapper slot.
-Scaffold separately contributes 17 rows, giving 776 overall.
+DefaultTextHeightBehavior adds three optional leaves forming the required
+TextHeightBehavior value and a required child wrapper slot. Scaffold separately
+contributes 17 rows, giving 779 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -415,8 +418,9 @@ matrix (3,032 accepted / 272 rejected). ADR-088 establishes the historical sixty
 3,360-candidate matrix (3,086 accepted / 274 rejected). ADR-089 establishes the historical
 sixty-one-source, 3,416-candidate matrix (3,140 accepted / 276 rejected). ADR-090
 establishes the historical sixty-two-source, 3,534-candidate matrix
-(3,253 accepted / 281 rejected). ADR-091 establishes the current sixty-three-source,
-3,591-candidate matrix (3,308 accepted / 283 rejected).
+(3,253 accepted / 281 rejected). ADR-091 establishes the historical sixty-three-source,
+3,591-candidate matrix (3,308 accepted / 283 rejected). ADR-092 establishes the current
+sixty-four-source, 3,648-candidate matrix (3,363 accepted / 285 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -427,7 +431,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -441,16 +445,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-three-widget model for Mobile, Tablet,
+Canvas now renders the validated sixty-four-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-three Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,591-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,308 cells are accepted and 283 rejected.
+those sixty-four Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,648-cell candidate matrix across fifty-five insertable any-widget and two
+trait-bound destination slots; 3,363 cells are accepted and 285 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility and TickerMode use the same generic atomic required-child wrapper
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode and DefaultTextHeightBehavior use the same generic atomic required-child wrapper
 mode, with tree root/non-root and Canvas non-root-only targets; none can wrap Expanded,
 Flexible or Spacer.
 Canvas model
@@ -4349,7 +4353,7 @@ palette/tree/Canvas placement and movement, save/reopen/further editing, Undo/Re
 rollback, accessibility and four light/dark 16/32px SVGs. No format/protocol bump:
 FD schema 13, API model 14, Canvas model 18 and NBFC1 remain unchanged.
 
-Current totals: 63 widgets, 57 const definitions, 776 writable rows (759 outside
+At that milestone: 63 widgets, 57 const definitions, 776 writable rows (759 outside
 Scaffold); 60 scalar plus structural IntrinsicHeight/RepaintBoundary/MergeSemantics.
 The 55 any-widget plus two trait destinations remain 57 insertable slots:
 63x57 = 3,591 cells, 3,308 accepted and 283 rejected. Categories: Layout 31,
@@ -4389,3 +4393,96 @@ nbm:cluster and release metadata/freshness verification pass. NBM size: 7,317,72
 bytes; SHA-256 BF68C564A21ABA133396CF1E1773944752ADFD416BB0B95B53A7810059520DED.
 Installed-userdir and full physical desktop acceptance were not performed; optional
 skips are recorded and not presented as passed physical tests.
+
+## ADR-092 — DefaultTextHeightBehavior completes the required inherited composite
+
+Accepted: 2026-09-05.
+
+Add flutter.widgets.DefaultTextHeightBehavior as one STATIC_EDITABLE Basic palette
+definition at order 200. The reviewed official API and pinned Flutter 3.44.8 text.dart
+define a const constructor with required non-null TextHeightBehavior and required
+non-null child, plus managed key. The TextHeightBehavior value itself exposes all
+three supported arguments: applyHeightToFirstAscent=true, applyHeightToLastDescent=true
+and leadingDistribution=TextLeadingDistribution.proportional, with even as the other
+enum member. There are no further public value constructor branches to defer.
+
+Reuse the existing Text flattened names textHeightApplyFirstAscent,
+textHeightApplyLastDescent and textHeightLeadingDistribution, their Boolean/closed
+enum representations and scalar property editors. Catalog leaf orders are 0/1/2,
+with the required SINGLE any-widget child at order 3 and min=max=1. All scalar
+leaves are optional and have no creation defaults. Generation maps them to the
+actual inner member names and always emits the required textHeightBehavior composite
+before child. All-unset therefore produces const TextHeightBehavior(), not an
+omitted argument or null. This differs deliberately from Text's optional local
+composite, which must still disappear when its last explicit leaf is reset.
+
+The two booleans render and edit as centered checkboxes, retaining unset/false/true.
+The enum retains unset/even/proportional. Reset removes only the selected leaf;
+all-unset still creates the value's true/true/proportional defaults and replaces
+an outer inherited value as a whole. It does not merge missing leaves with the
+outer wrapper. Validate all 27 omission/value combinations, wrong kinds, foreign
+enum domains/members and malformed required child; do not impose new TextStyle
+height constraints. Leading distribution is applied before the first-ascent and
+last-descent flags, and the wrapper itself does not supply a font size or height.
+
+Reuse the generic atomic required-child wrapper flow, with tree root/non-root and
+Canvas non-root targets. Required child replacement is atomic; clearing/removal/
+moving it away independently is forbidden. Intact wrappers use normal placement
+and history rules. Expanded/Flexible/Spacer cannot become its child because their
+ParentData requires a direct Row/Column ancestor. No empty child is fabricated.
+
+Render actual SDK DefaultTextHeightBehavior with an always-present value. The
+existing nullable Text helper remains unchanged; only this required wrapper supplies
+its default when no leaf is explicit. Descendant Text prefers an explicit local
+behavior, then a non-null DefaultTextStyle behavior, then the nearest inherited
+DefaultTextHeightBehavior. EditableText's explicit/inherited behavior, nested
+all-unset reset, inherited notifications, InheritedTheme wrap/capture and actual
+TextPainter line metrics remain SDK behavior. No substitute layout or geometry
+filter is introduced. Selection, pointer hits, labels, retained focus and F2 remain
+available as text geometry changes.
+
+The complete slice covers schema/capability, compound generation/provenance and
+const propagation, codec/payload, Properties/Slots, palette/tree/Canvas placement,
+required-child protection, save/reopen/further editing, Undo/Redo, rejected-change
+rollback, accessibility and four distinct light/dark 16/32px SVGs. Existing value
+shapes suffice: FD schema 13, API model 14, Canvas model 18 and NBFC1 stay unchanged.
+
+Current totals: 64 widgets, 58 const definitions, 779 writable rows (762 outside
+Scaffold); 61 scalar plus structural IntrinsicHeight/RepaintBoundary/MergeSemantics.
+The 55 any-widget plus two trait destinations remain 57 insertable slots:
+64x57 = 3,648 cells, 3,363 accepted and 285 rejected. Categories: Layout 31,
+Scrolling 3, Basic 20, Material 4, Accessibility 6. Historical practical target:
+64/92 with 28 remaining. This is an API-reviewed successor; the historical ordered
+92-widget inventory has not been recovered. Full physical desktop acceptance stays
+deferred until the palette target is complete.
+
+Focused validation: all 25 new DefaultTextHeightBehavior Flutter cases and the
+complete 777-test Canvas suite pass; analyze and formatting are clean. Coverage
+includes all omission combinations, eight rendered configurations against TextPainter
+height/baselines, local/default-style/inherited precedence, EditableText and guarded
+TextField inheritance, inherited-theme capture/wrap and change notification, retained
+focus/semantics/pointer interaction, F2 and required-child wrapping/move protection
+on Windows/Web model profiles. Core tests pass all 1,226 cases, including 18 new
+contract/command/payload tests and the Text optional-composite non-regression.
+
+The focused NetBeans suite passes 682 cases, including 11 new tests, 84 mutation
+lifecycle cases and the shared 124-Boolean editor contract. Both checkboxes retain
+unset/false/true without replacing the property sheet, and enum/reset preserves
+the exact domain. The lifecycle suite covers each leaf, reset of all leaves while
+retaining the required composite, nested required-child replacement, save/reopen,
+further descendant edits, Undo/Redo and rejected-change rollback.
+
+Final validation in the canonical G: checkout: `mvn clean install` with the pinned
+Flutter/Dart SDK and real Web artifact passes all 11 reactor modules. Surefire
+records 3,563 tests (zero failures/errors, six allowed optional skips); Failsafe
+records 13 tests (zero failures/errors, one allowed physical Windows Canvas skip).
+The real Dart candidate analyzer suite passes 17 tests, including the new complete
+DefaultTextHeightBehavior default/eight-value/inheritance/invalid-input fixture
+and three accepted SDK symbol probes. `mvn nbm:cluster` and `tools/verify-release.ps1`
+pass. No installed-userdir or physical desktop acceptance is claimed.
+
+The rebuilt Web entry is 2,870,332 bytes with SHA-256
+`1cc72b5072a91dc4b379ec155f00bbba89be431bea8cc600616abf821fc3578c`;
+both source/Web manifests and the artifact contract match. The verified
+`netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,325,029 bytes with SHA-256
+`B6DC1A0D887E49E464FE84054DABAC8171C682472A1DCD0F75C9BEEC837FA381`.

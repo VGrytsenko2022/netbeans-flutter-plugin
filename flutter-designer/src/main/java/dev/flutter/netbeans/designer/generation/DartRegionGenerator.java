@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -365,6 +366,10 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE)) {
+                // All three flattened leaves belong inside the required composite.
+                continue;
+            }
             if (node.type().equals(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE)
                     && ScaffoldWidgetPropertySchema.isStaticPreset(property.name())) {
                 continue;
@@ -440,6 +445,23 @@ public final class DartRegionGenerator {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
+        }
+        if (node.type().equals(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE)) {
+            ArrayList<CompositeMember> members = new ArrayList<>();
+            for (PropertyDefinition property : definition.properties()) {
+                PropertyValue value = node.properties().get(property.name());
+                if (value == null) continue;
+                var binding = DefaultTextHeightBehaviorWidgetPropertySchema.find(property.name()).orElseThrow();
+                String propertyPath = path + "/properties/" + pointer(property.name().value());
+                members.add(new CompositeMember(binding.dartName(), binding.dartOrder(),
+                        renderProperty(value, property, propertyPath, node.id(), context)));
+            }
+            members.sort(COMPOSITE_MEMBER_ORDER);
+            // Unlike Text's optional composite, all-unset still overrides ambient
+            // values with const TextHeightBehavior() (true/true/proportional).
+            arguments.add(new ConstructorArgument(DartParameter.named(0, true), "textHeightBehavior", false,
+                    renderNamedCompositeMembers("TextHeightBehavior", Optional.empty(), members,
+                            constructorBaseIndent + 2, path + "/properties/textHeightBehavior", node.id(), context)));
         }
         if (node.type().equals(ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE)) {
             appendScaffoldStaticPresetArguments(

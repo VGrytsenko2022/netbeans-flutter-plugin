@@ -21,6 +21,7 @@ import dev.flutter.netbeans.designer.catalog.ExcludeFocusWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusTraversalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VisibilityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TickerModeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -541,6 +542,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addVisibilityPropertySets(sheet, hasSlotTab);
         } else if (TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.equals(widget.type())) {
             addTickerModePropertySets(sheet, hasSlotTab);
+        } else if (DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.equals(widget.type())) {
+            addDefaultTextHeightBehaviorPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -735,6 +738,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child receiving the nearest inherited TextHeightBehavior default. "
+                    + "Local or nearer text-height behavior can override it. Flags affect text with a height multiplier; "
+                    + "this wrapper does not invent a font size or height. Designer selection and editing remain available. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
         if (TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child whose widget-aware tickers inherit Enabled and Force frames. "
@@ -2485,6 +2496,29 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
                             + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addDefaultTextHeightBehaviorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<DefaultTextHeightBehaviorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(DefaultTextHeightBehaviorWidgetPropertySchema.Group.class);
+        for (DefaultTextHeightBehaviorWidgetPropertySchema.Group group
+                : DefaultTextHeightBehaviorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = DefaultTextHeightBehaviorWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " <not set> preserves true for both Apply flags and proportional for Leading distribution. "
+                            + "Even with all leaves unset, the required TextHeightBehavior object is emitted with its defaults; "
+                            + "the wrapper does not pass through an outer behavior. Local or nearer behavior can override it. "
+                            + "These flags affect text with a height multiplier without inventing a font size or height. "
+                            + "Explicit booleans use centered checkboxes; Restore Default returns this leaf to <not set>. "
+                            + "Designer child and descendant editing remain available."));
         }
     }
 

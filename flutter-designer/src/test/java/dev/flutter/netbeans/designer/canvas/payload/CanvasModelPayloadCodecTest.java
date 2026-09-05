@@ -131,6 +131,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.Visibility",
                 "flutter.widgets.TickerMode",
+                "flutter.widgets.DefaultTextHeightBehavior",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -1352,6 +1353,62 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void defaultTextHeightBehaviorPayloadPreservesAll27FlattenedCombinationsAndRealChild() throws Exception {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Default height child");
+        var states = List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true));
+        var leadingStates = List.of(Optional.<String>empty(), Optional.of("even"), Optional.of("proportional"));
+        int combinations = 0;
+        for (var first : states) for (var last : states) for (var leading : leadingStates) {
+            combinations++;
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            first.ifPresent(value -> properties.put(new PropertyName("textHeightApplyFirstAscent"), new PropertyValue.BooleanValue(value)));
+            last.ifPresent(value -> properties.put(new PropertyName("textHeightApplyLastDescent"), new PropertyValue.BooleanValue(value)));
+            leading.ifPresent(value -> properties.put(new PropertyName("textHeightLeadingDistribution"), new PropertyValue.EnumValue("TextLeadingDistribution", value)));
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.DefaultTextHeightBehavior"), properties,
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.DefaultTextHeightBehavior\""), json);
+            assertTrue(json.contains("Default height child"), json);
+            assertEquals(first.isPresent(), json.contains("\"textHeightApplyFirstAscent\":"), json);
+            assertEquals(last.isPresent(), json.contains("\"textHeightApplyLastDescent\":"), json);
+            assertEquals(leading.isPresent(), json.contains("\"textHeightLeadingDistribution\":"), json);
+            first.ifPresent(value -> assertTrue(json.contains("\"textHeightApplyFirstAscent\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+            last.ifPresent(value -> assertTrue(json.contains("\"textHeightApplyLastDescent\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+            leading.ifPresent(value -> assertTrue(json.contains("\"textHeightLeadingDistribution\":{\"kind\":\"enum\",\"type\":\"TextLeadingDistribution\",\"value\":\"" + value + "\"}"), json));
+            for (String name : List.of("key", "textHeightBehavior", "applyHeightToFirstAscent", "applyHeightToLastDescent", "leadingDistribution")) {
+                assertFalse(json.contains("\"" + name + "\":"), json);
+            }
+        }
+        assertEquals(27, combinations);
+    }
+
+    @Test
+    void defaultTextHeightBehaviorPayloadRejectsInvalidKindsEnumsAndMissingChildBeforeSerialization() {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Default height child");
+        for (String name : List.of("textHeightApplyFirstAscent", "textHeightApplyLastDescent", "textHeightLeadingDistribution")) {
+            for (PropertyValue invalid : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                    new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), new PropertyValue.DartExpressionValue("TextHeightBehavior()"))) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.DefaultTextHeightBehavior"),
+                        Map.of(new PropertyName(name), invalid), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        for (var node : List.of(
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultTextHeightBehavior"), Map.of(), Map.of()),
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultTextHeightBehavior"), Map.of(),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())),
+                new WidgetNode(StableId.random(), type("flutter.widgets.DefaultTextHeightBehavior"),
+                        Map.of(new PropertyName("textHeightLeadingDistribution"), new PropertyValue.EnumValue("TextLeadingDistribution", "invalid")),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

@@ -3912,6 +3912,14 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot},
   ),
+  'flutter.widgets.DefaultTextHeightBehavior': _WidgetSpec(
+    {
+      'textHeightApplyFirstAscent': _PropertySpec({'boolean'}),
+      'textHeightApplyLastDescent': _PropertySpec({'boolean'}),
+      'textHeightLeadingDistribution': _textLeadingDistributionProperty,
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.RepaintBoundary': _WidgetSpec({}, {
     'child': _optionalSingleSlot,
   }),
@@ -5788,6 +5796,12 @@ W|flutter.widgets.DecoratedBox
 P|decoration|boxDecoration|1|boxDecoration:empty|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|position|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3JlbmRlcmluZy5kYXJ0:DecorationPosition:background,foreground
 S|child|single|0|0|1|any
+W|flutter.widgets.DefaultTextHeightBehavior
+P|textHeightApplyFirstAscent|boolean|0|-|-|boolean:any
+P|textHeightApplyLastDescent|boolean|0|-|-|boolean:any
+P|textHeightLeadingDistribution|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextLeadingDistribution:even,proportional
+S|child|single|1|1|1|any
+C|flutter.widgets.DefaultTextHeightBehavior|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.Directionality
 P|textDirection|enum|1|enum:TextDirection:ltr|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 S|child|single|1|1|1|any

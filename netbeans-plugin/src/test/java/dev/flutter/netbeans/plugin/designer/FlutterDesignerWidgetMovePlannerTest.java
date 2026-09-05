@@ -137,6 +137,37 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void completedDefaultTextHeightBehaviorMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "focus child");
+        WidgetNode defaultTextHeightBehavior = new WidgetNode(
+                A_ID,
+                new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"),
+                Map.of(new PropertyName("textHeightApplyFirstAscent"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(defaultTextHeightBehavior, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                defaultTextHeightBehavior.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(defaultTextHeightBehavior.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                defaultTextHeightBehavior.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, defaultTextHeightBehavior, result);
+    }
+
+    @Test
     void completedTickerModeMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "focus child");
         WidgetNode tickerMode = new WidgetNode(

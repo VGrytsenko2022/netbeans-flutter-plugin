@@ -83,6 +83,73 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void defaultTextHeightBehaviorProjectsAllThreeOptionalLeavesWithoutRecreatingPropertyCells() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.DefaultTextHeightBehavior");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        WidgetNode widget = new WidgetNode(id, definition.typeId(), Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+        assertTrue(WidgetNodePrototypeFactory.create(definition, id).properties().isEmpty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length, "identity, text height and required child Slots");
+        for (String name : List.of("textHeightApplyFirstAscent", "textHeightApplyLastDescent")) {
+            var cell = cellProperty(property(node, name));
+            assertTrue(cell.canWrite());
+            assertTrue(cell.supportsDefaultValue());
+            assertEquals(FlutterPropertyCellValue.unset(), cell.getValue());
+            for (String flag : List.of("true", "false")) {
+                PropertyEditor editor = cell.getPropertyEditor();
+                editor.setAsText(flag);
+                assertNull(editor.getTags());
+                assertTrue(editor.isPaintable());
+                assertEquals(new PropertyValue.BooleanValue(Boolean.parseBoolean(flag)), cell(editor).explicitValue().orElseThrow());
+            }
+            assertTrue(cell.getShortDescription().contains("required TextHeightBehavior object is emitted"));
+            assertTrue(cell.getShortDescription().contains("does not pass through an outer behavior"));
+            assertTrue(cell.getShortDescription().contains("without inventing a font size or height"));
+            commands.clear();
+            cell.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+            assertEquals(List.of(new SetProperty(id, new PropertyName(name), new PropertyValue.BooleanValue(false))), commands);
+            var explicit = new WidgetNode(id, definition.typeId(),
+                    Map.of(new PropertyName(name), new PropertyValue.BooleanValue(false)), widget.slots());
+            node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            assertEquals(List.of(sets), List.of(node.getPropertySets()));
+            assertSame(cell, property(node, name));
+            assertNull(cell.getPropertyEditor().getTags());
+            commands.clear();
+            cell.restoreDefaultValue();
+            assertEquals(List.of(new ResetProperty(id, new PropertyName(name))), commands);
+            node.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        }
+        var distribution = cellProperty(property(node, "textHeightLeadingDistribution"));
+        assertTrue(distribution.supportsDefaultValue());
+        assertEquals(FlutterPropertyCellValue.unset(), distribution.getValue());
+        assertEquals(List.of(FlutterPropertyCellValue.NOT_SET_TEXT, "proportional", "even"),
+                List.of(distribution.getPropertyEditor().getTags()));
+        PropertyName name = new PropertyName("textHeightLeadingDistribution");
+        for (String member : List.of("proportional", "even")) {
+            PropertyEditor editor = distribution.getPropertyEditor();
+            editor.setAsText(member);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("TextLeadingDistribution", member)), editor.getValue());
+        }
+        commands.clear();
+        distribution.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("TextLeadingDistribution", "even")));
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.EnumValue("TextLeadingDistribution", "even"))), commands);
+        var explicit = new WidgetNode(id, definition.typeId(),
+                Map.of(name, new PropertyValue.EnumValue("TextLeadingDistribution", "even")), widget.slots());
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertSame(distribution, property(node, name.value()));
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        commands.clear();
+        distribution.restoreDefaultValue();
+        assertEquals(List.of(new ResetProperty(id, name)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+    }
+
+    @Test
     void tickerModeRequiredEnabledAndOptionalForceFramesPreserveCheckboxIdentityAndIndependentEdits() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.TickerMode");
         WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
@@ -1066,6 +1133,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.ExcludeFocusTraversal",
                     "flutter.widgets.Visibility",
                     "flutter.widgets.TickerMode",
+                    "flutter.widgets.DefaultTextHeightBehavior",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1101,7 +1169,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(776, writableCount,
+        assertEquals(779, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1114,7 +1182,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(759, nonScaffoldWritableCount,
+        assertEquals(762, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -5965,6 +6033,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.ExcludeFocusTraversal");
         typeIds.add("flutter.widgets.Visibility");
         typeIds.add("flutter.widgets.TickerMode");
+        typeIds.add("flutter.widgets.DefaultTextHeightBehavior");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -5994,7 +6063,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(63, iconPaths.size(),
+        assertEquals(64, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

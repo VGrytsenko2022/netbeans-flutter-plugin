@@ -1651,11 +1651,26 @@ accepted architecture is documented in
   state and content while muting callbacks rather than pausing elapsed time.
   Reuse generic required-child wrapping/replacement and movement protection.
   Cover generation/provenance, codec/payload, Properties/Slots, placement, save/
-  reopen/further editing, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  reopen/further editing, Undo/Redo, rollback, F2 and four SVGs. At that milestone:
   63 widgets, 57 const definitions, 776 rows (759 outside Scaffold), 60 scalar plus
   three structural definitions; 55 any-widget plus two trait slots remain 57
   destinations, 3,591 cells (3,308 accepted / 283 rejected), Basic 19. Historical
   target 63/92 with 29 remaining; schema/API/model stay 13/14/18. This is an
+  API-reviewed successor, not a recovered fixed-order inventory. Full physical
+  desktop acceptance remains deferred until the palette is complete.
+- [x] Add `DefaultTextHeightBehavior` in Basic at order 200 with both required
+  constructor arguments: a complete TextHeightBehavior value and child. Project
+  the value into Text's existing three optional typed leaves, with centered Boolean
+  checkboxes and a closed TextLeadingDistribution enum. All-unset still constructs
+  the required default value rather than omitting it or inheriting an outer value;
+  preserve Text's separate optional-composite semantics. Cover actual SDK text
+  precedence, dynamic line metrics and inherited-theme behavior, plus required-child
+  wrapping/replacement/movement protection, generation/provenance, codec/payload,
+  save/reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  64 widgets, 58 const definitions, 779 rows (762 outside Scaffold), 61 scalar plus
+  three structural definitions; 55 any-widget plus two trait slots remain 57
+  destinations, 3,648 cells (3,363 accepted / 285 rejected), Basic 20. Historical
+  target 64/92 with 28 remaining; schema/API/model stay 13/14/18. This is an
   API-reviewed successor, not a recovered fixed-order inventory. Full physical
   desktop acceptance remains deferred until the palette is complete.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
@@ -1675,8 +1690,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-three admitted built-ins.
-  The 60 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-four admitted built-ins.
+  The 61 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

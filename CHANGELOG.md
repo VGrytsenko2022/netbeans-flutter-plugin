@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `DefaultTextHeightBehavior` in Basic at order 200 with all three TextHeightBehavior
+  settings and a required child. Both Boolean leaves use centered checkboxes with
+  unset/false/true; leading distribution supports unset/even/proportional. All-unset
+  still generates the required default TextHeightBehavior(), not null or an omitted
+  argument. Actual Canvas preserves inherited/default-style/local Text precedence,
+  dynamic text layout and inherited-theme behavior. Includes composite generation/
+  provenance, codec/payload, wrapping/slot replacement/movement protection, save/
+  reopen/further edits, Undo/Redo, rollback, F2 and four SVGs. Current surface:
+  64 widgets, 58 const definitions, 779 rows (762 outside Scaffold), 3,648 placements
+  (3,363 accepted / 285 rejected), Basic 20. Historical target 64/92 with 28 remaining;
+  schema/API/model stay 13/14/18. Full physical desktop acceptance remains deferred.
+
 - `TickerMode` in Basic at order 190 with the complete const constructor: required
   enabled, optional forceFrames and required child. Enabled starts true as a
   Designer creation value and cannot be unset; forceFrames preserves unset/false/
@@ -13,7 +25,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   and OR for forceFrames, mutes ticker callbacks without pausing elapsed time, and
   retains visible content, state and editing. Includes required-child wrapping,
   replacement/movement protection, generation/provenance, codec/payload,
-  save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current surface:
+  save/reopen/further edits, Undo/Redo, rollback and four SVGs. At that milestone:
   63 widgets, 57 const definitions, 776 rows (759 outside Scaffold), 3,591 placements
   (3,308 accepted / 283 rejected), Basic 19. Historical target 63/92 with 29 remaining;
   schema/API/model stay 13/14/18. Full physical desktop acceptance remains deferred.

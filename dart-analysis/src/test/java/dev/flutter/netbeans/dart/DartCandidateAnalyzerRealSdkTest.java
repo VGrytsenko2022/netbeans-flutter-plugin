@@ -1515,6 +1515,109 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesDefaultTextHeightBehaviorCompleteCompositeAndInheritance() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("default_text_height_behavior_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaultComposite() => const DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(), child: Text('Required default'));
+                Widget nestedReset() => const DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false,
+                    applyHeightToLastDescent: false, leadingDistribution: TextLeadingDistribution.even),
+                  child: DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(),
+                    child: Text('Nearest defaults', style: TextStyle(height: 2))));
+                Widget localText() => const DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false),
+                  child: Text('Local wins', textHeightBehavior: TextHeightBehavior(),
+                    style: TextStyle(height: 2)));
+                Widget defaultStyle() => const DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: false),
+                  child: DefaultTextStyle(style: TextStyle(height: 2),
+                    textHeightBehavior: TextHeightBehavior(applyHeightToLastDescent: false),
+                    child: Text('Style precedence')));
+                Widget input() => const DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(leadingDistribution: TextLeadingDistribution.even),
+                  child: TextField(style: TextStyle(height: 2)));
+                Widget changing(bool first, bool last, TextLeadingDistribution leading) => DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: first,
+                    applyHeightToLastDescent: last, leadingDistribution: leading),
+                  child: Text(DateTime.now().toString()));
+                Widget themed(BuildContext context) => DefaultTextHeightBehavior(
+                  textHeightBehavior: const TextHeightBehavior(),
+                  child: Text('Theme', style: TextStyle(color: Theme.of(context).colorScheme.primary)));
+                Widget composition() => const TickerMode(enabled: false,
+                  child: Visibility.maintain(child: IndexedSemantics(index: 0,
+                    child: DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(), child: Text('Nested')))));
+                Widget scrolling() => ListView(children: const [DefaultTextHeightBehavior(
+                  textHeightBehavior: TextHeightBehavior(), child: Text('Scroll'))]);
+                List<Widget> matrix() => const <Widget>[
+                """);
+        for (boolean first : List.of(false, true)) {
+            for (boolean last : List.of(false, true)) {
+                for (String distribution : List.of("proportional", "even")) {
+                    valid.append("DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(")
+                            .append("applyHeightToFirstAscent: ").append(first)
+                            .append(", applyHeightToLastDescent: ").append(last)
+                            .append(", leadingDistribution: TextLeadingDistribution.").append(distribution)
+                            .append("), child: Text('Matrix')),\n");
+                }
+            }
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("DefaultTextHeightBehavior", "TextHeightBehavior", "TextLeadingDistribution")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            // Generated composites use widgets.dart re-exports; their real targets
+            // can be in the pinned SDK's sky_engine library rather than framework/lib.
+            probes.add(probe("default-height-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/widgets.dart", flutterSdk));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1500, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1501;
+        for (String invalid : List.of(
+                "const DefaultTextHeightBehavior()",
+                "const DefaultTextHeightBehavior(child: Text('Missing behavior'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior())",
+                "const DefaultTextHeightBehavior(textHeightBehavior: null, child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: 'bad', child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(), child: null)",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(), child: 'bad')",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(applyHeightToFirstAscent: null), child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(applyHeightToLastDescent: 'false'), child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(leadingDistribution: TextAlign.start), child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(leadingDistribution: null), child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(), textHeightApplyFirstAscent: false, child: Text('Bad'))",
+                "const DefaultTextHeightBehavior(textHeightBehavior: TextHeightBehavior(), child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

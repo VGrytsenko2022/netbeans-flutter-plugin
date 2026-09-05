@@ -152,6 +152,111 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             id("cce2050f-8846-4378-843e-58371d52d1c5");
 
     @Test
+    void defaultTextHeightBehaviorTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument rootDocument = document(text(ROOT_ID, "root target"));
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertEquals(ROOT_ID, prepared.treeTargetId()),
+                () -> assertEquals(Optional.of(ROOT_ID), prepared.wrapTargetId()));
+
+        FlutterDesignerPaletteTreeDropAdapter.Wrapped committed = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        () -> NEW_ID));
+        WrapWidget command = committed.command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.widgetId()),
+                () -> assertEquals(NEW_ID, command.wrapper().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), command.wrapper().type()),
+                () -> assertTrue(command.wrapper().properties().isEmpty()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots()),
+                () -> assertEquals(CHILD, command.wrapperSlot()),
+                () -> assertEquals(0, command.wrapperIndex()),
+                () -> assertTrue(fixture.lifecycle().resolve(transferable).isEmpty()));
+    }
+
+    @Test
+    void defaultTextHeightBehaviorTreeDropWrapsExactExistingListAndSingleSlotChildren() {
+        WidgetNode listTarget = text(FIRST_ID, "list target");
+        DesignerDocument listDocument = document(column(List.of(listTarget)));
+        Fixture listFixture = fixture(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"));
+        StringSelection listTransfer = new StringSelection(listFixture.token());
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop listPrepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                listFixture.adapter().preview(
+                        listTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        listDocument,
+                        CATALOG,
+                        FIRST_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, listPrepared.parentId()),
+                () -> assertEquals(CHILDREN, listPrepared.slotName()),
+                () -> assertEquals(0, listPrepared.insertionIndex()),
+                () -> assertEquals(Optional.of(FIRST_ID), listPrepared.wrapTargetId()));
+        WrapWidget listCommand = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                listFixture.adapter().commit(
+                        listPrepared,
+                        listTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        listDocument,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, listCommand.widgetId());
+        assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), listCommand.wrapper().type());
+
+        WidgetNode singleTarget = text(FIRST_ID, "single target");
+        DesignerDocument singleDocument = document(center(singleTarget));
+        Fixture singleFixture = fixture(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"));
+        StringSelection singleTransfer = new StringSelection(singleFixture.token());
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop singlePrepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                singleFixture.adapter().preview(
+                        singleTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        singleDocument,
+                        CATALOG,
+                        FIRST_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, singlePrepared.parentId()),
+                () -> assertEquals(CHILD, singlePrepared.slotName()),
+                () -> assertEquals(0, singlePrepared.insertionIndex()),
+                () -> assertEquals(Optional.of(FIRST_ID), singlePrepared.wrapTargetId()));
+        WrapWidget singleCommand = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                singleFixture.adapter().commit(
+                        singlePrepared,
+                        singleTransfer,
+                        DnDConstants.ACTION_MOVE,
+                        singleDocument,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, singleCommand.widgetId());
+        assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), singleCommand.wrapper().type());
+    }
+
+    @Test
     void tickerModeTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.TickerMode"));
         StringSelection transferable = new StringSelection(fixture.token());

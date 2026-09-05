@@ -80,6 +80,7 @@ public final class BuiltInWidgetCatalog {
             absorbPointer(),
             visibility(),
             tickerMode(),
+            defaultTextHeightBehavior(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -1946,6 +1947,21 @@ public final class BuiltInWidgetCatalog {
                 WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 190, "TickerMode"), properties,
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition defaultTextHeightBehavior() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("textHeightApplyFirstAscent", 0, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("textHeightApplyLastDescent", 1, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("textHeightLeadingDistribution", 2, false,
+                        enumValues("TextLeadingDistribution", "proportional", "even")));
+        if (properties.size() != DefaultTextHeightBehaviorWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("DefaultTextHeightBehavior catalog/property schema count mismatch");
+        }
+        return widget(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE.value(),
+                "DefaultTextHeightBehavior", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 200, "DefaultTextHeightBehavior"), properties,
+                List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

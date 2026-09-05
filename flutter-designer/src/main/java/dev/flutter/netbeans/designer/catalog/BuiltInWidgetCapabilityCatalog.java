@@ -211,6 +211,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.AbsorbPointer", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Visibility", STATIC_EDITABLE),
             Map.entry("flutter.widgets.TickerMode", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.DefaultTextHeightBehavior", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE),
             Map.entry("flutter.widgets.BlockSemantics", STATIC_EDITABLE),
             Map.entry("flutter.widgets.MergeSemantics", STATIC_STRUCTURAL),
@@ -716,6 +717,11 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.TickerMode", projection(Map.ofEntries(
                     requiredDefaultProperty("enabled", "boolean:true", PropertyValueKind.BOOLEAN),
                     property("forceFrames", PropertyValueKind.BOOLEAN)),
+                    Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.DefaultTextHeightBehavior", projection(Map.ofEntries(
+                    property("textHeightApplyFirstAscent", PropertyValueKind.BOOLEAN),
+                    property("textHeightApplyLastDescent", PropertyValueKind.BOOLEAN),
+                    enumProperty("textHeightLeadingDistribution", "TextLeadingDistribution", "proportional", "even")),
                     Map.of("child", singleSlotSchema(true, 1)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),

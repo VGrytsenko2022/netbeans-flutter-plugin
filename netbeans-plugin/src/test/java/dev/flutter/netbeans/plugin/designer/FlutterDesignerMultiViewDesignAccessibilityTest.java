@@ -807,6 +807,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.AbsorbPointer",
                     "flutter.widgets.Visibility",
                     "flutter.widgets.TickerMode",
+                    "flutter.widgets.DefaultTextHeightBehavior",
                     "flutter.widgets.ExcludeSemantics",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",

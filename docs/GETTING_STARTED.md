@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly sixty-three
+The current capability-gated Palette and native Canvas admit exactly sixty-four
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility` and `TickerMode`.
-Fifty-seven definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 776 typed writable rows: 759 across the sixty-two
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode` and `DefaultTextHeightBehavior`.
+Fifty-eight definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 779 typed writable rows: 762 across the sixty-three
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -704,9 +704,19 @@ cannot override an ancestor's true request. **Slots → child** replaces but can
 clear the required child. Content stays visible and editable even when tickers are
 muted; Canvas selection, F2, save/reopen and Undo/Redo remain available.
 
-The practical backlog is now 63/92 complete with 29 remaining; Layout contains
-31 items, Scrolling 3, Basic 19, Material 4 and Accessibility 6. The aggregate
-is 57 reviewed const definitions and 776 writable rows, including 759 outside
+**DefaultTextHeightBehavior** is in Basic. Wrap an existing widget, then edit
+**Apply height to first ascent**, **Apply height to last descent** and **Leading
+distribution**. Both booleans are centered checkboxes; unset/reset gives true, true
+and proportional respectively. Even with all fields unset, this wrapper supplies
+its own default TextHeightBehavior rather than passing an ancestor's settings
+through. Local Text behavior and a non-null DefaultTextStyle behavior take precedence.
+The controls do not set font height themselves; use Text's style height to see the
+first/last-line effects. **Slots → child** replaces but cannot clear. Selection, F2,
+save/reopen/further editing and Undo/Redo remain available.
+
+The practical backlog is now 64/92 complete with 28 remaining; Layout contains
+31 items, Scrolling 3, Basic 20, Material 4 and Accessibility 6. The aggregate
+is 58 reviewed const definitions and 779 writable rows, including 762 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -772,13 +782,13 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Sixty-three sources across fifty-five insertable any-widget and two trait-bound
-slots produce 3,591 compatibility candidates: 3,308 accepted and 283
+Sixty-four sources across fifty-five insertable any-widget and two trait-bound
+slots produce 3,648 compatibility candidates: 3,363 accepted and 285
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility and TickerMode use the
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode and DefaultTextHeightBehavior use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and none can wrap
 Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse, PhysicalModel and ExcludeSemantics

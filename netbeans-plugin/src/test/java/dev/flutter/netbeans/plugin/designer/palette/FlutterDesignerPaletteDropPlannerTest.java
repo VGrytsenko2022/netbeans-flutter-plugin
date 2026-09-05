@@ -162,8 +162,108 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void tickerModeCompletesExact3591CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
+    void defaultTextHeightBehaviorCompletesExact3648CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
         List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> occupiedTarget(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(optionalTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), ROOT_ID,
+                    target.slot(), 0, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "DefaultTextHeightBehavior -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Wrapped success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                        result,
+                        "DefaultTextHeightBehavior -> " + target.name());
+                WrapWidget command = success.command();
+                assertEquals(FIRST_ID, command.widgetId());
+                assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), command.wrapper().type());
+                assertTrue(command.wrapper().properties().isEmpty());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots());
+                assertEquals(CHILD, command.wrapperSlot());
+                assertEquals(0, command.wrapperIndex());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(64, BUILT_INS.definitions().size()),
+                () -> assertEquals(57, optionalTargets.size()),
+                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(3648, 64 * optionalTargets.size()),
+                () -> assertEquals(3363, 3308 + accepted.get()),
+                () -> assertEquals(285, 283 + rejected.get()));
+    }
+
+    @Test
+    void defaultTextHeightBehaviorNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
+        AtomicInteger rejectedAllocations = new AtomicInteger();
+        Supplier<StableId> rejectedSupplier = () -> {
+            rejectedAllocations.incrementAndGet();
+            return NEW_ID;
+        };
+        FlutterDesignerPaletteDropPlanner.Rejected emptyList = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), ROOT_ID, CHILDREN, 0, rejectedSupplier));
+        FlutterDesignerPaletteDropPlanner.Rejected emptySingle = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(prototype(CENTER)), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), ROOT_ID, CHILD, 0, rejectedSupplier));
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptyList.code());
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptySingle.code());
+        assertEquals(0, rejectedAllocations.get());
+
+        WidgetNode root = text(ROOT_ID, "root target");
+        FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(
+                        document(root), BUILT_INS, new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), ROOT_ID, () -> NEW_ID));
+        assertEquals(ROOT_ID, wrapped.command().widgetId());
+        assertEquals(NEW_ID, wrapped.command().wrapper().id());
+        assertEquals(new WidgetTypeId("flutter.widgets.DefaultTextHeightBehavior"), wrapped.command().wrapper().type());
+        assertTrue(wrapped.command().wrapper().properties().isEmpty());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                wrapped.command().wrapper().slots());
+        assertEquals(CHILD, wrapped.command().wrapperSlot());
+        assertEquals(0, wrapped.command().wrapperIndex());
+    }
+
+    @Test
+    void tickerModeCompletesExact3591CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
+        List<MatrixTargetCase> optionalTargets = preDefaultTextHeightBehaviorDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> occupiedTarget(
@@ -214,7 +314,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(63, BUILT_INS.definitions().size()),
+                () -> assertEquals(63, Math.toIntExact(preDefaultTextHeightBehaviorDefinitions().count())),
                 () -> assertEquals(57, optionalTargets.size()),
                 () -> assertEquals(55, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -5146,8 +5246,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preTickerModeDefinitions() {
+    private static Stream<WidgetDefinition> preDefaultTextHeightBehaviorDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !"flutter.widgets.DefaultTextHeightBehavior".equals(definition.typeId().value()));
+    }
+
+    private static Stream<WidgetDefinition> preTickerModeDefinitions() {
+        return preDefaultTextHeightBehaviorDefinitions().filter(definition ->
                 !"flutter.widgets.TickerMode".equals(definition.typeId().value()));
     }
 

@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
@@ -367,6 +368,10 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)) {
+                // The nine leaves form required data; merge chooses a static helper.
+                continue;
+            }
             if (node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)
                     && (property.name().value().equals("merge") || property.name().value().equals("mouseCursor"))) {
                 // merge selects a static helper, while mouseCursor is a closed SDK constant.
@@ -452,6 +457,23 @@ public final class DartRegionGenerator {
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
         }
+        if (node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)) {
+            ArrayList<CompositeMember> members = new ArrayList<>();
+            for (PropertyDefinition property : definition.properties()) {
+                if (property.name().value().equals("merge")) continue;
+                PropertyValue value = node.properties().get(property.name());
+                if (value == null) continue;
+                var binding = IconThemeWidgetPropertySchema.find(property.name()).orElseThrow();
+                String propertyPath = path + "/properties/" + pointer(property.name().value());
+                members.add(new CompositeMember(binding.dartName(), binding.dartOrder(),
+                        renderProperty(value, property, propertyPath, node.id(), context)));
+            }
+            members.sort(COMPOSITE_MEMBER_ORDER);
+            // Empty data is required and intentionally shadows the outer theme in direct mode.
+            arguments.add(new ConstructorArgument(DartParameter.named(0, true), "data", false,
+                    renderNamedCompositeMembers("IconThemeData", Optional.empty(), members,
+                            constructorBaseIndent + 2, path + "/properties/data", node.id(), context)));
+        }
         if (node.type().equals(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE)) {
             ArrayList<CompositeMember> members = new ArrayList<>();
             for (PropertyDefinition property : definition.properties()) {
@@ -515,7 +537,9 @@ public final class DartRegionGenerator {
                 && node.properties().containsKey(new PropertyName("shape"));
         boolean selectionMerge = node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
-        boolean constant = !clipPathShape && !selectionMerge && definition.constConstructor()
+        boolean iconThemeMerge = node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)
+                && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
+        boolean constant = !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
                 definition.dartLibraryUri(), definition.dartClassName());
@@ -534,9 +558,9 @@ public final class DartRegionGenerator {
                     "widget:" + node.id() + ":shapeFactory", constructor.length() + 1,
                     "shape", renderedClass.libraryUri(), path, Optional.of(node.id())));
             constructor += ".shape";
-        } else if (selectionMerge) {
+        } else if (selectionMerge || iconThemeMerge) {
             constructorOccurrences.add(occurrence(
-                    "widget:" + node.id() + ":selectionMergeFactory", constructor.length() + 1,
+                    "widget:" + node.id() + (iconThemeMerge ? ":iconThemeMergeFactory" : ":selectionMergeFactory"), constructor.length() + 1,
                     "merge", renderedClass.libraryUri(), path + "/properties/merge", Optional.of(node.id())));
             constructor += ".merge";
         } else if (definition.namedConstructor().isPresent()) {

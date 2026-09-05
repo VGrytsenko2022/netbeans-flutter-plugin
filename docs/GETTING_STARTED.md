@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly sixty-five
+The current capability-gated Palette and native Canvas admit exactly sixty-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior` and `DefaultSelectionStyle`.
-Fifty-nine definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 783 typed writable rows: 766 across the sixty-four
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle` and `IconTheme`.
+Sixty definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 793 typed writable rows: 776 across the sixty-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -726,9 +726,20 @@ This wrapper does not enable Text selection by itself. Required-child replacemen
 save/reopen and Undo/Redo work in both modes. The SDK fallback constructor is not
 an insertable widget and is not offered in the palette.
 
-The practical backlog is now 65/92 complete with 27 remaining; Layout contains
-31 items, Scrolling 3, Basic 21, Material 4 and Accessibility 6. The aggregate
-is 59 reviewed const definitions and 783 writable rows, including 766 outside
+**IconTheme** is in Basic. Wrap an Icon or a group containing icons, then edit
+**Size**, **Color**, **Opacity**, **Shadows**, the four variable-font axes and
+**Apply text scaling**. All nine SDK fields support `<not set>` and Restore Default.
+The required **Merge inherited theme** checkbox starts false: direct mode replaces the outer
+theme and uses Flutter fallback for unset fields. Enable Merge to inherit each
+unset field. Local Icon properties still win where the SDK permits; theme opacity
+also affects an explicitly colored Icon. Finite opacity is clamped to 0–1 by Flutter.
+An empty shadow list clears inherited shadows, unlike unset in merge mode.
+Merge itself has only false/true and cannot be reset away. Save/reopen and further
+editing preserve both modes, the required child and Undo/Redo history.
+
+The practical backlog is now 66/92 complete with 26 remaining; Layout contains
+31 items, Scrolling 3, Basic 22, Material 4 and Accessibility 6. The aggregate
+is 60 reviewed const definitions and 793 writable rows, including 776 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -794,13 +805,13 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Sixty-five sources across fifty-five insertable any-widget and two trait-bound
-slots produce 3,705 compatibility candidates: 3,418 accepted and 287
+Sixty-six sources across fifty-five insertable any-widget and two trait-bound
+slots produce 3,762 compatibility candidates: 3,473 accepted and 289
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior and DefaultSelectionStyle use the
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle and IconTheme use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and none can wrap
 Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse, PhysicalModel and ExcludeSemantics

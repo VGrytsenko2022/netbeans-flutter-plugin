@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `IconTheme` in Basic at order 220 with all nine nullable IconThemeData leaves,
+  a required child and required Designer-only Merge checkbox, initially false.
+  Direct mode always emits required data, while `.merge` inherits unset fields
+  through the real SDK. Reuses numeric/Boolean/color/shadow editors, including
+  explicit empty shadows, semantic colors and SDK-clamped finite opacity.
+  Includes composite/factory provenance, const rules, codec/payload, wrapping,
+  slot protection, save/reopen/further edits, Undo/Redo, rollback and four SVGs.
+  Current surface: 66 widgets, 60 const-capable definitions, 793 writable rows
+  (776 outside Scaffold), 3,762 placements (3,473 accepted / 289 rejected), Basic 22.
+  Historical practical target 66/92, 26 remaining; the ordered inventory is not
+  recovered. Schema/API/model remain 13/14/18. Physical acceptance stays deferred.
+
 - `DefaultSelectionStyle` in Basic at order 210 with all three optional SDK fields
   and required child, plus a required Designer-only Merge inherited style checkbox
   with explicit false creation value. Only the three SDK fields allow unset/reset.
@@ -14,7 +26,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   `.merge` helper inherits each unset field and disables const propagation. Includes
   factory/member provenance, codec/payload, required-child wrapping/replacement,
   movement protection, save/reopen/further edits, Undo/Redo, rollback and four SVGs.
-  SDK fallback is deliberately non-insertable. Current surface: 65 widgets, 59
+  SDK fallback is deliberately non-insertable. At that milestone: 65 widgets, 59
   const-capable definitions, 783 rows (766 outside Scaffold), 3,705 placements
   (3,418 accepted / 287 rejected), Basic 21. Historical target 65/92, 27 remaining;
   schema/API/model remain 13/14/18. Full physical desktop acceptance stays deferred.

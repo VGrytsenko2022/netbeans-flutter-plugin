@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(65, javaTypes.size(),
+        assertEquals(66, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -88,6 +88,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.TickerMode"));
         assertTrue(javaTypes.contains("flutter.widgets.DefaultTextHeightBehavior"));
         assertTrue(javaTypes.contains("flutter.widgets.DefaultSelectionStyle"));
+        assertTrue(javaTypes.contains("flutter.widgets.IconTheme"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -131,6 +132,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.widgets.TickerMode\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.DefaultTextHeightBehavior\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.DefaultSelectionStyle\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.IconTheme\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -212,6 +214,8 @@ class FlutterWidgetCapabilityParityTest {
                 "DefaultTextHeightBehavior.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.DefaultSelectionStyle"),
                 "DefaultSelectionStyle.child is required replacement-only, not an insertion target");
+        assertTrue(!javaContainers.contains("flutter.widgets.IconTheme"),
+                "IconTheme.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
                 "Expanded.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Flexible"),

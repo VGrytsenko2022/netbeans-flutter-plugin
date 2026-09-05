@@ -23,6 +23,7 @@ import dev.flutter.netbeans.designer.catalog.VisibilityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TickerModeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -547,6 +548,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addDefaultTextHeightBehaviorPropertySets(sheet, hasSlotTab);
         } else if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())) {
             addDefaultSelectionStylePropertySets(sheet, hasSlotTab);
+        } else if (IconThemeWidgetPropertySchema.ICON_THEME_TYPE.equals(widget.type())) {
+            addIconThemePropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -741,6 +744,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (IconThemeWidgetPropertySchema.ICON_THEME_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child receiving inherited IconThemeData. Merge true inherits unset fields from the outer IconTheme; "
+                    + "false installs direct data, with IconTheme.of supplying SDK fallbacks. Local Icon fields override theme fields "
+                    + "where supported; inherited theme opacity still multiplies explicit local Icon color alpha. "
+                    + "Designer selection and editing remain available. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
         if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child receiving inherited cursor color, selection color and mouse cursor defaults. "
@@ -2511,6 +2523,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addIconThemePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<IconThemeWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(IconThemeWidgetPropertySchema.Group.class);
+        for (IconThemeWidgetPropertySchema.Group group : IconThemeWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = IconThemeWidgetPropertySchema.find(property.name()).orElseThrow();
+            String reset = "merge".equals(property.name().value())
+                    ? " Merge is a required Designer-only choice, created as false; it cannot be unset or reset. "
+                    : " Restore Default returns this optional IconThemeData field to <not set>. ";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " Merge true emits IconTheme.merge and inherits unset fields from the outer theme. "
+                            + "Merge false emits direct IconTheme data; IconTheme.of supplies SDK fallbacks for unset fields. "
+                            + "Local Icon fields take precedence where supported; inherited theme opacity still multiplies "
+                            + "explicit local Icon color alpha. Color supports literal and semantic theme previews. "
+                            + "Explicit empty Shadows clears the inherited list; entries retain stable IDs. "
+                            + "Explicit booleans use centered checkboxes." + reset
+                            + "Designer child and descendant editing remain available."));
+        }
+    }
+
     private void addDefaultSelectionStylePropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<DefaultSelectionStyleWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(DefaultSelectionStyleWidgetPropertySchema.Group.class);
@@ -3554,7 +3592,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .reduce((left, right) -> left + "; " + right)
                 .orElse("catalog-declared values");
         String reset;
-        if (DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())
+        if ((DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE.equals(widget.type())
+                || IconThemeWidgetPropertySchema.ICON_THEME_TYPE.equals(widget.type()))
                 && "merge".equals(property.name().value())) {
             reset = " This required Designer-only selector cannot be unset or reset; "
                     + "no merge argument is emitted.";

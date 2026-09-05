@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior` and `DefaultSelectionStyle`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle` and `IconTheme`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,14 +241,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-65 reviewed Canvas widgets. Palette insertion evaluates 3,705 exact
-source/destination cells across 65 draggable sources and 57 insertable reviewed
-slots; 3,418 are accepted and 287 cells are rejected. Expanded and Flexible are
+66 reviewed Canvas widgets. Palette insertion evaluates 3,762 exact
+source/destination cells across 66 draggable sources and 57 insertable reviewed
+slots; 3,473 are accepted and 289 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior and DefaultSelectionStyle are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle and IconTheme are generic atomic wrappers around
 an existing widget,
 never an empty required-child prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
@@ -1086,10 +1086,22 @@ make plain Text selectable or override TextField's own mouse cursor. Required-ch
 tree/Canvas wrapping, selection, F2 and lifecycle remain available in both modes.
 The invalid-child fallback constructor is not rendered as an insertable widget.
 
-The aggregate catalog now has 65 widgets and 59 reviewed const definitions,
-with 783 writable rows (766 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-one Basic, four Material and six Accessibility items; the
-backlog is 65/92 complete with 27 remaining. The 65 sources across 57
-insertable destinations form 3,705 cells, with 3,418 accepted and 287 rejected.
+IconTheme builds the real SDK widget or static merge helper with required
+IconThemeData and child. All nine optional fields pass through unchanged, including
+raw finite opacity outside 0–1; the SDK clamps effective opacity and multiplies
+both inherited and explicit Icon color alpha, without fading shadows or the whole
+subtree. Direct empty data replaces the outer theme with consumer fallback values;
+merge uses nearest raw inherited data, preserving Flutter resolution and capture.
+Explicit empty shadows and false text scaling override inherited values. Icon
+continues forwarding null local arguments so its normal inherited/default/local
+precedence remains intact. Required-child wrapping, semantics, selection and F2
+remain available in both modes. No new protocol or host-side inheritance engine
+is introduced; custom base-data subclasses are not serialized by this editor.
+
+The aggregate catalog now has 66 widgets and 60 reviewed const definitions,
+with 793 writable rows (776 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-two Basic, four Material and six Accessibility items; the
+backlog is 66/92 complete with 26 remaining. The 66 sources across 57
+insertable destinations form 3,762 cells, with 3,473 accepted and 289 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

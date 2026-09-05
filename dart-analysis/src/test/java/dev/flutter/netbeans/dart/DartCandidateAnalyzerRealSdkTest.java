@@ -1722,6 +1722,111 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesIconThemeCompleteDataAndMergeWithPinnedSdkEvidence() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("icon_theme_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaults() => const IconTheme(data: IconThemeData(), child: Icon(Icons.star));
+                Widget inherited() => IconTheme.merge(data: const IconThemeData(), child: const Icon(Icons.star));
+                Widget allFields() => const IconTheme(data: IconThemeData(size: 32, fill: 1,
+                  weight: 500, grade: -25, opticalSize: 48, color: Color(0x80123456), opacity: 0.5,
+                  shadows: [Shadow(color: Color(0xFFABCDEF), offset: Offset(-2, 3), blurRadius: 4)],
+                  applyTextScaling: true), child: Icon(Icons.star));
+                Widget fallback() => const IconTheme(data: IconThemeData.fallback(), child: Icon(Icons.star));
+                Widget explicitFallback() => const IconTheme(data: IconThemeData(size: 24, fill: 0,
+                  weight: 400, grade: 0, opticalSize: 48, color: Color(0xFF000000), opacity: 1,
+                  applyTextScaling: false), child: Icon(Icons.star));
+                Widget explicitNulls() => const IconTheme(data: IconThemeData(size: null, fill: null,
+                  weight: null, grade: null, opticalSize: null, color: null, opacity: null,
+                  shadows: null, applyTextScaling: null), child: Icon(Icons.star));
+                Widget nested() => IconTheme(data: const IconThemeData(size: 48, color: Color(0xFF123456),
+                  shadows: [Shadow(blurRadius: 2)], applyTextScaling: true),
+                  child: IconTheme.merge(data: const IconThemeData(shadows: [], applyTextScaling: false),
+                    child: const IconTheme(data: IconThemeData(), child: Icon(Icons.star))));
+                Widget localOverride() => const IconTheme(data: IconThemeData(size: 48, opacity: 0.25,
+                  color: Color(0xFF123456), shadows: [Shadow(blurRadius: 2)], applyTextScaling: true),
+                  child: Icon(Icons.star, size: 20, color: Color(0x80ABCDEF), shadows: [],
+                    applyTextScaling: false, fontWeight: FontWeight.w700, blendMode: BlendMode.srcOver));
+                Widget themed(BuildContext context) => IconTheme.merge(data: IconThemeData(
+                  color: Theme.of(context).colorScheme.primary,
+                  shadows: [Shadow(color: Theme.of(context).colorScheme.primary, offset: const Offset(1, 2))]),
+                  child: Text(DateTime.now().toString()));
+                List<Widget> dataMatrix() => <Widget>[
+                """);
+        List<String> dataValues = List.of("size: 0", "size: 28.5", "fill: 0", "fill: 1",
+                "weight: 0.5", "weight: 32767.5", "grade: -32768", "grade: 32767.5",
+                "opticalSize: 0.5", "opticalSize: 32767.5", "color: Color(0x00000000)",
+                "opacity: -2", "opacity: 0", "opacity: 0.5", "opacity: 1", "opacity: 2",
+                "shadows: []", "shadows: [Shadow(), Shadow(offset: Offset(-1, 1), blurRadius: 2)]",
+                "applyTextScaling: false", "applyTextScaling: true");
+        for (String data : dataValues) {
+            valid.append("const IconTheme(data: IconThemeData(").append(data)
+                    .append("), child: Icon(Icons.star)),\n");
+            valid.append("IconTheme.merge(data: const IconThemeData(").append(data)
+                    .append("), child: const Icon(Icons.star)),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("IconTheme", "IconThemeData", "Icon", "Color", "Shadow", "Offset")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("icon-theme-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/widgets.dart", flutterSdk));
+        }
+        probes.add(probe("icon-theme-merge", candidate.indexOf("IconTheme.merge(") + "IconTheme.".length(),
+                "merge", "package:flutter/widgets.dart", flutterSdk));
+        probes.add(probe("icon-theme-data-fallback", candidate.indexOf("IconThemeData.fallback(")
+                + "IconThemeData.".length(), "fallback", "package:flutter/widgets.dart", flutterSdk));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1700, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1701;
+        for (String invalid : List.of(
+                "const IconTheme(child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData())",
+                "const IconTheme(data: null, child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(), child: null)",
+                "const IconTheme(data: IconThemeData(size: 'large'), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(fill: 2), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(weight: 0), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(opticalSize: 0), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(color: 123), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(opacity: true), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(shadows: [1]), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(applyTextScaling: 'false'), child: Icon(Icons.star))",
+                "const IconTheme(data: IconThemeData(fontWeight: FontWeight.w700), child: Icon(Icons.star))",
+                "const IconTheme(merge: true, data: IconThemeData(), child: Icon(Icons.star))",
+                "IconTheme.merge(child: const Icon(Icons.star))",
+                "IconTheme.merge(data: const IconThemeData())",
+                "IconTheme.merge(merge: false, data: const IconThemeData(), child: const Icon(Icons.star))",
+                "const IconTheme.merge(data: IconThemeData(), child: Icon(Icons.star))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

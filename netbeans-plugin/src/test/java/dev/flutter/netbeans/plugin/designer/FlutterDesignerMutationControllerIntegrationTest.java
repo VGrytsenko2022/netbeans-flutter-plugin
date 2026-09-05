@@ -562,6 +562,284 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
+    void paletteIconThemeSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId childId = FIRST_ID;
+        StableId replacementId = StableId.parse("94949494-9494-4494-8494-949494949494");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.IconTheme");
+        PropertyName merge = new PropertyName("merge");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(new PropertyName("size"), new PropertyValue.DoubleValue(new java.math.BigDecimal("32.5")));
+        configured.put(new PropertyName("fill"), new PropertyValue.DoubleValue(new java.math.BigDecimal("0.5")));
+        configured.put(new PropertyName("weight"), new PropertyValue.DoubleValue(new java.math.BigDecimal("700")));
+        configured.put(new PropertyName("grade"), new PropertyValue.DoubleValue(new java.math.BigDecimal("-20")));
+        configured.put(new PropertyName("opticalSize"), new PropertyValue.DoubleValue(new java.math.BigDecimal("30")));
+        configured.put(new PropertyName("color"), new PropertyValue.ColorValue(0x80123456L));
+        configured.put(new PropertyName("opacity"), new PropertyValue.DoubleValue(new java.math.BigDecimal("1.5")));
+        configured.put(new PropertyName("shadows"), new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("f0bf1d8a-c780-4654-9770-91d53600e770"),
+                        new dev.flutter.netbeans.designer.model.ColorSource.Literal(0x80336699L),
+                        java.math.BigDecimal.ONE, java.math.BigDecimal.valueOf(-2), java.math.BigDecimal.valueOf(3)))));
+        configured.put(new PropertyName("applyTextScaling"), new PropertyValue.BooleanValue(true));
+        configured.put(merge, new PropertyValue.BooleanValue(true));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("icon_theme_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const IconTheme("));
+                assertFalse(request.content().contains("IconTheme.merge("));
+                assertTrue(request.content().contains("data: const IconThemeData()"));
+                assertFalse(request.content().contains("merge:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, childId, () -> surfaceId));
+            var added = applyIconThemeMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)),
+                    surface.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().orElseThrow().id());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("icon_theme_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("size", "fill", "weight", "grade", "opticalSize", "color", "opacity", "shadows", "applyTextScaling", "merge")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("IconTheme(")
+                        || request.content().contains("IconTheme.merge("));
+                assertFalse(request.content().contains("merge:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyIconThemeMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            current = applyIconThemeMutation(fixture, current,
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("Child edited with merged icon theme")),
+                    surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "all nine IconThemeData fields and Merge survive descendant editing");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("IconTheme.merge("));
+            assertFalse(generated.contains("const IconTheme.merge("));
+            assertTrue(generated.contains("data: const IconThemeData("));
+            for (String fragment : List.of("size: 32.5", "fill: 0.5", "weight: 700.0", "grade: -20.0",
+                    "opticalSize: 30.0", "color: const Color(0x80123456)", "opacity: 1.5", "applyTextScaling: true")) {
+                assertTrue(generated.contains(fragment), fragment + " in " + generated);
+            }
+            assertTrue(generated.contains("Shadow("));
+            assertTrue(generated.contains("Color(0x80336699)"));
+            assertTrue(generated.contains("Offset(1.0, -2.0)"));
+            assertFalse(generated.contains("merge:"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 11; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 11; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(11, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "icon_theme_test_rejection", "IconTheme candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, merge, new PropertyValue.BooleanValue(false)),
+                    "IconTheme.merge").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("IconTheme candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("icon_theme_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var mergeCell = cellProperty(properties, "merge");
+            mergeCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(false)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const IconTheme("));
+                assertFalse(request.content().contains("IconTheme.merge("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyIconThemeMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(merge, new PropertyValue.BooleanValue(false));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            commands.clear();
+            assertFalse(mergeCell.supportsDefaultValue());
+            mergeCell.restoreDefaultValue();
+            assertThrows(IllegalArgumentException.class,
+                    () -> mergeCell.setValue(FlutterPropertyCellValue.unset()));
+            assertTrue(commands.isEmpty(), "a required constructor-mode reset must not dispatch a UI command");
+            assertSame(mergeCell, cellProperty(properties, "merge"));
+            byte[] beforeRejectedResetDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] beforeRejectedResetFd = fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes();
+            String undoBeforeReset = fixture.dataObject().getCombinedUndoRedo().getUndoPresentationName();
+            var rejectedReset = fixture.mutations().submit(edited.token().orElseThrow(),
+                    new ResetProperty(surfaceId, merge), "IconTheme required Merge reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejectedReset.outcome(), rejectedReset::reason);
+            assertEquals(after, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(beforeRejectedResetDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(beforeRejectedResetFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoBeforeReset, fixture.dataObject().getCombinedUndoRedo().getUndoPresentationName());
+            edited = awaitReady(fixture.mutations());
+            Map<String, PropertyValue> furtherEdits = new java.util.LinkedHashMap<>();
+            furtherEdits.put("size", new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(28)));
+            furtherEdits.put("fill", new PropertyValue.DoubleValue(java.math.BigDecimal.ONE));
+            furtherEdits.put("weight", new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(450)));
+            furtherEdits.put("grade", new PropertyValue.DoubleValue(java.math.BigDecimal.ONE));
+            furtherEdits.put("opticalSize", new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(40)));
+            furtherEdits.put("color", new PropertyValue.ColorValue(0xFFABCDEFL));
+            furtherEdits.put("opacity", new PropertyValue.DoubleValue(new java.math.BigDecimal("-0.25")));
+            furtherEdits.put("shadows", new PropertyValue.ShadowListValue(List.of()));
+            furtherEdits.put("applyTextScaling", new PropertyValue.BooleanValue(false));
+            for (var entry : furtherEdits.entrySet()) {
+                commands.clear();
+                cellProperty(properties, entry.getKey()).setValue(FlutterPropertyCellValue.explicit(entry.getValue()));
+                assertEquals(1, commands.size());
+                edited = applyIconThemeMutation(fixture, edited, commands.getFirst(), surfaceId);
+                expected.put(new PropertyName(entry.getKey()), entry.getValue());
+                assertEquals(expected, findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            }
+            String editedDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertTrue(editedDart.contains("color: const Color(0xFFABCDEF)"));
+            assertTrue(editedDart.contains("opacity: -0.25"), "raw finite opacity must survive without UI clamping");
+            assertTrue(editedDart.contains("shadows: const <Shadow>[]"));
+            assertTrue(editedDart.contains("applyTextScaling: false"));
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            for (PropertyName name : configured.keySet().stream().filter(name -> !name.equals(merge)).toList()) {
+                edited = applyIconThemeMutation(fixture, edited, new ResetProperty(surfaceId, name), surfaceId);
+            }
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertTrue(resetDart.contains("data: const IconThemeData()"));
+            for (String name : configured.keySet().stream().map(PropertyName::value).filter(name -> !name.equals("merge")).toList()) {
+                assertFalse(resetDart.contains(name + ":"), name);
+            }
+            assertFalse(resetDart.contains("merge:"));
+            assertTrue(resetDart.contains("const IconTheme("),
+                    "all SDK leaves unset still emit required direct IconThemeData with SDK fallbacks");
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("icon_theme_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)),
+                    cellProperty(properties, "merge").getValue());
+            assertFalse(cellProperty(properties, "merge").supportsDefaultValue());
+            assertTrue(cellProperty(properties, "merge").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside icon-theme subtree after reopen")));
+            assertEquals(1, childEdits.size(), "icon theme must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyIconThemeMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside icon-theme subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            byte[] beforeIllegalRemoval = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejectedRemoval = fixture.mutations().submit(current.token().orElseThrow(),
+                    new RemoveWidget(childId), "IconTheme required child removal").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejectedRemoval.outcome(), rejectedRemoval::reason);
+            assertEquals(editedChild, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), childId));
+            assertArrayEquals(beforeIllegalRemoval, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = awaitReady(fixture.mutations());
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(),
+                    replacementId);
+            current = applyIconThemeMutation(fixture, current,
+                    new ReplaceSlotChild(surfaceId, CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), surfaceId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("icon_theme_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(merge, new PropertyValue.BooleanValue(false)), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside icon-theme subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
+        }
+    }
+
+    @Test
     void paletteDefaultSelectionStyleSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
             throws Exception {
         StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
@@ -8314,6 +8592,16 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 List.of(wrapperId, SECOND_ID));
     }
 
+
+    private static FlutterDesignerMutationController.Snapshot applyIconThemeMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "IconTheme properties and required child editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(wrapperId, SECOND_ID));
+    }
 
     private static FlutterDesignerMutationController.Snapshot applyDefaultSelectionStyleMutation(
             MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,

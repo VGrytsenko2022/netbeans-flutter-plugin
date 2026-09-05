@@ -4611,6 +4611,36 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     ),
     'fontWeight': _fontWeightProperty,
   }, {}),
+  'flutter.widgets.IconTheme': _WidgetSpec(
+    {
+      'size': _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+      'fill': _PropertySpec({'double'}, numericBounds: _zeroToOneDoubleBounds),
+      'weight': _PropertySpec({
+        'double',
+      }, numericBounds: _positiveFontVariationBounds),
+      'grade': _PropertySpec({
+        'double',
+      }, numericBounds: _gradeFontVariationBounds),
+      'opticalSize': _PropertySpec({
+        'double',
+      }, numericBounds: _positiveFontVariationBounds),
+      'color': _themeAwareColorProperty,
+      'opacity': _PropertySpec({
+        'double',
+      }, numericBounds: _unboundedDoubleBounds),
+      'shadows': _PropertySpec({'shadowList'}),
+      'applyTextScaling': _PropertySpec({'boolean'}),
+      'merge': _PropertySpec(
+        {'boolean'},
+        required: true,
+        creationDefaultFingerprint: 'boolean:false',
+      ),
+    },
+    {'child': _requiredSingleSlot},
+  ),
   'flutter.widgets.Image': _WidgetSpec({
     'image': _PropertySpec({'imageProvider'}, required: true),
     'frameBuilder': _PropertySpec({'callback'}),
@@ -5901,6 +5931,19 @@ P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,ma
 P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+W|flutter.widgets.IconTheme
+P|applyTextScaling|boolean|0|-|-|boolean:any
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fill|double|0|-|double:0:1:1:1|double:range:0:1:1:1
+P|grade|double|0|-|double:-32768:1:32768:0|double:range:-32768:1:32768:0
+P|merge|boolean|1|boolean:false|-|boolean:any
+P|opacity|double|0|-|double:*:1:*:1|double:range:*:1:*:1
+P|opticalSize|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+P|shadows|shadowList|0|-|-|shadowList:shadowTokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|weight|double|0|-|double:0:0:32768:0|double:range:0:0:32768:0
+S|child|single|1|1|1|any
+C|flutter.widgets.IconTheme|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.IgnorePointer
 P|ignoring|boolean|0|-|-|boolean:any
 P|ignoringSemantics|boolean|0|-|-|boolean:any

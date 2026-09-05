@@ -723,7 +723,7 @@ void main() {
     );
   });
 
-  test('closes the 65-source by 57-destination compatibility matrix', () {
+  test('closes the 66-source by 57-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
@@ -744,6 +744,7 @@ void main() {
       'flutter.widgets.TickerMode',
       'flutter.widgets.DefaultTextHeightBehavior',
       'flutter.widgets.DefaultSelectionStyle',
+      'flutter.widgets.IconTheme',
       'flutter.widgets.SizedOverflowBox',
       'flutter.widgets.Transform',
       'flutter.widgets.Column',
@@ -799,7 +800,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(65));
+    expect(sourceTypes, hasLength(66));
     expect(destinations, hasLength(57));
 
     var accepted = 0;
@@ -826,9 +827,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 3418);
-    expect(rejected, 287);
-    expect(accepted + rejected, 3705);
+    expect(accepted, 3473);
+    expect(rejected, 289);
+    expect(accepted + rejected, 3762);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (

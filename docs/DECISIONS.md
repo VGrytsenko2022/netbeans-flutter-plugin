@@ -37,11 +37,11 @@ ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
-`TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, and ADR-093 establishes the
-current `DefaultSelectionStyle`
-surface: 783 typed rows across sixty-five widgets, fifty-nine const-constructor
-definitions and 3,705 Palette/DnD candidates, including 3,418 accepted and 287
-rejected cells. The 766-field
+`TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
+`DefaultSelectionStyle`, and ADR-094 establishes the current `IconTheme`
+surface: 793 typed rows across sixty-six widgets, sixty const-constructor
+definitions and 3,762 Palette/DnD candidates, including 3,473 accepted and 289
+rejected cells. The 776-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-093 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-094 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-093 make 766 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-094 make 776 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -347,8 +347,10 @@ enabled and optional forceFrames booleans with a required child wrapper slot.
 DefaultTextHeightBehavior adds three optional leaves forming the required
 TextHeightBehavior value and a required child wrapper slot. DefaultSelectionStyle
 adds three optional SDK fields, a required Designer-only merge Boolean and required child.
+IconTheme adds nine optional IconThemeData leaves, a required Designer-only merge
+Boolean and required child, always generating the required data composite.
 Scaffold separately
-contributes 17 rows, giving 783 overall.
+contributes 17 rows, giving 793 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -424,8 +426,10 @@ establishes the historical sixty-two-source, 3,534-candidate matrix
 (3,253 accepted / 281 rejected). ADR-091 establishes the historical sixty-three-source,
 3,591-candidate matrix (3,308 accepted / 283 rejected). ADR-092 establishes the historical
 sixty-four-source, 3,648-candidate matrix (3,363 accepted / 285 rejected).
-ADR-093 establishes the current sixty-five-source, 3,705-candidate matrix
+ADR-093 establishes the historical sixty-five-source, 3,705-candidate matrix
 (3,418 accepted / 287 rejected).
+ADR-094 establishes the current sixty-six-source, 3,762-candidate matrix
+(3,473 accepted / 289 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -436,7 +440,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -450,16 +454,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-five-widget model for Mobile, Tablet,
+Canvas now renders the validated sixty-six-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-five Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,705-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,418 cells are accepted and 287 rejected.
+those sixty-six Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,762-cell candidate matrix across fifty-five insertable any-widget and two
+trait-bound destination slots; 3,473 cells are accepted and 289 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior and DefaultSelectionStyle use the same generic atomic required-child wrapper
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle and IconTheme use the same generic atomic required-child wrapper
 mode, with tree root/non-root and Canvas non-root-only targets; none can wrap Expanded,
 Flexible or Spacer.
 Canvas model
@@ -4553,7 +4557,7 @@ Expanded/Flexible/Spacer outside the eligible wrapped-child set. Complete the
 codec/payload, Save/reopen/further editing, Undo/Redo, rollback, selection/F2 and
 four light/dark 16/32px SVG paths without a new property kind or format version.
 
-Current totals: 65 widgets, 59 const-capable definitions, 783 writable rows
+At this milestone: 65 widgets, 59 const-capable definitions, 783 writable rows
 (766 outside Scaffold); 62 scalar plus structural IntrinsicHeight/RepaintBoundary/
 MergeSemantics. Eight generic wrappers do not add an ordinary insertion destination.
 55 any-widget plus two trait destinations remain 57 slots: 65x57 = 3,705 cells,
@@ -4632,3 +4636,112 @@ pass. `mvn nbm:cluster` and `tools/verify-release.ps1` both pass. The verified
 `netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,334,831 bytes with SHA-256
 `CCD2B55488F715B0B5477CEA70BA61481E742D30D65124C57211735353E7097B`.
 No installed-userdir verification or full physical desktop acceptance is claimed.
+
+## ADR-094 — IconTheme and complete static IconThemeData inheritance slice
+
+Admit `flutter.widgets.IconTheme` in Basic at item order 220, after
+DefaultSelectionStyle, against pinned Flutter 3.44.8. Cover the ordinary widget
+constructor and static `.merge` helper, required `data` and required single child.
+Publish all nine optional IconThemeData leaves: size, fill, weight, grade,
+opticalSize, color, opacity, shadows and applyTextScaling at orders 0–8. Child is
+order 9; Designer-only required Boolean merge is order 10 with creation value
+false. It selects ordinary construction or `.merge` and is never a Dart argument.
+There is no third metadata-only mode. Every SDK leaf still supports unset/reset.
+
+Always emit required IconThemeData, including `const IconThemeData()` with all
+leaves unset. Ordinary literal construction remains const-capable; semantic theme
+references and static merge disable const propagation as appropriate. Preserve
+exact data-constructor, static-helper and nested shadow/theme symbol provenance.
+Repeated use of one theme role in different model paths retains distinct
+occurrence IDs through the existing shared generator fix from ADR-093.
+
+Reuse existing typed editors and values. Size is finite non-negative integer or
+double; fill is [0,1]; weight/opticalSize are (0,32768); grade is [-32768,32768).
+The font-axis limits also protect actual Icon rendering, beyond the narrower
+IconThemeData constructor assertions. Opacity accepts any finite double, preserving
+the raw input through model/codec/history; the SDK clamps the effective getter to
+[0,1]. Colors and ordered shadows retain literal or reviewed semantic ColorScheme
+sources; explicit empty shadows are distinct from unset. Both Boolean rows use
+the shared centered checkbox; only optional applyTextScaling allows reset.
+
+Use the actual SDK theme, not host-computed inheritance. Direct data replaces the
+nearest outer data; consumer IconTheme.of resolves it and fills missing fields
+from fallback. Static merge combines the nearest raw theme field by field before
+consumer resolution. Local Icon arguments retain their precedence, while theme
+opacity multiplies even explicit Icon color alpha. It does not fade the entire
+subtree or shadow list. Null local Icon arguments continue allowing inheritance;
+false scaling and empty shadows explicitly override their inherited values.
+
+IconThemeData.fallback is fully representable by explicit size 24, fill 0,
+weight 400, grade 0, opticalSize 48, black color, opacity 1 and applyTextScaling
+false, with shadows unset. copyWith/merge/lerp are value operations, not additional
+widget constructors; their static base-data results fit the same leaves. This
+closed editor does not serialize arbitrary IconThemeData subclasses, custom
+resolve methods or Cupertino dynamic-color expressions. Existing ambient themes
+continue resolving through the framework rather than being flattened by the host.
+
+Reuse generic atomic root/non-root tree and non-root Canvas wrapping, required
+child replacement and clear/remove/move protection. Preserve stable Properties,
+typed previews, selection/F2, save/reopen/further editing, Undo/Redo and rollback.
+No FD_ONLY retained-history expansion or new property/format shape is introduced.
+FD schema 13, contributor API 14, Canvas model 18 and NBFC1 remain unchanged.
+
+Current totals: 66 widgets, 60 const-capable definitions, 793 writable rows
+(776 outside Scaffold), 63 scalar plus three structural definitions. Nine generic
+wrappers leave 55 any-widget and two trait destinations: 66x57 = 3,762 cells,
+3,473 accepted and 289 rejected. Categories: Layout 31, Scrolling 3, Basic 22,
+Material 4, Accessibility 6. Historical practical target: 66/92, 26 remaining.
+The ordered historical 92-widget inventory remains unrecovered; this is an
+API-reviewed successor, not a claim of recovered ordering. Full physical desktop
+acceptance remains deferred until the palette is complete.
+
+The complete Flutter suite passes 836 tests (805 baseline plus 31 new), with clean
+analyze/format. The new suite covers 1,024 mode/leaf-omission decoding combinations,
+all nine actual SDK fields in direct/merge mode, fallback equivalence, nearest raw
+inheritance, partial/reset/false/empty-shadow overrides, local Icon precedence,
+raw/effective opacity and independent shadow alpha, scaling, inherited updates and
+theme capture/wrap. Required-child Windows/Web DnD, semantics, selection, F2 and
+state/focus remain covered. Existing Icon and AppBar behavior is unchanged.
+
+The rebuilt Web entry is 2,872,753 bytes with SHA-256
+`2fb2c97cab89c28ac0ba0900a3e2fed850d11fbbce100bc66f49307948e7e8e1`.
+All 75 source/Web manifest entries were checked and rehashed; both manifests and
+the packaged artifact contract test match the final runner and Web release build.
+
+The complete core Maven suite passes 1,265 tests with no failures/errors/skips.
+Twenty new tests comprise nine contract, nine command/history and two payload
+tests. Both generation/codec and payload matrices cover 1,536 optional-presence/
+Boolean combinations. Coverage includes required empty data, all nine leaves,
+fallback-equivalent explicit values, numeric bounds and retained raw opacity,
+distinct same-token data/shadow/Text provenance, const/static-helper behavior,
+local Icon fields, both-mode save/reopen/reset, whole-patch rollback, required-child
+protection and direct-parent ParentData rules. No shared persistence contract was
+weakened or changed for this slice.
+
+The focused NetBeans suite passes 705 tests, including 12 new tests, with no
+failures/errors/skips. The shared Boolean contract covers 127 fields. Coverage
+includes all ten property routes, required two-state Merge, stable cell identity,
+typed color previews, shadow transactions/stable IDs, optional reset, required
+reset rejection, wrapping/replacement/movement protection and all four SVG paths.
+The lifecycle sets every field, saves/reopens, edits every SDK leaf again, retains
+raw opacity and explicit empty shadows, resets all optional fields and continues
+child editing/replacement with Undo/Redo and rollback. PairSaveCoordinator remains
+unchanged; property/slot/palette help explicitly preserves the theme-opacity caveat.
+
+The focused pinned-SDK candidate analyzer test passes: 40 direct/merge data variants
+plus complete, empty/null, fallback-equivalent, nested, local-override and themed
+compositions. Eight accepted class/factory/constructor probes resolve through
+widgets.dart inside the pinned SDK. Eighteen malformed candidates are rejected,
+including missing/wrong data or child, invalid field types/assertions, invented
+data fields, leaked Designer merge flags and illegal const static-helper calls.
+Every candidate leaves the original Dart file and analysis options unchanged.
+
+Final clean release validation passes all 11 Maven reactor modules in the
+canonical G: checkout, with the pinned SDK and real Web artifact. Surefire:
+3,627 tests, zero failures/errors, six allowed optional skips, 335 reports.
+Failsafe: 13 tests, zero failures/errors, one allowed physical Canvas skip.
+All 19 real Dart candidate analyzer tests and 86 mutation lifecycle tests pass.
+`mvn nbm:cluster` and `tools/verify-release.ps1` both pass. The verified
+`netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,343,711 bytes with SHA-256
+`FE490F16F5564C488C75560F6A351B187E7B52C38A9BA1CFFD2CDAA25201B53C`.
+Installed-userdir verification and full physical desktop acceptance are not claimed.

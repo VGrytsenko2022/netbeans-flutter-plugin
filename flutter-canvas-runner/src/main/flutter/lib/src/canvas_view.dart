@@ -577,6 +577,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.TickerMode' ||
         node.type == 'flutter.widgets.DefaultTextHeightBehavior' ||
         node.type == 'flutter.widgets.DefaultSelectionStyle' ||
+        node.type == 'flutter.widgets.IconTheme' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -2534,6 +2535,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.DefaultSelectionStyle' => _defaultSelectionStyle(
         context,
       ),
+      'flutter.widgets.IconTheme' => _iconThemeWidget(context),
       'flutter.widgets.Visibility' => _CanvasVisibility(
         visibility: Visibility(
           visible: _boolean('visible') ?? true,
@@ -4816,6 +4818,24 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       shadows: _shadows(context, '${prefix}Shadows'),
       applyTextScaling: _boolean('${prefix}ApplyTextScaling'),
     );
+  }
+
+  Widget _iconThemeWidget(BuildContext context) {
+    final data = IconThemeData(
+      size: _number('size'),
+      fill: _number('fill'),
+      weight: _number('weight'),
+      grade: _number('grade'),
+      opticalSize: _number('opticalSize'),
+      color: _resolvedColor(context, 'color'),
+      opacity: _number('opacity'),
+      shadows: _shadows(context, 'shadows'),
+      applyTextScaling: _boolean('applyTextScaling'),
+    );
+    final child = _single('child')!;
+    return _boolean('merge')!
+        ? IconTheme.merge(data: data, child: child)
+        : IconTheme(data: data, child: child);
   }
 
   ShapeBorder? _appBarShape(BuildContext context) {

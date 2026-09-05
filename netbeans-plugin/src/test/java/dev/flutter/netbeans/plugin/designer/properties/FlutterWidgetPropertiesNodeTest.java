@@ -83,6 +83,116 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void iconThemeProjectsAllDataEditorsAndRequiredMergeWithStableGroupsAndCells() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.IconTheme");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName mergeName = new PropertyName("merge");
+        Map<PropertyName, PropertyValue> defaults = Map.of(mergeName, new PropertyValue.BooleanValue(false));
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Icon"),
+                StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        WidgetNode widget = new WidgetNode(id, definition.typeId(), defaults,
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+        assertEquals(defaults, WidgetNodePrototypeFactory.create(definition, id).properties());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(5, sets.length, "identity, appearance, variable font, behavior and required child Slots");
+        assertEquals(List.of("size", "color", "opacity", "shadows"),
+                names(propertySet(node, "iconThemeAppearance").getProperties()));
+        assertEquals(List.of("fill", "weight", "grade", "opticalSize"),
+                names(propertySet(node, "iconThemeVariableFont").getProperties()));
+        assertEquals(List.of("applyTextScaling", "merge"),
+                names(propertySet(node, "iconThemeBehavior").getProperties()));
+        StableId shadowId = StableId.parse("f0bf1d8a-c780-4654-9770-91d53600e770");
+        PropertyValue.ShadowListValue shadows = new PropertyValue.ShadowListValue(List.of(
+                new PropertyValue.ShadowListValue.Shadow(shadowId,
+                        new dev.flutter.netbeans.designer.model.ColorSource.Theme(new ThemeToken("material.colorScheme.shadow")),
+                        BigDecimal.ONE, BigDecimal.valueOf(-2), BigDecimal.valueOf(3))));
+        Map<String, List<PropertyValue>> accepted = new LinkedHashMap<>();
+        accepted.put("size", List.of(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                new PropertyValue.DoubleValue(new BigDecimal("32.5"))));
+        accepted.put("fill", List.of(new PropertyValue.DoubleValue(BigDecimal.ZERO), new PropertyValue.DoubleValue(BigDecimal.ONE)));
+        accepted.put("weight", List.of(new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                new PropertyValue.DoubleValue(new BigDecimal("32767.5"))));
+        accepted.put("grade", List.of(new PropertyValue.DoubleValue(new BigDecimal("-32768")),
+                new PropertyValue.DoubleValue(new BigDecimal("32767.5"))));
+        accepted.put("opticalSize", List.of(new PropertyValue.DoubleValue(new BigDecimal("0.5")),
+                new PropertyValue.DoubleValue(new BigDecimal("32767.5"))));
+        accepted.put("color", List.of(new PropertyValue.ColorValue(0x80123456L),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary"))));
+        accepted.put("opacity", List.of(new PropertyValue.DoubleValue(new BigDecimal("-0.5")),
+                new PropertyValue.DoubleValue(new BigDecimal("1.5"))));
+        accepted.put("shadows", List.of(new PropertyValue.ShadowListValue(List.of()), shadows));
+        accepted.put("applyTextScaling", List.of(new PropertyValue.BooleanValue(false), new PropertyValue.BooleanValue(true)));
+        assertEquals(9, accepted.size());
+        for (var entry : accepted.entrySet()) {
+            String name = entry.getKey();
+            var cell = cellProperty(property(node, name));
+            assertTrue(cell.canWrite(), name);
+            assertTrue(cell.supportsDefaultValue(), name);
+            assertEquals(FlutterPropertyCellValue.unset(), cell.getValue(), name);
+            assertTrue(cell.getShortDescription().contains("inherits unset fields"), name);
+            for (PropertyValue value : entry.getValue()) {
+                var editor = cell.getPropertyEditor();
+                editor.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                if (name.equals("color")) {
+                    assertTrue(editor.isPaintable());
+                    assertTrue(editor.supportsCustomEditor());
+                    editor.setAsText(editor.getAsText());
+                    assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                } else if (name.equals("shadows")) {
+                    assertTrue(editor.supportsCustomEditor());
+                } else if (name.equals("applyTextScaling")) {
+                    assertNull(editor.getTags());
+                    assertTrue(editor.isPaintable());
+                } else {
+                    editor.setAsText(editor.getAsText());
+                    assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                }
+                commands.clear();
+                cell.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(List.of(new SetProperty(id, new PropertyName(name), value)), commands);
+                var current = new LinkedHashMap<>(defaults);
+                current.put(new PropertyName(name), value);
+                node.refreshPresentation(new WidgetNode(id, definition.typeId(), current, widget.slots()),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, property(node, name));
+                assertEquals(List.of(sets), List.of(node.getPropertySets()));
+                commands.clear();
+                cell.restoreDefaultValue();
+                assertEquals(List.of(new ResetProperty(id, new PropertyName(name))), commands);
+                node.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+        }
+        assertTrue(property(node, "opacity").getShortDescription().contains("entered value is retained"));
+        assertTrue(property(node, "color").getShortDescription().contains("explicit local Icon color alpha"));
+        assertTrue(property(node, "shadows").getShortDescription().contains("stable IDs"));
+        for (var entry : Map.of("size", List.of("-1"), "fill", List.of("-0.1", "1.1"),
+                "weight", List.of("0", "32768"), "grade", List.of("-32768.1", "32768"),
+                "opticalSize", List.of("0", "32768"), "opacity", List.of("NaN", "Infinity")).entrySet()) {
+            for (String invalid : entry.getValue()) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> property(node, entry.getKey()).getPropertyEditor().setAsText(invalid), entry.getKey() + ": " + invalid);
+            }
+        }
+        var merge = cellProperty(property(node, "merge"));
+        assertFalse(merge.supportsDefaultValue());
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), merge.getValue());
+        assertTrue(merge.getShortDescription().contains("no merge argument is emitted"));
+        commands.clear();
+        merge.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        assertEquals(List.of(new SetProperty(id, mergeName, new PropertyValue.BooleanValue(true))), commands);
+        commands.clear();
+        merge.restoreDefaultValue();
+        assertThrows(IllegalArgumentException.class, () -> merge.setValue(FlutterPropertyCellValue.unset()));
+        assertTrue(commands.isEmpty());
+        assertSame(merge, property(node, "merge"));
+        assertEquals(List.of(sets), List.of(node.getPropertySets()));
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+    }
+
+    @Test
     void defaultSelectionStyleProjectsOptionalSdkFieldsAndRequiredMergeWithoutRecreatingPropertyCells() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.DefaultSelectionStyle");
         StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
@@ -1180,6 +1290,8 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
         requiredValues.put("flutter.widgets.DefaultSelectionStyle",
                 Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
+        requiredValues.put("flutter.widgets.IconTheme",
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -1245,6 +1357,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.TickerMode",
                     "flutter.widgets.DefaultTextHeightBehavior",
                     "flutter.widgets.DefaultSelectionStyle",
+                    "flutter.widgets.IconTheme",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1280,7 +1393,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(783, writableCount,
+        assertEquals(793, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1293,7 +1406,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(766, nonScaffoldWritableCount,
+        assertEquals(776, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6146,6 +6259,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.TickerMode");
         typeIds.add("flutter.widgets.DefaultTextHeightBehavior");
         typeIds.add("flutter.widgets.DefaultSelectionStyle");
+        typeIds.add("flutter.widgets.IconTheme");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -6175,7 +6289,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(65, iconPaths.size(),
+        assertEquals(66, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

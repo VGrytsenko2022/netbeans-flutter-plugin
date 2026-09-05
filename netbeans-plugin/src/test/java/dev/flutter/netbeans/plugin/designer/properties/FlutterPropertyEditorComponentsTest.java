@@ -75,6 +75,68 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void iconThemeShadowEditorPreservesStableIdsAndSupportsTransactionalEditsEmptyAndUnset() throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(property("flutter.widgets.IconTheme", "shadows"));
+        PropertyValue.ShadowListValue initialValue = new PropertyValue.ShadowListValue(
+                List.of(new PropertyValue.ShadowListValue.Shadow(
+                        StableId.parse("f0bf1d8a-c780-4654-9770-91d53600e770"),
+                        new ColorSource.Theme(new ThemeToken(
+                                "material.colorScheme.shadow")),
+                        BigDecimal.ONE, BigDecimal.valueOf(2), BigDecimal.valueOf(3))));
+        PropertyEditor editor = binding.createEditor();
+        FlutterPropertyCellValue initial = FlutterPropertyCellValue.explicit(initialValue);
+        editor.setValue(initial);
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Shadows", "Ordered typed shadows."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JTable table = findNamed(panel, JTable.class,
+                    FlutterComplexPropertyEditorComponents.SHADOW_TABLE_NAME);
+            assertNotNull(table);
+            assertTrue(table.getAccessibleContext().getAccessibleDescription()
+                    .contains("Color accepts"));
+            assertNotNull(findButton(panel, "Add"));
+            assertNotNull(findButton(panel, "Remove"));
+            assertNotNull(findButton(panel, "Up"));
+            assertNotNull(findButton(panel, "Down"));
+
+            table.getModel().setValueAt("1E-400", 0, 1);
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            table.getModel().setValueAt("1", 0, 1);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            assertTrue(table.editCellAt(0, 3));
+            JTextField activeCell = assertInstanceOf(
+                    JTextField.class, table.getEditorComponent());
+            activeCell.setText("-1");
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals(initial, editor.getValue());
+            assertTrue(table.editCellAt(0, 3));
+            JTextField validActiveCell = assertInstanceOf(
+                    JTextField.class, table.getEditorComponent());
+            validActiveCell.setText("4.5");
+            environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(PropertyEnv.STATE_VALID, environment.getState(),
+                    "a valid active cell must commit with one OK validation");
+            PropertyValue.ShadowListValue accepted = assertInstanceOf(
+                    PropertyValue.ShadowListValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            assertEquals(new BigDecimal("4.5"), accepted.items().getFirst().blurRadius());
+            assertEquals(initialValue.items().getFirst().id(), accepted.items().getFirst().id());
+            assertInstanceOf(ColorSource.Theme.class,
+                    accepted.items().getFirst().color());
+            return null;
+        });
+        editor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.ShadowListValue(List.of())));
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.ShadowListValue(List.of())), editor.getValue());
+        editor.setAsText(FlutterPropertyCellValue.NOT_SET_TEXT);
+        assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+    }
+
+    @Test
     void tickerModeRequiredEnabledCheckboxTogglesButNeverAcceptsUnset() throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(property("flutter.widgets.TickerMode", "enabled"));
         assertFalse(binding.optional());
@@ -2629,7 +2691,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(125, booleanProperties.size(),
+        assertEquals(127, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));
@@ -2645,6 +2707,8 @@ class FlutterPropertyEditorComponentsTest {
         assertTrue(booleanProperties.contains("flutter.widgets.DefaultTextHeightBehavior.textHeightApplyFirstAscent"));
         assertTrue(booleanProperties.contains("flutter.widgets.DefaultTextHeightBehavior.textHeightApplyLastDescent"));
         assertTrue(booleanProperties.contains("flutter.widgets.DefaultSelectionStyle.merge"));
+        assertTrue(booleanProperties.contains("flutter.widgets.IconTheme.applyTextScaling"));
+        assertTrue(booleanProperties.contains("flutter.widgets.IconTheme.merge"));
         for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
                 "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
             assertTrue(booleanProperties.contains("flutter.widgets.Visibility." + name));

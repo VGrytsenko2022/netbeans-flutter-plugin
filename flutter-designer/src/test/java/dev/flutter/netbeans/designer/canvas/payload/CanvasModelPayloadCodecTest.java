@@ -133,6 +133,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.TickerMode",
                 "flutter.widgets.DefaultTextHeightBehavior",
                 "flutter.widgets.DefaultSelectionStyle",
+                "flutter.widgets.IconTheme",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -1354,6 +1355,90 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void iconThemePayloadPreservesAll1536FieldPresenceAndBooleanCombinationsWithRawOpacityAndShadows() throws Exception {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Icon theme child");
+        var fields = List.of("size", "fill", "weight", "grade", "opticalSize", "color", "opacity", "shadows");
+        var values = List.<PropertyValue>of(new PropertyValue.IntegerValue(BigInteger.valueOf(32)),
+                new PropertyValue.DoubleValue(new BigDecimal("0.5")), new PropertyValue.DoubleValue(new BigDecimal("700")),
+                new PropertyValue.DoubleValue(new BigDecimal("-25")), new PropertyValue.DoubleValue(new BigDecimal("48")),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")),
+                new PropertyValue.DoubleValue(new BigDecimal("-0.5")),
+                new PropertyValue.ShadowListValue(List.of(new PropertyValue.ShadowListValue.Shadow(
+                        id("c4e1fdab-0c06-4dd6-9d3f-6be0f34a1aed"), new ColorSource.Literal(0x80123456L),
+                        new BigDecimal("-1.25"), new BigDecimal("2.5"), new BigDecimal("4")))));
+        int count = 0;
+        for (boolean merge : List.of(false, true)) for (int mask = 0; mask < 256; mask++) {
+            for (var scale : List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true))) {
+                count++;
+                var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("merge"), new PropertyValue.BooleanValue(merge));
+                for (int index = 0; index < fields.size(); index++) {
+                    if ((mask & (1 << index)) != 0) properties.put(new PropertyName(fields.get(index)), values.get(index));
+                }
+                scale.ifPresent(value -> properties.put(new PropertyName("applyTextScaling"), new PropertyValue.BooleanValue(value)));
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), properties,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+                var codec = new CanvasModelPayloadCodec();
+                byte[] bytes = codec.encode(request);
+                assertArrayEquals(bytes, codec.encode(request));
+                String json = new String(bytes, StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"type\":\"flutter.widgets.IconTheme\""), json);
+                assertTrue(json.contains("Icon theme child"), json);
+                assertTrue(json.contains("\"merge\":{\"kind\":\"boolean\",\"value\":" + merge + "}"), json);
+                assertEquals(scale.isPresent(), json.contains("\"applyTextScaling\":"), json);
+                scale.ifPresent(value -> assertTrue(json.contains("\"applyTextScaling\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                for (String field : fields) {
+                    if (!field.equals("color")) assertEquals(properties.containsKey(new PropertyName(field)), json.contains("\"" + field + "\":"), json);
+                }
+                assertEquals(properties.containsKey(new PropertyName("color")), json.contains("material.colorScheme.primary"), json);
+                if (properties.containsKey(new PropertyName("opacity"))) assertTrue(json.contains("\"opacity\":{\"kind\":\"double\",\"value\":-0.5}"), json);
+                if (properties.containsKey(new PropertyName("shadows"))) {
+                    assertTrue(json.contains("\"kind\":\"shadowList\""), json);
+                    assertTrue(json.contains("c4e1fdab-0c06-4dd6-9d3f-6be0f34a1aed"), json);
+                    assertTrue(json.contains("0x80123456"), json);
+                    assertTrue(json.contains("\"offsetX\":-1.25"), json);
+                    assertTrue(json.contains("\"blurRadius\":4"), json);
+                }
+                for (String name : List.of("fallback", "copyWith", "lerp", "resolve", "fontWeight", "blendMode")) {
+                    assertFalse(json.contains("\"" + name + "\":"), json);
+                }
+            }
+        }
+        assertEquals(1536, count);
+    }
+
+    @Test
+    void iconThemePayloadRejectsMissingModeOrChildInvalidDomainsKindsAndForeignTokens() {
+        var child = text("a0c5b9b2-30b8-4ad4-995c-2e630be728ba", "Icon theme child");
+        for (String name : List.of("size", "fill", "weight", "grade", "opticalSize", "color", "opacity", "shadows", "applyTextScaling", "merge")) {
+            for (PropertyValue invalid : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("invalid"),
+                    new PropertyValue.DartExpressionValue("IconThemeData.fallback()"))) {
+                var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("merge"), new PropertyValue.BooleanValue(false));
+                properties.put(new PropertyName(name), invalid);
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), properties,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        for (var node : List.of(
+                new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), Map.of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))),
+                new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)), Map.of()),
+                new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())),
+                new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false),
+                        new PropertyName("color"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.textTheme.bodyMedium"))), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        for (var entry : Map.of("size", "-1", "fill", "1.001", "weight", "0", "grade", "32768", "opticalSize", "32768", "opacity", "1e999").entrySet()) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.IconTheme"), Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false),
+                    new PropertyName(entry.getKey()), new PropertyValue.DoubleValue(new BigDecimal(entry.getValue()))), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

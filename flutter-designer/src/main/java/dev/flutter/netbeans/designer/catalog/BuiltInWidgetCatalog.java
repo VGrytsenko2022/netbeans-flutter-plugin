@@ -82,6 +82,7 @@ public final class BuiltInWidgetCatalog {
             tickerMode(),
             defaultTextHeightBehavior(),
             defaultSelectionStyle(),
+            iconTheme(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -1963,6 +1964,28 @@ public final class BuiltInWidgetCatalog {
                 "DefaultTextHeightBehavior", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 200, "DefaultTextHeightBehavior"), properties,
                 List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition iconTheme() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("size", 0, false, nonNegativeNumbers()),
+                namedProperty("fill", 1, false, zeroToOneDoubles()),
+                namedProperty("weight", 2, false, positiveFontAxisDoubles()),
+                namedProperty("grade", 3, false, gradeAxisDoubles()),
+                namedProperty("opticalSize", 4, false, positiveFontAxisDoubles()),
+                namedProperty("color", 5, false, colorOrTheme()),
+                namedProperty("opacity", 6, false, finiteDoubles()),
+                namedProperty("shadows", 7, false, shadowValues()),
+                namedProperty("applyTextScaling", 8, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("merge", 10, true, any(PropertyValueKind.BOOLEAN),
+                        new PropertyValue.BooleanValue(false)));
+        if (properties.size() != IconThemeWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("IconTheme catalog/property schema count mismatch");
+        }
+        return widget(IconThemeWidgetPropertySchema.ICON_THEME_TYPE.value(),
+                "IconTheme", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 220, "IconTheme"), properties,
+                List.of(singleSlot("child", 9, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition defaultSelectionStyle() {

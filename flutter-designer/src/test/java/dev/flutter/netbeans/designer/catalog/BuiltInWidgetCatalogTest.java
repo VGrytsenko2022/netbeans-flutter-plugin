@@ -67,6 +67,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.FractionallySizedBox",
                 "flutter.widgets.GridView",
                 "flutter.widgets.Icon",
+                "flutter.widgets.IconTheme",
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.Image",
                 "flutter.widgets.IndexedSemantics",
@@ -104,11 +105,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(65, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(59, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(66, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(60, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(62, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(63, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -124,10 +125,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(783, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(793, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(766, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(776, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -157,6 +158,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Visibility", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.TickerMode", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultSelectionStyle", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.IconTheme", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultTextHeightBehavior", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
@@ -354,6 +356,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.TickerMode",
                 "flutter.widgets.DefaultTextHeightBehavior",
                 "flutter.widgets.DefaultSelectionStyle",
+                "flutter.widgets.IconTheme",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -372,7 +375,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(21, palette.stream()
+        assertEquals(22, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

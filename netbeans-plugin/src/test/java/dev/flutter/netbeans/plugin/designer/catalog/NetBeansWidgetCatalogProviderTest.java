@@ -90,6 +90,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.TickerMode"));
         assertTrue(typeIds(result).contains("flutter.widgets.DefaultTextHeightBehavior"));
         assertTrue(typeIds(result).contains("flutter.widgets.DefaultSelectionStyle"));
+        assertTrue(typeIds(result).contains("flutter.widgets.IconTheme"));
     }
 
     @Test
@@ -177,7 +178,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(65, result.catalog().definitions().size());
+        assertEquals(66, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -210,7 +211,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(65, result.catalog().definitions().size());
+        assertEquals(66, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

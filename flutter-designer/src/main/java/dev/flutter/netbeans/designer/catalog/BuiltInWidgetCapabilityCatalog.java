@@ -196,6 +196,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SingleChildScrollView", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Image", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ImageIcon", STATIC_EDITABLE),
+            Map.entry("flutter.material.Divider", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -588,6 +589,13 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SingleChildScrollView",
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
+            Map.entry("flutter.material.Divider", projection(Map.ofEntries(
+                    numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    numericProperty("indent", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    numericProperty("endIndent", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                    colorOrThemeProperty("color"),
+                    Map.entry("radius", constrainedSchema(PropertyValueKind.BORDER_RADIUS, BORDER_RADIUS_CONTRACT_FINGERPRINT))), Map.of())),
             Map.entry("flutter.widgets.ImageIcon", projection(Map.ofEntries(
                     Map.entry("image", new CanvasPropertyContract(
                             Set.of(PropertyValueKind.IMAGE_PROVIDER, PropertyValueKind.NULL),

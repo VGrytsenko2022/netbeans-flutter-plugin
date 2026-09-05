@@ -83,6 +83,87 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void dividerProjectsAllSixOptionalFieldsWithoutDefaultsAndRetainsPropertyIdentity() throws Exception {
+        WidgetDefinition definition = definition("flutter.material.Divider");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3c");
+        WidgetNode initial = WidgetNodePrototypeFactory.create(definition, id);
+        assertTrue(initial.properties().isEmpty());
+        assertTrue(initial.slots().isEmpty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length);
+        assertEquals(List.of("height", "indent", "endIndent"),
+                names(propertySet(node, "dividerLayout").getProperties()));
+        assertEquals(List.of("thickness", "color", "radius"),
+                names(propertySet(node, "dividerAppearance").getProperties()));
+        var a = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.valueOf(2));
+        var b = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.valueOf(3), BigDecimal.valueOf(4));
+        var c = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.valueOf(5), BigDecimal.valueOf(6));
+        var d = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.valueOf(7), BigDecimal.valueOf(8));
+        PropertyValue.BorderRadiusValue physical = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(a, b, c, d));
+        PropertyValue.BorderRadiusValue directional = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(a, b, c, d));
+        Map<String, List<PropertyValue>> values = new LinkedHashMap<>();
+        for (String name : List.of("height", "thickness", "indent", "endIndent")) {
+            values.put(name, List.of(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                    new PropertyValue.DoubleValue(new BigDecimal("12.5"))));
+        }
+        values.put("color", List.of(new PropertyValue.ColorValue(0x80123456L),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.outlineVariant"))));
+        values.put("radius", List.of(physical, directional));
+        for (var entry : values.entrySet()) {
+            var cell = cellProperty(property(node, entry.getKey()));
+            assertTrue(cell.canWrite());
+            assertTrue(cell.supportsDefaultValue());
+            assertEquals(FlutterPropertyCellValue.unset(), cell.getValue());
+            for (PropertyValue value : entry.getValue()) {
+                var editor = cell.getPropertyEditor();
+                editor.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                if (!entry.getKey().equals("radius")) {
+                    editor.setAsText(editor.getAsText());
+                    assertEquals(FlutterPropertyCellValue.explicit(value), editor.getValue());
+                } else {
+                    assertTrue(editor.supportsCustomEditor());
+                }
+                commands.clear();
+                cell.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(List.of(new SetProperty(id, new PropertyName(entry.getKey()), value)), commands);
+                node.refreshPresentation(new WidgetNode(id, definition.typeId(),
+                                Map.of(new PropertyName(entry.getKey()), value), Map.of()),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, property(node, entry.getKey()));
+                assertEquals(List.of(sets), List.of(node.getPropertySets()));
+                commands.clear();
+                cell.restoreDefaultValue();
+                assertEquals(List.of(new ResetProperty(id, new PropertyName(entry.getKey()))), commands);
+                node.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+        }
+        assertTrue(property(node, "color").getPropertyEditor().isPaintable());
+        assertTrue(property(node, "radius").getShortDescription().contains("Use positive thickness"));
+        assertTrue(property(node, "thickness").getShortDescription().contains("Material 2"));
+        for (String name : List.of("height", "thickness", "indent", "endIndent")) {
+            for (String invalid : List.of("-1", "NaN", "Infinity", "1e400")) {
+                assertThrows(IllegalArgumentException.class,
+                        () -> property(node, name).getPropertyEditor().setAsText(invalid));
+            }
+        }
+        WidgetNode rounded = new WidgetNode(id, definition.typeId(),
+                Map.of(new PropertyName("radius"), directional), Map.of());
+        node.refreshPresentation(rounded, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        commands.clear();
+        cellProperty(property(node, "thickness")).setValue(
+                FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        assertEquals(List.of(new SetProperty(id, new PropertyName("thickness"),
+                new PropertyValue.IntegerValue(BigInteger.ZERO))), commands,
+                "SDK-valid constructor fields stay independent despite the documented paint limitation");
+        assertEquals(FlutterPropertyCellValue.explicit(directional), property(node, "radius").getValue());
+    }
+
+    @Test
     void imageIconProjectsAllFourFieldsWithExplicitNoneAndStableEditorIdentity() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.ImageIcon");
         StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3b");
@@ -1367,6 +1448,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.material.TextField",
+                "flutter.material.Divider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1464,7 +1546,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(797, writableCount,
+        assertEquals(803, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1477,7 +1559,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(780, nonScaffoldWritableCount,
+        assertEquals(786, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6269,6 +6351,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.material.TextField",
+                "flutter.material.Divider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6361,7 +6444,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(67, iconPaths.size(),
+        assertEquals(68, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

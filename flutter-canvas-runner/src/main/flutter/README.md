@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme` and `ImageIcon`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon` and `Divider`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-67 reviewed Canvas widgets. Palette insertion evaluates 3,819 exact
-source/destination cells across 67 draggable sources and 57 insertable reviewed
-slots; 3,528 are accepted and 291 cells are rejected. Expanded and Flexible are
+68 reviewed Canvas widgets. Palette insertion evaluates 3,876 exact
+source/destination cells across 68 draggable sources and 57 insertable reviewed
+slots; 3,583 are accepted and 293 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1112,10 +1112,24 @@ field prose suggests otherwise. No synthetic errorBuilder is added to ImageIcon;
 late framework image-stream failures retain framework diagnostics. Ordinary DnD,
 null/provider transitions and zero-size Designer selection use existing authority.
 
-The aggregate catalog now has 67 widgets and 61 reviewed const definitions,
-with 797 writable rows (780 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, four Material and six Accessibility items; the
-backlog is 67/92 complete with 25 remaining. The 67 sources across 57
-insertable destinations form 3,819 cells, with 3,528 accepted and 291 rejected.
+Divider uses the actual pinned Material Divider, with all six optional fields:
+height, thickness, indent, endIndent, color and radius. Decoding reuses finite
+non-negative numeric, theme-aware color and physical/directional radius contracts.
+No resources, child slots, text editor or model-version changes are introduced.
+Theme defaults remain real SDK defaults: local values then DividerTheme, then
+M2/M3; space 16/zero indents, M2 hairline/dividerColor and M3 thickness 1/outlineVariant.
+RTL changes leading/trailing margins and resolves directional elliptical corners.
+
+The pinned bottom-only Border cannot paint a nonzero radius with a hairline in
+debug; release ignores radius. Raw SDK and Canvas characterization retain that
+limitation rather than silently changing geometry. Use positive thickness for a
+rounded divider. Existing framework error forwarding remains authoritative; there
+is no synthetic release-only guard or extra constructor rejection.
+
+The aggregate catalog now has 68 widgets and 62 reviewed const definitions,
+with 803 writable rows (786 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, five Material and six Accessibility items; the
+backlog is 68/92 complete with 24 remaining. The 68 sources across 57
+insertable destinations form 3,876 cells, with 3,583 accepted and 293 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

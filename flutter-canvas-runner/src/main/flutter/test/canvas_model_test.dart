@@ -122,7 +122,7 @@ void main() {
   test('AppBar reviewed below-type contract matches Java fingerprint', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.AppBar\n');
-    final end = contract.indexOf('W|flutter.material.ElevatedButton\n', start);
+    final end = contract.indexOf('W|flutter.material.Divider\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));

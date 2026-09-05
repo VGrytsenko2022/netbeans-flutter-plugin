@@ -91,6 +91,7 @@ public final class BuiltInWidgetCatalog {
             excludeFocus(),
             excludeFocusTraversal(),
             elevatedButton(),
+            divider(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -597,6 +598,20 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("fontWeight", 11, false,
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
+                List.of());
+    }
+
+    private static WidgetDefinition divider() {
+        return widget(
+                DividerWidgetPropertySchema.DIVIDER_TYPE.value(),
+                "Divider", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 50, "Divider"),
+                List.of(namedProperty("height", 0, false, nonNegativeNumbers()),
+                        namedProperty("thickness", 1, false, nonNegativeNumbers()),
+                        namedProperty("indent", 2, false, nonNegativeNumbers()),
+                        namedProperty("endIndent", 3, false, nonNegativeNumbers()),
+                        namedProperty("color", 4, false, colorOrTheme()),
+                        namedProperty("radius", 5, false, List.of(new PropertyValueConstraint.BorderRadiusValues()))),
                 List.of());
     }
 

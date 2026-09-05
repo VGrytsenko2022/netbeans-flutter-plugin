@@ -137,6 +137,27 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void dividerMovesAsLeafWithoutLosingAnyConfiguredProperty() {
+        var ellipse = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.valueOf(2));
+        WidgetNode divider = new WidgetNode(A_ID, new WidgetTypeId("flutter.material.Divider"),
+                Map.of(new PropertyName("height"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(20)),
+                        new PropertyName("thickness"), new PropertyValue.DoubleValue(BigDecimal.valueOf(2)),
+                        new PropertyName("indent"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(3)),
+                        new PropertyName("endIndent"), new PropertyValue.DoubleValue(BigDecimal.valueOf(4)),
+                        new PropertyName("color"), new PropertyValue.ColorValue(0x80123456L),
+                        new PropertyName("radius"), new PropertyValue.BorderRadiusValue(
+                                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(ellipse, ellipse, ellipse, ellipse))),
+                Map.of());
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(divider, stack)));
+        var result = planner.plan(document, BUILT_INS, divider.id(), new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+        assertEquals(divider.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, divider, result);
+    }
+
+    @Test
     void imageIconMovesAsLeafWithNullOrProviderAndPreservesAllProperties() {
         for (PropertyValue image : List.of(new PropertyValue.NullValue(),
                 PropertyValue.ImageProviderValue.asset("assets/icon.png"))) {

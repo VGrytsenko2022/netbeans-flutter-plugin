@@ -1712,13 +1712,25 @@ accepted architecture is documented in
   and semantics; font axes/shadows/text scaling are not ImageIcon theme inputs.
   Cover resource closure/exact-scale/resize validation, missing/corrupt diagnostics,
   ordinary DnD, generation/provenance, save/reopen/further editing, Undo/Redo,
-  rollback, selection/accessibility and four SVGs. Current totals: 67 widgets,
+  rollback, selection/accessibility and four SVGs. At that milestone: 67 widgets,
   61 const-capable definitions, 797 rows (780 outside Scaffold), 64 scalar plus
   three structural definitions; nine generic wrappers and 57 destinations,
   3,819 cells (3,528 accepted / 291 rejected), Basic 23. Historical target 67/92,
   25 remaining; formats remain 13/14/18. Arbitrary network/file/custom providers
   remain outside the existing asset-backed value model. useOriginalColors is absent
   from pinned Flutter 3.44.8, so it is not admitted and no SDK upgrade is implied.
+- [x] Add `Divider` in Material at order 50 with six optional named constructor
+  fields: height/thickness/indent/endIndent/color/radius, no slots or traits.
+  Reuse finite non-negative numeric, literal/semantic color and physical/directional
+  elliptical-radius values/editors, preserving unset/reset and exact provenance.
+  Render real Divider with local/DividerTheme/M2/M3 precedence and RTL geometry.
+  Characterize SDK rounded-hairline debug assertion/release radius omission;
+  recommend positive thickness without forcing it or rejecting theme-dependent unset.
+  Include zero-height selection, ordinary DnD/moves, property-cell identity,
+  save/reopen/further editing, Undo/Redo, rollback and four SVGs. Current totals:
+  68 widgets, 62 const definitions, 803 rows (786 outside Scaffold), 65 scalar plus
+  three structural; 9 wrappers/57 destinations, 3,876 cells (3,583 accepted / 293 rejected),
+  Material 5/Basic 23. Historical target 68/92, 24 remaining; formats stay 13/14/18.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1736,8 +1748,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-seven admitted built-ins.
-  The 64 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-eight admitted built-ins.
+  The 65 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

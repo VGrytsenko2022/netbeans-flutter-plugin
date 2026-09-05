@@ -36,6 +36,7 @@ class BuiltInWidgetCatalogTest {
     void containsExactlyTheReviewedSixtyOneTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
+                "flutter.material.Divider",
                 "flutter.material.ElevatedButton",
                 "flutter.material.Scaffold",
                 "flutter.material.TextField",
@@ -106,11 +107,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(67, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(61, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(68, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(62, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(64, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(65, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -126,10 +127,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(797, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(803, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(780, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(786, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -140,6 +141,7 @@ class BuiltInWidgetCatalogTest {
     void exposesExactOwningLibrariesAndKeepsEachOwnerImported() {
         Map<String, String> expected = Map.ofEntries(
                 Map.entry("flutter.material.AppBar", MATERIAL_IMPORT),
+                Map.entry("flutter.material.Divider", MATERIAL_IMPORT),
                 Map.entry("flutter.material.ElevatedButton", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Scaffold", MATERIAL_IMPORT),
                 Map.entry("flutter.material.TextField", MATERIAL_IMPORT),
@@ -303,6 +305,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
                 "flutter.material.TextField",
+                "flutter.material.Divider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -366,7 +369,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IndexedSemantics",
                 "flutter.widgets.ExcludeFocus",
                 "flutter.widgets.ExcludeFocusTraversal"), typeIds(palette));
-        assertEquals(4, palette.stream()
+        assertEquals(5, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

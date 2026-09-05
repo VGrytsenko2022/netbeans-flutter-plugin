@@ -27,6 +27,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
             "flutter.material.TextField",
+            "flutter.material.Divider",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -96,6 +97,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.AppBar",
             "flutter.material.ElevatedButton",
             "flutter.material.TextField",
+            "flutter.material.Divider",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -189,7 +191,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(67, sources.size());
+        assertEquals(68, sources.size());
         assertEquals(57, destinations.size());
         assertEquals(55, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -199,9 +201,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3819, candidates);
-        assertEquals(3528, accepted);
-        assertEquals(291, candidates - accepted);
+        assertEquals(3876, candidates);
+        assertEquals(3583, accepted);
+        assertEquals(293, candidates - accepted);
     }
 
     @Test

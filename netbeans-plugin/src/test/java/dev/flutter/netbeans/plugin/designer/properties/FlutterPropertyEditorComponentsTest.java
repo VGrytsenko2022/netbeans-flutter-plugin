@@ -3334,6 +3334,180 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void dividerRadiusEditorIsTypedTransactionalAndReopenable()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.material.Divider", "radius"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.BORDER_RADIUS,
+                binding.editorKind());
+        assertTrue(binding.optional());
+        assertTrue(binding.createEditor().supportsCustomEditor());
+        assertTrue(FlutterPropertyEditorComponents.inplaceFactory(binding).isEmpty());
+
+        PropertyValue.BoxDecorationValue.Radius oneByTwo = radius("1", "2");
+        PropertyValue.BoxDecorationValue.Radius threeByFour = radius("3", "4");
+        PropertyValue.BoxDecorationValue.Radius fiveBySix = radius("5", "6");
+        PropertyValue.BoxDecorationValue.Radius sevenByEight = radius("7", "8");
+        PropertyValue.BorderRadiusValue initial = new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        oneByTwo, threeByFour, fiveBySix, sevenByEight));
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.explicit(initial));
+        assertEquals("physical corners [1×2, 3×4, 5×6, 7×8]", editor.getAsText());
+
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Border radius", "Divider typed border radius geometry."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+        AtomicInteger committedChanges = new AtomicInteger();
+        editor.addPropertyChangeListener(ignored -> committedChanges.incrementAndGet());
+
+        onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            assertSame(panel, editor.getCustomEditor(),
+                    "NetBeans may request the active BorderRadius editor repeatedly");
+            assertEquals("Flutter border radius editor",
+                    panel.getAccessibleContext().getAccessibleName());
+            JCheckBox useDefault = findByText(panel, JCheckBox.class,
+                    "Use Flutter default (omit argument)");
+            JComboBox<?> basis = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_BASIS_NAME);
+            JTable table = findNamed(
+                    panel,
+                    JTable.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_TABLE_NAME);
+            assertNotNull(useDefault);
+            assertNotNull(basis);
+            assertNotNull(table);
+            assertFalse(useDefault.isSelected());
+            assertEquals("Physical corners", basis.getSelectedItem());
+            assertEquals("BorderRadius corner radii",
+                    table.getAccessibleContext().getAccessibleName());
+            assertTableColumn(table, 0,
+                    "Top left", "Top right", "Bottom right", "Bottom left");
+            assertTableColumn(table, 1, "1", "3", "5", "7");
+            assertTableColumn(table, 2, "2", "4", "6", "8");
+
+            table.setValueAt("-1", 0, 1);
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertEquals("error", table.getClientProperty("JComponent.outline"));
+            assertEquals(FlutterPropertyCellValue.explicit(initial), editor.getValue(),
+                    "an invalid radius draft must not replace the selected property");
+            assertEquals(0, committedChanges.get());
+
+            table.setValueAt("1e400", 0, 1);
+            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            assertTrue(table.getToolTipText().contains("finite non-negative"));
+            table.setValueAt("1", 0, 1);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+
+            assertTrue(table.editCellAt(3, 2));
+            JTextField activeCell = assertInstanceOf(
+                    JTextField.class, table.getEditorComponent());
+            activeCell.setText("8.5");
+            environment.setState(PropertyEnv.STATE_VALID);
+            PropertyValue.BorderRadiusValue committed = assertInstanceOf(
+                    PropertyValue.BorderRadiusValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+            PropertyValue.BoxDecorationValue.PhysicalBorderRadius geometry =
+                    assertInstanceOf(
+                            PropertyValue.BoxDecorationValue.PhysicalBorderRadius.class,
+                            committed.geometry());
+            assertEquals(new BigDecimal("1"), geometry.topLeft().x());
+            assertEquals(new BigDecimal("8.5"), geometry.bottomLeft().y(),
+                    "OK must flush the active table-cell editor");
+            assertEquals(1, committedChanges.get());
+            return null;
+        });
+
+        PropertyEditor reopened = binding.createEditor();
+        reopened.setValue(editor.getValue());
+        PropertyEnv reopenedEnvironment = PropertyEnv.create(descriptor(
+                "Border radius", "Reopened Divider border radius."));
+        ((ExPropertyEditor) reopened).attachEnv(reopenedEnvironment);
+        onEdt(() -> {
+            Component panel = reopened.getCustomEditor();
+            JComboBox<?> basis = findNamed(
+                    panel,
+                    JComboBox.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_BASIS_NAME);
+            JTable table = findNamed(
+                    panel,
+                    JTable.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_TABLE_NAME);
+            basis.setSelectedItem("Directional corners");
+            assertTableColumn(table, 0,
+                    "Top start", "Top end", "Bottom end", "Bottom start");
+            String[][] values = {
+                {"11", "12"}, {"13", "14"}, {"15", "16"}, {"17", "18"}
+            };
+            for (int row = 0; row < values.length; row++) {
+                table.setValueAt(values[row][0], row, 1);
+                table.setValueAt(values[row][1], row, 2);
+            }
+            reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+            PropertyValue.BorderRadiusValue committed = assertInstanceOf(
+                    PropertyValue.BorderRadiusValue.class,
+                    ((FlutterPropertyCellValue) reopened.getValue())
+                            .explicitValue().orElseThrow());
+            PropertyValue.BoxDecorationValue.DirectionalBorderRadius geometry =
+                    assertInstanceOf(
+                            PropertyValue.BoxDecorationValue.DirectionalBorderRadius.class,
+                            committed.geometry());
+            assertEquals(new BigDecimal("11"), geometry.topStart().x());
+            assertEquals(new BigDecimal("12"), geometry.topStart().y());
+            assertEquals(new BigDecimal("13"), geometry.topEnd().x());
+            assertEquals(new BigDecimal("14"), geometry.topEnd().y());
+            assertEquals(new BigDecimal("15"), geometry.bottomEnd().x());
+            assertEquals(new BigDecimal("16"), geometry.bottomEnd().y());
+            assertEquals(new BigDecimal("17"), geometry.bottomStart().x());
+            assertEquals(new BigDecimal("18"), geometry.bottomStart().y());
+            return null;
+        });
+
+        PropertyEditor reset = binding.createEditor();
+        reset.setValue(reopened.getValue());
+        PropertyEnv resetEnvironment = PropertyEnv.create(descriptor(
+                "Border radius", "Optional Divider border radius."));
+        ((ExPropertyEditor) reset).attachEnv(resetEnvironment);
+        onEdt(() -> {
+            Component panel = reset.getCustomEditor();
+            JCheckBox useDefault = findByText(panel, JCheckBox.class,
+                    "Use Flutter default (omit argument)");
+            JTable table = findNamed(
+                    panel,
+                    JTable.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_TABLE_NAME);
+            useDefault.doClick();
+            assertFalse(table.isEnabled());
+            resetEnvironment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.unset(), reset.getValue(),
+                    "the optional editor must preserve explicit default omission");
+            return null;
+        });
+
+        PropertyEditor cancelled = binding.createEditor();
+        cancelled.setValue(reopened.getValue());
+        PropertyEnv cancelledEnvironment = PropertyEnv.create(descriptor(
+                "Border radius", "Cancelled Divider border radius edit."));
+        ((ExPropertyEditor) cancelled).attachEnv(cancelledEnvironment);
+        onEdt(() -> {
+            JTable table = findNamed(
+                    cancelled.getCustomEditor(),
+                    JTable.class,
+                    FlutterContainerPropertyEditorComponents.BORDER_RADIUS_TABLE_NAME);
+            table.setValueAt("99", 0, 1);
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION,
+                    cancelledEnvironment.getState());
+            assertEquals(reopened.getValue(), cancelled.getValue(),
+                    "closing without STATE_VALID must discard the local radius draft");
+            return null;
+        });
+    }
+
+    @Test
     void clipRSuperellipseBorderRadiusEditorIsTypedTransactionalAndReopenable()
             throws Exception {
         FlutterTypedPropertyEditors.Binding binding = binding(

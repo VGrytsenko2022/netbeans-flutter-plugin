@@ -4978,6 +4978,26 @@ final _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.widgets.Spacer': _WidgetSpec({
     'flex': _PropertySpec({'integer'}, numericBounds: _positiveIntegerBounds),
   }, const {}),
+  'flutter.material.Divider': _WidgetSpec({
+    'height': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'thickness': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'indent': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'endIndent': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'color': _themeAwareColorProperty,
+    'radius': _borderRadiusProperty,
+  }, const {}),
   'flutter.material.ElevatedButton': _WidgetSpec(
     _elevatedButtonProperties(),
     const {'child': _requiredEmptySingleSlot},
@@ -5411,6 +5431,13 @@ S|bottom|single|0|0|1|trait:Zmx1dHRlci53aWRnZXRzLlByZWZlcnJlZFNpemVXaWRnZXQ
 S|flexibleSpace|single|0|0|1|any
 S|leading|single|0|0|1|any
 S|title|single|0|0|1|any
+W|flutter.material.Divider
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|endIndent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|height|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|indent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|radius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|thickness|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 W|flutter.material.ElevatedButton
 P|autofocus|boolean|0|-|-|boolean:any
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none

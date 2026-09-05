@@ -630,6 +630,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.SingleChildScrollView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.ImageIcon' ||
+        node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2501,6 +2502,17 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final child = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
+      'flutter.material.Divider' => Divider(
+        height: _number('height'),
+        thickness: _number('thickness'),
+        indent: _number('indent'),
+        endIndent: _number('endIndent'),
+        color: _resolvedColor(context, 'color'),
+        radius: switch (node.properties['radius']?.value) {
+          final CanvasBorderRadiusGeometryValue radius => _borderRadius(radius),
+          _ => null,
+        },
+      ),
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),

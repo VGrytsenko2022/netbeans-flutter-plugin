@@ -1928,6 +1928,106 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesDividerCompleteGeometryAndPinnedMaterialThemeContract() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("divider_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaults() => const Divider();
+                Widget explicitNulls() => const Divider(height: null, thickness: null,
+                  indent: null, endIndent: null, color: null, radius: null);
+                Widget complete() => const Divider(height: 20, thickness: 4, indent: 3,
+                  endIndent: 7, color: Color(0x80123456), radius: BorderRadius.only(
+                    topLeft: Radius.elliptical(2, 3), topRight: Radius.elliptical(4, 5),
+                    bottomLeft: Radius.elliptical(6, 7), bottomRight: Radius.elliptical(8, 9)));
+                Widget directional() => const Directionality(textDirection: TextDirection.rtl,
+                  child: Divider(height: 24, thickness: 2, indent: 3, endIndent: 9,
+                    radius: BorderRadiusDirectional.only(topStart: Radius.elliptical(2, 3),
+                      topEnd: Radius.elliptical(4, 5), bottomStart: Radius.elliptical(6, 7),
+                      bottomEnd: Radius.elliptical(8, 9))));
+                Widget inherited() => const DividerTheme(data: DividerThemeData(space: 24,
+                  thickness: 3, indent: 2, endIndent: 4, color: Color(0xFF123456),
+                  radius: BorderRadius.all(Radius.circular(2))), child: Divider());
+                Widget localOverride() => const DividerTheme(data: DividerThemeData(space: 24,
+                  thickness: 3, color: Color(0xFF123456)), child: Divider(height: 16,
+                    thickness: 1, color: Color(0xFFABCDEF), radius: BorderRadius.zero));
+                Widget themed(BuildContext context) => Divider(
+                  color: Theme.of(context).colorScheme.outlineVariant);
+                Widget material2() => Theme(data: ThemeData(useMaterial3: false), child: const Divider());
+                Widget material3() => Theme(data: ThemeData(useMaterial3: true), child: const Divider());
+                // Accepted by the constructor; the pinned paint-time hairline/radius
+                // limitation is separately exercised by the real Flutter Canvas tests.
+                Widget paintTimeCombination() => const Divider(thickness: 0,
+                  radius: BorderRadius.all(Radius.circular(4)));
+                List<Widget> fieldMatrix() => <Widget>[
+                """);
+        for (String field : List.of("height", "thickness", "indent", "endIndent")) {
+            for (String value : List.of("0", "0.5", "32")) {
+                valid.append("const Divider(").append(field).append(": ").append(value).append("),\n");
+            }
+        }
+        for (String radius : List.of("BorderRadius.zero", "BorderRadiusDirectional.zero",
+                "BorderRadius.all(Radius.circular(4))", "BorderRadiusDirectional.all(Radius.elliptical(2, 3))",
+                "BorderRadius.only(bottomLeft: Radius.elliptical(4, 6))",
+                "BorderRadiusDirectional.only(bottomEnd: Radius.elliptical(4, 6))")) {
+            valid.append("const Divider(thickness: 2, radius: ").append(radius).append("),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("Divider", "DividerTheme", "DividerThemeData", "BorderRadius",
+                "BorderRadiusDirectional", "Radius", "Color")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("divider-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/material.dart", flutterSdk));
+        }
+        for (String factory : List.of("BorderRadius.only", "BorderRadiusDirectional.only",
+                "Radius.elliptical", "Radius.circular")) {
+            String member = factory.substring(factory.indexOf('.') + 1);
+            probes.add(probe("divider-" + factory, candidate.indexOf(factory) + factory.indexOf('.') + 1,
+                    member, "package:flutter/material.dart", flutterSdk));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1900, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        long version = 1901;
+        for (String invalid : List.of("const Divider(height: -1)", "const Divider(thickness: -1)",
+                "const Divider(indent: -1)", "const Divider(endIndent: -1)",
+                "const Divider(height: '20')", "const Divider(thickness: true)",
+                "const Divider(indent: '3')", "const Divider(endIndent: false)",
+                "const Divider(color: 123)", "const Divider(radius: Radius.circular(2))",
+                "const Divider(radius: 'round')", "const Divider(child: Text('Not a wrapper'))",
+                "const Divider(width: 20)", "const Divider(semanticLabel: 'Line')",
+                "const Divider(clipBehavior: Clip.antiAlias)", "const Divider.vertical()")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

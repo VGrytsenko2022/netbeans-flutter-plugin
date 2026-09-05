@@ -312,6 +312,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.DefaultSelectionStyle".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.DefaultSelectionStyle.Name"));
                 setShortDescription(message("Widget.DefaultSelectionStyle.Description"));
+            } else if ("flutter.material.Divider".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.Divider.Name"));
+                setShortDescription(message("Widget.Divider.Description"));
             } else if ("flutter.widgets.IconTheme".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IconTheme.Name"));
                 setShortDescription(message("Widget.IconTheme.Description"));

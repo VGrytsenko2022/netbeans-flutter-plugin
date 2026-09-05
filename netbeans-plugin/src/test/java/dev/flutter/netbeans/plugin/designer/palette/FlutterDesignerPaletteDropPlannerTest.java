@@ -162,6 +162,60 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
+    void dividerCompletesExact3876CellModelWithoutInventedDefaults() {
+        List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(),
+                                definition.typeId(), slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, new WidgetTypeId("flutter.material.Divider"), ROOT_ID,
+                    target.slot(), 0, FlutterImageAssetChoices.empty(), () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        target.name());
+                assertEquals(Map.of(),
+                        success.command().widget().properties());
+                assertEquals(Map.of(), success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(68, BUILT_INS.definitions().size()),
+                () -> assertEquals(57, targets.size()),
+                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(3876, 68 * targets.size()),
+                () -> assertEquals(3583, 3528 + accepted.get()),
+                () -> assertEquals(293, 291 + rejected.get()));
+    }
+
+    @Test
     void imageIconCompletesExact3819CellModelWithExplicitNone() {
         List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
                 .flatMap(definition -> definition.slots().stream()
@@ -5499,8 +5553,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preImageIconDefinitions() {
+    private static Stream<WidgetDefinition> preDividerDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.Divider"));
+    }
+
+    private static Stream<WidgetDefinition> preImageIconDefinitions() {
+        return preDividerDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.widgets.ImageIcon"));
     }
 

@@ -71,6 +71,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.Icon", ICON_ROOT + "icon.svg"),
             Map.entry("flutter.widgets.Image", ICON_ROOT + "image.svg"),
             Map.entry("flutter.widgets.ImageIcon", ICON_ROOT + "imageicon.svg"),
+            Map.entry("flutter.material.Divider", ICON_ROOT + "divider.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

@@ -751,6 +751,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.AppBar",
                     "flutter.material.ElevatedButton",
                     "flutter.material.TextField",
+                    "flutter.material.Divider",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -988,6 +989,24 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 "Operation: apply Flutter Palette drop."));
         assertTrue(detail.get().contains("The target slot is full."));
         assertFalse(detail.get().contains("assets/example.png"));
+    }
+
+    @Test
+    void dividerSlotReplacementCreatesAnEmptyPropertyLeafExactlyOnce() {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.material.Divider")).orElseThrow();
+        StableId expectedId = StableId.parse("23655e27-aa73-430f-9967-5344076c4fa3");
+        AtomicInteger allocations = new AtomicInteger();
+        WidgetNode replacement = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(
+                definition, FlutterImageAssetChoices.empty(), () -> {
+                    allocations.incrementAndGet();
+                    return expectedId;
+                });
+        assertEquals(expectedId, replacement.id());
+        assertEquals(definition.typeId(), replacement.type());
+        assertTrue(replacement.properties().isEmpty());
+        assertTrue(replacement.slots().isEmpty());
+        assertEquals(1, allocations.get());
     }
 
     @Test

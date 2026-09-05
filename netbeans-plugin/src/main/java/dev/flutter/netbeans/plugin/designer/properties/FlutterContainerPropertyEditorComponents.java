@@ -127,7 +127,7 @@ final class FlutterContainerPropertyEditorComponents {
             basis = new JComboBox<>(directionalAllowed
                     ? new String[]{"Physical corners", "Directional corners"}
                     : new String[]{"Physical corners"});
-            if (!directionalAllowed) {
+            if (!directionalAllowed || binding.definition().name().value().equals("radius")) {
                 useDefault.setText("Use Flutter default (omit argument)");
             }
             getAccessibleContext().setAccessibleDescription(directionalAllowed

@@ -81,6 +81,7 @@ public final class BuiltInWidgetCatalog {
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
+            indexedSemantics(),
             elevatedButton(),
             textField()));
 
@@ -1874,6 +1875,19 @@ public final class BuiltInWidgetCatalog {
                 WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.accessibility", 400, 30, "MergeSemantics"), List.of(),
                 List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition indexedSemantics() {
+        List<PropertyDefinition> properties = List.of(namedProperty("index", 0, true,
+                portableIntegers(), new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        if (properties.size() != IndexedSemanticsWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("IndexedSemantics catalog/property schema count mismatch");
+        }
+        return widget(
+                IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.value(),
+                "IndexedSemantics", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.accessibility", 400, 40, "IndexedSemantics"), properties,
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

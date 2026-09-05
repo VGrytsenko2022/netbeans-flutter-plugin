@@ -131,7 +131,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
-                "flutter.widgets.MergeSemantics"),
+                "flutter.widgets.MergeSemantics",
+                "flutter.widgets.IndexedSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -1265,6 +1266,46 @@ class CanvasModelPayloadCodecTest {
                 assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), invalid))));
             }
+        }
+    }
+
+    @Test
+    void indexedSemanticsPayloadPreservesSignedSafeIntegerEdgesAndOptionalChild() throws Exception {
+        var child = text("c657fb5d-2a97-4d3b-84bc-efbe1f8ed4d9", "IndexedSemantics child");
+        for (var index : List.of(dev.flutter.netbeans.designer.catalog.DartNumericLiterals.MIN_PORTABLE_INTEGER,
+                java.math.BigInteger.valueOf(-1), java.math.BigInteger.ZERO,
+                dev.flutter.netbeans.designer.catalog.DartNumericLiterals.MAX_PORTABLE_INTEGER)) {
+            for (var slots : List.<Map<SlotName, WidgetSlot>>of(Map.of(),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)))) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.IndexedSemantics"),
+                        Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(index)), slots);
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"type\":\"flutter.widgets.IndexedSemantics\""), json);
+                assertTrue(json.contains("\"index\":{\"kind\":\"integer\",\"value\":" + index + "}"), json);
+                assertEquals(slots.containsKey(new SlotName("child")), json.contains("\"child\":"), json);
+                assertEquals(slots.values().stream().anyMatch(slot -> ((WidgetSlot.SingleSlot) slot).child().isPresent()),
+                        json.contains("IndexedSemantics child"), json);
+            }
+        }
+    }
+
+    @Test
+    void indexedSemanticsPayloadRejectsMissingNullFractionalRawAndOverflowIndexesBeforeSerialization() {
+        var missing = new WidgetNode(StableId.random(), type("flutter.widgets.IndexedSemantics"), Map.of(), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), missing))));
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.BooleanValue(true),
+                new PropertyValue.StringValue("0"), new PropertyValue.DoubleValue(java.math.BigDecimal.ONE),
+                new PropertyValue.DartExpressionValue("secretProjectIndex()"),
+                new PropertyValue.IntegerValue(dev.flutter.netbeans.designer.catalog.DartNumericLiterals.MIN_PORTABLE_INTEGER.subtract(java.math.BigInteger.ONE)),
+                new PropertyValue.IntegerValue(dev.flutter.netbeans.designer.catalog.DartNumericLiterals.MAX_PORTABLE_INTEGER.add(java.math.BigInteger.ONE)))) {
+            var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.IndexedSemantics"),
+                    Map.of(new PropertyName("index"), value), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
         }
     }
 

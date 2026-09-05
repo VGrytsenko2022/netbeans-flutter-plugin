@@ -80,7 +80,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
-            "flutter.widgets.MergeSemantics");
+            "flutter.widgets.MergeSemantics",
+            "flutter.widgets.IndexedSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -137,7 +138,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IgnorePointer",
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.ExcludeSemantics",
-            "flutter.widgets.BlockSemantics");
+            "flutter.widgets.BlockSemantics",
+            "flutter.widgets.IndexedSemantics");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -148,7 +150,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFiftyEightSourcesAndFiftyFiveInsertableDestinations() {
+    void exactDndCapabilityMatrixHasFiftyNineSourcesAndFiftySixInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -171,9 +173,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(58, sources.size());
-        assertEquals(55, destinations.size());
-        assertEquals(53, destinations.stream()
+        assertEquals(59, sources.size());
+        assertEquals(56, destinations.size());
+        assertEquals(54, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -181,9 +183,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3190, candidates);
-        assertEquals(2923, accepted);
-        assertEquals(267, candidates - accepted);
+        assertEquals(3304, candidates);
+        assertEquals(3032, accepted);
+        assertEquals(272, candidates - accepted);
     }
 
     @Test

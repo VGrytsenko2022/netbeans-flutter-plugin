@@ -3788,6 +3788,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.IndexedSemantics': _WidgetSpec(
+    {
+      'index': _PropertySpec(
+        {'integer'},
+        required: true,
+        creationDefaultFingerprint: 'integer:0',
+        numericBounds: _signedPortableIntegerBounds,
+      ),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.MergeSemantics': _WidgetSpec(const {}, {
     'child': _optionalSingleSlot,
   }),
@@ -5836,6 +5847,9 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.IndexedSemantics
+P|index|integer|1|integer:0|integer:-9007199254740991:1:9007199254740991:1|integer:range:-9007199254740991:1:9007199254740991:1
+S|child|single|0|0|1|any
 W|flutter.widgets.IndexedStack
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none

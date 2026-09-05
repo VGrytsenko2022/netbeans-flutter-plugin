@@ -574,6 +574,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
         node.type == 'flutter.widgets.MergeSemantics' ||
+        node.type == 'flutter.widgets.IndexedSemantics' ||
         node.type == 'flutter.widgets.RepaintBoundary' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
@@ -2360,7 +2361,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     required this.onBeginInlineTextEdit,
     required this.onCommitInlineTextEdit,
     required this.onCancelInlineTextEdit,
-    this.insideMergedSemantics = false,
+    this.suppressDesignerSemantics = false,
   });
 
   final CanvasNode node;
@@ -2375,7 +2376,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   final bool Function(String) onBeginInlineTextEdit;
   final bool Function(String, String, bool) onCommitInlineTextEdit;
   final VoidCallback onCancelInlineTextEdit;
-  final bool insideMergedSemantics;
+  final bool suppressDesignerSemantics;
 
   @override
   Size get preferredSize => node.type == 'flutter.material.AppBar'
@@ -2449,6 +2450,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.MergeSemantics' => MergeSemantics(
         child: _single('child'),
       ),
+      'flutter.widgets.IndexedSemantics' => IndexedSemantics(
+        index: _integer('index')!,
+        child: _single('child'),
+      ),
       'flutter.widgets.RepaintBoundary' => RepaintBoundary(
         child: _single('child'),
       ),
@@ -2519,14 +2524,17 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       child: guidedChild,
     );
+    final suppressNodeDesignerSemantics =
+        suppressDesignerSemantics ||
+        node.type == 'flutter.widgets.IndexedSemantics';
     final instrumented = Semantics(
       // Synthetic Designer labels, selected states and tap actions must not
-      // contaminate the application node assembled by MergeSemantics. Keep
-      // actionable preview diagnostics, and keep pointer/keyboard editing.
-      label: insideMergedSemantics
+      // contaminate merged nodes or consume an IndexedSemantics annotation.
+      // Keep actionable preview diagnostics and pointer/keyboard editing.
+      label: suppressNodeDesignerSemantics
           ? _imageStatusSemantics()
           : '${_displayType(node.type)} ${node.id}${_imageStatusSemantics()}',
-      selected: insideMergedSemantics ? null : selected,
+      selected: suppressNodeDesignerSemantics ? null : selected,
       child: MouseRegion(
         cursor: editing ? SystemMouseCursors.text : SystemMouseCursors.click,
         opaque: !_ignoresPointersForNode(node),
@@ -2537,7 +2545,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           key: ValueKey('canvas-widget-${node.id}'),
           child: GestureDetector(
             key: nodeKey(node.id),
-            excludeFromSemantics: insideMergedSemantics,
+            excludeFromSemantics: suppressNodeDesignerSemantics,
             behavior: HitTestBehavior.translucent,
             onTap: editing || _ignoresPointersForNode(node)
                 ? null
@@ -4964,8 +4972,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     onBeginInlineTextEdit: onBeginInlineTextEdit,
     onCommitInlineTextEdit: onCommitInlineTextEdit,
     onCancelInlineTextEdit: onCancelInlineTextEdit,
-    insideMergedSemantics:
-        insideMergedSemantics || node.type == 'flutter.widgets.MergeSemantics',
+    suppressDesignerSemantics:
+        suppressDesignerSemantics ||
+        node.type == 'flutter.widgets.MergeSemantics' ||
+        node.type == 'flutter.widgets.IndexedSemantics',
   );
 
   String? _string(String name) {

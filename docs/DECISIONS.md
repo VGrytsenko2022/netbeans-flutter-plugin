@@ -34,10 +34,10 @@ the historical `ClipRect` surface, ADR-076 establishes the historical
 `ClipOval` surface, ADR-077 establishes `ClipRRect`, ADR-078 adds `ClipPath`,
 ADR-079 adds `ClipRSuperellipse`, ADR-080 adds `PhysicalModel`, ADR-081 adds
 `PhysicalShape`, ADR-082 adds `RepaintBoundary`, ADR-083 adds `IgnorePointer`,
-ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, and ADR-086
-establishes the current `MergeSemantics` surface: 764 typed rows across fifty-eight
-widgets, fifty-two const-constructor definitions and 3,190 Palette/DnD candidates,
-including 2,923 accepted and 267 rejected cells. The 747-field
+ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
+`MergeSemantics`, and ADR-087 establishes the current `IndexedSemantics` surface:
+765 typed rows across fifty-nine widgets, fifty-three const-constructor definitions
+and 3,304 Palette/DnD candidates, including 3,032 accepted and 272 rejected cells. The 748-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -47,7 +47,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-086 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-087 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -299,7 +299,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-086 make 747 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-087 make 748 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -334,7 +334,8 @@ six properties, PhysicalShape's five properties, RepaintBoundary's property-free
 child slot and IgnorePointer's and AbsorbPointer's two optional boolean fields each,
 including their deprecated semantics overrides, plus BlockSemantics' optional
 blocking boolean and child slot. MergeSemantics adds structural child-slot editing
-without a scalar row. Scaffold separately contributes 17 rows, giving 764 overall.
+without a scalar row. IndexedSemantics adds one required signed index and an
+optional child slot. Scaffold separately contributes 17 rows, giving 765 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -401,8 +402,9 @@ and ADR-082 establishes fifty-four sources with 2,754 candidates (2,507 accepted
 matrix (2,608 accepted / 252 rejected). ADR-084 establishes the historical fifty-six-source,
 2,968-candidate matrix (2,711 accepted / 257 rejected). ADR-085 establishes the historical
 fifty-seven-source, 3,078-candidate matrix (2,816 accepted / 262 rejected). ADR-086
-establishes the current fifty-eight-source, 3,190-candidate matrix (2,923 accepted /
-267 rejected).
+establishes the historical fifty-eight-source, 3,190-candidate matrix (2,923 accepted /
+267 rejected). ADR-087 establishes the current fifty-nine-source, 3,304-candidate
+matrix (3,032 accepted / 272 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -413,7 +415,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -427,12 +429,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated fifty-eight-widget model for Mobile, Tablet,
+Canvas now renders the validated fifty-nine-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those fifty-eight Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,190-cell candidate matrix across fifty-three insertable any-widget and two
-trait-bound destination slots; 2,923 cells are accepted and 267 rejected.
+those fifty-nine Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,304-cell candidate matrix across fifty-four insertable any-widget and two
+trait-bound destination slots; 3,032 cells are accepted and 272 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3899,5 +3901,99 @@ match final files. main.dart.js is 2,864,282 bytes, SHA-256
 70c080b1e8def70ddd5ee0aa991364e62e875b3ef5a37f4933f1adea27b42edd.
 nbm:cluster and release metadata/freshness verification pass. NBM size: 7,281,998
 bytes; SHA-256 ABFA580A8DB3B95B994CA6795771DD8A45A0DFB760809A18AE6B8984100B5664.
+Installed-userdir and full physical desktop acceptance were not performed; optional
+skips are recorded and not presented as passed physical tests.
+
+## ADR-087 — IndexedSemantics completes required index editing and scroll semantics
+
+Status: accepted, 2026-09-05.
+
+After MergeSemantics, admit `flutter.widgets.IndexedSemantics` in Accessibility at
+order 40. This is a reviewed API-based successor, not a recovered ordered entry
+from the historical 92-widget target. The official constructor and pinned Flutter
+3.44.8 basic.dart define const, required int index, optional child and key.
+Key remains Designer-managed identity; no public constructor branch is postponed.
+
+Use exact STATIC_EDITABLE capability. Required INTEGER index is constructor order
+0, with Designer prototype 0 and shared portable integer range
+-9007199254740991..9007199254740991. Zero is not a Flutter constructor default.
+Required omission/null and noninteger encodings fail closed; unset cannot erase
+the argument. The signed range matches existing native/Web model portability,
+not an invented SDK bound. The pinned constructor/render object does not assert
+nonnegativity. Child is optional SINGLE any-widget at order 1. Unknown fields,
+altered defaults/orders/constraints/requiredness and slot drift cannot borrow the
+canonical projection or capabilities.
+
+Canvas constructs actual IndexedSemantics/RenderIndexedSemantics. The render object
+sets indexInParent, with normal layout, paint, intrinsic sizing and ordinary hits.
+The index annotates the first child semantic node according to actual SDK topology;
+multiple semantic children can have an indexed container rather than an indexed
+leaf. Do not invent boundaries or force an index onto every descendant. Changes
+update semantic metadata, not sibling order or indexes. Manual ListView indexing
+requires explicit addSemanticIndexes and semanticChildCount settings; Designer
+does not silently rewrite parent properties or renumber children after moves.
+
+Extend the existing MergeSemantics descendant scope to IndexedSemantics and name
+the internal flag suppressDesignerSemantics. Suppress only synthetic Designer
+identity/selected annotations and GestureDetector semantics in those descendants,
+retaining actual widget semantics and accessible preview diagnostics. IndexedSemantics
+does not create the isolating SDK boundary that MergeSemantics creates, so the
+IndexedSemantics wrapper's own synthetic annotations/actions must also be suppressed.
+Do not insert a container or explicitChildNodes boundary to compensate. Outer
+MergeSemantics Canvas identity remains unchanged; accessible IndexedSemantics
+identity/editing stays in the NetBeans tree. Mouse selection/double-click,
+keys/outlines, geometric DnD and F2 editing remain available. Nested wrappers carry
+the scope; children moved outside regain normal Designer contributions. No blanket
+ExcludeSemantics, fake application node or forced leaf index is introduced.
+
+Outside-scope ancestors such as Center retain their existing Designer labels and
+selection actions. The SDK may combine those ancestor contributions with a
+non-boundary child; this change does not claim an entirely uninstrumented Canvas
+semantic tree. Tests distinguish wrapper/descendant-owned suppression from retained
+ancestor behavior, and calibrate indexed container versus leaf topology against
+the pinned SDK rather than forcing semantic boundaries to satisfy a test.
+
+The complete slice includes typed Properties/Slots, all Palette/tree/Canvas
+insertion and movement routes, index edits and child add/replace/clear/cancel,
+const/non-const generation/provenance, codec/payload round-trip, Save/reopen/further
+index and descendant edits, Undo/Redo, rejected-change rollback, accessibility
+hints and four distinct light/dark 16/32px SVGs. Existing encodings suffice:
+schema/API/model remain 13/14/18 and NBFC framing/control/wire remain 1.
+
+Current totals: 59 widgets, 53 const definitions, 765 writable rows (748 outside
+Scaffold); 56 scalar definitions plus structural IntrinsicHeight/RepaintBoundary/
+MergeSemantics. Fifty-four any-widget plus two trait destinations form 59x56 =
+3,304 cells, 3,032 accepted and 272 rejected. Categories: Layout 31, Scrolling 3,
+Basic 17, Material 4, Accessibility 4. Historical practical target: 59/92 with 33
+remaining. Full physical desktop acceptance remains deferred until the palette
+target is done.
+
+Validation (2026-09-05): Flutter analyze is clean and all 628 Flutter tests pass,
+including 26 dedicated IndexedSemantics cases. Coverage includes signed portable
+endpoints and closed decoding, live RenderIndexedSemantics reuse/index updates,
+raw-SDK-calibrated anonymous-parent versus leaf topology, nested/merge/exclude/block
+compositions, actual ListView scrollIndex changing 0 to 1 across an unindexed
+separator with explicit count, real button semantic actions, and accessible Image
+preview diagnostics. Tests preserve outside-scope ancestor annotations while
+rejecting wrapper/descendant-owned synthetic contributions; actual reparenting
+out and back restores those contributions without leaking the index. Ordinary
+layout, paint, intrinsic sizing, pointer selection, childless/tight targets,
+child replacement/clear, DnD/moves and descendant F2 editing pass on Windows/Web
+model profiles. The full core suite passes 1,146 cases and the focused NetBeans
+suite passes 541. The dedicated real Flutter 3.44.8 analyzer test accepts every
+constructor branch, signed bounds, const/non-const and scroll/merge compositions,
+verifies SDK symbol provenance, rejects missing/null/wrong-type/invented fields
+and invalid const, and leaves the original project file unchanged.
+
+Clean Maven install succeeds across all 11 modules. Surefire records 3,414 tests,
+zero failures/errors and six declared optional skips; Failsafe records 13 tests,
+zero failures/errors and one optional native-desktop skip. The complete real-SDK
+analyzer class passes 12 cases and mutation-controller integration passes 78.
+Both actual Web artifact/build suites pass all 41 cases without skips. Release
+Web build succeeds; all 40 source-manifest and 35 offline Web-manifest entries
+match final files. main.dart.js is 2,864,730 bytes, SHA-256
+be035178d3d04962798ce9953f6d93b07d728d7d13a7fe47bef14247e3e31b23.
+nbm:cluster and release metadata/freshness verification pass. NBM size: 7,288,245
+bytes; SHA-256 706247B7669FD50394D31FE2ED3C87B8345587CF2FE1C1E54EB408801B8282D1.
 Installed-userdir and full physical desktop acceptance were not performed; optional
 skips are recorded and not presented as passed physical tests.

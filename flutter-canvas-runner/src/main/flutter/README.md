@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics` and `MergeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics` and `IndexedSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-58 reviewed Canvas widgets. Palette insertion evaluates 3,190 exact
-source/destination cells across 58 draggable sources and 55 insertable reviewed
-slots; 2,923 are accepted and 267 cells are rejected. Expanded and Flexible are
+59 reviewed Canvas widgets. Palette insertion evaluates 3,304 exact
+source/destination cells across 59 draggable sources and 56 insertable reviewed
+slots; 3,032 are accepted and 272 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -981,10 +981,30 @@ propagates through nested descendants and disappears when content is moved outsi
 Full Canvas semantics tests include Designer instrumentation and the existing
 isolation of project callbacks, not merely a standalone SDK factory.
 
-The aggregate catalog now has 58 widgets and 52 reviewed const definitions,
-with 764 writable rows (747 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, seventeen Basic, four Material and three Accessibility items; the
-backlog is 58/92 complete with 34 remaining. The 58 sources across 55
-insertable destinations form 3,190 cells, with 2,923 accepted and 267 rejected.
+IndexedSemantics uses actual IndexedSemantics/RenderIndexedSemantics with required
+signed integer index and an optional child. The exact projection uses the shared
+native/Web integer range -9007199254740991..9007199254740991 and rejects missing,
+null, noninteger and out-of-range values. Index 0 is a host prototype value, not
+a decoder fallback or SDK default. The render object annotates the first child
+semantic node and otherwise proxies layout, paint, intrinsic sizing and hits.
+Like MergeSemantics, its descendants omit only synthetic Designer semantics.
+Unlike MergeSemantics, IndexedSemantics has no isolating SDK boundary, so its own
+outer Designer annotations/actions must also be omitted; accessible wrapper
+identity and editing remain in the NetBeans widget tree. No boundary is inserted;
+an indexed anonymous parent for several real semantic children remains valid SDK
+topology, with no forced leaf indexes. Outside-scope Designer ancestors keep their
+own semantics, which the SDK may combine with a non-boundary child. Test scope
+ownership rather than claiming the entire Designer tree equals an uninstrumented
+application tree. Actual widget semantics,
+preview diagnostics, pointer/F2/tree editing and geometric DnD remain available.
+Moving content outside these wrappers restores ordinary Designer contributions.
+Manual ListView indexes require explicit parent addSemanticIndexes/semanticChildCount
+settings; no silent parent changes or automatic sibling renumbering are introduced.
+
+The aggregate catalog now has 59 widgets and 53 reviewed const definitions,
+with 765 writable rows (748 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seventeen Basic, four Material and four Accessibility items; the
+backlog is 59/92 complete with 33 remaining. The 59 sources across 56
+insertable destinations form 3,304 cells, with 3,032 accepted and 272 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

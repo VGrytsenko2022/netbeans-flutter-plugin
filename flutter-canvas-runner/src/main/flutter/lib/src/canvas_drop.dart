@@ -365,6 +365,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.AbsorbPointer' ||
       'flutter.widgets.BlockSemantics' ||
       'flutter.widgets.MergeSemantics' ||
+      'flutter.widgets.IndexedSemantics' ||
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||

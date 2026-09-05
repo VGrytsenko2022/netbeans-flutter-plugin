@@ -828,6 +828,8 @@ class FlutterWidgetPropertiesNodeTest {
         requiredValues.put(
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 Map.of(new PropertyName("decoration"), emptyDecoration()));
+        requiredValues.put("flutter.widgets.IndexedSemantics",
+                Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(BigInteger.ZERO)));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -886,6 +888,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.AbsorbPointer",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",
+                    "flutter.widgets.IndexedSemantics",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -921,7 +924,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(764, writableCount,
+        assertEquals(765, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -934,7 +937,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(747, nonScaffoldWritableCount,
+        assertEquals(748, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2685,6 +2688,61 @@ class FlutterWidgetPropertiesNodeTest {
                         "without changing layout, painting, or hit testing")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void indexedSemanticsRequiredSignedIndexPreservesFocusIdentityAndAllPortableBounds() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.IndexedSemantics");
+        StableId id = StableId.parse("91a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName name = new PropertyName("index");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length, "identity, semantics and child Slots");
+        assertEquals(List.of("index"), names(propertySet(node, "indexedSemanticsBehavior").getProperties()));
+        var index = cellProperty(property(node, "index"));
+        assertTrue(index.canWrite());
+        assertFalse(index.supportsDefaultValue());
+        assertFalse(index.isDefaultValue());
+        assertEquals("Index", index.getDisplayName());
+        assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(BigInteger.ZERO)),
+                index.getValue());
+        assertTrue(index.getShortDescription().contains("creation starts at 0"));
+        assertTrue(index.getShortDescription().contains("cannot be unset"));
+        assertTrue(index.getShortDescription().contains("Negative values are accepted"));
+        assertTrue(index.getShortDescription().contains("does not sort children"));
+        PropertyEditor editor = index.getPropertyEditor();
+        assertNull(editor.getTags(), "signed integers use the numeric editor, not a dropdown");
+        for (String value : List.of("0", "-3", "42", "-9007199254740991", "9007199254740991")) {
+            editor.setAsText(value);
+            assertEquals(new PropertyValue.IntegerValue(new BigInteger(value)),
+                    cell(editor).explicitValue().orElseThrow(), value);
+        }
+        for (String invalid : List.of("9007199254740992", "-9007199254740992", "1.5", "NaN", "<not set>")) {
+            assertThrows(IllegalArgumentException.class, () -> editor.setAsText(invalid), invalid);
+        }
+        assertThrows(IllegalArgumentException.class, () -> index.setValue(FlutterPropertyCellValue.unset()));
+        editor.setAsText("-3");
+        index.setValue(cell(editor));
+        index.restoreDefaultValue();
+        PropertyValue.IntegerValue negative = new PropertyValue.IntegerValue(BigInteger.valueOf(-3));
+        assertEquals(List.of(new SetProperty(id, name, negative)), commands,
+                "required index has no Restore Default mutation");
+        WidgetNode changed = new WidgetNode(id, definition.typeId(), Map.of(name, negative), widget.slots());
+        commands.clear();
+        node.refreshPresentation(changed, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()), "edits retain groups and focus identity");
+        assertSame(index, property(node, "index"));
+        assertEquals(FlutterPropertyCellValue.explicit(negative), index.getValue());
+        index.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(BigInteger.ZERO)));
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.IntegerValue(BigInteger.ZERO))), commands);
+        var child = property(node, "child");
+        assertEquals("Empty", child.getValue());
+        assertTrue(child.getShortDescription().contains("Occupancy: 0/1"));
+        assertTrue(child.getShortDescription().contains("does not sort children"));
+        assertTrue(child.getShortDescription().contains("descendant editing remain available"));
     }
 
     @Test
@@ -5625,6 +5683,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.PhysicalShape");
         typeIds.add("flutter.widgets.RepaintBoundary");
         typeIds.add("flutter.widgets.MergeSemantics");
+        typeIds.add("flutter.widgets.IndexedSemantics");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -5654,7 +5713,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(58, iconPaths.size(),
+        assertEquals(59, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

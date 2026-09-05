@@ -1123,6 +1123,76 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesIndexedSemanticsCompleteConstructor() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("indexed_semantics_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const IndexedSemantics(index: 0);
+                Widget nullableChild() => const IndexedSemantics(index: 1, child: null);
+                Widget negative() => const IndexedSemantics(index: -1, child: Text('Signed'));
+                Widget lowerBoundary() => const IndexedSemantics(index: -9007199254740991);
+                Widget upperBoundary() => const IndexedSemantics(index: 9007199254740991);
+                Widget nested() => const IndexedSemantics(index: 4,
+                  child: IndexedSemantics(index: 5, child: Text('Nested')));
+                Widget themed(BuildContext context) => IndexedSemantics(index: 3,
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface));
+                Widget changing(int index) => IndexedSemantics(index: index,
+                  child: Text(DateTime.now().toString()));
+                Widget scrollable() => ListView(addSemanticIndexes: false,
+                  semanticChildCount: 2, children: const [
+                    IndexedSemantics(index: 0, child: Text('First')),
+                    SizedBox(height: 12),
+                    IndexedSemantics(index: 1, child: Text('Second')),
+                  ]);
+                Widget merged() => const MergeSemantics(child: IndexedSemantics(
+                  index: 2, child: Row(children: [Text('Label'), Text('Value')])));
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("indexed-semantics",
+                valid.indexOf("IndexedSemantics"), "IndexedSemantics",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 1000, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1001;
+        for (String invalid : List.of(
+                "const IndexedSemantics()",
+                "const IndexedSemantics(index: null)",
+                "const IndexedSemantics(index: 1.5)",
+                "const IndexedSemantics(index: true)",
+                "const IndexedSemantics(index: '1')",
+                "const IndexedSemantics(index: 0, excluding: true)",
+                "const IndexedSemantics(index: 0, children: <Widget>[])",
+                "const IndexedSemantics(index: 0, child: 'not a widget')",
+                "const IndexedSemantics(index: 0, child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

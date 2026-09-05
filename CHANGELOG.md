@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `IndexedSemantics` in Accessibility at order 40 with its complete const
+  constructor: required signed integer index, optional child and managed key.
+  Typed index editing preserves the shared native/Web exact-integer range;
+  zero is the Designer prototype value, not an SDK default. The field cannot
+  be unset. Actual Canvas semantics annotate the first genuine child semantic
+  node, without synthetic Designer labels or selection actions on the wrapper or
+  descendants contaminating application semantics. No extra boundary is inserted. Ordinary
+  layout, paint and pointer editing remain unchanged. Includes Properties/Slots,
+  all placement/move routes, Save/reopen/further edits, Undo/Redo, rollback and four
+  SVGs. Current surface: 59 widgets, 53 const definitions, 765 rows (748 outside
+  Scaffold), 3,304 placements (3,032 accepted / 272 rejected), Accessibility 4.
+  Historical target 59/92 with 33 remaining; schema/API/model stay 13/14/18.
+  Full physical desktop acceptance remains deferred.
+
 - `MergeSemantics` in Accessibility at order 30 with its complete constructor:
   optional child and managed key, no scalar fields. Exact structural capability
   retains identity/Slots and descendant editing without invented property rows.
@@ -13,7 +27,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   preserving layout, paint and ordinary hits. Includes placement/move routes,
   child add/replace/clear, Save/reopen/further editing, Undo/Redo, rollback,
   accessibility and four SVGs. Hints explain conflicting states and Flutter's
-  first-tree-order handler rule. Schema/API/model remain 13/14/18. Current surface:
+  first-tree-order handler rule. Schema/API/model remain 13/14/18. At that milestone:
   58 widgets, 52 const definitions, 764 rows (747 outside Scaffold), 3,190 placements
   (2,923 accepted / 267 rejected), Accessibility 3. Historical target 58/92 with
   34 remaining; full physical desktop acceptance remains deferred.

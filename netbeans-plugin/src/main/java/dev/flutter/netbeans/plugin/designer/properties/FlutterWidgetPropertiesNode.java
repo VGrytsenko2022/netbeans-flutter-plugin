@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -528,6 +529,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIgnorePointerPropertySets(sheet, hasSlotTab);
         } else if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())) {
             addAbsorbPointerPropertySets(sheet, hasSlotTab);
+        } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
+            addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
             addBlockSemanticsPropertySets(sheet, hasSlotTab);
         } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
@@ -1112,6 +1115,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child annotated with the required semantic index. The index describes its "
+                    + "position for accessibility; it does not sort children, create a label, or change "
+                    + "layout, painting or pointer hit testing. Designer child and descendant editing remain "
+                    + "available. Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child.";
         }
         if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2377,6 +2388,27 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addIndexedSemanticsPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<IndexedSemanticsWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(IndexedSemanticsWidgetPropertySchema.Group.class);
+        for (IndexedSemanticsWidgetPropertySchema.Group group : IndexedSemanticsWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = IndexedSemanticsWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " Required signed integer; creation starts at 0 and this value cannot be unset. "
+                            + "The portable exact range is -9007199254740991 through 9007199254740991. "
+                            + "Negative values are accepted by the pinned Flutter constructor. "
+                            + "This annotates semantic position; it does not sort children or create labels. "
+                            + "Layout, painting and pointer hit testing remain unchanged."));
         }
     }
 

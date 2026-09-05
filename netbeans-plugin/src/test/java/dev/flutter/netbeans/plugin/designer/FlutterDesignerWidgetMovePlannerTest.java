@@ -1562,6 +1562,22 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void configuredIndexedSemanticsMovesWithoutLosingIndexChildOrStableIds() {
+        WidgetNode child = validText(D_ID, "indexed semantics child remains editable");
+        WidgetNode widget = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.IndexedSemantics"),
+                Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(-3))),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+        var result = planner.plan(document, BUILT_INS, widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+        assertEquals(widget.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
     void configuredMergeSemanticsMovesWithoutLosingChildOrStableIds() {
         WidgetNode child = validText(D_ID, "merged semantics child remains editable");
         WidgetNode widget = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.MergeSemantics"),
@@ -1625,6 +1641,26 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(widget.id(), command.widgetId());
         assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
+    }
+
+    @Test
+    void existingTextMovesIntoEmptyIndexedSemanticsChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into IndexedSemantics");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(new WidgetTypeId("flutter.widgets.IndexedSemantics")), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
     }
 
     @Test

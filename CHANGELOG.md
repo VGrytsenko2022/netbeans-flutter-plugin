@@ -6,6 +6,16 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `ClipRSuperellipse` in Basic at order 120, with all non-key constructor arguments:
+  typed physical/directional elliptical `borderRadius`, closed
+  `CustomClipper<RSuperellipse>` references and const/non-const zero-argument calls,
+  all four `Clip` values and optional child. Real native/exact-Web superellipse
+  geometry, explicit custom-code preview limitations, exact analyzer type proof,
+  Properties/Slots, Palette/tree/Canvas DnD, Save/reopen/further editing, Undo/Redo
+  and four SVG variants are included. Current surface: 51 widgets, 45 const-capable
+  definitions, 748 rows (731 outside Scaffold), 2,448 placement candidates
+  (2,216 accepted / 232 rejected), Basic 12. Historical target: 51/92, 41 remaining.
+  The existing `.fd` 12 / Catalog API 12 / Canvas model 17 boundaries are unchanged.
 - `ClipPath` in Basic (order 110), including both the default constructor and
   `ClipPath.shape`: typed `CustomClipper<Path>` / `ShapeBorder` reference editors,
   all four clip behaviors, optional child, precise branch-conflict rejection,

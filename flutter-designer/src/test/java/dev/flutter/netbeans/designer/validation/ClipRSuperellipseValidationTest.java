@@ -1,0 +1,201 @@
+package dev.flutter.netbeans.designer.validation;
+
+import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
+import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.Extensions;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.PropertyName;
+import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import java.math.BigDecimal;
+import java.util.List;
+import java.util.Map;
+import java.util.Optional;
+import org.junit.jupiter.api.Test;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+class ClipRSuperellipseValidationTest {
+    private static final PropertyName BORDER_RADIUS = new PropertyName("borderRadius");
+    private static final PropertyName CLIPPER = new PropertyName("clipper");
+    private static final PropertyName CLIP_BEHAVIOR = new PropertyName("clipBehavior");
+
+    @Test
+    void acceptsOmissionBothTypedRadiusBranchesEveryClipModeAndOptionalChild() {
+        assertValid(clipRSuperellipse(Map.of(), WidgetSlot.SingleSlot.empty()));
+        for (PropertyValue.BorderRadiusValue radius : List.of(
+                physicalRadius("8", "12"), directionalRadius("4", "6"))) {
+            for (String clip : List.of(
+                    "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")) {
+                assertValid(clipRSuperellipse(
+                        Map.of(
+                                BORDER_RADIUS, radius,
+                                CLIP_BEHAVIOR,
+                                new PropertyValue.EnumValue("Clip", clip)),
+                        WidgetSlot.SingleSlot.of(text("Child"))));
+            }
+        }
+    }
+
+    @Test
+    void acceptsEveryClosedProjectClipperReferenceForm() {
+        for (PropertyValue.DartObjectReferenceValue clipper : List.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "_localClipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/clippers/rsuperellipse_clipper.dart"),
+                        "RSuperellipseClippers", Optional.of("rounded"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "LocalClipper", Optional.of("create"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(false)),
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of("package:sample/clippers/rsuperellipse_clipper.dart"),
+                        "RoundedClipper", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true)))) {
+            assertValid(clipRSuperellipse(
+                    Map.of(CLIPPER, clipper), WidgetSlot.SingleSlot.empty()));
+        }
+    }
+
+    @Test
+    void rejectsWrongRadiusKindAndUnrepresentableGeometryFailClosed() {
+        ValidationIssue wrongKind = onlyError(clipRSuperellipse(
+                Map.of(BORDER_RADIUS,
+                        new PropertyValue.StringValue("BorderRadius.circular(8)")),
+                WidgetSlot.SingleSlot.empty()));
+        assertEquals(WidgetTreeValidator.PROPERTY_KIND, wrongKind.code());
+        assertEquals("/root/properties/borderRadius", wrongKind.path());
+
+        ValidationIssue unrepresentable = onlyError(clipRSuperellipse(
+                Map.of(BORDER_RADIUS, physicalRadius("1e10000", "2")),
+                WidgetSlot.SingleSlot.empty()));
+        assertEquals(WidgetTreeValidator.PROPERTY_CONSTRAINT, unrepresentable.code());
+        assertEquals("/root/properties/borderRadius", unrepresentable.path());
+    }
+
+    @Test
+    void rejectsWrongClipKindsAndValuesFailClosed() {
+        ValidationIssue wrongKind = onlyError(clipRSuperellipse(
+                Map.of(CLIP_BEHAVIOR,
+                        new PropertyValue.StringValue("Clip.antiAlias")),
+                WidgetSlot.SingleSlot.empty()));
+        assertEquals(WidgetTreeValidator.PROPERTY_KIND, wrongKind.code());
+        assertEquals("/root/properties/clipBehavior", wrongKind.path());
+
+        ValidationIssue wrongValue = onlyError(clipRSuperellipse(
+                Map.of(CLIP_BEHAVIOR,
+                        new PropertyValue.EnumValue("Clip", "custom")),
+                WidgetSlot.SingleSlot.empty()));
+        assertEquals(WidgetTreeValidator.PROPERTY_CONSTRAINT, wrongValue.code());
+        assertEquals("/root/properties/clipBehavior", wrongValue.path());
+    }
+
+    @Test
+    void rejectsOpaqueClipperExpressionsAndNonSingleChildren() {
+        ValidationIssue clipper = onlyError(clipRSuperellipse(
+                Map.of(CLIPPER,
+                        new PropertyValue.DartExpressionValue(
+                                "const UserDefinedRSuperellipseClipper()")),
+                WidgetSlot.SingleSlot.empty()));
+        assertEquals(WidgetTreeValidator.PROPERTY_KIND, clipper.code());
+        assertEquals("/root/properties/clipper", clipper.path());
+
+        ValidationResult child = validate(clipRSuperellipse(
+                Map.of(), new WidgetSlot.ListSlot(List.of(text("A"), text("B")))));
+        assertFalse(child.valid());
+        assertEquals(List.of(
+                        WidgetTreeValidator.SLOT_KIND,
+                        WidgetTreeValidator.SLOT_CARDINALITY),
+                child.errors().stream().map(ValidationIssue::code).toList());
+        assertTrue(child.errors().stream()
+                .allMatch(issue -> issue.path().equals("/root/slots/child")));
+    }
+
+    private static void assertValid(WidgetNode root) {
+        ValidationResult result = validate(root);
+        assertTrue(result.valid(), () -> result.issues().toString());
+    }
+
+    private static ValidationIssue onlyError(WidgetNode root) {
+        ValidationResult result = validate(root);
+        assertFalse(result.valid());
+        assertEquals(1, result.errors().size(), result.issues().toString());
+        return result.errors().getFirst();
+    }
+
+    private static ValidationResult validate(WidgetNode root) {
+        return new WidgetTreeValidator().validate(
+                document(root), BuiltInWidgetCatalog.getDefault());
+    }
+
+    private static WidgetNode clipRSuperellipse(
+            Map<PropertyName, PropertyValue> properties,
+            WidgetSlot child) {
+        return new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.ClipRSuperellipse"),
+                properties,
+                Map.of(new SlotName("child"), child),
+                Extensions.empty());
+    }
+
+    private static WidgetNode text(String value) {
+        return new WidgetNode(
+                StableId.random(),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(new PropertyName("data"),
+                        new PropertyValue.StringValue(value)),
+                Map.of(),
+                Extensions.empty());
+    }
+
+    private static PropertyValue.BorderRadiusValue physicalRadius(
+            String x, String y) {
+        PropertyValue.BoxDecorationValue.Radius radius = radius(x, y);
+        return new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                        radius, radius, radius, radius));
+    }
+
+    private static PropertyValue.BorderRadiusValue directionalRadius(
+            String x, String y) {
+        PropertyValue.BoxDecorationValue.Radius radius = radius(x, y);
+        return new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                        radius, radius, radius, radius));
+    }
+
+    private static PropertyValue.BoxDecorationValue.Radius radius(
+            String x, String y) {
+        return new PropertyValue.BoxDecorationValue.Radius(
+                new BigDecimal(x), new BigDecimal(y));
+    }
+
+    private static DesignerDocument document(WidgetNode root) {
+        ManagedRegion region = new ManagedRegion("0".repeat(64));
+        return new DesignerDocument(
+                Optional.empty(),
+                StableId.random(),
+                new DartSourceDescriptor(
+                        "sample.dart", "Sample", WidgetClassKind.STATELESS,
+                        Optional.empty(), new ManagedRegions(region, region)),
+                Optional.empty(), root, Extensions.empty());
+    }
+}

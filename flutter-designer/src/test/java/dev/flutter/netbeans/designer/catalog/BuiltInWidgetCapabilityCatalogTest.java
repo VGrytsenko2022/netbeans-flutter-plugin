@@ -72,6 +72,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
+            "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.ExcludeSemantics");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
@@ -123,6 +124,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
+            "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.ExcludeSemantics");
 
     @Test
@@ -157,9 +159,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(50, sources.size());
-        assertEquals(47, destinations.size());
-        assertEquals(45, destinations.stream()
+        assertEquals(51, sources.size());
+        assertEquals(48, destinations.size());
+        assertEquals(46, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -167,9 +169,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(2350, candidates);
-        assertEquals(2123, accepted);
-        assertEquals(227, candidates - accepted);
+        assertEquals(2448, candidates);
+        assertEquals(2216, accepted);
+        assertEquals(232, candidates - accepted);
     }
 
     @Test
@@ -673,6 +675,77 @@ class BuiltInWidgetCapabilityCatalogTest {
                 + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
                 + "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
                 + "dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)\n"
+                + "S|child|single|0|0|1|any\n"), contract);
+    }
+
+    @Test
+    void clipRSuperellipseHasExactTypedRadiusClipBehaviorAndOptionalChildProjection() {
+        WidgetDefinition definition = definition("flutter.widgets.ClipRSuperellipse");
+
+        assertEquals(Set.of(
+                        WidgetCapability.PROPERTIES,
+                        WidgetCapability.CANVAS,
+                        WidgetCapability.CREATE,
+                        WidgetCapability.DND),
+                BuiltInWidgetCapabilityCatalog.capabilities(definition));
+        var projection = BuiltInWidgetCapabilityCatalog
+                .canvasProjection(definition).orElseThrow();
+        assertEquals(ClipRSuperellipseWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                projection.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), projection.slots());
+
+        var borderRadius = projection.propertyContracts()
+                .get(new PropertyName("borderRadius"));
+        assertFalse(borderRadius.required());
+        assertEquals(Set.of(PropertyValueKind.BORDER_RADIUS),
+                borderRadius.acceptedKinds());
+        assertTrue(borderRadius.creationDefaultFingerprint().isEmpty());
+        assertTrue(borderRadius.numericBounds().isEmpty());
+        assertEquals(
+                "borderRadius:v1:physical,directional:finiteNonNegative",
+                borderRadius.constraintFingerprints()
+                        .get(PropertyValueKind.BORDER_RADIUS));
+
+        var clipper = projection.propertyContracts()
+                .get(new PropertyName("clipper"));
+        assertFalse(clipper.required());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE),
+                clipper.acceptedKinds());
+        assertTrue(clipper.creationDefaultFingerprint().isEmpty());
+        assertTrue(clipper.numericBounds().isEmpty());
+        assertEquals(
+                "dartObjectReference:v1:CustomClipper<RSuperellipse>:currentOrPackage:"
+                + "root,optionalMember:reference,zeroArgumentInvocation:"
+                + "requiredConstnessBoolean(false,true)",
+                clipper.constraintFingerprints()
+                        .get(PropertyValueKind.DART_OBJECT_REFERENCE));
+
+        var clipBehavior = projection.propertyContracts()
+                .get(new PropertyName("clipBehavior"));
+        assertFalse(clipBehavior.required());
+        assertEquals(Set.of(PropertyValueKind.ENUM), clipBehavior.acceptedKinds());
+        assertTrue(clipBehavior.creationDefaultFingerprint().isEmpty());
+        assertEquals(
+                "enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none",
+                clipBehavior.constraintFingerprints().get(PropertyValueKind.ENUM));
+        assertEquals(
+                new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(
+                        SlotCardinality.SINGLE, false, 0, 1),
+                projection.slotContracts().get(new SlotName("child")));
+
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        assertTrue(contract.contains(
+                "W|flutter.widgets.ClipRSuperellipse\n"
+                + "P|borderRadius|borderRadius|0|-|-|borderRadius:"
+                + "borderRadius:v1:physical,directional:finiteNonNegative\n"
+                + "P|clipBehavior|enum|0|-|-|enum:enum:"
+                + "cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:"
+                + "Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n"
+                + "P|clipper|dartObjectReference|0|-|-|dartObjectReference:"
+                + "dartObjectReference:v1:CustomClipper<RSuperellipse>:currentOrPackage:"
                 + "root,optionalMember:reference,zeroArgumentInvocation:"
                 + "requiredConstnessBoolean(false,true)\n"
                 + "S|child|single|0|0|1|any\n"), contract);

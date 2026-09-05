@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -116,6 +117,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId CLIP_RSUPERELLIPSE =
+            ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
     private static final WidgetTypeId CLIP_PATH =
             ClipPathWidgetPropertySchema.CLIP_PATH_TYPE;
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
@@ -1940,7 +1943,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preClipRSuperellipseDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
@@ -2073,7 +2076,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preClipRSuperellipseDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
@@ -2205,7 +2208,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preClipRSuperellipseDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
@@ -2413,7 +2416,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void clipPathCompletesExact2350CellModelWithOptionalBranchesAndChild() {
-        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> allTargets = preClipRSuperellipseDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2465,7 +2468,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preClipRSuperellipseDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2524,7 +2527,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(50, BUILT_INS.definitions().size()),
+                () -> assertEquals(50, preClipRSuperellipseWidgetCount()),
                 () -> assertEquals(47, allTargets.size()),
                 () -> assertEquals(45, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2533,11 +2536,140 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2350,
                         2254 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + preClipRSuperellipseWidgetCount() - 1),
                 () -> assertEquals(2123,
                         2032 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(227,
                         222 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void clipRSuperellipseCompletesExact2448CellModelWithOptionalRadiusClipAndChild() {
+        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, CLIP_RSUPERELLIPSE, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "ClipRSuperellipse -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "ClipRSuperellipse -> " + target.name());
+                assertEquals(CLIP_RSUPERELLIPSE, success.command().widget().type());
+                assertEquals(Map.of(), success.command().widget().properties(),
+                        "omission preserves BorderRadius.zero and antiAlias defaults");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !CLIP_RSUPERELLIPSE.equals(type))
+                .toList();
+        MatrixTargetCase clipRSuperellipseTarget = target(
+                "ClipRSuperellipse.child", CLIP_RSUPERELLIPSE, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    clipRSuperellipseTarget.document(), BUILT_INS, source, ROOT_ID,
+                    clipRSuperellipseTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> ClipRSuperellipse.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> ClipRSuperellipse.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedClipRSuperellipse = occupiedTarget(
+                "ClipRSuperellipse.child", CLIP_RSUPERELLIPSE, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedClipRSuperellipse.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(51, BUILT_INS.definitions().size()),
+                () -> assertEquals(48, allTargets.size()),
+                () -> assertEquals(46, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(48, previousOrdinarySources.size()),
+                () -> assertEquals(47, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(2448,
+                        2350 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2216,
+                        2123 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(232,
+                        227 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -3443,7 +3575,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preIndexedStackDefinitions() {
-        return BUILT_INS.definitions().stream()
+        return preClipRSuperellipseDefinitions()
                 .filter(definition -> !INDEXED_STACK.equals(definition.typeId()))
                 .filter(definition -> !CLIP_RECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
@@ -3456,7 +3588,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preClipRectDefinitions() {
-        return BUILT_INS.definitions().stream()
+        return preClipRSuperellipseDefinitions()
                 .filter(definition -> !CLIP_RECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
                 .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
@@ -3468,7 +3600,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preClipOvalDefinitions() {
-        return BUILT_INS.definitions().stream()
+        return preClipRSuperellipseDefinitions()
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
                 .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
@@ -3479,7 +3611,7 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preClipRRectDefinitions() {
-        return BUILT_INS.definitions().stream()
+        return preClipRSuperellipseDefinitions()
                 .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
@@ -3489,12 +3621,21 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preClipPathDefinitions() {
-        return BUILT_INS.definitions().stream()
+        return preClipRSuperellipseDefinitions()
                 .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
 
     private static int preClipPathWidgetCount() {
         return Math.toIntExact(preClipPathDefinitions().count());
+    }
+
+    private static Stream<WidgetDefinition> preClipRSuperellipseDefinitions() {
+        return BUILT_INS.definitions().stream()
+                .filter(definition -> !CLIP_RSUPERELLIPSE.equals(definition.typeId()));
+    }
+
+    private static int preClipRSuperellipseWidgetCount() {
+        return Math.toIntExact(preClipRSuperellipseDefinitions().count());
     }
 
     private static MatrixTargetCase target(

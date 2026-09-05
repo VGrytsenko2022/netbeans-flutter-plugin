@@ -75,6 +75,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.ClipOval"));
         assertTrue(typeIds(result).contains("flutter.widgets.ClipRRect"));
         assertTrue(typeIds(result).contains("flutter.widgets.ClipPath"));
+        assertTrue(typeIds(result).contains("flutter.widgets.ClipRSuperellipse"));
     }
 
     @Test
@@ -162,7 +163,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(50, result.catalog().definitions().size());
+        assertEquals(51, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -195,7 +196,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(50, result.catalog().definitions().size());
+        assertEquals(51, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

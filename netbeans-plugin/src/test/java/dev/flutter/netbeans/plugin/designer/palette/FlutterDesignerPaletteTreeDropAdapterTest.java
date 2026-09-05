@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -115,6 +116,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId CLIP_RSUPERELLIPSE =
+            ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
     private static final WidgetTypeId CLIP_PATH =
             ClipPathWidgetPropertySchema.CLIP_PATH_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
@@ -1780,6 +1783,50 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void clipRSuperellipseTokenCommitsOmittedRadiusAndClipDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(CLIP_RSUPERELLIPSE);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(CLIP_RSUPERELLIPSE, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(CLIP_RSUPERELLIPSE, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves BorderRadius.zero and Clip.antiAlias defaults"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ClipRSuperellipse palette authority once"));
+    }
+
+    @Test
     void clipPathTokenCommitsUnnamedDefaultsAndEmptyOptionalChild() {
         Fixture fixture = fixture(CLIP_PATH);
         StringSelection transferable = new StringSelection(fixture.token());
@@ -1828,6 +1875,43 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
         Fixture fixture = fixture(TEXT);
         StringSelection transferable = new StringSelection(fixture.token());
         DesignerDocument document = document(prototype(CLIP_RRECT));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0),
+                        command.destination()),
+                () -> assertEquals(TEXT, command.widget().type()),
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty()));
+    }
+
+    @Test
+    void textTokenCommitsIntoEmptyClipRSuperellipseChild() {
+        Fixture fixture = fixture(TEXT);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(prototype(CLIP_RSUPERELLIPSE));
 
         var prepared = assertInstanceOf(
                 FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,

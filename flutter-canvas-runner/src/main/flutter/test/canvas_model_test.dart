@@ -1232,7 +1232,10 @@ void main() {
   test('ClipRRect reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ClipRRect\n');
-    final end = contract.indexOf('W|flutter.widgets.ClipRect\n', start);
+    final end = contract.indexOf(
+      'W|flutter.widgets.ClipRSuperellipse\n',
+      start,
+    );
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -1245,6 +1248,289 @@ void main() {
       'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
       'P|clipper|dartObjectReference|0|-|-|'
       'dartObjectReference:dartObjectReference:v1:CustomClipper<RRect>:'
+      'currentOrPackage:root,optionalMember:reference,'
+      'zeroArgumentInvocation:requiredConstnessBoolean(false,true)\n'
+      'S|child|single|0|0|1|any\n',
+    );
+  });
+
+  test(
+    'decodes exact physical and directional ClipRSuperellipse radius geometry',
+    () {
+      Map<String, Object?> model({
+        Map<String, Object?> properties = const {},
+        Map<String, Object?> slots = const {},
+      }) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '5582922d-9044-4e78-bba8-bb740884a49d',
+          'flutter.widgets.ClipRSuperellipse',
+          properties: properties,
+          slots: slots,
+        );
+        return json;
+      }
+
+      final child = _node(
+        '68d29542-ab18-41fb-a509-8db0451aed8e',
+        'flutter.widgets.Text',
+        properties: {
+          'data': {'kind': 'string', 'value': 'Rounded-clipped child'},
+        },
+      );
+      final physicalNode = _decode(
+        model(
+          properties: const {
+            'borderRadius': {
+              'kind': 'borderRadius',
+              'geometry': {
+                'kind': 'physical',
+                'topLeft': {'x': 2.0, 'y': 3.0},
+                'topRight': {'x': 4.0, 'y': 5.0},
+                'bottomRight': {'x': 6.0, 'y': 7.0},
+                'bottomLeft': {'x': 8.0, 'y': 9.0},
+              },
+            },
+            'clipBehavior': {
+              'kind': 'enum',
+              'type': 'Clip',
+              'value': 'antiAliasWithSaveLayer',
+            },
+          },
+          slots: {'child': _single(child)},
+        ),
+      ).root;
+
+      expect(physicalNode.type, 'flutter.widgets.ClipRSuperellipse');
+      expect(physicalNode.properties.keys, const [
+        'borderRadius',
+        'clipBehavior',
+      ]);
+      final physical =
+          physicalNode.properties['borderRadius']!.value
+              as CanvasPhysicalBorderRadiusValue;
+      expect(physical.topLeft.x, 2);
+      expect(physical.topLeft.y, 3);
+      expect(physical.topRight.x, 4);
+      expect(physical.topRight.y, 5);
+      expect(physical.bottomRight.x, 6);
+      expect(physical.bottomRight.y, 7);
+      expect(physical.bottomLeft.x, 8);
+      expect(physical.bottomLeft.y, 9);
+      expect(
+        (physicalNode.properties['clipBehavior']!.value as CanvasEnumValue)
+            .value,
+        'antiAliasWithSaveLayer',
+      );
+      expect(physicalNode.slot('child')!.child!.id, child['id']);
+
+      final directionalNode = _decode(
+        model(
+          properties: const {
+            'borderRadius': {
+              'kind': 'borderRadius',
+              'geometry': {
+                'kind': 'directional',
+                'topStart': {'x': 10.0, 'y': 11.0},
+                'topEnd': {'x': 12.0, 'y': 13.0},
+                'bottomEnd': {'x': 14.0, 'y': 15.0},
+                'bottomStart': {'x': 16.0, 'y': 17.0},
+              },
+            },
+          },
+        ),
+      ).root;
+      final directional =
+          directionalNode.properties['borderRadius']!.value
+              as CanvasDirectionalBorderRadiusValue;
+      expect(directional.topStart.x, 10);
+      expect(directional.topStart.y, 11);
+      expect(directional.topEnd.x, 12);
+      expect(directional.topEnd.y, 13);
+      expect(directional.bottomEnd.x, 14);
+      expect(directional.bottomEnd.y, 15);
+      expect(directional.bottomStart.x, 16);
+      expect(directional.bottomStart.y, 17);
+
+      final customClipperNode = _decode(
+        model(
+          properties: const {
+            'clipper': {'kind': 'dartObjectReferencePresence'},
+          },
+        ),
+      ).root;
+      expect(
+        customClipperNode.properties['clipper']!.kind,
+        'dartObjectReferencePresence',
+      );
+      expect(customClipperNode.properties['clipper']!.value, isTrue);
+
+      final omitted = _decode(model()).root;
+      expect(omitted.properties, isEmpty);
+      expect(omitted.slot('child'), isNull);
+      final explicitEmpty = _decode(
+        model(slots: {'child': _single(null)}),
+      ).root;
+      expect(explicitEmpty.slot('child')!.child, isNull);
+    },
+  );
+
+  test('rejects malformed and unsupported ClipRSuperellipse branches', () {
+    Map<String, Object?> model({
+      Map<String, Object?> properties = const {},
+      Map<String, Object?> slots = const {},
+    }) {
+      final json = _modelJson();
+      json['root'] = _node(
+        '5582922d-9044-4e78-bba8-bb740884a49d',
+        'flutter.widgets.ClipRSuperellipse',
+        properties: properties,
+        slots: slots,
+      );
+      return json;
+    }
+
+    for (final properties in <Map<String, Object?>>[
+      const {
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'defer'},
+      },
+      const {
+        'clipBehavior': {
+          'kind': 'enum',
+          'type': 'FilterQuality',
+          'value': 'none',
+        },
+      },
+      const {
+        'clipBehavior': {'kind': 'string', 'value': 'antiAlias'},
+      },
+      const {
+        'borderRadius': {'kind': 'boxDecoration', 'geometry': null},
+      },
+      const {
+        'borderRadius': {'kind': 'borderRadius'},
+      },
+      const {
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {'kind': 'custom'},
+        },
+      },
+      const {
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'physical',
+            'topLeft': {'x': 1.0, 'y': 1.0},
+            'topRight': {'x': 2.0, 'y': 2.0},
+            'bottomRight': {'x': 3.0, 'y': 3.0},
+          },
+        },
+      },
+      const {
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'physical',
+            'topLeft': {'x': -1.0, 'y': 1.0},
+            'topRight': {'x': 2.0, 'y': 2.0},
+            'bottomRight': {'x': 3.0, 'y': 3.0},
+            'bottomLeft': {'x': 4.0, 'y': 4.0},
+          },
+        },
+      },
+      const {
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'directional',
+            'topStart': {'x': 1.0, 'y': 1.0},
+            'topEnd': {'x': 2.0, 'y': 2.0},
+            'bottomEnd': {'x': 3.0, 'y': '3'},
+            'bottomStart': {'x': 4.0, 'y': 4.0},
+          },
+        },
+      },
+      const {
+        'borderRadius': {
+          'kind': 'borderRadius',
+          'geometry': {
+            'kind': 'directional',
+            'topStart': {'x': 1.0, 'y': 1.0},
+            'topEnd': {'x': 2.0, 'y': 2.0},
+            'bottomEnd': {'x': 3.0, 'y': 3.0},
+            'bottomStart': {'x': 4.0, 'y': 4.0, 'z': 5.0},
+          },
+        },
+      },
+      const {
+        'clipper': {'kind': 'string', 'value': 'custom'},
+      },
+      const {
+        'clipper': {'kind': 'callbackPresence'},
+      },
+      const {
+        'clipper': {
+          'kind': 'dartObjectReferencePresence',
+          'symbol': 'mustNotCrossTheCanvasBoundary',
+        },
+      },
+      const {
+        'futureProperty': {'kind': 'boolean', 'value': true},
+      },
+    ]) {
+      expect(
+        () => _decode(model(properties: properties)),
+        throwsFormatException,
+        reason: properties.toString(),
+      );
+    }
+    expect(
+      () => _decode(model(slots: {'child': _list(const [])})),
+      throwsFormatException,
+    );
+    expect(
+      () => _decode(model(slots: {'futureSlot': _single(null)})),
+      throwsFormatException,
+    );
+    final expanded = _node(
+      '5b833e24-0a85-48d7-8663-8333adffb829',
+      'flutter.widgets.Expanded',
+      slots: {
+        'child': _single(
+          _node(
+            'dd999db4-d619-42bc-80da-81368b43935c',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Flex-only child'},
+            },
+          ),
+        ),
+      },
+    );
+    expect(
+      () => _decode(model(slots: {'child': _single(expanded)})),
+      throwsFormatException,
+      reason: 'a ParentData child cannot be reparented under ClipRSuperellipse',
+    );
+  });
+
+  test('ClipRSuperellipse reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.ClipRSuperellipse\n');
+    final end = contract.indexOf('W|flutter.widgets.ClipRect\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    expect(
+      contract.substring(start, end),
+      'W|flutter.widgets.ClipRSuperellipse\n'
+      'P|borderRadius|borderRadius|0|-|-|'
+      'borderRadius:borderRadius:v1:physical,directional:finiteNonNegative\n'
+      'P|clipBehavior|enum|0|-|-|'
+      'enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:'
+      'Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none\n'
+      'P|clipper|dartObjectReference|0|-|-|'
+      'dartObjectReference:dartObjectReference:v1:CustomClipper<RSuperellipse>:'
       'currentOrPackage:root,optionalMember:reference,'
       'zeroArgumentInvocation:requiredConstnessBoolean(false,true)\n'
       'S|child|single|0|0|1|any\n',

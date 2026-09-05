@@ -27,6 +27,7 @@ import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -40,6 +41,7 @@ import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
 import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
@@ -87,6 +89,7 @@ import java.lang.reflect.Method;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -4668,6 +4671,165 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void clipRSuperellipseClipperAnalyzerRejectionsReachTheMutationResult()
+            throws Exception {
+        StableId clipRSuperellipseId = StableId.parse(
+                "d1d1d1d1-d1d1-4d1d-8d1d-d1d1d1d1d1d1");
+        WidgetTypeId clipRSuperellipseType =
+                ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
+        PropertyValue.DartObjectReferenceValue clipperReference =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(
+                                "package:mutation_controller_fixture/clippers.dart"),
+                        "RoundedClipperFactory",
+                        Optional.of("compact"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+
+        try (MutationFixture fixture = fixture(
+                "mutation_clip_rsuperellipse_clipper_rejections", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> completedAnalysis(
+                            passingAnalysis(request, fixture.frameworkFile())));
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            clipRSuperellipseType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> clipRSuperellipseId));
+            FlutterDesignerMutationController.MutationResult addedResult =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "Append ClipRSuperellipse")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    addedResult.outcome(), addedResult::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            PairSaveEvidence retainedEvidence = fixture.coordinator()
+                    .stagedEvidence();
+            assertNotNull(retainedEvidence);
+            byte[] retainedLive = fixture.editor().liveSnapshot()
+                    .markerBearingUtf8();
+
+            AtomicReference<DartSymbolProbe> rejectedProbe =
+                    new AtomicReference<>();
+            String wrongTypeReason = "The expression is not statically "
+                    + "assignable to non-null CustomClipper<RSuperellipse>.";
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> completedAnalysis(
+                            rejectedStaticTypeAnalysis(
+                                    request,
+                                    fixture.frameworkFile(),
+                                    wrongTypeReason,
+                                    rejectedProbe)));
+            FlutterDesignerMutationController.MutationResult wrongType =
+                    fixture.mutations().submit(
+                            added.token().orElseThrow(),
+                            new SetProperty(
+                                    clipRSuperellipseId, CLIPPER, clipperReference),
+                            "Set ClipRSuperellipse clipper")
+                            .get(10, TimeUnit.SECONDS);
+            DartSymbolProbe typedProbe = rejectedProbe.get();
+            assertNotNull(typedProbe);
+            String marker = ":property-reference:";
+            String typedModelPath = typedProbe.id().substring(
+                    typedProbe.id().indexOf(marker) + marker.length(),
+                    typedProbe.id().lastIndexOf(':'));
+            assertAll(
+                    () -> assertEquals(
+                            FlutterDesignerMutationController.Outcome.REJECTED,
+                            wrongType.outcome(), wrongType::reason),
+                    () -> assertTrue(wrongType.reason().startsWith(
+                            "ANALYSIS_NOT_PASSED at analysis.status:"),
+                            wrongType::reason),
+                    () -> assertTrue(wrongType.reason().contains(typedModelPath),
+                            wrongType::reason),
+                    () -> assertTrue(wrongType.reason().contains(
+                            typedProbe.id()), wrongType::reason),
+                    () -> assertTrue(wrongType.reason().contains(
+                            "expected exact non-null CustomClipper<RSuperellipse>"),
+                            wrongType::reason),
+                    () -> assertTrue(wrongType.reason().contains(
+                            wrongTypeReason), wrongType::reason));
+
+            List<AnalyzerRejection> analyzerRejections = List.of(
+                    new AnalyzerRejection(
+                            "undefined_identifier",
+                            "Undefined name 'MissingClipper'.",
+                            "MissingClipper"),
+                    new AnalyzerRejection(
+                            "uri_does_not_exist",
+                            "Target of URI doesn't exist: 'missing_clippers.dart'.",
+                            "missing_clippers.dart"),
+                    new AnalyzerRejection(
+                            "missing_required_argument",
+                            "The named parameter 'radius' is required, but there's no corresponding argument.",
+                            "named parameter 'radius'"));
+            for (AnalyzerRejection rejection : analyzerRejections) {
+                fixture.mutations().setAnalyzerFactoryForTests(
+                        (dartExecutable, request) -> completedAnalysis(
+                                rejectedDiagnosticAnalysis(
+                                        request,
+                                        rejection.code(),
+                                        rejection.message())));
+                FlutterDesignerMutationController.Snapshot before =
+                        fixture.mutations().snapshot();
+                assertEquals(FlutterDesignerMutationController.Status.READY,
+                        before.status());
+                FlutterDesignerMutationController.MutationResult rejected =
+                        fixture.mutations().submit(
+                                before.token().orElseThrow(),
+                                new SetProperty(
+                                        clipRSuperellipseId, CLIPPER, clipperReference),
+                                "Set ClipRSuperellipse clipper")
+                                .get(10, TimeUnit.SECONDS);
+                assertAll(
+                        () -> assertEquals(
+                                FlutterDesignerMutationController.Outcome.REJECTED,
+                                rejected.outcome(), rejected::reason),
+                        () -> assertTrue(rejected.reason().startsWith(
+                                "ANALYSIS_NOT_PASSED at analysis.status:"),
+                                rejected::reason),
+                        () -> assertTrue(rejected.reason().contains(
+                                "[" + rejection.code() + "]"),
+                                rejected::reason),
+                        () -> assertTrue(rejected.reason().contains(
+                                rejection.expectedDetail()),
+                                rejected::reason));
+            }
+
+            FlutterDesignerMutationController.Snapshot retained =
+                    fixture.mutations().snapshot();
+            assertAll(
+                    () -> assertEquals(
+                            FlutterDesignerMutationController.Status.READY,
+                            retained.status()),
+                    () -> assertFalse(findModelWidget(
+                            retained.document().orElseThrow().root(),
+                            clipRSuperellipseId).properties().containsKey(CLIPPER)),
+                    () -> assertSame(retainedEvidence,
+                            fixture.coordinator().stagedEvidence()),
+                    () -> assertArrayEquals(retainedLive,
+                            fixture.editor().liveSnapshot().markerBearingUtf8()),
+                    () -> assertArrayEquals(fixture.baselineDart(),
+                            Files.readAllBytes(fixture.dartPath())),
+                    () -> assertArrayEquals(fixture.baselineFd(),
+                            Files.readAllBytes(fixture.fdPath())));
+        }
+    }
+
+    @Test
     void paletteClipRRectSaveReopenTypedEditsChildUndoRedoAndSaveRemainExact()
             throws Exception {
         StableId clipRRectId = StableId.parse(
@@ -5109,6 +5271,549 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(analyzedFd)).document();
             assertEquals(replayed,
                     findModelWidget(saved.root(), clipRRectId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteClipRSuperellipseSaveReopenTypedEditsChildUndoRedoAndSaveRemainExact()
+            throws Exception {
+        StableId clipRSuperellipseId = StableId.parse(
+                "8c8c8c8c-8c8c-4c8c-8c8c-8c8c8c8c8c8c");
+        StableId childId = StableId.parse(
+                "8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d");
+        WidgetTypeId clipRSuperellipseType =
+                ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE;
+        WidgetTypeId textType = new WidgetTypeId("flutter.widgets.Text");
+        PropertyValue.BorderRadiusValue directionalRadius =
+                new PropertyValue.BorderRadiusValue(
+                        new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                new PropertyValue.BoxDecorationValue.Radius(
+                                        new java.math.BigDecimal("1.25"),
+                                        new java.math.BigDecimal("2.5")),
+                                new PropertyValue.BoxDecorationValue.Radius(
+                                        new java.math.BigDecimal("3.75"),
+                                        new java.math.BigDecimal("4.5")),
+                                new PropertyValue.BoxDecorationValue.Radius(
+                                        new java.math.BigDecimal("5.25"),
+                                        new java.math.BigDecimal("6.5")),
+                                new PropertyValue.BoxDecorationValue.Radius(
+                                        new java.math.BigDecimal("7.75"),
+                                        new java.math.BigDecimal("8.5"))));
+        PropertyValue.EnumValue explicitClip =
+                new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer");
+        PropertyValue.DartObjectReferenceValue explicitClipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(
+                                "package:mutation_controller_fixture/clippers.dart"),
+                        "RoundedClipperFactory",
+                        Optional.of("compact"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+        ExactPair durablePair;
+        ExactPair configuredPair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_rsuperellipse_append", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains("const ClipRSuperellipse("));
+                        assertFalse(request.content().contains("borderRadius:"),
+                                "omission must preserve BorderRadius.zero");
+                        assertFalse(request.content().contains("clipBehavior:"),
+                                "omission must preserve Clip.antiAlias");
+                        assertFalse(request.content().contains("clipper:"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            clipRSuperellipseType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> clipRSuperellipseId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planned,
+                    () -> planned instanceof FlutterDesignerPaletteDropPlanner.Rejected rejected
+                            ? rejected.code() + ": " + rejected.reason()
+                            : "Expected terminal ClipRSuperellipse insertion");
+
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ClipRSuperellipse to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            WidgetNode clipRSuperellipse = findModelWidget(
+                    added.document().orElseThrow().root(), clipRSuperellipseId);
+            assertAll(
+                    () -> assertEquals(clipRSuperellipseType, clipRSuperellipse.type()),
+                    () -> assertTrue(clipRSuperellipse.properties().isEmpty()),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            clipRSuperellipse.slots().get(CHILD)).child().isEmpty()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_rsuperellipse_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedClipRSuperellipse = findModelWidget(
+                    reopened.document().orElseThrow().root(), clipRSuperellipseId);
+            assertTrue(reopenedClipRSuperellipse.properties().isEmpty());
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(clipRSuperellipseType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedClipRSuperellipse,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> borderRadius =
+                    cellProperty(propertiesNode, "borderRadius");
+            Node.Property<FlutterPropertyCellValue> clipper =
+                    cellProperty(propertiesNode, "clipper");
+            Node.Property<FlutterPropertyCellValue> clipBehavior =
+                    cellProperty(propertiesNode, "clipBehavior");
+            java.beans.PropertyEditor clipperEditor =
+                    clipper.getPropertyEditor();
+            clipperEditor.setValue(clipper.getValue());
+            java.beans.PropertyEditor clipEditor =
+                    clipBehavior.getPropertyEditor();
+            clipEditor.setValue(clipBehavior.getValue());
+            assertAll(
+                    () -> assertTrue(borderRadius.canWrite(),
+                            "reopened ClipRSuperellipse must retain its typed radius editor"),
+                    () -> assertEquals(FlutterPropertyCellValue.unset(),
+                            borderRadius.getValue()),
+                    () -> assertTrue(clipper.canWrite(),
+                            "reopened ClipRSuperellipse must retain its typed clipper editor"),
+                    () -> assertEquals(FlutterPropertyCellValue.unset(),
+                            clipper.getValue()),
+                    () -> assertEquals("<not set>", clipperEditor.getAsText()),
+                    () -> assertTrue(clipperEditor.supportsCustomEditor()),
+                    () -> assertTrue(clipBehavior.canWrite(),
+                            "reopened ClipRSuperellipse must retain its enum editor"),
+                    () -> assertEquals(FlutterPropertyCellValue.unset(),
+                            clipBehavior.getValue()),
+                    () -> assertEquals(List.of(
+                            "<not set>", "none", "hardEdge", "antiAlias",
+                            "antiAliasWithSaveLayer"),
+                            List.of(clipEditor.getTags())),
+                    () -> assertEquals("Empty", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        assertTrue(call >= 1 && call <= 4);
+                        assertTrue(request.content().contains("const ClipRSuperellipse("));
+                        assertTrue(request.content().contains(
+                                "borderRadius: const BorderRadiusDirectional.only("));
+                        assertTrue(request.content().contains(
+                                "topStart: const Radius.elliptical(1.25, 2.5)"));
+                        if (call == 1) {
+                            assertFalse(request.content().contains("clipper:"));
+                            assertFalse(request.content().contains("clipBehavior:"));
+                            assertTrue(request.content().contains("child: null"));
+                        } else if (call == 2) {
+                            assertFalse(request.content().contains("clipper:"));
+                            assertTrue(request.content().contains(
+                                    "clipBehavior: Clip.antiAliasWithSaveLayer"));
+                            assertTrue(request.content().contains("child: null"));
+                        } else if (call == 3) {
+                            assertTrue(request.content().contains(
+                                    "package:mutation_controller_fixture/clippers.dart"));
+                            assertTrue(request.content().contains("clipper: const "));
+                            assertTrue(request.content().contains(
+                                    "RoundedClipperFactory.compact()"));
+                            assertTrue(request.content().contains(
+                                    "clipBehavior: Clip.antiAliasWithSaveLayer"));
+                            assertTrue(request.content().contains("child: null"));
+                        } else {
+                            assertTrue(request.content().contains(
+                                    "package:mutation_controller_fixture/clippers.dart"));
+                            assertTrue(request.content().contains("clipper: const "));
+                            assertTrue(request.content().contains(
+                                    "RoundedClipperFactory.compact()"));
+                            assertTrue(request.content().contains(
+                                    "clipBehavior: Clip.antiAliasWithSaveLayer"));
+                            assertTrue(request.content().contains(
+                                    "child: const Text("));
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult radiusEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(
+                                    clipRSuperellipseId,
+                                    BORDER_RADIUS,
+                                    directionalRadius),
+                            "ClipRSuperellipse.borderRadius")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    radiusEdited.outcome(), radiusEdited::reason);
+            FlutterDesignerMutationController.Snapshot radiusSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(directionalRadius, findModelWidget(
+                    radiusSnapshot.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(BORDER_RADIUS));
+
+            FlutterDesignerMutationController.MutationResult clipEdited =
+                    fixture.mutations().submit(
+                            radiusSnapshot.token().orElseThrow(),
+                            new SetProperty(
+                                    clipRSuperellipseId,
+                                    CLIP_BEHAVIOR,
+                                    explicitClip),
+                            "ClipRSuperellipse.clipBehavior")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    clipEdited.outcome(), clipEdited::reason);
+            FlutterDesignerMutationController.Snapshot clipSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            radiusSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(explicitClip, findModelWidget(
+                    clipSnapshot.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(CLIP_BEHAVIOR));
+
+            FlutterDesignerMutationController.MutationResult clipperEdited =
+                    fixture.mutations().submit(
+                            clipSnapshot.token().orElseThrow(),
+                            new SetProperty(
+                                    clipRSuperellipseId,
+                                    CLIPPER,
+                                    explicitClipper),
+                            "ClipRSuperellipse.clipper")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    clipperEdited.outcome(), clipperEdited::reason);
+            FlutterDesignerMutationController.Snapshot clipperSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(explicitClipper, findModelWidget(
+                    clipperSnapshot.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(CLIPPER));
+
+            FlutterDesignerPaletteDropPlanner.Result childPlan =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            clipperSnapshot.document().orElseThrow(),
+                            clipperSnapshot.catalog().orElseThrow(),
+                            textType,
+                            clipRSuperellipseId,
+                            CHILD,
+                            0,
+                            () -> childId);
+            FlutterDesignerPaletteDropPlanner.Accepted childAccepted =
+                    assertInstanceOf(
+                            FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            childPlan);
+            FlutterDesignerMutationController.MutationResult childAdded =
+                    fixture.mutations().submit(
+                            clipperSnapshot.token().orElseThrow(),
+                            childAccepted.command(),
+                            "ClipRSuperellipse.child — add Text")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    childAdded.outcome(), childAdded::reason);
+            FlutterDesignerMutationController.Snapshot childSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipperSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            WidgetNode fullyEdited = findModelWidget(
+                    childSnapshot.document().orElseThrow().root(), clipRSuperellipseId);
+            assertAll(
+                    () -> assertEquals(directionalRadius,
+                            fullyEdited.properties().get(BORDER_RADIUS)),
+                    () -> assertEquals(explicitClip,
+                            fullyEdited.properties().get(CLIP_BEHAVIOR)),
+                    () -> assertEquals(explicitClipper,
+                            fullyEdited.properties().get(CLIPPER)),
+                    () -> assertEquals(childId, assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            fullyEdited.slots().get(CHILD))
+                            .child().orElseThrow().id()));
+
+            PairSaveEvidence analyzedFinal = fixture.coordinator().stagedEvidence();
+            assertNotNull(analyzedFinal);
+            byte[] analyzedDart = analyzedFinal.candidateDartBytes();
+            byte[] analyzedFd = analyzedFinal.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot childUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            WidgetNode withoutChild = findModelWidget(
+                    childUndone.document().orElseThrow().root(), clipRSuperellipseId);
+            assertEquals(Map.of(
+                    BORDER_RADIUS, directionalRadius,
+                    CLIP_BEHAVIOR, explicitClip,
+                    CLIPPER, explicitClipper), withoutChild.properties());
+            assertTrue(assertInstanceOf(
+                    WidgetSlot.SingleSlot.class,
+                    withoutChild.slots().get(CHILD)).child().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot clipperUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            childUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(Map.of(
+                    BORDER_RADIUS, directionalRadius,
+                    CLIP_BEHAVIOR, explicitClip),
+                    findModelWidget(
+                            clipperUndone.document().orElseThrow().root(),
+                            clipRSuperellipseId).properties());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot clipUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipperUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(Map.of(BORDER_RADIUS, directionalRadius),
+                    findModelWidget(
+                            clipUndone.document().orElseThrow().root(),
+                            clipRSuperellipseId).properties());
+
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot radiusUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertTrue(findModelWidget(
+                    radiusUndone.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().isEmpty());
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot radiusRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            radiusUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(directionalRadius, findModelWidget(
+                    radiusRedone.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(BORDER_RADIUS));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot clipRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            radiusRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(explicitClip, findModelWidget(
+                    clipRedone.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(CLIP_BEHAVIOR));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot clipperRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            assertEquals(explicitClipper, findModelWidget(
+                    clipperRedone.document().orElseThrow().root(),
+                    clipRSuperellipseId).properties().get(CLIPPER));
+
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot childRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipperRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            WidgetNode replayed = findModelWidget(
+                    childRedone.document().orElseThrow().root(), clipRSuperellipseId);
+            assertEquals(fullyEdited, replayed);
+            assertEquals(4, editAnalyses.get(),
+                    "Undo/Redo must replay the four exact analyzed ClipRSuperellipse pairs");
+            PairSaveEvidence replayedEvidence =
+                    fixture.coordinator().stagedEvidence();
+            assertNotNull(replayedEvidence);
+            assertArrayEquals(analyzedDart,
+                    replayedEvidence.candidateDartBytes());
+            assertArrayEquals(analyzedFd,
+                    replayedEvidence.preparedPairIdentity().prospectiveFdBytes());
+
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), analyzedFd, analyzedDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(analyzedFd)).document();
+            assertEquals(replayed,
+                    findModelWidget(saved.root(), clipRSuperellipseId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+            configuredPair = new ExactPair(analyzedDart, analyzedFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_rsuperellipse_configured_reopened",
+                configuredPair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(
+                    reopened.document().orElseThrow().root(), clipRSuperellipseId);
+            assertEquals(Map.of(
+                    BORDER_RADIUS, directionalRadius,
+                    CLIP_BEHAVIOR, explicitClip,
+                    CLIPPER, explicitClipper), restored.properties());
+            assertEquals(childId, assertInstanceOf(
+                    WidgetSlot.SingleSlot.class, restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF, restored,
+                            reopened.catalog().orElseThrow()
+                                    .find(clipRSuperellipseType).orElseThrow(),
+                            commands::add);
+            Node.Property<FlutterPropertyCellValue> radius =
+                    cellProperty(propertiesNode, "borderRadius");
+            Node.Property<FlutterPropertyCellValue> clipper =
+                    cellProperty(propertiesNode, "clipper");
+            Node.Property<FlutterPropertyCellValue> clipping =
+                    cellProperty(propertiesNode, "clipBehavior");
+            java.beans.PropertyEditor clipperEditor = clipper.getPropertyEditor();
+            clipperEditor.setValue(clipper.getValue());
+            assertAll(
+                    () -> assertTrue(radius.canWrite()),
+                    () -> assertTrue(radius.getPropertyEditor().supportsCustomEditor()),
+                    () -> assertEquals(FlutterPropertyCellValue.explicit(directionalRadius),
+                            radius.getValue()),
+                    () -> assertTrue(clipper.canWrite()),
+                    () -> assertTrue(clipperEditor.supportsCustomEditor()),
+                    () -> assertEquals(FlutterPropertyCellValue.explicit(explicitClipper),
+                            clipper.getValue()),
+                    () -> assertTrue(clipperEditor.getAsText()
+                            .contains("RoundedClipperFactory.compact()")),
+                    () -> assertTrue(clipping.canWrite()),
+                    () -> assertEquals(FlutterPropertyCellValue.explicit(explicitClip),
+                            clipping.getValue()));
+
+            PropertyValue.EnumValue hardEdge = new PropertyValue.EnumValue(
+                    "Clip", "hardEdge");
+            onEdt(() -> clipping.setValue(FlutterPropertyCellValue.explicit(hardEdge)));
+            assertEquals(List.of(new SetProperty(
+                    clipRSuperellipseId, CLIP_BEHAVIOR, hardEdge)), commands);
+            AtomicInteger furtherAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        furtherAnalyses.incrementAndGet();
+                        assertTrue(request.content().contains("const ClipRSuperellipse("));
+                        assertTrue(request.content().contains(
+                                "clipBehavior: Clip.hardEdge"));
+                        assertTrue(request.content().contains(
+                                "RoundedClipperFactory.compact()"));
+                        assertTrue(request.content().contains(
+                                "borderRadius: const BorderRadiusDirectional.only("));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(), commands.getFirst(),
+                            "ClipRSuperellipse.clipBehavior after configured reopen")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot edited =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(), reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipRSuperellipseId));
+            WidgetNode furtherEdited = findModelWidget(
+                    edited.document().orElseThrow().root(), clipRSuperellipseId);
+            assertEquals(Map.of(
+                    BORDER_RADIUS, directionalRadius,
+                    CLIP_BEHAVIOR, hardEdge,
+                    CLIPPER, explicitClipper), furtherEdited.properties());
+            assertEquals(restored.slots(), furtherEdited.slots());
+            assertEquals(1, furtherAnalyses.get());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(
+                    fixture.controller(),
+                    evidence.preparedPairIdentity().prospectiveFdBytes(),
+                    evidence.candidateDartBytes());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

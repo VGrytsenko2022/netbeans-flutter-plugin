@@ -744,6 +744,43 @@ class PairSaveEvidenceGateTest {
     }
 
     @Test
+    void bindsClipRSuperellipseWithExactTypedClipperEvidence() throws Exception {
+        for (boolean imported : List.of(false, true)) {
+            for (boolean constant : List.of(false, true)) {
+                var reference = new PropertyValue.DartObjectReferenceValue(
+                        imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME
+                                + "/clippers.dart") : Optional.empty(),
+                        "SuperellipseClipper", Optional.of("configured"),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(constant));
+                Fixture fixture = fixture(Optional.of(reference), true, List.of(),
+                        "flutter.widgets.ClipRSuperellipse", "clipper");
+                PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+                List<DartSymbolProbe> geometry = ticket.request().symbolProbes().stream()
+                        .filter(PairSaveEvidenceGateTest::isProjectProbe).toList();
+                assertEquals(List.of("SuperellipseClipper", "configured"), geometry.stream()
+                        .map(DartSymbolProbe::expectedSymbolName).toList());
+                assertEquals("CustomClipper<RSuperellipse>", geometry.getLast()
+                        .staticTypeProbe().orElseThrow().expectedDartType());
+                assertTrue(ticket.request().symbolProbes().stream().anyMatch(probe ->
+                        probe.expectedSymbolName().equals("ClipRSuperellipse")
+                        && probe.expectedLibraryUri().equals("package:flutter/widgets.dart")));
+                String dart = new String(fixture.prepared().prospectiveDartBytes(),
+                        StandardCharsets.UTF_8);
+                assertEquals(constant, dart.contains("return const ClipRSuperellipse("), dart);
+                PairAnalyzedCandidateResult analyzed = ticket.accept(analysis(
+                        ticket, fixture.acceptedEvidence()));
+                assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
+                PairSaveEvidenceResult bound = PairSaveEvidenceGate.bindApplied(
+                        analyzed.analyzedOptional().orElseThrow(), fixture.live());
+                assertTrue(bound.ready(), () -> bound.diagnostics().toString());
+                assertArrayEquals(fixture.prepared().prospectiveDartBytes(),
+                        bound.evidenceOptional().orElseThrow().candidateDartBytes());
+            }
+        }
+    }
+
+    @Test
     void rejectsClipPathShapeWhenItsStaticTypeEvidenceIsAbsent() throws Exception {
         Fixture fixture = fixture(Optional.of(
                 new PropertyValue.DartObjectReferenceValue(

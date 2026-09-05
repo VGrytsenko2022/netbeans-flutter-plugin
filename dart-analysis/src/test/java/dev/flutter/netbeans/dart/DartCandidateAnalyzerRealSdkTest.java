@@ -482,6 +482,115 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesClipRSuperellipseReferencesAndRejectsWrongGenericTypes()
+            throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("superellipse_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        Path dependencyLib = Files.createDirectories(dependencyRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Files.writeString(dependencyLib.resolve("clippers.dart"), """
+                import 'package:flutter/widgets.dart';
+                class ImportedSuperellipseClipper extends CustomClipper<RSuperellipse> {
+                  const ImportedSuperellipseClipper.compact();
+                  ImportedSuperellipseClipper.configured();
+                  @override
+                  RSuperellipse getClip(Size size) => throw UnimplementedError();
+                  @override
+                  bool shouldReclip(covariant ImportedSuperellipseClipper oldClipper) => false;
+                }
+                """, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = superellipseCandidate("""
+                Widget defaultClip() => const ClipRSuperellipse();
+                Widget directional() => const ClipRSuperellipse(
+                  borderRadius: BorderRadiusDirectional.only(
+                    topStart: Radius.elliptical(12, 24), bottomEnd: Radius.circular(8)),
+                  clipBehavior: Clip.antiAliasWithSaveLayer,
+                  child: SizedBox(width: 80, height: 60),
+                );
+                Widget currentClip() => ClipRSuperellipse(clipper: currentSuperellipseClipper);
+                Widget genericClip() => const ClipRSuperellipse(clipper: GenericCtorClipper());
+                Widget genericFactory() => const ClipRSuperellipse(clipper: GenericFactoryClipper());
+                Widget importedConstClip() => const ClipRSuperellipse(
+                  clipper: const project_clippers.ImportedSuperellipseClipper.compact(),
+                );
+                Widget importedNonConstClip() => ClipRSuperellipse(
+                  clipper: project_clippers.ImportedSuperellipseClipper.configured(),
+                  borderRadius: const BorderRadius.all(Radius.circular(999)),
+                );
+                """);
+        String expectedType = "CustomClipper<RSuperellipse>";
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String[] spec : List.of(
+                new String[]{"currentSuperellipseClipper", "currentSuperellipseClipper"},
+                new String[]{"GenericCtorClipper()", "GenericCtorClipper"},
+                new String[]{"GenericFactoryClipper()", "GenericFactoryClipper"})) {
+            int offset = valid.lastIndexOf(spec[0]);
+            probes.add(typedProbe(spec[1], offset, spec[1], "project:current", lib,
+                    offset, spec[0].length(), valid, expectedType));
+        }
+        for (String member : List.of("compact", "configured")) {
+            String expression = (member.equals("compact") ? "const " : "")
+                    + "project_clippers.ImportedSuperellipseClipper." + member + "()";
+            int offset = valid.lastIndexOf(expression);
+            probes.add(typedProbe("imported-" + member, valid.indexOf(member, offset),
+                    member, "package:clipper_dependency/clippers.dart", dependencyLib,
+                    offset, expression.length(), valid, expectedType));
+        }
+        int widgetOffset = valid.indexOf("ClipRSuperellipse");
+        probes.add(probe("superellipse-widget", widgetOffset, "ClipRSuperellipse",
+                "package:flutter/widgets.dart", flutterSdk.resolve("packages/flutter/lib")));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 200, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(),
+                () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+
+        long version = 201;
+        for (String expression : List.of("dynamicSuperellipseClipper",
+                "nullableSuperellipseClipper", "currentClipper", "currentRectClipper")) {
+            String candidate = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n"
+                    + superellipseCandidate("Widget invalid() => ClipRSuperellipse(clipper: "
+                            + expression + ");\n");
+            int offset = candidate.lastIndexOf(expression);
+            DartSymbolProbe typed = typedProbe("invalid-" + expression, offset, expression,
+                    "project:current", lib, offset, expression.length(), candidate, expectedType);
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, candidate, version++, List.of(typed))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(),
+                    () -> expression + ": " + rejected + " stderr=" + stderr);
+            assertFalse(rejected.symbolEvidence().getFirst()
+                    .staticTypeEvidence().orElseThrow().accepted());
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    private static String superellipseCandidate(String methods) {
+        return clipperCandidate("""
+                class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {
+                  const CurrentSuperellipseClipper();
+                  @override
+                  RSuperellipse getClip(Size size) => throw UnimplementedError();
+                  @override
+                  bool shouldReclip(covariant CurrentSuperellipseClipper oldClipper) => false;
+                }
+                const currentSuperellipseClipper = CurrentSuperellipseClipper();
+                dynamic dynamicSuperellipseClipper = currentSuperellipseClipper;
+                CustomClipper<RSuperellipse>? nullableSuperellipseClipper = currentSuperellipseClipper;
+                """ + methods);
+    }
+
     private static String clipPathCandidate(String buildMethods) {
         return clipperCandidate("""
                 class CurrentPathClipper extends CustomClipper<Path> {

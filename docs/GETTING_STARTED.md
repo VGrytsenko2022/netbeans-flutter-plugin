@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly fifty
+The current capability-gated Palette and native Canvas admit exactly fifty-one
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath` and `ExcludeSemantics`.
-Forty-four definitions use reviewed const constructors. Their `General`
-Properties expose exactly 745 typed writable rows: 728 across the forty-nine
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics`.
+Forty-five definitions use reviewed const constructors. Their `General`
+Properties expose exactly 748 typed writable rows: 731 across the fifty
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. `Icon` is a
 leaf and exposes all 13 reviewed
 constructor properties; its Icon data editor admits **None** or searches 8,825
@@ -574,9 +574,19 @@ but the isolated Canvas displays a preview-unavailable warning and preserves the
 child instead of executing project code. Defaults, all four clip behaviors, optional
 child, save/reopen and further editing use the standard workflow.
 
-The practical backlog is now 50/92 complete with 42 remaining; Layout contains
-31 items, Scrolling 3, Basic 11, Material 4 and Accessibility 1. The aggregate
-is 44 reviewed const definitions and 745 writable rows, including 728 outside
+Basic also offers **ClipRSuperellipse**. Its Border radius editor supports physical
+or directional corners and independent X/Y radii. Choose any of the four clip
+behaviors and optionally assign a child. The Clipper editor accepts an exact
+`CustomClipper<RSuperellipse>` reference or zero-argument call, including const
+construction. A custom clipper overrides the radius without discarding its value;
+Restore Default on Clipper restores radius-based clipping. Default geometry uses
+the real Flutter superellipse on Canvas. Project delegates generate correctly but
+show an explicit preview-unavailable warning rather than execute in Canvas.
+Save/reopen, further edits and Undo/Redo retain these typed editors.
+
+The practical backlog is now 51/92 complete with 41 remaining; Layout contains
+31 items, Scrolling 3, Basic 12, Material 4 and Accessibility 1. The aggregate
+is 45 reviewed const definitions and 748 writable rows, including 731 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -640,8 +650,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 10 adds the exact payload-free null property value; version 11 adds the
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference.
-Fifty sources across forty-five insertable any-widget and two trait-bound
-slots produce 2,350 compatibility candidates: 2,123 accepted and 227
+Fifty-one sources across forty-six insertable any-widget and two trait-bound
+slots produce 2,448 compatibility candidates: 2,216 accepted and 232
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -649,7 +659,7 @@ replacement-only and excluded from the destination matrix. SafeArea and
 Directionality use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and neither can wrap
-Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath and ExcludeSemantics
+Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse and ExcludeSemantics
 contribute optional insertable `child` destinations; IndexedStack contributes
 the insertable ordered `children` destination. NBFC framing
 and Canvas control/wire remain v1.

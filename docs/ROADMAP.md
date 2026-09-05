@@ -1471,13 +1471,25 @@ accepted architecture is documented in
   require exact analyzer assignment proof, and emit the static helper without
   const or const ancestors. Cover editors, Palette/Slots/tree/Canvas DnD, save/reopen,
   further editing, Undo/Redo, accessible preview limitations and four SVG variants.
-  Current surface: 50 widgets, 44 const-capable definitions, 745 rows (728 outside
+  At that milestone: 50 widgets, 44 const-capable definitions, 745 rows (728 outside
   Scaffold), 45 any-widget plus two trait destinations, 2,350 cells (2,123 accepted /
   227 rejected). Basic has 11 items; other category counts are unchanged. Progress
   against the historical practical target is 50/92, 42 remaining. No full ordered
   92-item inventory was recovered; this successor is a reviewed API-based choice.
   Schema/API/model stay 12/12/17. The physical desktop acceptance gate remains
   deferred until the palette target is implemented.
+- [x] Add `ClipRSuperellipse` after `ClipPath` (Basic order 120) with its complete
+  non-key constructor surface: typed physical/directional elliptical `borderRadius`,
+  `CustomClipper<RSuperellipse>` references, all four `clipBehavior` modes and nullable
+  child. Use the actual Flutter superellipse widget, preserve radius while a custom
+  clipper overrides it, and show an explicit custom-code preview limitation in the
+  isolated Canvas. Include full editors, stable tree/Canvas selection, Palette/slot
+  placement, deterministic generation, analyzer type proof, Save/reopen/further
+  editing, Undo/Redo, accessibility and four SVG variants. Current surface: 51 widgets,
+  45 const-capable definitions, 748 rows (731 outside Scaffold), 46 any-widget plus
+  two trait destinations; 2,448 candidates (2,216 accepted / 232 rejected).
+  Basic has 12 items; historical target is 51/92 with 41 remaining. Schema/API/model
+  remain 12/12/17; the full physical desktop gate remains deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1495,7 +1507,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current typed Properties slice spans all fifty
+  vertical slices. The current typed Properties slice spans all fifty-one
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

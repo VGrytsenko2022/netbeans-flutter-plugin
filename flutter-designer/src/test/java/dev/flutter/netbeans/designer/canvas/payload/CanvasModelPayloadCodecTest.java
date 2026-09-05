@@ -123,6 +123,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ClipOval",
                 "flutter.widgets.ClipRRect",
                 "flutter.widgets.ClipPath",
+                "flutter.widgets.ClipRSuperellipse",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -478,6 +479,107 @@ class CanvasModelPayloadCodecTest {
                 json);
         for (String secret : List.of(
                 "package:private_app", "rrect_clipper.dart",
+                "SecretRoundedClipper", "hiddenFactory",
+                "zeroArgumentInvocation", "\"constant\"", "\"libraryUri\"",
+                "\"rootSymbol\"", "\"member\"", "\"access\"")) {
+            assertFalse(json.contains(secret), () -> secret + " leaked in " + json);
+        }
+    }
+
+    @Test
+    void projectsClipRSuperellipsePhysicalAndDirectionalRadiusGeometryInProtocolV17()
+            throws Exception {
+        PropertyValue.BoxDecorationValue.Radius first =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        new BigDecimal("1.5"), new BigDecimal("2.5"));
+        PropertyValue.BoxDecorationValue.Radius second =
+                new PropertyValue.BoxDecorationValue.Radius(
+                        new BigDecimal("3.5"), new BigDecimal("4.5"));
+        WidgetNode physical = new WidgetNode(
+                id("b42d740f-4989-4149-9639-5668cab9fc60"),
+                type("flutter.widgets.ClipRSuperellipse"),
+                Map.of(
+                        new PropertyName("borderRadius"),
+                        new PropertyValue.BorderRadiusValue(
+                                new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(
+                                        first, second, first, second)),
+                        new PropertyName("clipBehavior"),
+                        new PropertyValue.EnumValue("Clip", "hardEdge")),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text(
+                        "6bc88608-afde-4717-be9e-6d7414eb9d12",
+                        "Rounded child"))));
+
+        String physicalJson = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), physical))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(physicalJson.contains("\"protocolVersion\":17"), physicalJson);
+        assertTrue(physicalJson.contains(
+                "\"type\":\"flutter.widgets.ClipRSuperellipse\""), physicalJson);
+        assertTrue(physicalJson.contains(
+                "\"borderRadius\":{\"kind\":\"borderRadius\","
+                + "\"geometry\":{\"kind\":\"physical\","
+                + "\"topLeft\":{\"x\":1.5,\"y\":2.5},"
+                + "\"topRight\":{\"x\":3.5,\"y\":4.5},"
+                + "\"bottomRight\":{\"x\":1.5,\"y\":2.5},"
+                + "\"bottomLeft\":{\"x\":3.5,\"y\":4.5}}}"), physicalJson);
+        assertTrue(physicalJson.contains(
+                "\"clipBehavior\":{\"kind\":\"enum\","
+                + "\"type\":\"Clip\",\"value\":\"hardEdge\"}"), physicalJson);
+        assertTrue(physicalJson.contains(
+                "\"child\":{\"id\":\"6bc88608-afde-4717-be9e-6d7414eb9d12\""),
+                physicalJson);
+
+        WidgetNode directional = new WidgetNode(
+                id("08efef8e-982a-4a09-8dc8-34bd1c52cdab"),
+                type("flutter.widgets.ClipRSuperellipse"),
+                Map.of(new PropertyName("borderRadius"),
+                        new PropertyValue.BorderRadiusValue(
+                                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(
+                                        first, second, first, second))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        String directionalJson = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), directional))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(directionalJson.contains(
+                "\"geometry\":{\"kind\":\"directional\","
+                + "\"topStart\":{\"x\":1.5,\"y\":2.5},"
+                + "\"topEnd\":{\"x\":3.5,\"y\":4.5},"
+                + "\"bottomEnd\":{\"x\":1.5,\"y\":2.5},"
+                + "\"bottomStart\":{\"x\":3.5,\"y\":4.5}}}"),
+                directionalJson);
+        assertFalse(directionalJson.contains("\"clipBehavior\""), directionalJson);
+        assertTrue(directionalJson.contains("\"child\":null"), directionalJson);
+        assertFalse(directionalJson.contains("clipper"), directionalJson);
+    }
+
+    @Test
+    void projectsClipRSuperellipseClipperAsPresenceOnlyWithoutProjectIdentity()
+            throws Exception {
+        WidgetNode clipRSuperellipse = new WidgetNode(
+                id("3cc07d19-0f82-49b4-ae54-61e9ac82c38e"),
+                type("flutter.widgets.ClipRSuperellipse"),
+                Map.of(new PropertyName("clipper"),
+                        new PropertyValue.DartObjectReferenceValue(
+                                Optional.of(
+                                        "package:private_app/secret/rsuperellipse_clipper.dart"),
+                                "SecretRoundedClipper", Optional.of("hiddenFactory"),
+                                PropertyValue.DartObjectReferenceValue.Access
+                                        .ZERO_ARGUMENT_INVOCATION,
+                                Optional.of(true))),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), clipRSuperellipse))),
+                StandardCharsets.UTF_8);
+
+        assertTrue(json.contains("\"protocolVersion\":17"), json);
+        assertTrue(json.contains(
+                "\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"),
+                json);
+        for (String secret : List.of(
+                "package:private_app", "rsuperellipse_clipper.dart",
                 "SecretRoundedClipper", "hiddenFactory",
                 "zeroArgumentInvocation", "\"constant\"", "\"libraryUri\"",
                 "\"rootSymbol\"", "\"member\"", "\"access\"")) {

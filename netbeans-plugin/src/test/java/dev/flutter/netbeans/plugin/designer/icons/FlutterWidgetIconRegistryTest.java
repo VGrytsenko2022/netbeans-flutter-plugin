@@ -1789,6 +1789,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.ClipOval", ICON_ROOT + "clipoval.svg");
         expected.put("flutter.widgets.ClipRRect", ICON_ROOT + "cliprrect.svg");
         expected.put("flutter.widgets.ClipPath", ICON_ROOT + "clippath.svg");
+        expected.put("flutter.widgets.ClipRSuperellipse", ICON_ROOT + "cliprsuperellipse.svg");
         expected.put("flutter.widgets.ExcludeSemantics",
                 ICON_ROOT + "excludesemantics.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");

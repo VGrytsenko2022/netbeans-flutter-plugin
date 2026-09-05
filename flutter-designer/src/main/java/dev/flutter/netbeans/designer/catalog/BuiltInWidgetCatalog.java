@@ -72,6 +72,7 @@ public final class BuiltInWidgetCatalog {
             clipOval(),
             clipRRect(),
             clipPath(),
+            clipRSuperellipse(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1374,6 +1375,42 @@ public final class BuiltInWidgetCatalog {
                 ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
                 "ClipPath", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 110, "ClipPath"), properties,
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition clipRSuperellipse() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty(
+                        "borderRadius",
+                        0,
+                        false,
+                        List.of(new PropertyValueConstraint.BorderRadiusValues())),
+                namedProperty(
+                        "clipper",
+                        1,
+                        false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "CustomClipper<RSuperellipse>"))),
+                namedProperty(
+                        "clipBehavior",
+                        2,
+                        false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
+        if (properties.size()
+                != ClipRSuperellipseWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "ClipRSuperellipse catalog/property schema count mismatch");
+        }
+        return widget(
+                ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
+                "ClipRSuperellipse",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 120, "ClipRSuperellipse"),
+                properties,
                 List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
     }
 

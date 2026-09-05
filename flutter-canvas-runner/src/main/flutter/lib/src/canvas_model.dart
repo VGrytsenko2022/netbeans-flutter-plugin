@@ -4219,6 +4219,16 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ClipRSuperellipse': _WidgetSpec(
+    {
+      'borderRadius': _borderRadiusProperty,
+      'clipper': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'CustomClipper<RSuperellipse>'),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.ClipRect': _WidgetSpec(
     {
       'clipper': _PropertySpec({
@@ -5537,6 +5547,11 @@ W|flutter.widgets.ClipRRect
 P|borderRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<RRect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|child|single|0|0|1|any
+W|flutter.widgets.ClipRSuperellipse
+P|borderRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<RSuperellipse>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
 S|child|single|0|0|1|any
 W|flutter.widgets.ClipRect
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none

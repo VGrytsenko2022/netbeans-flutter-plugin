@@ -42,6 +42,7 @@ String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
     'flutter.widgets.ClipRect' ||
     'flutter.widgets.ClipOval' => 'CustomClipper<Rect>',
     'flutter.widgets.ClipRRect' => 'CustomClipper<RRect>',
+    'flutter.widgets.ClipRSuperellipse' => 'CustomClipper<RSuperellipse>',
     'flutter.widgets.ClipPath' => 'CustomClipper<Path>',
     _ => null,
   };
@@ -579,6 +580,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Placeholder' ||
         node.type == 'flutter.widgets.ClipOval' ||
         node.type == 'flutter.widgets.ClipRRect' ||
+        node.type == 'flutter.widgets.ClipRSuperellipse' ||
         node.type == 'flutter.widgets.ClipPath' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
@@ -2388,6 +2390,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Placeholder' => _placeholder(context),
       'flutter.widgets.ClipOval' => _clipOval(),
       'flutter.widgets.ClipRRect' => _clipRRect(context),
+      'flutter.widgets.ClipRSuperellipse' => _clipRSuperellipse(context),
       'flutter.widgets.ClipPath' => _clipPath(),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
@@ -4267,6 +4270,23 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     }
     final radius = node.properties['borderRadius']?.value;
     return ClipRRect(
+      borderRadius: radius is CanvasBorderRadiusGeometryValue
+          ? _borderRadius(radius).resolve(Directionality.of(context))
+          : BorderRadius.zero,
+      clipBehavior: _clipBehavior() ?? Clip.antiAlias,
+      child: _single('child'),
+    );
+  }
+
+  Widget _clipRSuperellipse(BuildContext context) {
+    if (node.properties['clipper']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipRSuperellipse',
+        expectedType: 'CustomClipper<RSuperellipse>',
+      );
+    }
+    final radius = node.properties['borderRadius']?.value;
+    return ClipRSuperellipse(
       borderRadius: radius is CanvasBorderRadiusGeometryValue
           ? _borderRadius(radius).resolve(Directionality.of(context))
           : BorderRadius.zero,

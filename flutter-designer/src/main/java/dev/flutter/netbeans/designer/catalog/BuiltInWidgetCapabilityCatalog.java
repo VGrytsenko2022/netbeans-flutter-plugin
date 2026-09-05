@@ -200,6 +200,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ClipOval", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRRect", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipPath", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ClipRSuperellipse", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -621,6 +622,20 @@ public final class BuiltInWidgetCapabilityCatalog {
                             PropertyValueKind.DART_OBJECT_REFERENCE,
                             DART_OBJECT_REFERENCE_CONTRACT_PREFIX
                             + "CustomClipper<RRect>:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
+                    enumProperty(
+                            "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ClipRSuperellipse", projection(Map.ofEntries(
+                    Map.entry("borderRadius", constrainedSchema(
+                            PropertyValueKind.BORDER_RADIUS,
+                            BORDER_RADIUS_CONTRACT_FINGERPRINT)),
+                    Map.entry("clipper", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "CustomClipper<RSuperellipse>:currentOrPackage:"
                             + "root,optionalMember:reference,"
                             + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
                     enumProperty(

@@ -285,6 +285,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ClipPath.Name"));
                 setShortDescription(message("Widget.ClipPath.Description"));
+            } else if ("flutter.widgets.ClipRSuperellipse".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.ClipRSuperellipse.Name"));
+                setShortDescription(message("Widget.ClipRSuperellipse.Description"));
             } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();

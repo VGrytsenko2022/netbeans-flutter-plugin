@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-50 reviewed Canvas widgets. Palette insertion evaluates 2,350 exact
-source/destination cells across 50 draggable sources and 47 insertable reviewed
-slots; 2,123 are accepted and 227 cells are rejected. Expanded and Flexible are
+51 reviewed Canvas widgets. Palette insertion evaluates 2,448 exact
+source/destination cells across 51 draggable sources and 48 insertable reviewed
+slots; 2,216 are accepted and 232 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -891,10 +891,19 @@ accessible preview-unavailable message. Selection/drop frames stay outside clipp
 and zero-size targets retain the complete branch-specific reason. Windows/Web
 profile tests cover the default clip and both custom branches.
 
-The aggregate catalog now has 50 widgets and 44 reviewed const definitions,
-with 745 writable rows (728 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, eleven Basic, four Material and one Accessibility item; the
-backlog is 50/92 complete with 42 remaining. The 50 sources across 47
-insertable destinations form 2,350 cells, with 2,123 accepted and 227 rejected.
+`ClipRSuperellipse` constructs the real Flutter widget/RenderClipRSuperellipse,
+not a rounded-rectangle approximation. Windows/Web profile tests cover physical,
+directional, elliptical and oversized radii, Flutter clamping, all four clip
+behaviors and an optional zero-size child. Exact typed custom delegates arrive
+only as presence: the child stays visible with an accessible preview-unavailable
+warning and the otherwise retained radius is ignored. Selection/drop affordances
+remain external even when the custom node has no child. This extends the reviewed
+v17 model contract without adding project-code execution or a protocol bump.
+
+The aggregate catalog now has 51 widgets and 45 reviewed const definitions,
+with 748 writable rows (731 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twelve Basic, four Material and one Accessibility item; the
+backlog is 51/92 complete with 41 remaining. The 51 sources across 48
+insertable destinations form 2,448 cells, with 2,216 accepted and 232 rejected.
 The typed Dart-object reference advances `.fd` schema to v12, Catalog API to 12
 and Canvas model protocol to v17; NBFC framing, control and wire remain v1.

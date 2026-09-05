@@ -105,7 +105,7 @@ final class FlutterContainerPropertyEditorComponents {
         };
     }
 
-    /** Standalone editor for ClipRRect's typed BorderRadiusGeometry value. */
+    /** Standalone editor for typed rounded-clip BorderRadiusGeometry values. */
     private static final class BorderRadiusPanel extends DraftPanel {
         private final JCheckBox useDefault = new JCheckBox(
                 "Use Flutter default BorderRadius.zero (omit argument)");

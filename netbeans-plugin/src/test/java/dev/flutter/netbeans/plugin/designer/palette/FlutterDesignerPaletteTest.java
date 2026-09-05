@@ -56,6 +56,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
             "flutter.widgets.ClipPath",
+            "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -96,8 +97,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(50, CATALOG.definitions().size());
-        assertEquals(44, CATALOG.definitions().stream()
+        assertEquals(51, CATALOG.definitions().size());
+        assertEquals(45, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -125,9 +126,10 @@ class FlutterDesignerPaletteTest {
         assertEquals(3, itemLabels(categories[2]).size());
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
-                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath"),
+                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
+                "ClipRSuperellipse"),
                 itemLabels(categories[3]));
-        assertEquals(11, itemLabels(categories[3]).size());
+        assertEquals(12, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
         assertEquals(1, itemLabels(categories[4]).size());
 
@@ -164,7 +166,8 @@ class FlutterDesignerPaletteTest {
                 itemLabels(categories[2]));
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
-                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath"),
+                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
+                "ClipRSuperellipse"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
 
@@ -1223,6 +1226,37 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void clipRSuperellipsePaletteSelectionExplainsTypedRoundedClippingAndIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.ClipRSuperellipse";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG,
+                definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+
+        assertEquals(
+                new FlutterDesignerPaletteItem(
+                        definition.typeId(),
+                        "flutter.basic",
+                        300,
+                        120,
+                        "ClipRSuperellipse"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("ClipRSuperellipse", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("rounded superellipse"));
+        assertTrue(node.getShortDescription().contains("direction-aware"));
+        assertTrue(node.getShortDescription().contains("BorderRadius.zero"));
+        assertTrue(node.getShortDescription()
+                .toLowerCase(java.util.Locale.ROOT)
+                .contains("customclipper<rsuperellipse>"));
+        assertEquals(
+                FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void clipPathPaletteSelectionExplainsExclusiveTypedBranchesAndIcon()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.ClipPath";
@@ -1571,7 +1605,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(50, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(51, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

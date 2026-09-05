@@ -384,6 +384,9 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + "symbol is assignable to " + expectedDartType + ". ";
             if ("CustomClipper<RRect>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores ClipRRect.borderRadius. ";
+            } else if ("CustomClipper<RSuperellipse>".equals(expectedDartType)) {
+                base += "When configured, Flutter ignores "
+                        + "ClipRSuperellipse.borderRadius. ";
             } else if ("CustomClipper<Path>".equals(expectedDartType)) {
                 base += "Setting Clipper first clears Shape and selects the unnamed "
                         + "ClipPath constructor. ";

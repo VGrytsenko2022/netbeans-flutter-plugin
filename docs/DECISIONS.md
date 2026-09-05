@@ -31,10 +31,11 @@ historical `Placeholder` surface, ADR-071 records the historical
 surface, ADR-073 establishes the historical `ExcludeSemantics` surface,
 ADR-074 establishes the historical `IndexedStack` surface, ADR-075 establishes
 the historical `ClipRect` surface, ADR-076 establishes the historical
-`ClipOval` surface, and ADR-077 establishes the current `ClipRRect` surface:
-742 typed rows across forty-nine widgets, forty-three const-constructor
-definitions and 2,254 Palette/DnD candidates, including 2,032 accepted and 222
-rejected cells. The 725-field
+`ClipOval` surface, ADR-077 establishes `ClipRRect`, ADR-078 adds `ClipPath`,
+and ADR-079 establishes the current `ClipRSuperellipse` surface:
+748 typed rows across fifty-one widgets, forty-five const-constructor
+definitions and 2,448 Palette/DnD candidates, including 2,216 accepted and 232
+rejected cells. The 731-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -44,7 +45,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-077 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-079 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -379,8 +380,11 @@ the historical forty-six-source, 1,978-candidate matrix (1,771 accepted and 207
 rejected), ADR-075 established the historical forty-seven-source,
 2,068-candidate matrix (1,856 accepted and 212 rejected), ADR-076 established
 the historical forty-eight-source, 2,160-candidate matrix (1,943 accepted and
-217 rejected), and ADR-077 establishes the current forty-nine-source,
-2,254-candidate matrix (2,032 accepted and 222 rejected).
+217 rejected), ADR-077 establishes the historical forty-nine-source,
+2,254-candidate matrix (2,032 accepted and 222 rejected), ADR-078 adds the
+fifty-source, 2,350-candidate matrix (2,123 accepted and 227 rejected), and
+ADR-079 establishes the current fifty-one-source, 2,448-candidate matrix
+(2,216 accepted and 232 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -391,7 +395,7 @@ protocol-v17 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `ExcludeSemantics`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -405,12 +409,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated forty-nine-widget model for Mobile, Tablet,
+Canvas now renders the validated fifty-one-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those forty-nine Create-capable definitions, and the DnD-capable set uses the
-reviewed 2,254-cell candidate matrix across forty-four insertable any-widget and two
-trait-bound destination slots; 2,032 cells are accepted and 222 rejected.
+those fifty-one Create-capable definitions, and the DnD-capable set uses the
+reviewed 2,448-cell candidate matrix across forty-six insertable any-widget and two
+trait-bound destination slots; 2,216 cells are accepted and 232 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea and
@@ -3336,3 +3340,56 @@ was clean. The real Flutter 3.44.8 analyzer exercised Path/ShapeBorder assignmen
 generic inference, imports and invalid-type/const rejection. The packaged Web
 build/cache and exact generated artifact checks passed all 41 cases. Release
 verification passed; the full physical desktop gate was not run.
+
+## ADR-079 — ClipRSuperellipse with exact typed custom delegates
+
+Status: accepted, 2026-09-05.
+
+Add `flutter.widgets.ClipRSuperellipse` in Basic at order 120 after ClipPath.
+The pinned Flutter 3.44.8 constructor exposes optional `borderRadius`, `clipper`,
+`clipBehavior` and nullable `child`; framework `key` remains Designer identity.
+All non-key arguments are supported. Three typed property rows reuse physical
+and directional finite non-negative elliptical radii, the closed
+`CustomClipper<RSuperellipse>` reference and all four `Clip` values. The optional
+single child is an insertable any-widget slot. Four distinct reviewed SVG assets
+cover small/large and light/dark presentation.
+
+Current-library and declared-package references, values/members and const or
+non-const zero-argument constructors/factories/functions are admitted. Configured
+arguments remain in a project-owned getter/factory, not raw property source.
+Normal analysis and strict assignment proof require the exact non-null generic
+type, including downward-inferred generic calls. Dynamic, nullable and
+`CustomClipper<RRect>`/`CustomClipper<Rect>` values do not bypass the proof even
+when project analysis ignores assignment diagnostics. Symbol/type evidence remains
+bound to the candidate through pair-save verification.
+
+Canvas constructs the actual `ClipRSuperellipse`/`RenderClipRSuperellipse`, not
+ClipRRect. It honors directionality, independent corner axes, SDK radius clamping
+and all clip modes. A custom clipper overrides but never deletes `borderRadius`.
+The isolated runner receives reference presence only and does not execute project
+code: it preserves the child with an accessible preview-unavailable warning.
+Selection and empty child drop targets stay outside the paint clip. This is an
+explicit preview limitation, not a missing persistence or generation branch.
+
+The slice includes typed property and child editors, Palette/tree/Canvas insertion,
+movement, generation/const propagation, validation, save/reopen/further-edit,
+Undo/Redo and rollback on failed analysis. Existing value shapes retain `.fd` 12,
+Catalog API 12, Canvas model 17 and NBFC framing/control/wire 1.
+
+Totals: 51 widgets, 45 const-capable definitions, 748 property rows (731 outside
+Scaffold), 46 any-widget plus two trait-bound destinations. The 2,448-cell DnD
+matrix admits 2,216 and rejects 232. Categories are Layout 31, Scrolling 3,
+Basic 12, Material 4, Accessibility 1. The historical practical target is 51/92,
+with 41 remaining; the complete ordered target is not preserved in tracked plans.
+Physical global acceptance remains deferred until the palette target is complete.
+
+Validation for this milestone: clean Maven install and cluster assembly passed.
+Surefire records 3,225 cases (six optional skips) and Failsafe 13 (one optional
+skip), with zero failures/errors. The full Flutter suite passed 460 tests and
+Flutter analysis was clean. Real Flutter 3.44.8 analysis verifies superellipse
+references, imported and inferred calls, and rejection of wrong/nullable/dynamic
+types. All 41 packaged Web build/cache and artifact cases passed; a fresh configured
+pair reopen, typed property edit and subsequent save passed in the 70-case
+controller integration suite. The release verifier confirms a fresh NBM with
+correct metadata; installed-userdir and full physical desktop acceptance were not
+run. NBM SHA-256: `e990665361392ee4e1df6b82a84af9b4c08e52d3d7845b8216b3075cf61f5bba`.

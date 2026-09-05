@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipRSuperellipseWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
@@ -528,6 +529,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
                 widget.type())) {
             addClipPathPropertySets(sheet, hasSlotTab);
+        } else if (ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.equals(
+                definition.typeId())) {
+            addClipRSuperellipsePropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -982,6 +986,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "Physical or direction-aware corner radii and clip behavior control "
                     + "the exact edge. The Dart analyzer validates a configured Dart "
                     + "symbol as CustomClipper<RRect>; Flutter then ignores borderRadius. "
+                    + "The isolated Canvas cannot execute project Dart and displays an "
+                    + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child clipped to this widget's rounded superellipse bounds. "
+                    + "Physical or direction-aware corner radii and clip behavior control "
+                    + "the exact edge. The Dart analyzer validates a configured Dart "
+                    + "symbol as CustomClipper<RSuperellipse>; Flutter then ignores borderRadius. "
                     + "The isolated Canvas cannot execute project Dart and displays an "
                     + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
@@ -2448,6 +2464,48 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         + "anti-alias default.";
                 default -> throw new IllegalStateException(
                         "Unexpected ClipRRect property: " + property.name().value());
+            };
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description() + boundary));
+        }
+    }
+
+    private void addClipRSuperellipsePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ClipRSuperellipseWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ClipRSuperellipseWidgetPropertySchema.Group.class);
+        for (ClipRSuperellipseWidgetPropertySchema.Group group
+                : ClipRSuperellipseWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ClipRSuperellipseWidgetPropertySchema.Definition schema =
+                    ClipRSuperellipseWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ClipRSuperellipse property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "borderRadius" -> " Omission preserves Flutter's "
+                        + "BorderRadius.zero default. Physical and directional "
+                        + "elliptical corners are supported. Flutter ignores "
+                        + "borderRadius while clipper is configured.";
+                case "clipper" -> " The Dart analyzer validates that the selected "
+                        + "Dart symbol is assignable to CustomClipper<RSuperellipse>. "
+                        + "Current-library and package-config-declared references, "
+                        + "including zero-argument constructor or factory invocations, "
+                        + "are supported. When configured, Flutter ignores borderRadius. "
+                        + "The isolated Canvas cannot execute project Dart and displays "
+                        + "an explicit preview-unavailable state.";
+                case "clipBehavior" -> " Omission preserves Flutter's "
+                        + "anti-alias default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected ClipRSuperellipse property: " + property.name().value());
             };
             groups.get(schema.group()).put(projectProperty(
                     property,

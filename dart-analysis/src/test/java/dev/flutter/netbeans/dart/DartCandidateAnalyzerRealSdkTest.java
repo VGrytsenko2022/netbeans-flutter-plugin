@@ -2028,6 +2028,114 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesVerticalDividerCompleteGeometryAndPinnedMaterialThemeContract() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("vertical_divider_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget defaults() => const VerticalDivider();
+                Widget explicitNulls() => const VerticalDivider(width: null, thickness: null,
+                  indent: null, endIndent: null, color: null, radius: null);
+                Widget complete() => const VerticalDivider(width: 20, thickness: 4, indent: 3,
+                  endIndent: 7, color: Color(0x80123456), radius: BorderRadius.only(
+                    topLeft: Radius.elliptical(2, 3), topRight: Radius.elliptical(4, 5),
+                    bottomLeft: Radius.elliptical(6, 7), bottomRight: Radius.elliptical(8, 9)));
+                Widget directional() => const Directionality(textDirection: TextDirection.rtl,
+                  child: VerticalDivider(width: 24, thickness: 2, indent: 3, endIndent: 9,
+                    radius: BorderRadiusDirectional.only(topStart: Radius.elliptical(2, 3),
+                      topEnd: Radius.elliptical(4, 5), bottomStart: Radius.elliptical(6, 7),
+                      bottomEnd: Radius.elliptical(8, 9))));
+                Widget inherited() => const DividerTheme(data: DividerThemeData(space: 24,
+                  thickness: 3, indent: 2, endIndent: 4, color: Color(0xFF123456),
+                  radius: BorderRadius.all(Radius.circular(2))), child: VerticalDivider());
+                Widget localOverride() => const DividerTheme(data: DividerThemeData(space: 24,
+                  thickness: 3, color: Color(0xFF123456)), child: VerticalDivider(width: 16,
+                    thickness: 1, color: Color(0xFFABCDEF), radius: BorderRadius.zero));
+                Widget themed(BuildContext context) => VerticalDivider(
+                  color: Theme.of(context).colorScheme.outlineVariant);
+                Widget boundedRow() => const SizedBox(height: 80, child: Row(children: [
+                  Text('Before'), VerticalDivider(width: 20, thickness: 2, indent: 4, endIndent: 8),
+                  Text('After')]));
+                Widget intrinsicRow() => const IntrinsicHeight(child: Row(children: [
+                  Text('Before'), VerticalDivider(), Text('After')]));
+                Widget horizontalList() => SizedBox(height: 80, child: ListView(
+                  scrollDirection: Axis.horizontal, children: const [
+                    SizedBox(width: 40), VerticalDivider(), SizedBox(width: 40)]));
+                Widget material2() => Theme(data: ThemeData(useMaterial3: false), child: const VerticalDivider());
+                Widget material3() => Theme(data: ThemeData(useMaterial3: true), child: const VerticalDivider());
+                // Accepted by the constructor; the pinned paint-time hairline/radius
+                // limitation is separately exercised by the real Flutter Canvas tests.
+                Widget paintTimeCombination() => const VerticalDivider(thickness: 0,
+                  radius: BorderRadius.all(Radius.circular(4)));
+                List<Widget> fieldMatrix() => <Widget>[
+                """);
+        for (String field : List.of("width", "thickness", "indent", "endIndent")) {
+            for (String value : List.of("0", "0.5", "32")) {
+                valid.append("const VerticalDivider(").append(field).append(": ").append(value).append("),\n");
+            }
+        }
+        for (String radius : List.of("BorderRadius.zero", "BorderRadiusDirectional.zero",
+                "BorderRadius.all(Radius.circular(4))", "BorderRadiusDirectional.all(Radius.elliptical(2, 3))",
+                "BorderRadius.only(bottomLeft: Radius.elliptical(4, 6))",
+                "BorderRadiusDirectional.only(bottomEnd: Radius.elliptical(4, 6))")) {
+            valid.append("const VerticalDivider(thickness: 2, radius: ").append(radius).append("),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("VerticalDivider", "DividerTheme", "DividerThemeData", "BorderRadius",
+                "BorderRadiusDirectional", "Radius", "Color")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("vertical-divider-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/material.dart", flutterSdk));
+        }
+        for (String factory : List.of("BorderRadius.only", "BorderRadiusDirectional.only",
+                "Radius.elliptical", "Radius.circular")) {
+            String member = factory.substring(factory.indexOf('.') + 1);
+            probes.add(probe("vertical-divider-" + factory, candidate.indexOf(factory) + factory.indexOf('.') + 1,
+                    member, "package:flutter/material.dart", flutterSdk));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2000, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        long version = 2001;
+        for (String invalid : List.of("const VerticalDivider(width: -1)", "const VerticalDivider(thickness: -1)",
+                "const VerticalDivider(indent: -1)", "const VerticalDivider(endIndent: -1)",
+                "const VerticalDivider(width: '20')", "const VerticalDivider(thickness: true)",
+                "const VerticalDivider(indent: '3')", "const VerticalDivider(endIndent: false)",
+                "const VerticalDivider(color: 123)", "const VerticalDivider(radius: Radius.circular(2))",
+                "const VerticalDivider(radius: 'round')", "const VerticalDivider(child: Text('Not a wrapper'))",
+                "const VerticalDivider(height: 20)", "const VerticalDivider(semanticLabel: 'Line')",
+                "const VerticalDivider(clipBehavior: Clip.antiAlias)", "const VerticalDivider.horizontal()")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

@@ -26,6 +26,7 @@ import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetProperty
 import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ImageIconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -556,6 +557,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addImageIconPropertySets(sheet, hasSlotTab);
         } else if (DividerWidgetPropertySchema.DIVIDER_TYPE.equals(widget.type())) {
             addDividerPropertySets(sheet, hasSlotTab);
+        } else if (VerticalDividerWidgetPropertySchema.VERTICAL_DIVIDER_TYPE.equals(widget.type())) {
+            addVerticalDividerPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -2526,6 +2529,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
                             + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addVerticalDividerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<VerticalDividerWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(VerticalDividerWidgetPropertySchema.Group.class);
+        for (VerticalDividerWidgetPropertySchema.Group group : VerticalDividerWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = VerticalDividerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String paintHint = switch (property.name().value()) {
+                case "thickness", "radius" -> " Use positive thickness for a rounded line: with nonzero radius "
+                        + "and a zero-thickness hairline, Flutter debug painting asserts and release painting ignores radius. Unset thickness can resolve to "
+                        + "0 in Material 2 or 1 in Material 3 unless DividerTheme overrides it. "
+                        + "Designer preserves the entered values without silently adjusting thickness or radius.";
+                default -> "";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + paintHint
+                            + " Restore Default returns this optional field to <not set> and omits its argument. "
+                            + "No constructor defaults are stored when VerticalDivider is created. "
+                            + "Use a bounded parent height, such as a Row in a SizedBox with height or IntrinsicHeight, "
+                            + "to make the vertical line visible; Designer does not synthesize a height."));
         }
     }
 

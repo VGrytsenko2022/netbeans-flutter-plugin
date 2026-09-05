@@ -92,6 +92,7 @@ public final class BuiltInWidgetCatalog {
             excludeFocusTraversal(),
             elevatedButton(),
             divider(),
+            verticalDivider(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -607,6 +608,20 @@ public final class BuiltInWidgetCatalog {
                 "Divider", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
                 palette("flutter.material", 100, 50, "Divider"),
                 List.of(namedProperty("height", 0, false, nonNegativeNumbers()),
+                        namedProperty("thickness", 1, false, nonNegativeNumbers()),
+                        namedProperty("indent", 2, false, nonNegativeNumbers()),
+                        namedProperty("endIndent", 3, false, nonNegativeNumbers()),
+                        namedProperty("color", 4, false, colorOrTheme()),
+                        namedProperty("radius", 5, false, List.of(new PropertyValueConstraint.BorderRadiusValues()))),
+                List.of());
+    }
+
+    private static WidgetDefinition verticalDivider() {
+        return widget(
+                VerticalDividerWidgetPropertySchema.VERTICAL_DIVIDER_TYPE.value(),
+                "VerticalDivider", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 60, "VerticalDivider"),
+                List.of(namedProperty("width", 0, false, nonNegativeNumbers()),
                         namedProperty("thickness", 1, false, nonNegativeNumbers()),
                         namedProperty("indent", 2, false, nonNegativeNumbers()),
                         namedProperty("endIndent", 3, false, nonNegativeNumbers()),

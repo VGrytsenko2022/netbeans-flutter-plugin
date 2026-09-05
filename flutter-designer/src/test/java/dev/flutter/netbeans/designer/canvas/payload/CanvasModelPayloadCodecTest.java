@@ -79,6 +79,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.ElevatedButton",
                 "flutter.material.TextField",
                 "flutter.material.Divider",
+                "flutter.material.VerticalDivider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -2372,6 +2373,69 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"fit\":\"cover\""), json);
         assertTrue(json.contains("\"repeat\":\"repeatX\""), json);
         assertTrue(json.contains("\"opacity\":0.75"), json);
+    }
+
+    @Test
+    void verticalDividerPayloadPreservesAll1215NumericColorAndRadiusStatesWithoutSynthesizingThemeDefaults() throws Exception {
+        int count = 0;
+        for (int numbers = 0; numbers < 81; numbers++) for (int color = 0; color < 3; color++) for (int radius = 0; radius < 5; radius++) {
+            count++;
+            var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+            int state = numbers;
+            for (String name : List.of("width", "thickness", "indent", "endIndent")) {
+                int value = state % 3; state /= 3;
+                if (value > 0) properties.put(new PropertyName(name), value == 1 ? new PropertyValue.IntegerValue(BigInteger.ZERO) : new PropertyValue.DoubleValue(new BigDecimal("24.5")));
+            }
+            if (color > 0) properties.put(new PropertyName("color"), color == 1 ? new PropertyValue.ColorValue(0L) : new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.outlineVariant")));
+            if (radius > 0) {
+                boolean zero = radius % 2 == 1;
+                var a = new PropertyValue.BoxDecorationValue.Radius(zero ? BigDecimal.ZERO : new BigDecimal("1.5"), zero ? BigDecimal.ZERO : new BigDecimal("2.5"));
+                var b = new PropertyValue.BoxDecorationValue.Radius(zero ? BigDecimal.ZERO : new BigDecimal("3.5"), zero ? BigDecimal.ZERO : new BigDecimal("4.5"));
+                var c = new PropertyValue.BoxDecorationValue.Radius(zero ? BigDecimal.ZERO : new BigDecimal("5.5"), zero ? BigDecimal.ZERO : new BigDecimal("6.5"));
+                var d = new PropertyValue.BoxDecorationValue.Radius(zero ? BigDecimal.ZERO : new BigDecimal("7.5"), zero ? BigDecimal.ZERO : new BigDecimal("8.5"));
+                properties.put(new PropertyName("radius"), new PropertyValue.BorderRadiusValue(radius >= 3 ? new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(a,b,c,d) : new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(a,b,c,d)));
+            }
+            var node = new WidgetNode(StableId.random(), type("flutter.material.VerticalDivider"), properties, Map.of());
+            var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            var codec = new CanvasModelPayloadCodec();
+            String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(request), codec.encode(request));
+            assertTrue(json.contains("\"type\":\"flutter.material.VerticalDivider\""), json);
+            for (String name : List.of("width", "thickness", "indent", "endIndent", "color", "radius")) assertEquals(properties.containsKey(new PropertyName(name)), json.contains("\"" + name + "\":"), json);
+            if (radius > 0) {
+                assertTrue(json.contains("\"radius\":{\"kind\":\"borderRadius\",\"geometry\":{\"kind\":\"" + (radius >= 3 ? "directional" : "physical") + "\""), json);
+                var corners = radius >= 3 ? List.of("topStart", "topEnd", "bottomEnd", "bottomStart") : List.of("topLeft", "topRight", "bottomRight", "bottomLeft");
+                for (int index = 0; index < 4; index++) {
+                    String x = radius % 2 == 1 ? "0" : (index * 2 + 1) + ".5";
+                    String y = radius % 2 == 1 ? "0" : (index * 2 + 2) + ".5";
+                    assertTrue(json.contains("\"" + corners.get(index) + "\":{\"x\":" + x + ",\"y\":" + y + "}"), json);
+                }
+            }
+            assertFalse(json.contains("createBorderSide"), json);
+            assertFalse(json.contains("DividerThemeData"), json);
+            assertFalse(json.contains("\"resolution\":"), json);
+        }
+        assertEquals(1215, count);
+    }
+
+    @Test
+    void verticalDividerPayloadRejectsWrongKindsNegativeOrNonfiniteDimensionsForeignTokensAndInventedFields() {
+        for (String name : List.of("width", "thickness", "indent", "endIndent", "color", "radius")) {
+            for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.BooleanValue(true), new PropertyValue.StringValue("invalid"), new PropertyValue.DartExpressionValue("Divider.createBorderSide(context)"))) {
+                var node = new WidgetNode(StableId.random(), type("flutter.material.VerticalDivider"), Map.of(new PropertyName(name), value), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        for (String name : List.of("width", "thickness", "indent", "endIndent", "height", "space", "key", "borderRadius", "semanticLabel")) {
+            for (String value : List.of("-1", "1e999")) {
+                var node = new WidgetNode(StableId.random(), type("flutter.material.VerticalDivider"), Map.of(new PropertyName(name), new PropertyValue.DoubleValue(new BigDecimal(value))), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+            }
+        }
+        var foreign = new WidgetNode(StableId.random(), type("flutter.material.VerticalDivider"), Map.of(new PropertyName("color"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.textTheme.bodyMedium"))), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), foreign))));
+        var slot = new WidgetNode(StableId.random(), type("flutter.material.VerticalDivider"), Map.of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), slot))));
     }
 
     @Test

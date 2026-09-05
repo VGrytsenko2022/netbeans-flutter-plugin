@@ -723,9 +723,10 @@ void main() {
     );
   });
 
-  test('closes the 68-source by 57-destination compatibility matrix', () {
+  test('closes the 69-source by 57-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Divider',
+      'flutter.material.VerticalDivider',
       'flutter.material.Scaffold',
       'flutter.material.AppBar',
       'flutter.material.ElevatedButton',
@@ -802,7 +803,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(68));
+    expect(sourceTypes, hasLength(69));
     expect(destinations, hasLength(57));
 
     var accepted = 0;
@@ -829,9 +830,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 3583);
-    expect(rejected, 293);
-    expect(accepted + rejected, 3876);
+    expect(accepted, 3638);
+    expect(rejected, 295);
+    expect(accepted + rejected, 3933);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (

@@ -6,13 +6,26 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `VerticalDivider` in Material at order 60 with all six optional Flutter 3.44.8
+  properties: width, thickness, indent, endIndent, color and radius. Reuses numeric,
+  literal/semantic color and physical/directional elliptical-radius editors with
+  unset/reset. Actual Canvas retains top/bottom (not leading/trailing) insets,
+  DividerTheme/M2/M3 defaults, RTL radii and parent-supplied height. Includes ordinary
+  DnD/moves, zero-width selection, generation/provenance, stable Properties,
+  save/reopen/further editing, Undo/Redo, rollback and four SVGs. Rounded hairlines
+  retain the documented SDK debug assertion/release radius omission.
+  Current totals: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
+  3,933 placements (3,638 accepted / 295 rejected), Material 6/Basic 23; historical
+  target 69/92 with 23 remaining. Formats stay 13/14/18.
+
+
 - `Divider` in Material at order 50 with all six optional Flutter 3.44.8 properties:
   height, thickness, indent, endIndent, color and radius. Reuses numeric, literal/
   semantic-color and physical/directional elliptical-radius editors with unset/reset.
   Actual Canvas preserves DividerTheme and M2/M3 defaults, RTL geometry, zero-height
   selection and the SDK rounded-hairline paint limitation. Includes ordinary DnD,
   generation/provenance, stable Properties, save/reopen/further editing, Undo/Redo,
-  rollback and four SVGs. Current totals: 68 widgets, 62 const-capable definitions,
+  rollback and four SVGs. At that milestone: 68 widgets, 62 const-capable definitions,
   803 rows (786 outside Scaffold), 3,876 placements (3,583 accepted / 293 rejected),
   Material 5/Basic 23; historical target 68/92, 24 remaining. Formats stay 13/14/18.
   For rounded lines use positive thickness: pinned SDK debug asserts at zero,

@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly sixty-eight
+The current capability-gated Palette and native Canvas admit exactly sixty-nine
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon` and `Divider`.
-Sixty-two definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 803 typed writable rows: 786 across the sixty-seven
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider` and `VerticalDivider`.
+Sixty-three definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 809 typed writable rows: 792 across the sixty-eight
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -762,9 +762,22 @@ that radius. An unset thickness defaults to hairline in Material 2 and 1 in
 Material 3. Zero height remains selectable in Designer; Divider has no child or
 F2 text editor. Save, reopen, keep editing and use Undo/Redo normally.
 
-The practical backlog is now 68/92 complete with 24 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 5 and Accessibility 6. The aggregate
-is 62 reviewed const definitions and 803 writable rows, including 786 outside
+**VerticalDivider** is in Material, immediately after Divider. Place it in a Row
+with a bounded height (for example inside SizedBox), or an IntrinsicHeight Row with
+other children; it also works in a bounded-height horizontal ListView. **Width**
+sets total horizontal space, **Thickness** the vertical line, **Indent** the top
+gap and **End indent** the bottom gap. RTL does not swap these top/bottom gaps.
+
+**Color** and **Radius** use the existing color/theme and physical/directional
+elliptical-corner editors. Every field supports Restore Default and true omission.
+Directional corner names follow RTL. Use positive thickness for rounded lines:
+the pinned SDK asserts for rounded hairlines in debug and ignores radius in release.
+Designer supplies neither a synthetic height nor an automatic wrapper. Save/reopen,
+continued editing, zero-width selection and Undo/Redo are supported normally.
+
+The practical backlog is now 69/92 complete with 23 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 6 and Accessibility 6. The aggregate
+is 63 reviewed const definitions and 809 writable rows, including 792 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -830,8 +843,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Sixty-eight sources across fifty-five insertable any-widget and two trait-bound
-slots produce 3,876 compatibility candidates: 3,583 accepted and 293
+Sixty-nine sources across fifty-five insertable any-widget and two trait-bound
+slots produce 3,933 compatibility candidates: 3,638 accepted and 295
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

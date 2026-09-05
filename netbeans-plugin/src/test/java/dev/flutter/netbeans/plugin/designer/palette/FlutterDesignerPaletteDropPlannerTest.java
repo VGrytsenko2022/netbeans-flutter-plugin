@@ -162,8 +162,62 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void dividerCompletesExact3876CellModelWithoutInventedDefaults() {
+    void verticalDividerCompletesExact3933CellModelWithoutInventedDefaults() {
         List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(),
+                                definition.typeId(), slot.name())))
+                .toList();
+        AtomicInteger accepted = new AtomicInteger();
+        AtomicInteger rejected = new AtomicInteger();
+
+        assertAll(targets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, new WidgetTypeId("flutter.material.VerticalDivider"), ROOT_ID,
+                    target.slot(), 0, FlutterImageAssetChoices.empty(), () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                rejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        target.name());
+                assertEquals(Map.of(),
+                        success.command().widget().properties());
+                assertEquals(Map.of(), success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                accepted.incrementAndGet();
+            }
+        }));
+
+        assertAll(
+                () -> assertEquals(69, BUILT_INS.definitions().size()),
+                () -> assertEquals(57, targets.size()),
+                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(2, rejected.get()),
+                () -> assertEquals(3933, 69 * targets.size()),
+                () -> assertEquals(3638, 3583 + accepted.get()),
+                () -> assertEquals(295, 293 + rejected.get()));
+    }
+
+    @Test
+    void dividerCompletesExact3876CellModelWithoutInventedDefaults() {
+        List<MatrixTargetCase> targets = preVerticalDividerDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(),
@@ -206,7 +260,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(68, BUILT_INS.definitions().size()),
+                () -> assertEquals(68, Math.toIntExact(preVerticalDividerDefinitions().count())),
                 () -> assertEquals(57, targets.size()),
                 () -> assertEquals(55, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -5553,8 +5607,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preDividerDefinitions() {
+    private static Stream<WidgetDefinition> preVerticalDividerDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.VerticalDivider"));
+    }
+
+    private static Stream<WidgetDefinition> preDividerDefinitions() {
+        return preVerticalDividerDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.Divider"));
     }
 

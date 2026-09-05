@@ -631,6 +631,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
+        node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2504,6 +2505,17 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.AppBar' => _appBar(context),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
+        thickness: _number('thickness'),
+        indent: _number('indent'),
+        endIndent: _number('endIndent'),
+        color: _resolvedColor(context, 'color'),
+        radius: switch (node.properties['radius']?.value) {
+          final CanvasBorderRadiusGeometryValue radius => _borderRadius(radius),
+          _ => null,
+        },
+      ),
+      'flutter.material.VerticalDivider' => VerticalDivider(
+        width: _number('width'),
         thickness: _number('thickness'),
         indent: _number('indent'),
         endIndent: _number('endIndent'),

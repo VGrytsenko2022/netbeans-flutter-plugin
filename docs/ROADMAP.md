@@ -1727,10 +1727,22 @@ accepted architecture is documented in
   Characterize SDK rounded-hairline debug assertion/release radius omission;
   recommend positive thickness without forcing it or rejecting theme-dependent unset.
   Include zero-height selection, ordinary DnD/moves, property-cell identity,
-  save/reopen/further editing, Undo/Redo, rollback and four SVGs. Current totals:
+  save/reopen/further editing, Undo/Redo, rollback and four SVGs. At that milestone:
   68 widgets, 62 const definitions, 803 rows (786 outside Scaffold), 65 scalar plus
   three structural; 9 wrappers/57 destinations, 3,876 cells (3,583 accepted / 293 rejected),
   Material 5/Basic 23. Historical target 68/92, 24 remaining; formats stay 13/14/18.
+- [x] Add `VerticalDivider` in Material at order 60 with six optional named fields:
+  width/thickness/indent/endIndent/color/radius and no slots, traits or creation
+  defaults. Reuse exact numeric/color/radius types, editors and symbol provenance.
+  Preserve top/bottom gaps in both LTR/RTL, directional radii, DividerTheme/M2/M3
+  precedence and parent-supplied height in bounded Row/horizontal ListView layouts.
+  Cover zero-width selection, ordinary DnD/moves, stable Properties, save/reopen/
+  further edits, reset, Undo/Redo, rollback and four SVGs. Preserve the SDK
+  rounded-hairline limitation without a forced thickness, height or wrapper.
+  Current totals: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
+  66 scalar plus three structural, 9 wrappers/57 destinations, 3,933 cells
+  (3,638 accepted / 295 rejected), Material 6/Basic 23. Historical target 69/92,
+  23 remaining; formats stay 13/14/18.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1748,8 +1760,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-eight admitted built-ins.
-  The 65 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-nine admitted built-ins.
+  The 66 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

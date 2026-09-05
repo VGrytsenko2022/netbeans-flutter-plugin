@@ -315,6 +315,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.Divider".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Divider.Name"));
                 setShortDescription(message("Widget.Divider.Description"));
+            } else if ("flutter.material.VerticalDivider".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.VerticalDivider.Name"));
+                setShortDescription(message("Widget.VerticalDivider.Description"));
             } else if ("flutter.widgets.IconTheme".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IconTheme.Name"));
                 setShortDescription(message("Widget.IconTheme.Description"));

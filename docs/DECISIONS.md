@@ -38,10 +38,10 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, and ADR-096 establishes the current `Divider`
-surface: 803 typed rows across sixty-eight widgets, sixty-two const-constructor
-definitions and 3,876 Palette/DnD candidates, including 3,583 accepted and 293
-rejected cells. The 786-field
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, and ADR-097 establishes the current `VerticalDivider`
+surface: 809 typed rows across sixty-nine widgets, sixty-three const-constructor
+definitions and 3,933 Palette/DnD candidates, including 3,638 accepted and 295
+rejected cells. The 792-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-096 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-097 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-096 make 786 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-097 make 792 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -352,7 +352,8 @@ Boolean and required child, always generating the required data composite.
 ImageIcon adds required nullable positional image and three optional named
 size/color/semanticLabel rows, without a child slot.
 Divider adds six optional geometry/appearance rows without child slots.
-Scaffold separately contributes 17 rows, giving 803 overall.
+VerticalDivider adds six optional width/appearance rows without child slots.
+Scaffold separately contributes 17 rows, giving 809 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -434,8 +435,10 @@ ADR-094 establishes the historical sixty-six-source, 3,762-candidate matrix
 (3,473 accepted / 289 rejected).
 ADR-095 establishes the historical sixty-seven-source, 3,819-candidate matrix
 (3,528 accepted / 291 rejected).
-ADR-096 establishes the current sixty-eight-source, 3,876-candidate matrix
+ADR-096 establishes the historical sixty-eight-source, 3,876-candidate matrix
 (3,583 accepted / 293 rejected).
+ADR-097 establishes the current sixty-nine-source, 3,933-candidate matrix
+(3,638 accepted / 295 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -446,7 +449,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -460,12 +463,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-eight-widget model for Mobile, Tablet,
+Canvas now renders the validated sixty-nine-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-eight Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,876-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,583 cells are accepted and 293 rejected.
+those sixty-nine Create-capable definitions, and the DnD-capable set uses the
+reviewed 3,933-cell candidate matrix across fifty-five insertable any-widget and two
+trait-bound destination slots; 3,638 cells are accepted and 295 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -4880,7 +4883,7 @@ https://api.flutter.dev/flutter/material/Divider/Divider.html. Its six optional
 named arguments are height, thickness, indent, endIndent, color and radius, in that
 order. Key stays Designer identity rather than a writable constructor field.
 The leaf has no slots or traits, is const-capable and is created with no explicit
-fields. VerticalDivider remains a separate, not-yet-admitted widget; static
+fields. At that milestone VerticalDivider was a separate, not-yet-admitted widget; static
 createBorderSide is a utility, not an additional palette constructor.
 
 The first four properties accept the existing finite non-negative INTEGER/DOUBLE
@@ -4915,7 +4918,7 @@ Reuse existing values/generator and pair persistence; FD 13, contributor API 14,
 Canvas model 18 and NBFC1 remain unchanged. CJK IME and platform-provider work are
 not part of this slice; full physical acceptance remains deferred.
 
-Current totals: 68 widgets, 62 const-capable definitions, 803 writable rows
+At that milestone: 68 widgets, 62 const-capable definitions, 803 writable rows
 (786 outside Scaffold), 65 scalar plus three structural definitions. Nine generic
 wrappers and 55 any-widget plus two trait destinations remain unchanged.
 68x57 = 3,876 candidates: 3,583 accepted and 293 rejected. Categories are Layout 31,
@@ -4968,3 +4971,104 @@ package metadata, license, source freshness and the embedded module are verified
 The final NBM is 7,361,357 bytes with SHA-256
 `B626CB4C2314176BAE0E83C9F8D0F7591C4AF545AC980F52A7F13739FBA05469`.
 No installed userdir verification or full physical desktop acceptance is claimed.
+
+## ADR-097 — VerticalDivider completes the vertical Material separator
+
+Admit flutter.material.VerticalDivider into Material at category order 100/item 60,
+after Divider. The pinned Flutter 3.44.8 constructor and official API agree:
+https://api.flutter.dev/flutter/material/VerticalDivider/VerticalDivider.html.
+Its six optional named fields at ordinals 0..5 are width, thickness, indent,
+endIndent, color and radius. Key remains Designer identity. The const-capable leaf
+has no slots, traits or creation defaults; default source is const VerticalDivider().
+
+Reuse finite non-negative integer/double geometry, literal/semantic ColorScheme
+colors and existing physical/directional elliptical BorderRadiusGeometry. All eight
+corner axes are editable within the closed radius domain. Every field can be reset
+to omission; the radius editor retains neutral omit-argument wording. Custom/mixed
+runtime geometry expressions are not added. Do not impose thickness<=width, bound
+insets by unknown parent height, or create a Designer-only construction switch.
+
+Unlike Divider, width is the horizontal extent and indent/endIndent are the top/
+bottom gaps; RTL never reverses those gaps. Directional corner radii still resolve
+through ambient Directionality. Actual SDK VerticalDivider uses a left-only Border,
+local -> DividerTheme -> M2/M3 precedence, default space 16/zero insets, M2 hairline/
+dividerColor and M3 thickness 1/outlineVariant. Parent layout supplies the height:
+bounded Row, IntrinsicHeight Row with other children and bounded-height horizontal
+ListView compositions are supported without a fabricated height argument or wrapper.
+
+The SDK's rounded-hairline limit remains unchanged: effective thickness 0 plus
+nonzero radius asserts during debug Border.paint and ignores radius in release.
+Omitted thickness may resolve to a hairline under Material 2 or DividerTheme, so
+neither source validation nor payload decoding invents a cross-field prohibition.
+Property help recommends positive thickness for rounded lines and explains parent
+height. Existing framework error forwarding is preserved; no release-only guard.
+
+Cover ordinary palette/tree/Canvas/slot insertion, moves, zero-width selection,
+accessibility and F2 rejection. All six fields participate in exact generation/
+const/provenance, codec/payload, stable Properties, save/reopen/further editing,
+Undo/Redo, optional reset and rejected-edit rollback. No asset resources, writable
+semantic label, Boolean property or persistence authority is introduced. FD 13,
+contributor API 14, Canvas model 18 and NBFC1 remain unchanged. Platform/IME work
+and full physical desktop acceptance stay outside this palette slice.
+
+Current totals: 69 widgets, 63 const-capable definitions, 809 writable rows
+(792 outside Scaffold), 66 scalar plus three structural definitions. Nine generic
+wrappers and 55 any-widget plus two trait destinations remain unchanged.
+69x57 = 3,933 candidates: 3,638 accepted and 295 rejected. Categories: Layout 31,
+Scrolling 3, Basic 23, Material 6, Accessibility 6. Historical practical target
+69/92, 23 remaining; the ordered historical 92-widget inventory is still unrecovered.
+
+The complete core suite passes 1,310 tests, zero failures/errors/skips. Fifteen new
+tests comprise seven contract, six command/history and two payload tests. The
+generation/codec and payload matrices each cover 1,215 optional-field combinations,
+including semantic/literal color and physical/directional elliptical radii. A
+separate axis contract distinguishes vertical width/top/bottom from horizontal
+height/leading/trailing. All-field reset, save/reopen/further editing, exact symbol
+provenance, movement, Undo/Redo and rejection rollback pass without changing the
+generator, value model, protocol or persistence authority.
+
+The full Flutter suite passes 925 tests (892 baseline plus 33 new), with clean
+analyze/format. It covers 729 decoder combinations, M2/M3/DividerTheme/local values,
+RTL top/bottom invariance and directional radius reversal, real bounded Row heights
+90/37/0, horizontally scrolling ListView, raw-SDK and Canvas unbounded Column
+behavior, zero-width selection/drop/existing moves, semantics and F2 rejection.
+With unbounded vertical space, the SDK line can have zero height; margins alone
+can add extent. Tests characterize this rather than inventing a parent height.
+Rounded-hairline paint errors are explicitly observed, not treated as good renders.
+
+The focused NetBeans suite passes all 756 tests on the first run, zero failures/
+errors/skips, including nine new tests. All six fields, inherited/reset radius,
+stable property identity, save/reopen/further editing, Undo/Redo and rejected-edit
+rollback are covered. Ordinary palette/tree/slot/move paths, exact Java/Canvas
+capability parity, accessibility and four SVGs pass. No global editor changes or
+new Boolean catalog property are introduced.
+
+The rebuilt Web entry is 2,877,480 bytes with SHA-256
+`ccaa55664b9f14eaf8b6d78d2fa8a8f7f22b878089da3fe78d9b6ccb257d0a64`.
+All 75 source/Web manifest entries were rehashed and checked. Both manifests and
+the packaged Web artifact contract test match the final frozen runner and release.
+
+The focused real Flutter 3.44.8/Dart 3.12.2 SDK analyzer test passes (one test,
+24.90 seconds). It covers all six properties, 18 numeric/radius variants, explicit
+null/default and M2/M3/DividerTheme/local precedence, bounded Row, IntrinsicHeight
+Row and horizontal ListView compositions. Eleven exact symbol probes are accepted
+and 16 invalid API/type variants are rejected; project source/pubspec bytes stay
+unchanged. Accepted rounded-hairline source is explicitly separate from paint
+success, which is characterized by the Flutter tests above.
+
+The final clean `mvn clean install` passes all 11 reactor modules in 9:01 with
+the pinned Dart/Flutter SDK and real Web artifact gates enabled. Surefire records
+3,707 tests across 342 reports (six documented optional skips); Failsafe records
+13 tests across seven reports (one documented optional skip), with zero failures
+or errors. This includes all 22 real-SDK analyzer cases and 89 mutation-controller
+lifecycle tests. The 925-test Flutter suite, analyze and formatting checks passed
+on the same frozen runner sources before the Web build. An independent read-only
+review found no cross-layer or packaging discrepancies.
+
+`mvn nbm:cluster` and `tools/verify-release.ps1` both pass. The final NBM is
+7,368,080 bytes with SHA-256
+`7F32BE8A33C8124131EDD007D3273E1766F5656593E6AE9707FBAB1DBBD32F4D`.
+Metadata, licensing, complete package resources, source freshness and all report
+coverage pass verification. No installed-userdir verification, interactive IDE
+launch, physical desktop acceptance, CJK IME work or Linux/macOS provider work
+was performed as part of this palette slice.

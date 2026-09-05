@@ -93,6 +93,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.IconTheme"));
         assertTrue(typeIds(result).contains("flutter.widgets.ImageIcon"));
         assertTrue(typeIds(result).contains("flutter.material.Divider"));
+        assertTrue(typeIds(result).contains("flutter.material.VerticalDivider"));
     }
 
     @Test
@@ -180,7 +181,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(68, result.catalog().definitions().size());
+        assertEquals(69, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -213,7 +214,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(68, result.catalog().definitions().size());
+        assertEquals(69, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

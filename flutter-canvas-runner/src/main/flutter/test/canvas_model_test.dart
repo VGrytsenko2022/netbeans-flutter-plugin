@@ -5936,7 +5936,7 @@ void main() {
   test('TextField reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.TextField\n');
-    final end = contract.indexOf('W|flutter.widgets.AbsorbPointer\n', start);
+    final end = contract.indexOf('W|flutter.material.VerticalDivider\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);

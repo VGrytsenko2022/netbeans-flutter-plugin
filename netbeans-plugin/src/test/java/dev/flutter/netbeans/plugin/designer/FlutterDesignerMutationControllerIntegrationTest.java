@@ -563,6 +563,198 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
+    void paletteVerticalDividerSaveReopenAllFieldsHistoryResetAndRollback() throws Exception {
+        StableId verticalDividerId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e91");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.VerticalDivider");
+        PropertyName thickness = new PropertyName("thickness");
+        var a = new PropertyValue.BoxDecorationValue.Radius(java.math.BigDecimal.ONE, java.math.BigDecimal.valueOf(2));
+        var b = new PropertyValue.BoxDecorationValue.Radius(java.math.BigDecimal.valueOf(3), java.math.BigDecimal.valueOf(4));
+        var c = new PropertyValue.BoxDecorationValue.Radius(java.math.BigDecimal.valueOf(5), java.math.BigDecimal.valueOf(6));
+        var d = new PropertyValue.BoxDecorationValue.Radius(java.math.BigDecimal.valueOf(7), java.math.BigDecimal.valueOf(8));
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(new PropertyName("width"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(20)));
+        configured.put(thickness, new PropertyValue.DoubleValue(new java.math.BigDecimal("2.5")));
+        configured.put(new PropertyName("indent"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(3)));
+        configured.put(new PropertyName("endIndent"), new PropertyValue.DoubleValue(new java.math.BigDecimal("4.5")));
+        configured.put(new PropertyName("color"), new PropertyValue.ColorValue(0x80123456L));
+        configured.put(new PropertyName("radius"), new PropertyValue.BorderRadiusValue(
+                new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(a, b, c, d)));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("vertical_divider_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const VerticalDivider()"), request.content());
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> verticalDividerId));
+            var added = applyVerticalDividerMutation(fixture, ready, plan.command(), verticalDividerId);
+            WidgetNode verticalDivider = findModelWidget(added.document().orElseThrow().root(), verticalDividerId);
+            assertTrue(verticalDivider.properties().isEmpty());
+            assertTrue(verticalDivider.slots().isEmpty());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("vertical_divider_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), verticalDividerId);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, definition, commands::add);
+            var propertySets = properties.getPropertySets();
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                commands.clear();
+                var cell = cellProperty(properties, entry.getKey().value());
+                assertTrue(cell.canWrite());
+                assertTrue(cell.supportsDefaultValue());
+                cell.setValue(FlutterPropertyCellValue.explicit(entry.getValue()));
+                assertEquals(1, commands.size());
+                current = applyVerticalDividerMutation(fixture, current, commands.getFirst(), verticalDividerId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), verticalDividerId),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, entry.getKey().value()));
+                assertEquals(List.of(propertySets), List.of(properties.getPropertySets()));
+            }
+            // Constructor admission remains exact; the documented SDK paint limit is not a model prohibition.
+            current = applyVerticalDividerMutation(fixture, current,
+                    new SetProperty(verticalDividerId, thickness, new PropertyValue.DoubleValue(java.math.BigDecimal.ZERO)), verticalDividerId);
+            WidgetNode hairline = findModelWidget(current.document().orElseThrow().root(), verticalDividerId);
+            assertEquals(configured.get(new PropertyName("radius")), hairline.properties().get(new PropertyName("radius")));
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.ZERO), hairline.properties().get(thickness));
+            current = applyVerticalDividerMutation(fixture, current,
+                    new SetProperty(verticalDividerId, thickness, configured.get(thickness)), verticalDividerId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), verticalDividerId);
+            assertEquals(configured, complete.properties());
+            assertTrue(complete.slots().isEmpty());
+            byte[] exactDart = fixture.coordinator().stagedEvidence().candidateDartBytes();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            for (String fragment : List.of("const VerticalDivider(", "width: 20", "thickness: 2.5", "indent: 3",
+                    "endIndent: 4.5", "Color(0x80123456)", "radius: const BorderRadiusDirectional.only(",
+                    "Radius.elliptical(1.0, 2.0)", "Radius.elliptical(7.0, 8.0)")) {
+                assertTrue(generated.contains(fragment), fragment + " in " + generated);
+            }
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 8; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, verticalDividerId));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), verticalDividerId));
+            for (int index = 0; index < 8; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, verticalDividerId));
+            }
+            assertEquals(8, analyses.get());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            String undoName = history.getUndoPresentationName();
+            for (String name : List.of("width", "thickness", "indent", "endIndent", "radius")) {
+                PropertyValue invalid = name.equals("radius") ? new PropertyValue.StringValue("BorderRadius.circular(1)")
+                        : new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1));
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                        new SetProperty(verticalDividerId, new PropertyName(name), invalid),
+                        "VerticalDivider invalid property edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+                current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), verticalDividerId));
+                assertEquals(undoName, history.getUndoPresentationName());
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request, "verticalDivider_refused", "VerticalDivider candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new ResetProperty(verticalDividerId, new PropertyName("color")), "VerticalDivider Color reset")
+                    .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), verticalDividerId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("vertical_divider_configured_reopened", configuredPair)) {
+            var current = fixture.ready();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), verticalDividerId);
+            assertEquals(configured, restored.properties());
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, definition, commands::add);
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            Map<String, PropertyValue> continued = new java.util.LinkedHashMap<>();
+            continued.put("width", new PropertyValue.DoubleValue(new java.math.BigDecimal("18.5")));
+            continued.put("thickness", new PropertyValue.IntegerValue(java.math.BigInteger.ONE));
+            continued.put("indent", new PropertyValue.DoubleValue(new java.math.BigDecimal("1.25")));
+            continued.put("endIndent", new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(2)));
+            continued.put("color", new PropertyValue.ThemeTokenValue(
+                    new dev.flutter.netbeans.designer.model.ThemeToken("material.colorScheme.outlineVariant")));
+            continued.put("radius", new PropertyValue.BorderRadiusValue(
+                    new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(d, c, b, a)));
+            for (var entry : continued.entrySet()) {
+                commands.clear();
+                var cell = cellProperty(properties, entry.getKey());
+                cell.setValue(FlutterPropertyCellValue.explicit(entry.getValue()));
+                assertEquals(1, commands.size());
+                current = applyVerticalDividerMutation(fixture, current, commands.getFirst(), verticalDividerId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), verticalDividerId),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, entry.getKey()));
+                assertEquals(FlutterPropertyCellValue.explicit(entry.getValue()), cell.getValue());
+            }
+            String continuedDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertTrue(continuedDart.contains("BorderRadius.only("));
+            assertTrue(continuedDart.contains("colorScheme.outlineVariant"));
+            for (String name : continued.keySet()) {
+                commands.clear();
+                cellProperty(properties, name).restoreDefaultValue();
+                assertEquals(1, commands.size());
+                current = applyVerticalDividerMutation(fixture, current, commands.getFirst(), verticalDividerId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), verticalDividerId),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            assertTrue(findModelWidget(current.document().orElseThrow().root(), verticalDividerId).properties().isEmpty());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8)
+                    .contains("const VerticalDivider()"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("vertical_divider_reset_reopened", configuredPair)) {
+            var current = fixture.ready();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), verticalDividerId);
+            assertTrue(restored.properties().isEmpty());
+            assertTrue(restored.slots().isEmpty());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            current = applyVerticalDividerMutation(fixture, current,
+                    new SetProperty(verticalDividerId, thickness, new PropertyValue.DoubleValue(java.math.BigDecimal.ONE)), verticalDividerId);
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.ONE),
+                    findModelWidget(current.document().orElseThrow().root(), verticalDividerId).properties().get(thickness));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyVerticalDividerMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId verticalDividerId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "VerticalDivider property editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(FIRST_ID, SECOND_ID, verticalDividerId));
+    }
+
+    @Test
     void paletteDividerSaveReopenAllFieldsHistoryResetAndRollback() throws Exception {
         StableId dividerId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e90");
         WidgetTypeId type = new WidgetTypeId("flutter.material.Divider");

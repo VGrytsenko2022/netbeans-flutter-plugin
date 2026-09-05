@@ -77,6 +77,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.ClipRect", ICON_ROOT + "cliprect.svg"),
             Map.entry("flutter.widgets.ClipOval", ICON_ROOT + "clipoval.svg"),
             Map.entry("flutter.widgets.ClipRRect", ICON_ROOT + "cliprrect.svg"),
+            Map.entry("flutter.widgets.ClipPath", ICON_ROOT + "clippath.svg"),
             Map.entry("flutter.widgets.ExcludeSemantics",
                     ICON_ROOT + "excludesemantics.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),

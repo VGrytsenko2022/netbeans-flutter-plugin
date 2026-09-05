@@ -6,6 +6,21 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `ClipPath` in Basic (order 110), including both the default constructor and
+  `ClipPath.shape`: typed `CustomClipper<Path>` / `ShapeBorder` reference editors,
+  all four clip behaviors, optional child, precise branch-conflict rejection,
+  analyzer-proven non-null assignments, deterministic imports and non-const static
+  helper generation. Project/dependency references and const/non-const zero-argument
+  calls reuse the existing closed value contract. Default Canvas clipping is real;
+  custom geometry has an explicit preview-unavailable warning, including zero-size
+  targets. Palette/tree/Canvas DnD, Properties/Slots, Save/reopen, Undo/Redo and
+  light/dark 16/32 px SVGs are covered. Current surface: 50 widgets, 44 const-capable
+  definitions, 745 rows (728 outside Scaffold), 2,350 DnD cells (2,123 accepted /
+  227 rejected). Categories: Layout 31, Scrolling 3, Basic 11, Material 4,
+  Accessibility 1. Historical practical target: 50/92, 42 remaining; its full
+  ordered inventory is not preserved. `.fd` 12 / Catalog API 12 / Canvas model 17
+  remain unchanged. Automated SDK/Canvas tests do not replace the deferred global
+  physical desktop acceptance gate.
 - The accepted const
   [`ClipRRect`](https://api.flutter.dev/flutter/widgets/ClipRRect/ClipRRect.html)
   vertical slice fills the next gap in the fixed practical 92-widget inventory,

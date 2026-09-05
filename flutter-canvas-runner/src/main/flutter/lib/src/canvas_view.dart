@@ -28,6 +28,13 @@ String _customClipperPreviewUnavailableMessage({
     'or dependency Dart.';
 
 String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
+  if (node.type == 'flutter.widgets.ClipPath' &&
+      node.properties['shape']?.kind == 'dartObjectReferencePresence') {
+    return _customClipperPreviewUnavailableMessage(
+      widgetName: 'ClipPath.shape',
+      expectedType: 'ShapeBorder',
+    );
+  }
   if (node.properties['clipper']?.kind != 'dartObjectReferencePresence') {
     return null;
   }
@@ -35,6 +42,7 @@ String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
     'flutter.widgets.ClipRect' ||
     'flutter.widgets.ClipOval' => 'CustomClipper<Rect>',
     'flutter.widgets.ClipRRect' => 'CustomClipper<RRect>',
+    'flutter.widgets.ClipPath' => 'CustomClipper<Path>',
     _ => null,
   };
   return expectedType == null
@@ -571,6 +579,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Placeholder' ||
         node.type == 'flutter.widgets.ClipOval' ||
         node.type == 'flutter.widgets.ClipRRect' ||
+        node.type == 'flutter.widgets.ClipPath' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
@@ -2379,6 +2388,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Placeholder' => _placeholder(context),
       'flutter.widgets.ClipOval' => _clipOval(),
       'flutter.widgets.ClipRRect' => _clipRRect(context),
+      'flutter.widgets.ClipPath' => _clipPath(),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
       'flutter.widgets.Container' => _container(context),
@@ -4265,9 +4275,30 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _clipPath() {
+    if (node.properties['shape']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipPath.shape',
+        expectedType: 'ShapeBorder',
+        previewLabel: 'Custom shape\npreview unavailable',
+      );
+    }
+    if (node.properties['clipper']?.kind == 'dartObjectReferencePresence') {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'ClipPath',
+        expectedType: 'CustomClipper<Path>',
+      );
+    }
+    return ClipPath(
+      clipBehavior: _clipBehavior() ?? Clip.antiAlias,
+      child: _single('child'),
+    );
+  }
+
   Widget _customClipperPreviewUnavailable({
     required String widgetName,
     required String expectedType,
+    String previewLabel = 'Custom clipper\npreview unavailable',
   }) {
     final message = _customClipperPreviewUnavailableMessage(
       widgetName: widgetName,
@@ -4302,14 +4333,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
                           color: Colors.amber.shade100,
                           borderRadius: BorderRadius.circular(2),
                         ),
-                        child: const Padding(
-                          padding: EdgeInsets.all(3),
+                        child: Padding(
+                          padding: const EdgeInsets.all(3),
                           child: Text(
-                            'Custom clipper\npreview unavailable',
+                            previewLabel,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             textAlign: TextAlign.center,
-                            style: TextStyle(
+                            style: const TextStyle(
                               color: Colors.black87,
                               fontSize: 10,
                               fontWeight: FontWeight.w600,

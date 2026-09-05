@@ -475,7 +475,11 @@ public final class DartRegionGenerator {
         }
         arguments.sort(ARGUMENT_ORDER);
 
-        boolean constant = definition.constConstructor()
+        // ClipPath.shape is a static Widget factory, not a named constructor.
+        // Even a const ShapeBorder must not make the helper or its ancestors const.
+        boolean clipPathShape = node.type().value().equals("flutter.widgets.ClipPath")
+                && node.properties().containsKey(new PropertyName("shape"));
+        boolean constant = !clipPathShape && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
                 definition.dartLibraryUri(), definition.dartClassName());
@@ -487,7 +491,14 @@ public final class DartRegionGenerator {
                 renderedClass.libraryUri(),
                 path,
                 Optional.of(node.id()));
-        if (definition.namedConstructor().isPresent()) {
+        ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
+        constructorOccurrences.add(classOccurrence);
+        if (clipPathShape) {
+            constructorOccurrences.add(occurrence(
+                    "widget:" + node.id() + ":shapeFactory", constructor.length() + 1,
+                    "shape", renderedClass.libraryUri(), path, Optional.of(node.id())));
+            constructor += ".shape";
+        } else if (definition.namedConstructor().isPresent()) {
             constructor += "." + definition.namedConstructor().orElseThrow();
         }
         if (arguments.isEmpty()) {
@@ -497,7 +508,7 @@ public final class DartRegionGenerator {
                     path,
                     node.id(),
                     context,
-                    List.of(classOccurrence));
+                    constructorOccurrences);
             return wrapConstraintGuardIfNeeded(
                     node, path, baseIndent, context, rendered);
         }
@@ -507,7 +518,7 @@ public final class DartRegionGenerator {
             StringBuilder inline = new StringBuilder(constructor).append('(');
             ArrayList<GeneratedDartSymbolOccurrence> inlineOccurrences =
                     new ArrayList<>();
-            inlineOccurrences.add(classOccurrence);
+            inlineOccurrences.addAll(constructorOccurrences);
             for (int index = 0; index < arguments.size(); index++) {
                 if (index > 0) {
                     inline.append(", ");
@@ -539,7 +550,7 @@ public final class DartRegionGenerator {
 
         LineAccumulator lines = new LineAccumulator(
                 context.maxRenderedUtf8Bytes(), path, node.id());
-        lines.add(constructor + "(", List.of(classOccurrence));
+        lines.add(constructor + "(", constructorOccurrences);
         int argumentIndent = constructorBaseIndent + 2;
         for (ConstructorArgument argument : arguments) {
             List<String> valueLines = argument.value().lines();

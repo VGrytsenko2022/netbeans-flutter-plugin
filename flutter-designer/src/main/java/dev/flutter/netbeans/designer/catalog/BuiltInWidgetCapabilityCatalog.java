@@ -199,6 +199,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ClipRect", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipOval", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ClipRRect", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ClipPath", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
@@ -624,6 +625,22 @@ public final class BuiltInWidgetCapabilityCatalog {
                             + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
                     enumProperty(
                             "clipBehavior", "Clip", "none", "hardEdge",
+                            "antiAlias", "antiAliasWithSaveLayer")),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.ClipPath", projection(Map.ofEntries(
+                    Map.entry("clipper", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "CustomClipper<Path>:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
+                    Map.entry("shape", constrainedSchema(
+                            PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                            + "ShapeBorder:currentOrPackage:"
+                            + "root,optionalMember:reference,"
+                            + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
+                    enumProperty("clipBehavior", "Clip", "none", "hardEdge",
                             "antiAlias", "antiAliasWithSaveLayer")),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ExcludeSemantics", projection(Map.ofEntries(

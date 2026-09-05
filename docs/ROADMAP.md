@@ -1463,6 +1463,21 @@ accepted architecture is documented in
   practical backlog is 49/92 complete with 43 remaining. The typed Dart-object
   reference advances `.fd` schema to v12, Catalog API to 12 and Canvas model to
   v17; NBFC framing/control/wire remain v1.
+- [x] Add `ClipPath` after `ClipRRect` as the next reviewed clipping slice, including
+  `ClipPath.shape` rather than postponing the ShapeBorder branch. Expose typed
+  `clipper` (`CustomClipper<Path>`), typed `shape` (`ShapeBorder`), all four `Clip`
+  values and optional `child`; reject simultaneous clipper/shape. Reuse the closed
+  project/package reference and const/non-const zero-argument invocation contract,
+  require exact analyzer assignment proof, and emit the static helper without
+  const or const ancestors. Cover editors, Palette/Slots/tree/Canvas DnD, save/reopen,
+  further editing, Undo/Redo, accessible preview limitations and four SVG variants.
+  Current surface: 50 widgets, 44 const-capable definitions, 745 rows (728 outside
+  Scaffold), 45 any-widget plus two trait destinations, 2,350 cells (2,123 accepted /
+  227 rejected). Basic has 11 items; other category counts are unchanged. Progress
+  against the historical practical target is 50/92, 42 remaining. No full ordered
+  92-item inventory was recovered; this successor is a reviewed API-based choice.
+  Schema/API/model stay 12/12/17. The physical desktop acceptance gate remains
+  deferred until the palette target is implemented.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1480,7 +1495,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current typed Properties slice spans all forty-nine
+  vertical slices. The current typed Properties slice spans all fifty
   admitted built-ins and does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

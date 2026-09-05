@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCapabilityCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
@@ -150,6 +151,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private static final PropertyName CONTAINER_COLOR = new PropertyName("color");
     private static final PropertyName CONTAINER_DECORATION = new PropertyName("decoration");
     private static final PropertyName CONTAINER_CLIP = new PropertyName("clipBehavior");
+    private static final PropertyName CLIP_PATH_CLIPPER = new PropertyName("clipper");
+    private static final PropertyName CLIP_PATH_SHAPE = new PropertyName("shape");
     private static final java.util.List<PropertyName> TEXT_FIELD_CURSOR_RADIUS =
             java.util.List.of(
                     new PropertyName("cursorRadiusX"),
@@ -522,6 +525,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.equals(
                 widget.type())) {
             addClipRRectPropertySets(sheet, hasSlotTab);
+        } else if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
+                widget.type())) {
+            addClipPathPropertySets(sheet, hasSlotTab);
         } else if (ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(widget.type())) {
             addContainerPropertySets(sheet, hasSlotTab);
         } else {
@@ -976,6 +982,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "Physical or direction-aware corner radii and clip behavior control "
                     + "the exact edge. The Dart analyzer validates a configured Dart "
                     + "symbol as CustomClipper<RRect>; Flutter then ignores borderRadius. "
+                    + "The isolated Canvas cannot execute project Dart and displays an "
+                    + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove "
+                    + "the child widget.";
+        }
+        if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child clipped either by a project CustomClipper<Path> "
+                    + "or by a ShapeBorder through the non-const ClipPath.shape helper. "
+                    + "Clipper and Shape are mutually exclusive; setting either branch "
+                    + "atomically clears the other. Clip behavior controls edge quality. "
                     + "The isolated Canvas cannot execute project Dart and displays an "
                     + "explicit preview-unavailable state. Occupancy: " + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
@@ -2439,6 +2457,50 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addClipPathPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ClipPathWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ClipPathWidgetPropertySchema.Group.class);
+        for (ClipPathWidgetPropertySchema.Group group
+                : ClipPathWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ClipPathWidgetPropertySchema.Definition schema =
+                    ClipPathWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in ClipPath property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            String boundary = switch (property.name().value()) {
+                case "clipper" -> " The Dart analyzer validates that the selected "
+                        + "symbol is assignable to CustomClipper<Path>. Setting Clipper "
+                        + "first clears the mutually exclusive Shape property and selects "
+                        + "the unnamed ClipPath constructor. Current-library and declared "
+                        + "package references, including zero-argument invocations, are "
+                        + "supported. The isolated Canvas cannot execute project Dart and "
+                        + "displays an explicit preview-unavailable state.";
+                case "shape" -> " The Dart analyzer validates that the selected symbol "
+                        + "is assignable to ShapeBorder. Setting Shape first clears the "
+                        + "mutually exclusive Clipper property and selects the non-const "
+                        + "ClipPath.shape helper. Current-library and declared package "
+                        + "references, including zero-argument invocations, are supported. "
+                        + "The isolated Canvas cannot execute project Dart and displays an "
+                        + "explicit preview-unavailable state.";
+                case "clipBehavior" -> " Omission preserves Flutter's anti-alias default.";
+                default -> throw new IllegalStateException(
+                        "Unexpected ClipPath property: " + property.name().value());
+            };
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description() + boundary));
+        }
+    }
+
     private void addPlaceholderPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<PlaceholderWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(PlaceholderWidgetPropertySchema.Group.class);
@@ -2711,6 +2773,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         currentWidget, compound, propertyName, accepted);
             }
         }
+        if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
+                currentWidget.type())) {
+            return clipPathPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(
                 currentWidget.type())) {
             return ordinaryPropertyCommand(currentWidget, propertyName, accepted);
@@ -2751,6 +2817,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return patches.size() == 1
                 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand clipPathPropertyCommand(
+            WidgetNode currentWidget,
+            PropertyName propertyName,
+            FlutterPropertyCellValue accepted) {
+        boolean setting = accepted.explicitValue().isPresent();
+        PropertyName opposite = CLIP_PATH_CLIPPER.equals(propertyName)
+                ? CLIP_PATH_SHAPE
+                : CLIP_PATH_SHAPE.equals(propertyName)
+                        ? CLIP_PATH_CLIPPER : null;
+        if (!setting || opposite == null
+                || !currentWidget.properties().containsKey(opposite)) {
+            return ordinaryPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        return new PatchProperties(currentWidget.id(), java.util.List.of(
+                new PatchProperties.ResetPatch(opposite),
+                new PatchProperties.SetPatch(
+                        propertyName, accepted.explicitValue().orElseThrow())));
     }
 
     private DesignerCommand textFieldCompoundPropertyCommand(

@@ -798,6 +798,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.ClipRect",
                     "flutter.widgets.ClipOval",
                     "flutter.widgets.ClipRRect",
+                    "flutter.widgets.ClipPath",
                     "flutter.widgets.ExcludeSemantics"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(

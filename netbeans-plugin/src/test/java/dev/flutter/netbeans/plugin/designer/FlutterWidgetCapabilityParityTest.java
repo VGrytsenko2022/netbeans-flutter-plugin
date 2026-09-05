@@ -26,14 +26,14 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(49, javaTypes.size(),
+        assertEquals(50, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
                 + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
                 + "SingleChildScrollView, SafeArea, ColoredBox, Placeholder, and "
                 + "Directionality, DecoratedBox, ExcludeSemantics, IndexedStack and "
-                + "ClipRect, ClipOval and ClipRRect");
+                + "ClipRect, ClipOval, ClipRRect and ClipPath");
         assertTrue(javaTypes.contains("flutter.widgets.Container"));
         assertTrue(javaTypes.contains("flutter.widgets.AspectRatio"));
         assertTrue(javaTypes.contains("flutter.widgets.Opacity"));
@@ -72,6 +72,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.ClipRect"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipOval"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipRRect"));
+        assertTrue(javaTypes.contains("flutter.widgets.ClipPath"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(17, CanvasModelPayloadCodec.VERSION);
@@ -99,6 +100,11 @@ class FlutterWidgetCapabilityParityTest {
                 "Java and Dart must agree on wire kinds, required/default values, "
                 + "numeric bounds, constraints and slot cardinality");
         assertTrue(dartContract.contains("W|flutter.widgets.ClipRRect\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.ClipPath\n"));
+        assertTrue(dartContract.contains(
+                "dartObjectReference:v1:CustomClipper<Path>:currentOrPackage"));
+        assertTrue(dartContract.contains(
+                "dartObjectReference:v1:ShapeBorder:currentOrPackage"));
         assertTrue(dartContract.contains(
                 "P|borderRadius|borderRadius|0|-|-|"
                 + "borderRadius:borderRadius:v1:physical,directional:finiteNonNegative\n"));
@@ -186,6 +192,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ClipOval.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.ClipRRect"),
                 "ClipRRect.child is an ordinary optional any-widget insertion target");
+        assertTrue(javaContainers.contains("flutter.widgets.ClipPath"),
+                "ClipPath.child is an ordinary optional any-widget insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.Baseline"),
                 "Baseline.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.IntrinsicHeight"),

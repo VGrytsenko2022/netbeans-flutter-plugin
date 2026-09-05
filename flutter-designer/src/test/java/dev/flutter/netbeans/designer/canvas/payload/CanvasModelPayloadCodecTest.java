@@ -122,6 +122,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ClipRect",
                 "flutter.widgets.ClipOval",
                 "flutter.widgets.ClipRRect",
+                "flutter.widgets.ClipPath",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -481,6 +482,37 @@ class CanvasModelPayloadCodecTest {
                 "zeroArgumentInvocation", "\"constant\"", "\"libraryUri\"",
                 "\"rootSymbol\"", "\"member\"", "\"access\"")) {
             assertFalse(json.contains(secret), () -> secret + " leaked in " + json);
+        }
+    }
+
+    @Test
+    void projectsBothClipPathBranchesAsPresenceOnlyWithoutProjectIdentity()
+            throws Exception {
+        for (String property : List.of("clipper", "shape")) {
+            WidgetNode clipPath = new WidgetNode(
+                    id("3cc07d19-0f82-49b4-ae54-61e9ac82c38e"),
+                    type("flutter.widgets.ClipPath"),
+                    Map.of(new PropertyName(property),
+                            new PropertyValue.DartObjectReferenceValue(
+                                    Optional.of("package:private_app/secret/geometry.dart"),
+                                    "SecretGeometry", Optional.of("configuredFactory"),
+                                    PropertyValue.DartObjectReferenceValue.Access
+                                            .ZERO_ARGUMENT_INVOCATION,
+                                    Optional.of(false))),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), clipPath))),
+                    StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":17"), json);
+            assertTrue(json.contains("\"" + property
+                    + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"child\":null"), json);
+            for (String secret : List.of("package:private_app", "geometry.dart",
+                    "SecretGeometry", "configuredFactory", "zeroArgumentInvocation",
+                    "\"constant\"", "\"libraryUri\"", "\"rootSymbol\"",
+                    "\"member\"", "\"access\"")) {
+                assertFalse(json.contains(secret), () -> secret + " leaked in " + json);
+            }
         }
     }
 

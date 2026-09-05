@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
@@ -114,6 +115,8 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId CLIP_PATH =
+            ClipPathWidgetPropertySchema.CLIP_PATH_TYPE;
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
     private static final SlotName CHILDREN = new SlotName("children");
     private static final SlotName CHILD = new SlotName("child");
@@ -1774,6 +1777,50 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                 () -> assertTrue(fixture.lifecycle()
                         .resolve(transferable).isEmpty(),
                         "commit consumes the ClipRRect palette authority once"));
+    }
+
+    @Test
+    void clipPathTokenCommitsUnnamedDefaultsAndEmptyOptionalChild() {
+        Fixture fixture = fixture(CLIP_PATH);
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument document = document(column(List.of()));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(CLIP_PATH, prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILDREN, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isPresent()));
+
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        document,
+                        CATALOG,
+                        () -> NEW_ID)).command();
+        assertAll(
+                () -> assertEquals(NEW_ID, command.widget().id()),
+                () -> assertEquals(CLIP_PATH, command.widget().type()),
+                () -> assertEquals(Map.of(), command.widget().properties(),
+                        "omission preserves unnamed ClipPath and antiAlias defaults"),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.widget().slots()),
+                () -> assertTrue(fixture.lifecycle()
+                        .resolve(transferable).isEmpty(),
+                        "commit consumes the ClipPath palette authority once"));
     }
 
     @Test

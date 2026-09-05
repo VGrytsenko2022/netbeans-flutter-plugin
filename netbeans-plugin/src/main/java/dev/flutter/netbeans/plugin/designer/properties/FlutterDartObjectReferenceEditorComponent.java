@@ -34,7 +34,6 @@ final class FlutterDartObjectReferenceEditorComponent {
     static final String CONSTANT_NAME = "flutter.dartObjectReference.constant";
     static final String PREVIEW_NAME = "flutter.dartObjectReference.preview";
 
-    static final String USE_DEFAULT_TEXT = "Use Flutter default (omit clipper)";
     static final String CURRENT_LIBRARY_TEXT = "Current Dart library";
     static final String IMPORTED_LIBRARY_TEXT = "Imported package library";
     static final String EXISTING_VALUE_TEXT = "Existing value";
@@ -115,7 +114,7 @@ final class FlutterDartObjectReferenceEditorComponent {
         private static final String CONSTANT_DESCRIPTION =
                 "Emit const for a zero-argument invocation. Candidate analysis verifies that it is legal.";
 
-        private final JCheckBox useDefault = new JCheckBox(USE_DEFAULT_TEXT);
+        private final JCheckBox useDefault;
         private final JComboBox<Scope> scope = new JComboBox<>(Scope.values());
         private final JTextField libraryUri = new JTextField(38);
         private final JTextField rootSymbol = new JTextField(28);
@@ -125,6 +124,9 @@ final class FlutterDartObjectReferenceEditorComponent {
         private final JCheckBox constant = new JCheckBox("Const invocation");
         private final JLabel preview = new JLabel();
         private final String expectedDartType;
+        private final String argumentName;
+        private final String argumentDisplayName;
+        private final boolean shapeBranch;
         private boolean updating;
 
         ReferencePanel(
@@ -139,6 +141,14 @@ final class FlutterDartObjectReferenceEditorComponent {
                     .findFirst()
                     .orElseThrow(() -> new IllegalArgumentException(
                             "Dart object reference binding has no typed constraint."));
+            argumentName = binding.definition().name().value();
+            argumentDisplayName = Character.toUpperCase(argumentName.charAt(0))
+                    + argumentName.substring(1);
+            shapeBranch = "shape".equals(argumentName)
+                    && "ShapeBorder".equals(expectedDartType);
+            useDefault = new JCheckBox(shapeBranch
+                    ? "Use default rectangular ClipPath (omit shape)"
+                    : "Use Flutter default (omit " + argumentName + ")");
 
             setLayout(new BorderLayout(0, 8));
             setName(PANEL_NAME);
@@ -150,9 +160,12 @@ final class FlutterDartObjectReferenceEditorComponent {
 
             useDefault.setName(DEFAULT_NAME);
             useDefault.getAccessibleContext().setAccessibleName(
-                    "Use Flutter default clipper");
+                    shapeBranch
+                            ? "Use default rectangular ClipPath without Shape"
+                            : "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
-                    "When selected, removes the optional clipper constructor argument.");
+                    "When selected, removes the optional " + argumentName
+                    + " Dart object reference.");
             add(useDefault, BorderLayout.NORTH);
 
             JPanel form = new JPanel(new GridBagLayout());
@@ -176,7 +189,8 @@ final class FlutterDartObjectReferenceEditorComponent {
             constant.getAccessibleContext().setAccessibleName("Const invocation");
             constant.getAccessibleContext().setAccessibleDescription(CONSTANT_DESCRIPTION);
             preview.setName(PREVIEW_NAME);
-            preview.getAccessibleContext().setAccessibleName("Generated clipper reference preview");
+            preview.getAccessibleContext().setAccessibleName(
+                    "Generated " + argumentName + " reference preview");
 
             addRow(form, 0, "Scope:", scope);
             addRow(form, 1, "Package library URI:", libraryUri);
@@ -194,7 +208,7 @@ final class FlutterDartObjectReferenceEditorComponent {
             note.setLineWrap(true);
             note.setWrapStyleWord(true);
             note.getAccessibleContext().setAccessibleName(
-                    "Custom clipper validation and preview note");
+                    argumentDisplayName + " Dart reference validation and preview note");
             note.getAccessibleContext().setAccessibleDescription(description());
             add(note, BorderLayout.SOUTH);
 
@@ -326,7 +340,9 @@ final class FlutterDartObjectReferenceEditorComponent {
         private void updatePreview(boolean unset, boolean imported, boolean invocation) {
             String rendered;
             if (unset) {
-                rendered = "clipper: <Flutter default null>";
+                rendered = shapeBranch
+                        ? "ClipPath: <default rectangular clip; shape omitted>"
+                        : argumentName + ": <Flutter default null>";
             } else {
                 String symbol = rootSymbol.getText().strip();
                 if (symbol.isEmpty()) {
@@ -339,7 +355,7 @@ final class FlutterDartObjectReferenceEditorComponent {
                 if (invocation) {
                     symbol = (constant.isSelected() ? "const " : "") + symbol + "()";
                 }
-                rendered = "clipper: " + symbol;
+                rendered = argumentName + ": " + symbol;
                 if (imported) {
                     String uri = libraryUri.getText().strip();
                     rendered += "  [" + (uri.isEmpty() ? "package:…" : uri) + "]";
@@ -368,6 +384,12 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + "symbol is assignable to " + expectedDartType + ". ";
             if ("CustomClipper<RRect>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores ClipRRect.borderRadius. ";
+            } else if ("CustomClipper<Path>".equals(expectedDartType)) {
+                base += "Setting Clipper first clears Shape and selects the unnamed "
+                        + "ClipPath constructor. ";
+            } else if ("ShapeBorder".equals(expectedDartType)) {
+                base += "Setting Shape first clears Clipper and selects the non-const "
+                        + "ClipPath.shape helper. ";
             }
             return base
                     + "The isolated Canvas cannot execute project or dependency Dart and displays an "

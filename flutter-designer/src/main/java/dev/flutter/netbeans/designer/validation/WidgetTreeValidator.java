@@ -319,6 +319,17 @@ public final class WidgetTreeValidator {
             Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String type = node.type().value();
+        if (type.equals("flutter.widgets.ClipPath")) {
+            if (node.properties().containsKey(new PropertyName("clipper"))
+                    && node.properties().containsKey(new PropertyName("shape"))) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/shape", node.id(),
+                        "ClipPath properties 'clipper' and 'shape' select different Flutter APIs "
+                        + "and cannot be set together. Unset 'shape' to use ClipPath with "
+                        + "CustomClipper<Path>, or unset 'clipper' to use ClipPath.shape "
+                        + "with ShapeBorder."));
+            }
+            return;
+        }
         if (type.equals("flutter.widgets.Column") || type.equals("flutter.widgets.Row")) {
             PropertyValue crossAxisAlignment = node.properties().get(
                     new PropertyName("crossAxisAlignment"));

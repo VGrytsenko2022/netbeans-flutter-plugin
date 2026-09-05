@@ -957,7 +957,7 @@ void main() {
   test('ClipOval reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ClipOval\n');
-    final end = contract.indexOf('W|flutter.widgets.ClipRRect\n', start);
+    final end = contract.indexOf('W|flutter.widgets.ClipPath\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

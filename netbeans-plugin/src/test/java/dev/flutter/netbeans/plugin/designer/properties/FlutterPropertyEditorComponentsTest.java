@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
+import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
@@ -3401,6 +3402,92 @@ class FlutterPropertyEditorComponentsTest {
             assertEquals(FlutterPropertyCellValue.explicit(importedInvocation),
                     cancelled.getValue(),
                     "closing without STATE_VALID must discard the local reference draft");
+            return null;
+        });
+    }
+
+    @Test
+    void clipPathShapeEditorUsesGenericLabelsAndExplainsStaticHelperBranch()
+            throws Exception {
+        FlutterTypedPropertyEditors.Binding binding = binding(
+                property("flutter.widgets.ClipPath", "shape"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.DART_OBJECT_REFERENCE,
+                binding.editorKind());
+        assertTrue(binding.optional());
+
+        PropertyEditor editor = binding.createEditor();
+        editor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv environment = PropertyEnv.create(descriptor(
+                "Shape", "Project-declared ShapeBorder."));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        PropertyValue.DartObjectReferenceValue committed = onEdt(() -> {
+            Component panel = editor.getCustomEditor();
+            JCheckBox useDefault = findNamed(
+                    panel, JCheckBox.class,
+                    FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+            JTextField rootSymbol = findNamed(
+                    panel, JTextField.class,
+                    FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+            JComboBox<?> access = findNamed(
+                    panel, JComboBox.class,
+                    FlutterDartObjectReferenceEditorComponent.ACCESS_NAME);
+            JCheckBox constant = findNamed(
+                    panel, JCheckBox.class,
+                    FlutterDartObjectReferenceEditorComponent.CONSTANT_NAME);
+            JLabel preview = findNamed(
+                    panel, JLabel.class,
+                    FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME);
+
+            assertTrue(useDefault.getText().contains("omit shape"));
+            assertAccessibleNameContains(useDefault, "without", "shape");
+            assertAccessibleNameContains(preview, "shape", "preview");
+            assertEquals("ClipPath: <default rectangular clip; shape omitted>",
+                    preview.getText());
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("ShapeBorder"));
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("clears Clipper"));
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("non-const ClipPath.shape"));
+
+            useDefault.doClick();
+            rootSymbol.setText("TicketShape");
+            access.setSelectedIndex(1);
+            constant.doClick();
+            assertTrue(preview.getText().contains("shape: const TicketShape()"));
+            assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            return assertInstanceOf(
+                    PropertyValue.DartObjectReferenceValue.class,
+                    ((FlutterPropertyCellValue) editor.getValue())
+                            .explicitValue().orElseThrow());
+        });
+
+        assertAll(
+                () -> assertEquals("TicketShape", committed.rootSymbol()),
+                () -> assertEquals(PropertyValue.DartObjectReferenceValue.Access
+                        .ZERO_ARGUMENT_INVOCATION, committed.access()),
+                () -> assertEquals(Optional.of(true), committed.constant()),
+                () -> assertEquals(Optional.empty(), committed.libraryUri()),
+                () -> assertEquals(Optional.empty(), committed.member()));
+
+        FlutterTypedPropertyEditors.Binding clipperBinding = binding(
+                property("flutter.widgets.ClipPath", "clipper"));
+        PropertyEditor clipperEditor = clipperBinding.createEditor();
+        clipperEditor.setValue(FlutterPropertyCellValue.unset());
+        PropertyEnv clipperEnvironment = PropertyEnv.create(descriptor(
+                "Clipper", "Project-declared CustomClipper<Path>."));
+        ((ExPropertyEditor) clipperEditor).attachEnv(clipperEnvironment);
+        onEdt(() -> {
+            Component panel = clipperEditor.getCustomEditor();
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("CustomClipper<Path>"));
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("clears Shape"));
+            assertTrue(panel.getAccessibleContext().getAccessibleDescription()
+                    .contains("unnamed ClipPath constructor"));
             return null;
         });
     }

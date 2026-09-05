@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
@@ -115,6 +116,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE;
     private static final WidgetTypeId CLIP_RRECT =
             ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE;
+    private static final WidgetTypeId CLIP_PATH =
+            ClipPathWidgetPropertySchema.CLIP_PATH_TYPE;
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
@@ -1939,6 +1942,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
         List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
+                .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
                 .filter(type -> !INDEXED_STACK.equals(type))
@@ -2071,6 +2075,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
         List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
+                .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
                 .filter(type -> !CLIP_RECT.equals(type))
@@ -2202,6 +2207,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
         List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
                 .map(WidgetDefinition::typeId)
+                .filter(type -> !CLIP_PATH.equals(type))
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
                 .filter(type -> !CLIP_OVAL.equals(type))
@@ -2278,7 +2284,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void clipRRectCompletesExact2254CellModelWithOptionalRadiusClipAndChild() {
-        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> allTargets = preClipPathDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2330,7 +2336,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preClipPathDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2389,7 +2395,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(49, BUILT_INS.definitions().size()),
+                () -> assertEquals(49, preClipPathWidgetCount()),
                 () -> assertEquals(46, allTargets.size()),
                 () -> assertEquals(44, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2398,11 +2404,140 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2254,
                         2160 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + preClipPathWidgetCount() - 1),
                 () -> assertEquals(2032,
                         1943 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(222,
                         217 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void clipPathCompletesExact2350CellModelWithOptionalBranchesAndChild() {
+        List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, CLIP_PATH, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "ClipPath -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "ClipPath -> " + target.name());
+                assertEquals(CLIP_PATH, success.command().widget().type());
+                assertEquals(Map.of(), success.command().widget().properties(),
+                        "omission preserves unnamed ClipPath and antiAlias defaults");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !CLIP_PATH.equals(type))
+                .toList();
+        MatrixTargetCase clipPathTarget = target(
+                "ClipPath.child", CLIP_PATH, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    clipPathTarget.document(), BUILT_INS, source, ROOT_ID,
+                    clipPathTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> ClipPath.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> ClipPath.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedClipPath = occupiedTarget(
+                "ClipPath.child", CLIP_PATH, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedClipPath.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(50, BUILT_INS.definitions().size()),
+                () -> assertEquals(47, allTargets.size()),
+                () -> assertEquals(45, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(47, previousOrdinarySources.size()),
+                () -> assertEquals(46, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(2350,
+                        2254 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2123,
+                        2032 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(227,
+                        222 + sourceRejected.get() + targetRejected.get()));
     }
 
     @Test
@@ -3312,7 +3447,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 .filter(definition -> !INDEXED_STACK.equals(definition.typeId()))
                 .filter(definition -> !CLIP_RECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
-                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()));
+                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
+                .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
 
     private static int preIndexedStackWidgetCount() {
@@ -3323,7 +3459,8 @@ class FlutterDesignerPaletteDropPlannerTest {
         return BUILT_INS.definitions().stream()
                 .filter(definition -> !CLIP_RECT.equals(definition.typeId()))
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
-                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()));
+                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
+                .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
 
     private static int preClipRectWidgetCount() {
@@ -3333,7 +3470,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static Stream<WidgetDefinition> preClipOvalDefinitions() {
         return BUILT_INS.definitions().stream()
                 .filter(definition -> !CLIP_OVAL.equals(definition.typeId()))
-                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()));
+                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
+                .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
 
     private static int preClipOvalWidgetCount() {
@@ -3342,11 +3480,21 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static Stream<WidgetDefinition> preClipRRectDefinitions() {
         return BUILT_INS.definitions().stream()
-                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()));
+                .filter(definition -> !CLIP_RRECT.equals(definition.typeId()))
+                .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
     }
 
     private static int preClipRRectWidgetCount() {
         return Math.toIntExact(preClipRRectDefinitions().count());
+    }
+
+    private static Stream<WidgetDefinition> preClipPathDefinitions() {
+        return BUILT_INS.definitions().stream()
+                .filter(definition -> !CLIP_PATH.equals(definition.typeId()));
+    }
+
+    private static int preClipPathWidgetCount() {
+        return Math.toIntExact(preClipPathDefinitions().count());
     }
 
     private static MatrixTargetCase target(

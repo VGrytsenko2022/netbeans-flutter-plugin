@@ -281,6 +281,10 @@ public final class FlutterDesignerPalette {
                     definition.typeId().value())) {
                 setDisplayName(message("Widget.ClipRRect.Name"));
                 setShortDescription(message("Widget.ClipRRect.Description"));
+            } else if ("flutter.widgets.ClipPath".equals(
+                    definition.typeId().value())) {
+                setDisplayName(message("Widget.ClipPath.Name"));
+                setShortDescription(message("Widget.ClipPath.Description"));
             } else if (WidgetPlacementRules.creationMode(definition)
                     == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD) {
                 String wrapperName = definition.palette().displayName();

@@ -24,6 +24,7 @@ import dev.flutter.netbeans.dart.DartSymbolEvidence;
 import dev.flutter.netbeans.dart.DartSymbolProbe;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
@@ -43,6 +44,7 @@ import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
 import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
 import dev.flutter.netbeans.designer.command.MoveWidget;
+import dev.flutter.netbeans.designer.command.PatchProperties;
 import dev.flutter.netbeans.designer.command.RemoveWidget;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
@@ -179,6 +181,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
     private static final PropertyName CLIP_BEHAVIOR =
             new PropertyName("clipBehavior");
     private static final PropertyName CLIPPER = new PropertyName("clipper");
+    private static final PropertyName SHAPE = new PropertyName("shape");
     private static final PropertyName BORDER_RADIUS =
             new PropertyName("borderRadius");
     private static final SlotName CHILDREN = new SlotName("children");
@@ -5106,6 +5109,289 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     new FdDocumentCodec().decode(analyzedFd)).document();
             assertEquals(replayed,
                     findModelWidget(saved.root(), clipRRectId));
+            assertEquals(PairSaveCoordinatorStatus.CLEAN,
+                    fixture.coordinator().state().status());
+        }
+    }
+
+    @Test
+    void paletteClipPathSaveReopenSwitchRestoreUndoAndSaveRemainExact()
+            throws Exception {
+        StableId clipPathId = StableId.parse(
+                "8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        WidgetTypeId clipPathType = ClipPathWidgetPropertySchema.CLIP_PATH_TYPE;
+        PropertyValue.DartObjectReferenceValue explicitClipper =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(
+                                "package:mutation_controller_fixture/clippers.dart"),
+                        "PathClipperFactory",
+                        Optional.of("compact"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+        PropertyValue.DartObjectReferenceValue explicitShape =
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.of(
+                                "package:mutation_controller_fixture/shapes.dart"),
+                        "TicketShapeFactory",
+                        Optional.of("compact"),
+                        PropertyValue.DartObjectReferenceValue.Access
+                                .ZERO_ARGUMENT_INVOCATION,
+                        Optional.of(true));
+        ExactPair durablePair;
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_path_append", columnExactPair())) {
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        analyses.incrementAndGet();
+                        assertTrue(request.content().contains("const ClipPath("));
+                        assertFalse(request.content().contains("clipper:"));
+                        assertFalse(request.content().contains("shape:"));
+                        assertFalse(request.content().contains("clipBehavior:"));
+                        assertTrue(request.content().contains("child: null"));
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+            FlutterDesignerMutationController.Snapshot ready = fixture.ready();
+            FlutterDesignerPaletteDropPlanner.Result planned =
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(),
+                            clipPathType,
+                            COLUMN_ID,
+                            CHILDREN,
+                            2,
+                            () -> clipPathId);
+            FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Accepted.class, planned);
+            FlutterDesignerMutationController.MutationResult applied =
+                    fixture.mutations().submit(
+                            ready.token().orElseThrow(),
+                            accepted.command(),
+                            "home_page.fd — append ClipPath to Column.children")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    applied.outcome(), applied::reason);
+            FlutterDesignerMutationController.Snapshot added =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            ready.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            WidgetNode clipPath = findModelWidget(
+                    added.document().orElseThrow().root(), clipPathId);
+            assertAll(
+                    () -> assertEquals(clipPathType, clipPath.type()),
+                    () -> assertTrue(clipPath.properties().isEmpty()),
+                    () -> assertTrue(assertInstanceOf(
+                            WidgetSlot.SingleSlot.class,
+                            clipPath.slots().get(CHILD)).child().isEmpty()),
+                    () -> assertEquals(1, analyses.get()));
+
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(evidence);
+            byte[] candidateDart = evidence.candidateDartBytes();
+            byte[] candidateFd = evidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), candidateFd, candidateDart);
+            durablePair = new ExactPair(candidateDart, candidateFd);
+        }
+
+        try (MutationFixture fixture = fixture(
+                "mutation_palette_clip_path_reopened", durablePair)) {
+            FlutterDesignerMutationController.Snapshot reopened = fixture.ready();
+            WidgetNode reopenedClipPath = findModelWidget(
+                    reopened.document().orElseThrow().root(), clipPathId);
+            assertTrue(reopenedClipPath.properties().isEmpty());
+            WidgetDefinition definition = reopened.catalog().orElseThrow()
+                    .find(clipPathType).orElseThrow();
+            FlutterWidgetPropertiesNode propertiesNode =
+                    new FlutterWidgetPropertiesNode(
+                            Children.LEAF,
+                            reopenedClipPath,
+                            definition,
+                            ignored -> { });
+            Node.Property<FlutterPropertyCellValue> clipper =
+                    cellProperty(propertiesNode, "clipper");
+            Node.Property<FlutterPropertyCellValue> shape =
+                    cellProperty(propertiesNode, "shape");
+            Node.Property<FlutterPropertyCellValue> clipBehavior =
+                    cellProperty(propertiesNode, "clipBehavior");
+            assertAll(
+                    () -> assertTrue(clipper.canWrite()),
+                    () -> assertTrue(shape.canWrite()),
+                    () -> assertTrue(clipBehavior.canWrite()),
+                    () -> assertTrue(clipper.getPropertyEditor()
+                            .supportsCustomEditor()),
+                    () -> assertTrue(shape.getPropertyEditor()
+                            .supportsCustomEditor()),
+                    () -> assertEquals(FlutterPropertyCellValue.unset(),
+                            clipper.getValue()),
+                    () -> assertEquals(FlutterPropertyCellValue.unset(),
+                            shape.getValue()),
+                    () -> assertEquals("Empty", java.util.Arrays.stream(
+                            propertiesNode.getPropertySets())
+                            .flatMap(set -> java.util.Arrays.stream(
+                                    set.getProperties()))
+                            .filter(property -> "child".equals(
+                                    property.getName()))
+                            .findFirst().orElseThrow().getValue()));
+
+            AtomicInteger editAnalyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests(
+                    (dartExecutable, request) -> {
+                        int call = editAnalyses.incrementAndGet();
+                        if (call == 1) {
+                            assertTrue(request.content().contains("const ClipPath("));
+                            assertTrue(request.content().contains(
+                                    "clipper: const "));
+                            assertTrue(request.content().contains(
+                                    "PathClipperFactory.compact()"));
+                            assertFalse(request.content().contains("shape:"));
+                            assertTrue(request.symbolProbes().stream()
+                                    .flatMap(probe -> probe.staticTypeProbe().stream())
+                                    .anyMatch(probe -> "CustomClipper<Path>".equals(
+                                            probe.expectedDartType())));
+                        } else if (call == 2) {
+                            assertTrue(request.content().contains("ClipPath.shape("));
+                            assertFalse(request.content().contains(
+                                    "const ClipPath.shape("));
+                            assertTrue(request.content().contains("shape: const "));
+                            assertTrue(request.content().contains(
+                                    "TicketShapeFactory.compact()"));
+                            assertFalse(request.content().contains("clipper:"));
+                            assertTrue(request.symbolProbes().stream()
+                                    .flatMap(probe -> probe.staticTypeProbe().stream())
+                                    .anyMatch(probe -> "ShapeBorder".equals(
+                                            probe.expectedDartType())));
+                        } else {
+                            throw new AssertionError(
+                                    "Unexpected ClipPath analysis " + call);
+                        }
+                        return completedAnalysis(passingAnalysis(
+                                request, fixture.frameworkFile()));
+                    });
+
+            FlutterDesignerMutationController.MutationResult clipperEdited =
+                    fixture.mutations().submit(
+                            reopened.token().orElseThrow(),
+                            new SetProperty(clipPathId, CLIPPER, explicitClipper),
+                            "ClipPath.clipper")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    clipperEdited.outcome(), clipperEdited::reason);
+            FlutterDesignerMutationController.Snapshot clipperSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            reopened.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertEquals(Map.of(CLIPPER, explicitClipper), findModelWidget(
+                    clipperSnapshot.document().orElseThrow().root(),
+                    clipPathId).properties());
+
+            PatchProperties switchToShape = new PatchProperties(
+                    clipPathId,
+                    List.of(
+                            new PatchProperties.ResetPatch(CLIPPER),
+                            new PatchProperties.SetPatch(SHAPE, explicitShape)));
+            FlutterDesignerMutationController.MutationResult shapeEdited =
+                    fixture.mutations().submit(
+                            clipperSnapshot.token().orElseThrow(),
+                            switchToShape,
+                            "ClipPath.shape — switch branch")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    shapeEdited.outcome(), shapeEdited::reason);
+            FlutterDesignerMutationController.Snapshot shapeSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            clipperSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertEquals(Map.of(SHAPE, explicitShape), findModelWidget(
+                    shapeSnapshot.document().orElseThrow().root(),
+                    clipPathId).properties());
+            PairSaveEvidence shapedEvidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(shapedEvidence);
+            byte[] shapedDart = shapedEvidence.candidateDartBytes();
+            byte[] shapedFd = shapedEvidence.preparedPairIdentity()
+                    .prospectiveFdBytes();
+
+            FlutterDesignerMutationController.MutationResult shapeRestored =
+                    fixture.mutations().submit(
+                            shapeSnapshot.token().orElseThrow(),
+                            new ResetProperty(clipPathId, SHAPE),
+                            "ClipPath.shape — restore default")
+                            .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.APPLIED,
+                    shapeRestored.outcome(), shapeRestored::reason);
+            FlutterDesignerMutationController.Snapshot resetSnapshot =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            shapeSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertTrue(findModelWidget(
+                    resetSnapshot.document().orElseThrow().root(),
+                    clipPathId).properties().isEmpty());
+
+            DesignerCombinedUndoRedo combined = fixture.dataObject()
+                    .getCombinedUndoRedo();
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot shapeUndone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            resetSnapshot.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertEquals(Map.of(SHAPE, explicitShape), findModelWidget(
+                    shapeUndone.document().orElseThrow().root(),
+                    clipPathId).properties());
+            onEdt(() -> {
+                assertTrue(combined.canRedo());
+                combined.redo();
+            });
+            FlutterDesignerMutationController.Snapshot resetRedone =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            shapeUndone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertTrue(findModelWidget(
+                    resetRedone.document().orElseThrow().root(),
+                    clipPathId).properties().isEmpty());
+            onEdt(() -> {
+                assertTrue(combined.canUndo());
+                combined.undo();
+            });
+            FlutterDesignerMutationController.Snapshot shapeRestoredAgain =
+                    awaitReadyWithColumnChildIdsAfterToken(
+                            fixture.mutations(),
+                            resetRedone.token().orElseThrow(),
+                            List.of(FIRST_ID, SECOND_ID, clipPathId));
+            assertEquals(Map.of(SHAPE, explicitShape), findModelWidget(
+                    shapeRestoredAgain.document().orElseThrow().root(),
+                    clipPathId).properties());
+            assertEquals(2, editAnalyses.get(),
+                    "Restore, Undo, and Redo must reuse exact analyzed ClipPath pairs");
+            PairSaveEvidence replayedEvidence = fixture.coordinator().stagedEvidence();
+            assertNotNull(replayedEvidence);
+            assertArrayEquals(shapedDart, replayedEvidence.candidateDartBytes());
+            assertArrayEquals(shapedFd,
+                    replayedEvidence.preparedPairIdentity().prospectiveFdBytes());
+
+            SaveCookie save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), shapedFd, shapedDart);
+            DesignerDocument saved = assertInstanceOf(
+                    FdDecodeResult.Current.class,
+                    new FdDocumentCodec().decode(shapedFd)).document();
+            assertEquals(Map.of(SHAPE, explicitShape), findModelWidget(
+                    saved.root(), clipPathId).properties());
             assertEquals(PairSaveCoordinatorStatus.CLEAN,
                     fixture.coordinator().state().status());
         }

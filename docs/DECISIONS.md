@@ -3288,3 +3288,51 @@ The practical Designer backlog is now 49/92 complete, with 43 remaining. The
 new typed Dart-object reference advances `.fd` schema to v12,
 contributor Catalog API to 12 and Canvas model to v17. NBFC framing plus Canvas
 control/wire remain v1.
+
+## ADR-078 — ClipPath with both constructor and ShapeBorder helper branches
+
+Status: accepted, 2026-09-05.
+
+Add one `flutter.widgets.ClipPath` definition in Basic at order 110. Flutter
+3.44.8 provides the const default constructor (`clipper`, `clipBehavior`, nullable
+`child`, plus framework `key`) and the static `ClipPath.shape` helper requiring
+`ShapeBorder`. Designer stable identity continues to replace user-editable `key`.
+The three writable rows are optional `clipper`, optional `shape`, and optional
+`clipBehavior`; `child` is an optional single any-widget slot. Setting `shape`
+selects the helper. Setting both geometry branches in a model is an explicit
+property conflict, never a silently ignored clipper. The Properties editor explains
+branch switching and atomically resets the opposite property when accepting a new
+geometry value; one Undo restores the exact previous branch and value.
+
+Both geometry properties reuse schema-v12 closed Dart-object references:
+`CustomClipper<Path>` and `ShapeBorder` respectively. Current-library and declared
+package references, optional members, const/non-const zero-argument constructors,
+factories and functions are supported. Parameterized construction belongs in a
+project-owned getter or factory. Normal analysis and the strict-casts proof overlay
+must prove the exact non-null type, including with downward generic inference.
+Raw expression parsing/evaluation is not added. Shape helper invocation is always
+non-const and propagates that fact through generated parents. Its class and static
+method carry separate SDK symbol occurrences, while geometry carries its own
+symbol/provenance and static-type requirements.
+
+The isolated native/exact-Web Canvas receives only reference presence, never project
+library paths or symbols. Default `ClipPath` uses the real Flutter widget; custom
+clipper/shape branches preserve the child with an accessible preview-unavailable
+warning, including zero-sized selection targets. This is an explicit preview
+limitation, not a claim that the project geometry was rendered or executed.
+
+Catalog totals become 50 widgets, 44 const-capable definitions, 745 property rows
+(728 outside Scaffold), 45 any-widget and two trait destinations. The full matrix
+is 2,350 cells: 2,123 accepted and 227 rejected. Categories are Layout 31,
+Scrolling 3, Basic 11, Material 4, Accessibility 1. The historical practical target
+is 50/92 (42 remaining); no complete ordered 92-widget inventory exists in the
+tracked plan or history. ClipPath is an API-based continuation of clipping, not a
+recovered plan order. `.fd` 12, Catalog API 12 and Canvas model 17 stay unchanged.
+
+Validation for this milestone: clean Maven install and cluster assembly passed;
+Surefire recorded 3,184 cases (six optional skips) and Failsafe 13 (one optional
+skip), with zero failures/errors. The Flutter suite passed 446 tests and analysis
+was clean. The real Flutter 3.44.8 analyzer exercised Path/ShapeBorder assignments,
+generic inference, imports and invalid-type/const rejection. The packaged Web
+build/cache and exact generated artifact checks passed all 41 cases. Release
+verification passed; the full physical desktop gate was not run.

@@ -4207,6 +4207,18 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ClipPath': _WidgetSpec(
+    {
+      'clipper': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'CustomClipper<Path>'),
+      'shape': _PropertySpec({
+        'dartObjectReference',
+      }, dartObjectExpectedType: 'ShapeBorder'),
+      'clipBehavior': _clipBehaviorProperty,
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.ClipRect': _WidgetSpec(
     {
       'clipper': _PropertySpec({
@@ -5516,6 +5528,11 @@ W|flutter.widgets.ClipOval
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
 S|child|single|0|0|1|any
+W|flutter.widgets.ClipPath
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<Path>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|shape|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ShapeBorder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|child|single|0|0|1|any
 W|flutter.widgets.ClipRRect
 P|borderRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
@@ -6099,6 +6116,13 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.widgets.ClipPath') {
+    _expect(
+      !(properties.containsKey('clipper') && properties.containsKey('shape')),
+      'Canvas ClipPath clipper and shape are mutually exclusive: '
+      '$path/properties',
+    );
+  }
   if (type == 'flutter.widgets.Column' || type == 'flutter.widgets.Row') {
     final crossAxisAlignment = properties['crossAxisAlignment']?.value;
     if (crossAxisAlignment is CanvasEnumValue &&

@@ -80,14 +80,15 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
 Model protocol v17 carries the resolved project-theme id, seed, brightness,
 46-role ColorScheme override table, 15-role TextTheme override table and the
 closed 36-leaf component-color table. Version 17 adds the presence-only typed
-project Dart-object reference used by all three clipping widgets' `clipper` rows; version 16 added the top-level
+project Dart-object reference used by the clipping widgets' `clipper` rows and
+`ClipPath.shape`; version 16 added the top-level
 physical/directional finite non-negative elliptical border-radius value used by
 `ClipRRect`; version 15 added the exact payload-free null used by
 `IndexedStack.index`. The
@@ -240,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-49 reviewed Canvas widgets. Palette insertion evaluates 2,254 exact
-source/destination cells across 49 draggable sources and 46 insertable reviewed
-slots; 2,032 are accepted and 222 cells are rejected. Expanded and Flexible are
+50 reviewed Canvas widgets. Palette insertion evaluates 2,350 exact
+source/destination cells across 50 draggable sources and 47 insertable reviewed
+slots; 2,123 are accepted and 227 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -881,10 +882,19 @@ empty-target feedback remain transient Designer overlays outside the clip; an
 empty custom-clipper node remains zero-size while that external target carries
 the warning and complete reason.
 
-The aggregate catalog now has 49 widgets and 43 reviewed const definitions,
-with 742 writable rows (725 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, ten Basic, four Material and one Accessibility item; the
-backlog is 49/92 complete with 43 remaining. The 49 sources across 46
-insertable destinations form 2,254 cells, with 2,032 accepted and 222 rejected.
+`ClipPath` adds the real default rectangular path clip with all four `Clip` values
+and optional child. Typed `clipper` (`CustomClipper<Path>`) and `shape`
+(`ShapeBorder`, selecting `ClipPath.shape` in generated Dart) arrive only as
+`dartObjectReferencePresence`; both together are rejected. Custom geometry cannot
+run in this isolated process, so its child remains visible with an explicit,
+accessible preview-unavailable message. Selection/drop frames stay outside clipping,
+and zero-size targets retain the complete branch-specific reason. Windows/Web
+profile tests cover the default clip and both custom branches.
+
+The aggregate catalog now has 50 widgets and 44 reviewed const definitions,
+with 745 writable rows (728 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, eleven Basic, four Material and one Accessibility item; the
+backlog is 50/92 complete with 42 remaining. The 50 sources across 47
+insertable destinations form 2,350 cells, with 2,123 accepted and 227 rejected.
 The typed Dart-object reference advances `.fd` schema to v12, Catalog API to 12
 and Canvas model protocol to v17; NBFC framing, control and wire remain v1.

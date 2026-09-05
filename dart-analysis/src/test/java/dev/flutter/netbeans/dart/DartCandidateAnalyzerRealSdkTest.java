@@ -366,6 +366,140 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesClipPathAndShapeHelperWithExactNonNullTypeProofs()
+            throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("path_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        Path dependencyLib = Files.createDirectories(dependencyRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Files.writeString(dependencyLib.resolve("clippers.dart"), """
+                import 'package:flutter/widgets.dart';
+                class ImportedPathClipper extends CustomClipper<Path> {
+                  ImportedPathClipper.configured();
+                  @override
+                  Path getClip(Size size) => Path()..addRect(Offset.zero & size);
+                  @override
+                  bool shouldReclip(covariant ImportedPathClipper oldClipper) => false;
+                }
+                ShapeBorder configuredShape() => RoundedRectangleBorder(
+                  borderRadius: BorderRadiusDirectional.only(topStart: Radius.circular(12)),
+                );
+                """, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+
+        String valid = clipPathCandidate("""
+                Widget defaultClip() => const ClipPath(child: SizedBox(width: 40, height: 30));
+                Widget customClip() => ClipPath(clipper: currentPathClipper);
+                Widget genericClip() => const ClipPath(clipper: GenericCtorClipper());
+                Widget importedClip() => ClipPath(
+                  clipper: project_clippers.ImportedPathClipper.configured(),
+                );
+                Widget projectShape() => ClipPath.shape(shape: currentShape);
+                Widget builtInShape() => ClipPath.shape(shape: const CircleBorder());
+                Widget configuredShape() => ClipPath.shape(
+                  shape: project_clippers.configuredShape(), clipBehavior: Clip.hardEdge,
+                  child: const SizedBox(width: 40, height: 30),
+                );
+                Widget nonConstAncestor() => Column(children: <Widget>[
+                  ClipPath.shape(shape: const StadiumBorder()),
+                ]);
+                """);
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String[] spec : List.of(
+                new String[]{"currentPathClipper", "currentPathClipper", "CustomClipper<Path>"},
+                new String[]{"GenericCtorClipper()", "GenericCtorClipper", "CustomClipper<Path>"},
+                new String[]{"currentShape", "currentShape", "ShapeBorder"})) {
+            int offset = valid.lastIndexOf(spec[0]);
+            probes.add(typedProbe(spec[1], offset, spec[1], "project:current", lib,
+                    offset, spec[0].length(), valid, spec[2]));
+        }
+        for (String[] spec : List.of(
+                new String[]{"project_clippers.ImportedPathClipper.configured()", "configured", "CustomClipper<Path>"},
+                new String[]{"project_clippers.configuredShape()", "configuredShape", "ShapeBorder"})) {
+            int offset = valid.lastIndexOf(spec[0]);
+            probes.add(typedProbe("imported-" + spec[1], valid.indexOf(spec[1], offset),
+                    spec[1], "package:clipper_dependency/clippers.dart", dependencyLib,
+                    offset, spec[0].length(), valid, spec[2]));
+        }
+        Path flutterLib = flutterSdk.resolve("packages/flutter/lib");
+        int circleOffset = valid.indexOf("const CircleBorder()");
+        probes.add(typedProbe("sdk-shape", circleOffset + 6, "CircleBorder",
+                "package:flutter/widgets.dart", flutterLib,
+                circleOffset, "const CircleBorder()".length(), valid, "ShapeBorder"));
+        int helperOffset = valid.indexOf("ClipPath.shape") + "ClipPath.".length();
+        probes.add(probe("static-shape-helper", helperOffset, "shape",
+                "package:flutter/widgets.dart", flutterLib));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 100, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(),
+                () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+
+        // Even source diagnostic suppression must not turn dynamic/nullable/wrong
+        // object types into an accepted Designer property.
+        long version = 101;
+        for (String[] spec : List.of(
+                new String[]{"dynamicPathClipper", "CustomClipper<Path>", "clipper"},
+                new String[]{"nullablePathClipper", "CustomClipper<Path>", "clipper"},
+                new String[]{"currentRectClipper", "CustomClipper<Path>", "clipper"},
+                new String[]{"dynamicShape", "ShapeBorder", "shape"},
+                new String[]{"nullableShape", "ShapeBorder", "shape"},
+                new String[]{"currentPathClipper", "ShapeBorder", "shape"})) {
+            String candidate = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n"
+                    + clipPathCandidate("Widget invalid() => ClipPath"
+                            + (spec[2].equals("shape") ? ".shape" : "")
+                            + "(" + spec[2] + ": " + spec[0] + ");\n");
+            int offset = candidate.lastIndexOf(spec[0]);
+            DartSymbolProbe typeProbe = typedProbe("invalid-" + spec[0], offset,
+                    spec[0], "project:current", lib, offset, spec[0].length(),
+                    candidate, spec[1]);
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, candidate, version++, List.of(typeProbe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(),
+                    () -> spec[0] + ": " + rejected + " stderr=" + stderr);
+            assertFalse(rejected.symbolEvidence().getFirst()
+                    .staticTypeEvidence().orElseThrow().accepted());
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        String invalidConst = clipPathCandidate(
+                "Widget invalid() => const ClipPath.shape(shape: CircleBorder());\n");
+        DartCandidateAnalysisResult constRejected = await(analyzer.analyze(request(
+                projectRoot, file, invalidConst, version, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.REJECTED, constRejected.status());
+        assertTrue(constRejected.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    private static String clipPathCandidate(String buildMethods) {
+        return clipperCandidate("""
+                class CurrentPathClipper extends CustomClipper<Path> {
+                  const CurrentPathClipper();
+                  @override
+                  Path getClip(Size size) => Path()..addRect(Offset.zero & size);
+                  @override
+                  bool shouldReclip(covariant CurrentPathClipper oldClipper) => false;
+                }
+                const currentPathClipper = CurrentPathClipper();
+                dynamic dynamicPathClipper = currentPathClipper;
+                CustomClipper<Path>? nullablePathClipper = currentPathClipper;
+                ShapeBorder get currentShape => const CircleBorder();
+                dynamic dynamicShape = currentShape;
+                ShapeBorder? nullableShape = currentShape;
+                """ + buildMethods);
+    }
+
     private static void assertSuppressedStaticProofIsRejected(
             DartCandidateAnalyzer analyzer,
             Path projectRoot,

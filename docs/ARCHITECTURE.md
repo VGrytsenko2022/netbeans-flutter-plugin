@@ -168,17 +168,17 @@ typed project Dart-object reference added for `ClipRRect` extends the exported
 property domain, making contributor Catalog API 12 the current boundary; API 1
 through API 11 contributors fail closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, forty-nine-item context Palette, selected-node
+Canvas/tree selection edge, fifty-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 742 catalog-backed fields across
+Properties are writable for exactly 745 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
 `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`,
-`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Forty-three of the forty-nine definitions use reviewed const
-constructors; the forty-eight non-`Scaffold` definitions account for 725 rows.
+`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon`
+and `Image`. Forty-four of the fifty definitions use reviewed const
+constructors; the forty-nine non-`Scaffold` definitions account for 728 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -804,19 +804,25 @@ a canonical `package:` library declared in `.dart_tool/package_config.json`. Gen
 proves assignment compatibility without storing raw source. Since the isolated
 Canvas does not execute project Dart, it receives presence only and renders an
 explicit preview-unavailable overlay rather than the `borderRadius` Flutter
-would ignore. The current surface has 49 widgets, 43 reviewed const definitions
-and 742 writable rows (725 outside `Scaffold`): Layout has 31 items, Scrolling three, Basic ten,
-Material four and Accessibility one. The practical backlog is 49/92 complete
-with 43 remaining. The new value shape advances `.fd` schema to v12,
+would ignore. `ClipPath` follows with the same closed reference contract for
+`CustomClipper<Path>` and `ShapeBorder`, optional clip behavior and child. Shape
+presence selects the non-const static `ClipPath.shape` helper; conflicting geometry
+branches are rejected and non-const eligibility propagates to ancestors. The SDK
+helper and geometry reference retain separate symbol/static-type evidence. Default
+Canvas clipping is real; custom geometry is an explicit accessible preview-unavailable
+state, including empty targets. The current surface has 50 widgets, 44 reviewed const definitions
+and 745 writable rows (728 outside `Scaffold`): Layout has 31 items, Scrolling three, Basic eleven,
+Material four and Accessibility one. The practical backlog is 50/92 complete
+with 42 remaining. The new value shape advances `.fd` schema to v12,
 contributor Catalog API to 12 and Canvas model to v17; NBFC framing, control and
 wire remain v1.
 
-The current contract admits forty-nine exact capability-gated Palette sources
-across forty-four insertable any-widget and two `PreferredSizeWidget`
-destination slots: 2,254 candidates, of which 2,032 are accepted and 222
+The current contract admits fifty exact capability-gated Palette sources
+across forty-five insertable any-widget and two `PreferredSizeWidget`
+destination slots: 2,350 candidates, of which 2,123 are accepted and 227
 rejected. Expanded and Flexible enter only direct `Row.children` and
 `Column.children` wrapper targets; Spacer enters those two list slots by
-ordinary insertion; SafeArea is admitted to the forty-four any-widget slots
+ordinary insertion; SafeArea is admitted to the forty-five any-widget slots
 but rejected by the two trait-bound slots. Directionality follows the same
 any-widget admission and trait rejection. All required wrapper child slots are
 replacement-only and excluded
@@ -1037,7 +1043,7 @@ project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 when available, or stores the reserved unresolved provider when the inventory is
 empty or unavailable; only destination and authority failures reject DnD. DnD
-outside the forty-nine-source, 2,254-candidate matrix (2,032 accepted, 222 rejected)
+outside the fifty-source, 2,350-candidate matrix (2,123 accepted, 227 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -1054,7 +1060,7 @@ the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`,
-`SingleChildScrollView`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
+`SingleChildScrollView`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
@@ -1263,9 +1269,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact forty-nine widgets carrying
-the Create capability. All forty-nine built-ins, including `Scaffold`, admit the
-reviewed 742-property Set/Reset/Patch slice through an exact revision token and
+Design lookup supplies a Palette filtered to the exact fifty widgets carrying
+the Create capability. All fifty built-ins, including `Scaffold`, admit the
+reviewed 745-property Set/Reset/Patch slice through an exact revision token and
 analyzed pair-save. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,
 literal/theme color, structured Paint and ordered Shadow/OpenType editors, then

@@ -700,6 +700,73 @@ class PairSaveEvidenceGateTest {
     }
 
     @Test
+    void bindsClipPathBranchesWithExactGeometryAndStaticHelperEvidence()
+            throws Exception {
+        for (String property : List.of("clipper", "shape")) {
+            for (boolean imported : List.of(false, true)) {
+                String expectedType = property.equals("shape")
+                        ? "ShapeBorder" : "CustomClipper<Path>";
+                PropertyValue.DartObjectReferenceValue reference =
+                        new PropertyValue.DartObjectReferenceValue(
+                                imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME
+                                        + "/clippers.dart") : Optional.empty(),
+                                "Geometry", Optional.of("configured"),
+                                PropertyValue.DartObjectReferenceValue.Access
+                                        .ZERO_ARGUMENT_INVOCATION,
+                                Optional.of(false));
+                Fixture fixture = fixture(Optional.of(reference), true, List.of(),
+                        "flutter.widgets.ClipPath", property);
+                PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+                List<DartSymbolProbe> geometryProbes = ticket.request().symbolProbes()
+                        .stream().filter(PairSaveEvidenceGateTest::isProjectProbe).toList();
+                assertEquals(List.of("Geometry", "configured"), geometryProbes.stream()
+                        .map(DartSymbolProbe::expectedSymbolName).toList());
+                assertEquals(expectedType, geometryProbes.getLast()
+                        .staticTypeProbe().orElseThrow().expectedDartType());
+                List<DartSymbolProbe> helperProbes = ticket.request().symbolProbes().stream()
+                        .filter(probe -> probe.expectedSymbolName().equals("shape")).toList();
+                assertEquals(property.equals("shape") ? 1 : 0, helperProbes.size());
+                for (DartSymbolProbe helper : helperProbes) {
+                    assertEquals("package:flutter/widgets.dart", helper.expectedLibraryUri());
+                    assertEquals(fixture.flutterLib().toRealPath(), helper.expectedTargetRoot());
+                    assertTrue(helper.staticTypeProbe().isEmpty());
+                }
+                PairAnalyzedCandidateResult analyzed = ticket.accept(analysis(
+                        ticket, fixture.acceptedEvidence()));
+                assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
+                PairSaveEvidenceResult bound = PairSaveEvidenceGate.bindApplied(
+                        analyzed.analyzedOptional().orElseThrow(), fixture.live());
+                assertTrue(bound.ready(), () -> bound.diagnostics().toString());
+                assertArrayEquals(fixture.prepared().prospectiveDartBytes(),
+                        bound.evidenceOptional().orElseThrow().candidateDartBytes());
+            }
+        }
+    }
+
+    @Test
+    void rejectsClipPathShapeWhenItsStaticTypeEvidenceIsAbsent() throws Exception {
+        Fixture fixture = fixture(Optional.of(
+                new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), "selectedShape", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                        Optional.empty())), true, List.of(),
+                "flutter.widgets.ClipPath", "shape");
+        PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+        List<DartSymbolEvidence> withoutType = fixture.acceptedEvidence().stream()
+                .map(evidence -> evidence.probe().staticTypeProbe().isPresent()
+                        ? new DartSymbolEvidence(evidence.probe(), evidence.targets(),
+                                false, Optional.of("Required ShapeBorder type evidence is absent"),
+                                Optional.empty()) : evidence)
+                .toList();
+        assertThrows(IllegalArgumentException.class, () -> analysis(ticket, withoutType),
+                "A PASSED analyzer result cannot omit required static-type evidence");
+        PairAnalyzedCandidateResult rejected = ticket.accept(
+                rejectedAnalysis(ticket, List.of(), withoutType));
+        assertAnalyzedRejected(rejected,
+                PairSaveEvidenceDiagnostic.Code.INCOMPLETE_STATIC_TYPE_EVIDENCE);
+    }
+
+    @Test
     void acceptsCurrentLibraryReferenceRootAndMemberOnlyWithinProjectLib()
             throws Exception {
         Fixture fixture = fixture(Optional.of(
@@ -1268,6 +1335,16 @@ class PairSaveEvidenceGateTest {
             Optional<PropertyValue.DartObjectReferenceValue> projectReference,
             boolean createProjectLibrary,
             List<DeclaredPackage> declaredPackages) throws Exception {
+        return fixture(projectReference, createProjectLibrary, declaredPackages,
+                "flutter.widgets.ClipRRect", "clipper");
+    }
+
+    private Fixture fixture(
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference,
+            boolean createProjectLibrary,
+            List<DeclaredPackage> declaredPackages,
+            String widgetType,
+            String propertyName) throws Exception {
         Path projectRoot = Files.createDirectories(
                 temporaryDirectory.resolve("project"));
         Files.writeString(projectRoot.resolve("pubspec.yaml"),
@@ -1335,12 +1412,13 @@ class PairSaveEvidenceGateTest {
                                 prospectiveDocument(
                                         baselineDescriptor,
                                         "after",
-                                        projectReference),
+                                        projectReference, widgetType, propertyName),
                                 BuiltInWidgetCatalog.getDefault()))
                 .plan()
                 .orElseThrow();
         DesignerDocument prospective = prospectiveDocument(
-                transition.prospectiveDescriptor(), "after", projectReference);
+                transition.prospectiveDescriptor(), "after", projectReference,
+                widgetType, propertyName);
         PreparedDesignerPair prepared = new DesignerPairPreparationPlanner()
                 .prepare(decoded.original(), prospective, transition)
                 .preparedPair()
@@ -1617,14 +1695,16 @@ class PairSaveEvidenceGateTest {
     private static DesignerDocument prospectiveDocument(
             DartSourceDescriptor descriptor,
             String text,
-            Optional<PropertyValue.DartObjectReferenceValue> projectReference) {
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference,
+            String widgetType,
+            String propertyName) {
         if (projectReference.isEmpty()) {
             return document(descriptor, text);
         }
         WidgetNode root = new WidgetNode(
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
-                new WidgetTypeId("flutter.widgets.ClipRRect"),
-                Map.of(new PropertyName("clipper"),
+                new WidgetTypeId(widgetType),
+                Map.of(new PropertyName(propertyName),
                         projectReference.orElseThrow()),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
         return new DesignerDocument(DOCUMENT_ID, descriptor, root);

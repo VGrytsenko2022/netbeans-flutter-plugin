@@ -71,6 +71,7 @@ public final class BuiltInWidgetCatalog {
             clipRect(),
             clipOval(),
             clipRRect(),
+            clipPath(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1352,6 +1353,27 @@ public final class BuiltInWidgetCatalog {
                 Set.of(),
                 palette("flutter.basic", 300, 100, "ClipRRect"),
                 properties,
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition clipPath() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("clipper", 0, false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "CustomClipper<Path>"))),
+                namedProperty("shape", 1, false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                                "ShapeBorder"))),
+                namedProperty("clipBehavior", 2, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")));
+        if (properties.size() != ClipPathWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("ClipPath catalog/property schema count mismatch");
+        }
+        return widget(
+                ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
+                "ClipPath", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 110, "ClipPath"), properties,
                 List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
     }
 

@@ -562,6 +562,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
+        node.type == 'flutter.widgets.RepaintBoundary' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
@@ -2402,6 +2403,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
+      'flutter.widgets.RepaintBoundary' => RepaintBoundary(
+        child: _single('child'),
+      ),
       'flutter.widgets.FittedBox' => _fittedBox(),
       'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
       'flutter.widgets.Opacity' => _opacity(),

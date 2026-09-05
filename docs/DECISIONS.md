@@ -3519,3 +3519,58 @@ All 41 actual packaged Web artifact/build/cache cases pass. Cluster assembly and
 release metadata/freshness verification pass; installed-userdir and full physical
 desktop acceptance were not run. NBM size: 7,257,085 bytes.
 NBM SHA-256: `712c0ad7c3bd0d626fdba25bc6c74f721ae22f36ec281102a53ff224752285b1`.
+
+## ADR-082 — RepaintBoundary as a complete structural repaint-isolation slice
+
+Status: accepted, 2026-09-05.
+
+Add `flutter.widgets.RepaintBoundary` in Basic at order 150 after PhysicalShape.
+Pinned Flutter 3.44.8 has a const default constructor with optional child and key.
+It exposes no scalar constructor properties; key remains Designer-managed identity.
+The exact empty-property/optional-any-widget-child projection uses STATIC_STRUCTURAL
+capabilities, like IntrinsicHeight, and does not claim scalar PROPERTIES capability.
+The selected Node explicitly describes this SDK contract and exposes its editable
+Child slot; descendant properties remain available by selecting the descendant.
+
+RepaintBoundary.wrap and wrapAll only derive wrapper keys from child keys or indices;
+they add no distinct paint behavior. They are not separate saved constructor modes
+or childIndex properties. Runtime RenderRepaintBoundary methods such as toImage and
+debug counters are likewise not constructor state. The default constructor covers
+the complete visual widget contract within the existing stable-identity boundary.
+
+Native/Web Canvas instantiates actual RepaintBoundary/RenderRepaintBoundary and
+retains an independent OffsetLayer. Tests prove descendant paint dirtiness stops
+at the boundary and ancestor repaint can reuse an unchanged inner layer. Layout,
+constraints, intrinsic sizing, semantics and hit testing remain unchanged; no fake
+child is inserted for an empty boundary. External Designer targets retain selection
+and child-drop affordances. This is paint isolation, not a universal performance
+improvement or a promise/control of engine raster caching.
+
+The slice includes Palette/tree/Canvas insertion, movement, occupied-child replace,
+clear/cancel, deterministic const/non-const generation, model validation, codec
+round-trip, Save/reopen/further child and descendant edits, Undo/Redo, rejected-change
+rollback and four size/theme-specific SVGs. No new value shape or constraint is
+introduced: schema/API/model remain 13/14/18 and NBFC framing/control/wire remain 1.
+
+Totals: 54 widgets, 48 reviewed const definitions, 759 writable rows (742 outside
+Scaffold), 49 any-widget plus two trait destinations. The 54×51 matrix contains
+2,754 cells: 2,507 accepted and 247 rejected. Categories: Layout 31, Scrolling 3,
+Basic 15, Material 4, Accessibility 1. The historical practical target is 54/92,
+with 38 remaining; the complete ordered original inventory is not recovered.
+Full physical desktop acceptance remains deferred until the palette target is done.
+
+Validation (2026-09-05): Flutter analyze reports no issues and all 517 Flutter
+tests pass, including 17 RepaintBoundary render/layer/interaction tests. The pinned
+Flutter 3.44.8 real-SDK analyzer gate verifies the complete constructor, key-only
+helpers, symbol provenance and invalid candidates without changing project files.
+The focused NetBeans pass covers 445 tests, and the full mutation integration
+class passes all 73 cases. Clean Maven install passes across all 11 reactor modules;
+the final recorded Surefire inventory is 3,308 tests with zero failures/errors and
+six declared optional skips. Failsafe records 13 tests with zero failures/errors
+and one optional native-desktop skip. All 41 actual packaged Web artifact/build
+checks pass without skips. The Web bundle is rebuilt from the final Flutter
+sources and both source/artifact manifests are refreshed. nbm:cluster and the
+release verifier pass. The NBM is 7,258,788 bytes with SHA-256
+66700A14512B8965E5C98DE051F8643BF74C26D2A2AFC25B53C76FF31F531B54.
+Installed-userdir and physical desktop acceptance were not performed; optional
+skips and the deferred global acceptance are not claimed as verified.

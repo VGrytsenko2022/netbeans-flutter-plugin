@@ -1502,6 +1502,26 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void existingTextMovesIntoEmptyRepaintBoundaryChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into RepaintBoundary");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(new WidgetTypeId("flutter.widgets.RepaintBoundary")), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
     void existingTextMovesIntoEmptyPhysicalShapeChildWithStableIdPreserved() {
         WidgetNode source = validText(A_ID, "move into PhysicalShape");
         WidgetNode empty = WidgetNodePrototypeFactory.create(

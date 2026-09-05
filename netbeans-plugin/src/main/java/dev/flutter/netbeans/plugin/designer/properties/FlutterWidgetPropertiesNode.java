@@ -328,6 +328,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     displayName + " — " + widget.id()
                     + ". Runtime typed text, selection, controller state, and focus "
                     + "state are not stored by Designer.");
+        } else if ("flutter.widgets.RepaintBoundary".equals(widget.type().value())) {
+            setShortDescription(displayName + " — " + widget.id()
+                    + ". Separate display list for its optional child. No scalar constructor "
+                    + "properties: edit Child in Slots or select a descendant to edit its properties.");
         } else {
             setShortDescription(displayName + " — " + widget.id());
         }
@@ -1096,6 +1100,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if ("flutter.widgets.RepaintBoundary".equals(widget.type().value())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child painted in a separate display list. Layout, hit testing and semantics "
+                    + "are unchanged; no scalar properties are omitted from the editor. Occupancy: "
+                    + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child; "
+                    + "select a descendant to edit its own properties.";
+        }
         return "Exact '" + slot.name().value() + "' " + cardinality
                 + " slot. Occupancy: " + count + "/" + maximum
                 + "; minimum: " + slot.minChildren()
@@ -1103,6 +1115,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private Sheet.Set createGenericPropertySet() {
+        boolean repaintBoundary = "flutter.widgets.RepaintBoundary".equals(widget.type().value());
         boolean aspectRatio = ASPECT_RATIO_TYPE.equals(widget.type());
         boolean baseline = BASELINE_TYPE.equals(widget.type());
         boolean intrinsicHeight = INTRINSIC_HEIGHT_TYPE.equals(widget.type());
@@ -1130,7 +1143,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         Sheet.Set properties = propertySet(
                 PROPERTIES_SET_NAME,
                 "Widget properties",
-                aspectRatio
+                repaintBoundary
+                        ? "RepaintBoundary isolates its optional child's painting in a separate display list. "
+                                + "There are no scalar constructor properties; edit Child in Slots or select "
+                                + "a descendant to edit its properties. The Designer owns widget identity. "
+                                + "Use repaint boundaries where repaint behavior differs; an extra layer "
+                                + "does not guarantee faster rendering."
+                        : aspectRatio
                         ? "Sizing contract for the selected AspectRatio widget."
                         : baseline
                                 ? "Required baseline offset and type, plus an optional child, "

@@ -1510,10 +1510,21 @@ accepted architecture is documented in
   warnings without fabricated geometry. Complete typed editors, slots, all placement
   routes, generation, save/reopen/further-edit, Undo/Redo, rollback and four SVGs.
   The closed value advances schema/API/model to 13/14/18; frozen v1-v12 schemas and
-  NBFC framing/control/wire v1 stay unchanged. Current surface: 53 widgets, 47 const
+  NBFC framing/control/wire v1 stayed unchanged. At that milestone: 53 widgets, 47 const
   definitions, 759 rows (742 outside Scaffold), 48 any-widget plus two trait
   destinations, 2,650 cells (2,408 accepted / 242 rejected). Basic 14; historical
   target 53/92, 39 remaining. Full physical desktop acceptance remains deferred.
+- [x] Add `RepaintBoundary` after PhysicalShape (Basic order 150), with optional
+  child and managed key. It has no scalar constructor properties and uses exact
+  structural capabilities like IntrinsicHeight. Render the real SDK repaint/layer
+  boundary while preserving layout, semantics and hit testing; keep empty targets
+  external. Complete Slots replace/clear, all insertion/move routes, generation,
+  Save/reopen/further child/descendant edits, Undo/Redo, rollback and four SVGs.
+  SDK wrap/wrapAll derive keys only and are not extra persisted properties.
+  Current surface: 54 widgets, 48 const definitions, 759 rows (742 outside Scaffold),
+  49 any-widget plus two trait destinations, 2,754 cells (2,507 accepted / 247
+  rejected), Basic 15; historical target 54/92 with 38 remaining. Schema/API/model
+  remain 13/14/18. Full physical desktop acceptance remains deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1531,8 +1542,9 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current typed Properties slice spans all fifty-three
-  admitted built-ins and does not
+  vertical slices. The current catalog presents all fifty-four admitted built-ins.
+  The 52 definitions with scalar fields expose typed Properties; IntrinsicHeight
+  and RepaintBoundary have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `RepaintBoundary` in Basic at order 150 with its full default constructor:
+  optional child and managed key, no scalar properties. Its structural capability
+  provides child-slot editing without invented property rows. Canvas creates the
+  real repaint boundary and preserves independent layers, layout, semantics and
+  hit testing. Includes all Palette/tree/Canvas placements, child replace/clear,
+  move, Save/reopen/further child and descendant edits, Undo/Redo, rollback and
+  four SVG variants. SDK wrap/wrapAll only derive keys, not extra rendering fields.
+  Schema/API/model stay 13/14/18. Current surface: 54 widgets, 48 const definitions,
+  759 rows (742 outside Scaffold), 2,754 placements (2,507 accepted / 247 rejected),
+  Basic 15; historical practical target 54/92, 38 remaining. Full desktop acceptance
+  remains deferred; no general performance or raster-caching guarantee is claimed.
+
 - `PhysicalShape` in Basic at order 140, covering required clipper/color,
   clipBehavior, elevation, shadowColor and optional child. The structured clipper
   editor supports six real ShapeBorderClipper presets, physical/directional
@@ -15,7 +27,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   preview limitation. Presets render actual geometry/shadows/colors. Typed editors,
   slots, all placement routes, Save/reopen/further-edit, Undo/Redo, rollback and four
   SVG variants are included. The new value advances schema/API/model to 13/14/18;
-  framing/control/wire remain 1. Current surface: 53 widgets, 47 const definitions,
+  framing/control/wire remained 1. At that milestone: 53 widgets, 47 const definitions,
   759 rows (742 outside Scaffold), 2,650 placements (2,408 accepted / 242 rejected),
   Basic 14; historical target 53/92, 39 remaining. Global desktop acceptance is deferred.
 

@@ -126,6 +126,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.ClipRSuperellipse",
                 "flutter.widgets.PhysicalModel",
                 "flutter.widgets.PhysicalShape",
+                "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -1082,6 +1083,29 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"properties\":{}"), json);
         assertTrue(json.contains(
                 "\"child\":{\"id\":\"2d797cbd-2ddc-4532-84e6-7c735cb0e9cb\""), json);
+    }
+
+    @Test
+    void repaintBoundaryPayloadCarriesOnlyIdentityEmptyPropertiesAndOptionalChild() throws Exception {
+        for (var child : List.of(Optional.<WidgetNode>empty(), Optional.of(text(
+                "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb", "Boundary child")))) {
+            var boundary = new WidgetNode(id("aa623160-3214-4724-8550-64719ea659aa"),
+                    type("flutter.widgets.RepaintBoundary"), Map.of(),
+                    Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(child)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), boundary))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.RepaintBoundary\""), json);
+            assertTrue(json.contains("\"properties\":{}"), json);
+            assertTrue(json.contains(child.isEmpty() ? "\"child\":null" : "Boundary child"), json);
+            for (String absent : List.of("toImage", "wrapAll", "isRepaintBoundary", "sample.dart", "creationDefault")) {
+                assertFalse(json.contains(absent), json);
+            }
+        }
+        var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.RepaintBoundary"),
+                Map.of(new PropertyName("toImage"), new PropertyValue.BooleanValue(true)), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), invalid))));
     }
 
     @Test

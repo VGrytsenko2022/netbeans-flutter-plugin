@@ -75,6 +75,7 @@ public final class BuiltInWidgetCatalog {
             clipRSuperellipse(),
             physicalModel(),
             physicalShape(),
+            repaintBoundary(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1435,6 +1436,19 @@ public final class BuiltInWidgetCatalog {
                 "PhysicalModel", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 130, "PhysicalModel"), properties,
                 List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition repaintBoundary() {
+        return widget(
+                "flutter.widgets.RepaintBoundary",
+                "RepaintBoundary",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 150, "RepaintBoundary"),
+                List.of(),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition physicalShape() {

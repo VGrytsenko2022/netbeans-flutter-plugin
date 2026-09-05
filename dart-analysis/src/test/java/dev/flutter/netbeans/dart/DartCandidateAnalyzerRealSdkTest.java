@@ -793,6 +793,74 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesRepaintBoundaryCompleteConstructorAndKeyOnlyHelpers() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("repaint_boundary_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const RepaintBoundary();
+                Widget emptyExplicit() => const RepaintBoundary(child: null);
+                Widget populated() => const RepaintBoundary(
+                  child: SizedBox(width: 120, height: 80, child: Text('Paint boundary')),
+                );
+                Widget nested() => const Center(child: RepaintBoundary(
+                  child: RepaintBoundary(child: ColoredBox(color: Color(0x882196F3))),
+                ));
+                Widget themed(BuildContext context) => RepaintBoundary(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+                );
+                Widget nonConstDescendant() => RepaintBoundary(child: Text(DateTime.now().toString()));
+                // The helpers derive keys only; Designer uses its own stable identity.
+                Widget helper() => RepaintBoundary.wrap(const Text('child'), 0);
+                List<RepaintBoundary> helpers() => RepaintBoundary.wrapAll(
+                  const <Widget>[Text('first'), Text('second')],
+                );
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(
+                probe("repaint-boundary", valid.indexOf("RepaintBoundary"), "RepaintBoundary",
+                        "package:flutter/widgets.dart", flutterLibrary),
+                probe("repaint-boundary-wrap", valid.indexOf("RepaintBoundary.wrap(")
+                                + "RepaintBoundary.".length(), "wrap",
+                        "package:flutter/widgets.dart", flutterLibrary),
+                probe("repaint-boundary-wrap-all", valid.indexOf("RepaintBoundary.wrapAll(")
+                                + "RepaintBoundary.".length(), "wrapAll",
+                        "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 500, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 501;
+        for (String invalid : List.of(
+                "const RepaintBoundary(elevation: 1)",
+                "const RepaintBoundary(childIndex: 0)",
+                "const RepaintBoundary(child: 'not a widget')",
+                "const RepaintBoundary(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

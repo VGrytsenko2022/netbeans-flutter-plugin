@@ -881,6 +881,7 @@ class FlutterWidgetPropertiesNodeTest {
                 ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
                 PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value(),
                 "flutter.widgets.PhysicalShape",
+                    "flutter.widgets.RepaintBoundary",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1302,6 +1303,31 @@ class FlutterWidgetPropertiesNodeTest {
                         "prefer ordinary constraints")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void repaintBoundaryIntentionallyHasNoScalarPropertiesAndExplainsWhereChildAndDescendantsAreEdited()
+            throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.RepaintBoundary");
+        StableId id = StableId.parse("da9f06c2-69ae-4d34-94a3-439f0f77ba7c");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF, widget, definition, ignored -> { });
+        Node.PropertySet properties = propertySet(node, FlutterWidgetPropertiesNode.PROPERTIES_SET_NAME);
+        assertEquals(List.of(), names(properties.getProperties()));
+        assertTrue(properties.getShortDescription().contains("no scalar constructor properties"));
+        assertTrue(properties.getShortDescription().contains("separate display list"));
+        assertTrue(properties.getShortDescription().contains("does not guarantee faster rendering"));
+        assertTrue(node.getShortDescription().contains("edit Child in Slots"));
+        assertTrue(node.getShortDescription().contains(id.toString()));
+        assertFalse(node.getShortDescription().contains("unsupported"));
+        assertEquals(FlutterWidgetPropertiesNode.GENERAL_TAB_NAME,
+                properties.getValue(FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
+        Node.Property<?> child = property(node, "child");
+        assertEquals("Empty", child.getValue());
+        assertTrue(child.getShortDescription().contains("Occupancy: 0/1"));
+        assertTrue(child.getShortDescription().contains("add, move, replace, or remove"));
+        assertTrue(child.getShortDescription().contains("select a descendant"));
     }
 
     @Test
@@ -5422,6 +5448,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds = new ArrayList<>(typeIds);
         typeIds.add(PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value());
         typeIds.add("flutter.widgets.PhysicalShape");
+        typeIds.add("flutter.widgets.RepaintBoundary");
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -5448,7 +5475,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(53, iconPaths.size(),
+        assertEquals(54, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

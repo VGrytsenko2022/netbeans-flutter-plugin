@@ -81,6 +81,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.ClipRSuperellipse", ICON_ROOT + "cliprsuperellipse.svg"),
             Map.entry("flutter.widgets.PhysicalModel", ICON_ROOT + "physicalmodel.svg"),
             Map.entry("flutter.widgets.PhysicalShape", ICON_ROOT + "physicalshape.svg"),
+            Map.entry("flutter.widgets.RepaintBoundary", ICON_ROOT + "repaintboundary.svg"),
             Map.entry("flutter.widgets.ExcludeSemantics",
                     ICON_ROOT + "excludesemantics.svg"),
             Map.entry("flutter.widgets.SizedBox", ICON_ROOT + "sizedbox.svg"),

@@ -2674,8 +2674,138 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void physicalShapeCompletesExact2650CellModelWithAllSurfacePropertiesAndChild() {
+    void repaintBoundaryCompletesExact2754CellModelWithAllSurfacePropertiesAndChild() {
         List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, REPAINT_BOUNDARY, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "RepaintBoundary -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "RepaintBoundary -> " + target.name());
+                assertEquals(REPAINT_BOUNDARY, success.command().widget().type());
+                assertEquals(Map.of(),
+                        success.command().widget().properties(),
+                        "no scalar constructor arguments are synthesized");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !REPAINT_BOUNDARY.equals(type))
+                .toList();
+        MatrixTargetCase repaintBoundaryTarget = target(
+                "RepaintBoundary.child", REPAINT_BOUNDARY, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    repaintBoundaryTarget.document(), BUILT_INS, source, ROOT_ID,
+                    repaintBoundaryTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> RepaintBoundary.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> RepaintBoundary.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedRepaintBoundary = occupiedTarget(
+                "RepaintBoundary.child", REPAINT_BOUNDARY, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedRepaintBoundary.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(54, BUILT_INS.definitions().size()),
+                () -> assertEquals(51, allTargets.size()),
+                () -> assertEquals(49, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(51, previousOrdinarySources.size()),
+                () -> assertEquals(50, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(2754,
+                        2650 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2507,
+                        2408 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(247,
+                        242 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void physicalShapeCompletesExact2650CellModelWithAllSurfacePropertiesAndChild() {
+        List<MatrixTargetCase> allTargets = preRepaintBoundaryDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2730,7 +2860,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preRepaintBoundaryDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2789,7 +2919,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(53, BUILT_INS.definitions().size()),
+                () -> assertEquals(53, Math.toIntExact(preRepaintBoundaryDefinitions().count())),
                 () -> assertEquals(50, allTargets.size()),
                 () -> assertEquals(48, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2798,7 +2928,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2650,
                         2548 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + Math.toIntExact(preRepaintBoundaryDefinitions().count()) - 1),
                 () -> assertEquals(2408,
                         2311 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(242,
@@ -3898,8 +4028,14 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId PHYSICAL_SHAPE = new WidgetTypeId("flutter.widgets.PhysicalShape");
 
+    private static final WidgetTypeId REPAINT_BOUNDARY = new WidgetTypeId("flutter.widgets.RepaintBoundary");
+
+    private static Stream<WidgetDefinition> preRepaintBoundaryDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !REPAINT_BOUNDARY.equals(definition.typeId()));
+    }
+
     private static Stream<WidgetDefinition> prePhysicalShapeDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !PHYSICAL_SHAPE.equals(definition.typeId()));
+        return preRepaintBoundaryDefinitions().filter(definition -> !PHYSICAL_SHAPE.equals(definition.typeId()));
     }
 
     private static Stream<WidgetDefinition> prePhysicalModelDefinitions() {

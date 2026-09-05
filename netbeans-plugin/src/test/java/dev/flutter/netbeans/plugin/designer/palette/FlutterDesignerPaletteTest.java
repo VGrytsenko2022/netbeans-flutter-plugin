@@ -59,6 +59,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.ClipRSuperellipse",
             "flutter.widgets.PhysicalModel",
                     "flutter.widgets.PhysicalShape",
+                    "flutter.widgets.RepaintBoundary",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -99,8 +100,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(53, CATALOG.definitions().size());
-        assertEquals(47, CATALOG.definitions().stream()
+        assertEquals(54, CATALOG.definitions().size());
+        assertEquals(48, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -129,9 +130,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary"),
                 itemLabels(categories[3]));
-        assertEquals(14, itemLabels(categories[3]).size());
+        assertEquals(15, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
         assertEquals(1, itemLabels(categories[4]).size());
 
@@ -169,7 +170,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
 
@@ -1259,6 +1260,27 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void repaintBoundaryPaletteSelectionExplainsFullSurfaceAndDistinctIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.RepaintBoundary";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(),
+                "flutter.basic", 300, 150, "RepaintBoundary"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("RepaintBoundary", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("separate display list"));
+        assertTrue(node.getShortDescription().contains("No scalar properties"));
+        assertTrue(node.getShortDescription().contains("Designer owns widget identity"));
+        assertTrue(node.getShortDescription().contains("not a guaranteed performance improvement"));
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void physicalShapePaletteSelectionExplainsFullSurfaceAndDistinctIcon()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.PhysicalShape";
@@ -1649,7 +1671,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(53, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(54, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

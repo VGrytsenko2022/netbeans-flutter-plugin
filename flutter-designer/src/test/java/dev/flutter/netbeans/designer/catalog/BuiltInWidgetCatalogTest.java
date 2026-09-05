@@ -76,6 +76,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.PhysicalModel",
                 "flutter.widgets.PhysicalShape",
                 "flutter.widgets.Placeholder",
+                "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.RotatedBox",
                 "flutter.widgets.Row",
                 "flutter.widgets.SafeArea",
@@ -92,8 +93,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(53, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(47, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(54, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(48, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -134,6 +135,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.ClipRSuperellipse", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.PhysicalModel", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.PhysicalShape", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.RepaintBoundary", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
@@ -318,6 +320,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ClipRSuperellipse",
                 "flutter.widgets.PhysicalModel",
                 "flutter.widgets.PhysicalShape",
+                "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.ExcludeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
@@ -331,7 +334,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(14, palette.stream()
+        assertEquals(15, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

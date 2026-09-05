@@ -1588,12 +1588,27 @@ accepted architecture is documented in
   editing. Do not rewrite parent scroll settings or sibling indexes. Cover exact
   schema/projection, generation/provenance, codec/payload, Properties/Slots, all
   insertion/move routes, Save/reopen/further editing, Undo/Redo, rollback and four
-  SVGs. Current surface: 59 widgets, 53 const definitions, 765 rows (748 outside
+  SVGs. At that milestone: 59 widgets, 53 const definitions, 765 rows (748 outside
   Scaffold), 56 scalar plus three structural definitions, 54 any-widget plus two
   trait destinations, 3,304 cells (3,032 accepted / 272 rejected), Accessibility 4.
   Historical target 59/92 with 33 remaining; schema/API/model remain 13/14/18.
   Full physical desktop acceptance stays deferred. This is a reviewed API-based
   successor; the full ordered historical inventory has not been recovered.
+- [x] Add `ExcludeFocus` after IndexedSemantics (Accessibility order 50) with the
+  complete const constructor: optional excluding at order 0, required any-widget
+  child at order 1 and managed key. Preserve unset/false/true through the centered
+  checkbox and reset; omission uses SDK true without a persisted default. Reuse
+  the generic atomic wrapper flow and required-child replacement, never a fake
+  or empty child. Use actual SDK focus exclusion and its unfocus/no-auto-refocus
+  behavior while preserving pointer hits, layout, paint and semantic labels.
+  Cover exact schema/projection, generation/provenance, codec/payload, Properties/
+  Slots, all wrapping/move routes, Save/reopen/further editing, Undo/Redo, rollback
+  and four SVGs. Current surface: 60 widgets, 54 const definitions, 766 rows (749
+  outside Scaffold), 57 scalar plus three structural definitions; 54 any-widget
+  plus two trait destinations remain 56 insertable slots, with 3,360 cells
+  (3,086 accepted / 274 rejected), Accessibility 5. Historical target 60/92 with
+  32 remaining; schema/API/model remain 13/14/18. Full physical desktop acceptance
+  stays deferred. This successor is API-reviewed, not a recovered fixed-order list.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1611,8 +1626,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all fifty-nine admitted built-ins.
-  The 56 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty admitted built-ins.
+  The 57 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

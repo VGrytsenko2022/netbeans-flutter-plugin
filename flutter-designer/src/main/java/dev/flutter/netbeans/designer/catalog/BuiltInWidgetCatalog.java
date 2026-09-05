@@ -82,6 +82,7 @@ public final class BuiltInWidgetCatalog {
             blockSemantics(),
             mergeSemantics(),
             indexedSemantics(),
+            excludeFocus(),
             elevatedButton(),
             textField()));
 
@@ -1888,6 +1889,19 @@ public final class BuiltInWidgetCatalog {
                 "IndexedSemantics", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.accessibility", 400, 40, "IndexedSemantics"), properties,
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition excludeFocus() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "excluding", 0, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != ExcludeFocusWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("ExcludeFocus catalog/property schema count mismatch");
+        }
+        return widget(
+                ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.value(),
+                "ExcludeFocus", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.accessibility", 400, 50, "ExcludeFocus"), properties,
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

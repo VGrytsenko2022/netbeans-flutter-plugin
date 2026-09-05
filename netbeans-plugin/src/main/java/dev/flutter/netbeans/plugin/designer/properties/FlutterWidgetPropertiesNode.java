@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExcludeFocusWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -529,6 +530,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIgnorePointerPropertySets(sheet, hasSlotTab);
         } else if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())) {
             addAbsorbPointerPropertySets(sheet, hasSlotTab);
+        } else if (ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.equals(widget.type())) {
+            addExcludeFocusPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -730,6 +733,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child whose descendants are excluded from focus while Excluding is true. "
+                    + "Changing to true unfocuses descendants; false permits focus but does not automatically "
+                    + "restore it or rewrite their local canRequestFocus configuration. Layout, paint and pointer hits remain "
+                    + "available. Designer child and descendant editing remain available. Occupancy: "
+                    + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
         }
         if (SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2388,6 +2400,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addExcludeFocusPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ExcludeFocusWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ExcludeFocusWidgetPropertySchema.Group.class);
+        for (ExcludeFocusWidgetPropertySchema.Group group : ExcludeFocusWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = ExcludeFocusWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " <not set> preserves Flutter's true default. True unfocuses descendants; "
+                            + "false permits focus but does not automatically restore focus. "
+                            + "Descendant local canRequestFocus configuration is not rewritten; effective "
+                            + "focusability remains constrained by ancestors. Layout, paint and pointer "
+                            + "hits remain available; Designer selection and editing are not disabled. "
+                            + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
         }
     }
 

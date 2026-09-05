@@ -889,6 +889,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",
                     "flutter.widgets.IndexedSemantics",
+                    "flutter.widgets.ExcludeFocus",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -924,7 +925,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(765, writableCount,
+        assertEquals(766, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -937,7 +938,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(748, nonScaffoldWritableCount,
+        assertEquals(749, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2743,6 +2744,56 @@ class FlutterWidgetPropertiesNodeTest {
         assertTrue(child.getShortDescription().contains("Occupancy: 0/1"));
         assertTrue(child.getShortDescription().contains("does not sort children"));
         assertTrue(child.getShortDescription().contains("descendant editing remain available"));
+    }
+
+    @Test
+    void excludeFocusBooleanEditorPreservesFocusIdentityAndExplainsNoAutomaticRefocus() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ExcludeFocus");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName name = new PropertyName("excluding");
+        WidgetNode childWidget = new WidgetNode(StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"),
+                new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(new PropertyName("data"), new PropertyValue.StringValue("focus child")), Map.of());
+        WidgetNode widget = new WidgetNode(id, definition.typeId(), Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(childWidget)));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        var excluding = cellProperty(property(node, "excluding"));
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length, "identity, focus and required child Slots");
+        assertTrue(excluding.canWrite());
+        assertTrue(excluding.supportsDefaultValue());
+        assertTrue(excluding.isDefaultValue());
+        assertEquals(FlutterPropertyCellValue.unset(), excluding.getValue());
+        for (String value : List.of("true", "false")) {
+            PropertyEditor editor = excluding.getPropertyEditor();
+            editor.setAsText(value);
+            assertNull(editor.getTags(), "explicit values must not regress to dropdowns");
+            assertTrue(editor.isPaintable());
+            assertEquals(new PropertyValue.BooleanValue(Boolean.parseBoolean(value)), cell(editor).explicitValue().orElseThrow());
+        }
+        assertTrue(excluding.getShortDescription().contains("true default"));
+        assertTrue(excluding.getShortDescription().contains("True unfocuses descendants"));
+        assertTrue(excluding.getShortDescription().contains("does not automatically restore focus"));
+        assertTrue(excluding.getShortDescription().contains("local canRequestFocus configuration is not rewritten"));
+        assertTrue(excluding.getShortDescription().contains("effective focusability remains constrained by ancestors"));
+        assertTrue(excluding.getShortDescription().contains("pointer hits remain available"));
+        excluding.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.BooleanValue(false))), commands);
+        WidgetNode explicit = new WidgetNode(id, definition.typeId(),
+                Map.of(name, new PropertyValue.BooleanValue(false)), widget.slots());
+        commands.clear();
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()), "editing must retain property groups and focus identity");
+        assertSame(excluding, property(node, "excluding"));
+        assertNull(excluding.getPropertyEditor().getTags());
+        assertTrue(excluding.getPropertyEditor().isPaintable());
+        excluding.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        excluding.restoreDefaultValue();
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.BooleanValue(true)),
+                new ResetProperty(id, name)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+        assertTrue(property(node, "child").getShortDescription().contains("Occupancy: 1/1"));
     }
 
     @Test
@@ -5684,6 +5735,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.RepaintBoundary");
         typeIds.add("flutter.widgets.MergeSemantics");
         typeIds.add("flutter.widgets.IndexedSemantics");
+        typeIds.add("flutter.widgets.ExcludeFocus");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -5713,7 +5765,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(59, iconPaths.size(),
+        assertEquals(60, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

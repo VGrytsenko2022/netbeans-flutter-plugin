@@ -6,6 +6,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `ExcludeFocus` in Accessibility at order 50 with its complete const constructor:
+  optional excluding (SDK true), required child and managed key. Centered checkbox
+  values remain distinct from unset. Generic atomic wrapping reuses an existing
+  child; the required slot supports replacement but cannot be cleared. The real
+  Canvas widget gates descendant focus without suppressing ordinary pointer hits,
+  layout, paint or labels; exclusion unfocuses current descendants, and disabling
+  exclusion does not automatically refocus them. Includes Properties/Slots,
+  Palette/tree/Canvas wrapping and moves, Save/reopen/further edits, Undo/Redo,
+  rollback and four SVGs. Current surface: 60 widgets, 54 const definitions,
+  766 rows (749 outside Scaffold), 3,360 placements (3,086 accepted / 274 rejected),
+  Accessibility 5. Historical target 60/92 with 32 remaining; schema/API/model
+  stay 13/14/18. Full physical desktop acceptance remains deferred.
+
 - `IndexedSemantics` in Accessibility at order 40 with its complete const
   constructor: required signed integer index, optional child and managed key.
   Typed index editing preserves the shared native/Web exact-integer range;
@@ -15,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   descendants contaminating application semantics. No extra boundary is inserted. Ordinary
   layout, paint and pointer editing remain unchanged. Includes Properties/Slots,
   all placement/move routes, Save/reopen/further edits, Undo/Redo, rollback and four
-  SVGs. Current surface: 59 widgets, 53 const definitions, 765 rows (748 outside
+  SVGs. At that milestone: 59 widgets, 53 const definitions, 765 rows (748 outside
   Scaffold), 3,304 placements (3,032 accepted / 272 rejected), Accessibility 4.
   Historical target 59/92 with 33 remaining; schema/API/model stay 13/14/18.
   Full physical desktop acceptance remains deferred.

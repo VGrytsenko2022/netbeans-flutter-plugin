@@ -1193,6 +1193,77 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesExcludeFocusCompleteConstructor() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("exclude_focus_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget omitted() => const ExcludeFocus(child: Text('Default true'));
+                Widget enabled() => const ExcludeFocus(excluding: false, child: TextField());
+                Widget excluded() => const ExcludeFocus(excluding: true, child: TextField());
+                Widget emptyGeometry() => const ExcludeFocus(child: SizedBox.shrink());
+                Widget nested() => const ExcludeFocus(excluding: false,
+                  child: ExcludeFocus(child: TextField(autofocus: true)));
+                Widget themed(BuildContext context) => ExcludeFocus(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface));
+                Widget changing(bool excluding) => ExcludeFocus(excluding: excluding,
+                  child: Text(DateTime.now().toString()));
+                Widget controls() => ExcludeFocus(child: Row(children: [
+                  ElevatedButton(onPressed: () {}, child: const Text('Action')),
+                  const SizedBox(width: 100, child: TextField()),
+                ]));
+                Widget semantics() => const IndexedSemantics(index: 0,
+                  child: MergeSemantics(child: ExcludeFocus(child: Text('Retained label'))));
+                Widget scrolling() => ListView(children: const [
+                  ExcludeFocus(excluding: false, child: Text('First')),
+                  ExcludeFocus(child: Text('Second')),
+                ]);
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("exclude-focus",
+                valid.indexOf("ExcludeFocus"), "ExcludeFocus",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 1100, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1101;
+        for (String invalid : List.of(
+                "const ExcludeFocus()",
+                "const ExcludeFocus(child: null)",
+                "const ExcludeFocus(excluding: null, child: Text('Bad'))",
+                "const ExcludeFocus(excluding: 1, child: Text('Bad'))",
+                "const ExcludeFocus(excluding: 'true', child: Text('Bad'))",
+                "const ExcludeFocus(descendantsAreFocusable: false, child: Text('Bad'))",
+                "const ExcludeFocus(children: <Widget>[])",
+                "const ExcludeFocus(child: 'not a widget')",
+                "const ExcludeFocus(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

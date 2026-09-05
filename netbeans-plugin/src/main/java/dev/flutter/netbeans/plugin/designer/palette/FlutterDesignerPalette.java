@@ -294,6 +294,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.BlockSemantics".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.BlockSemantics.Name"));
                 setShortDescription(message("Widget.BlockSemantics.Description"));
+            } else if ("flutter.widgets.ExcludeFocus".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.ExcludeFocus.Name"));
+                setShortDescription(message("Widget.ExcludeFocus.Description"));
             } else if ("flutter.widgets.IndexedSemantics".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IndexedSemantics.Name"));
                 setShortDescription(message("Widget.IndexedSemantics.Description"));

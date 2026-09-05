@@ -81,7 +81,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
-            "flutter.widgets.IndexedSemantics");
+            "flutter.widgets.IndexedSemantics",
+            "flutter.widgets.ExcludeFocus");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -139,7 +140,8 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.AbsorbPointer",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
-            "flutter.widgets.IndexedSemantics");
+            "flutter.widgets.IndexedSemantics",
+            "flutter.widgets.ExcludeFocus");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -150,7 +152,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasFiftyNineSourcesAndFiftySixInsertableDestinations() {
+    void exactDndCapabilityMatrixHasSixtySourcesAndFiftySixInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -173,7 +175,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(59, sources.size());
+        assertEquals(60, sources.size());
         assertEquals(56, destinations.size());
         assertEquals(54, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -183,9 +185,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(3304, candidates);
-        assertEquals(3032, accepted);
-        assertEquals(272, candidates - accepted);
+        assertEquals(3360, candidates);
+        assertEquals(3086, accepted);
+        assertEquals(274, candidates - accepted);
     }
 
     @Test

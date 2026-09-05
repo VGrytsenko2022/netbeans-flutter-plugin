@@ -398,6 +398,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                                 selectedWidgetId: widget.selectedWidgetId,
                                 onSelected: _selectWidget,
                                 nodeKey: _nodeKey,
+                                designerFocusParent: _focusNode,
                                 overlayScale: geometry.scale,
                                 inlineTextEditEnabled:
                                     widget.inlineTextEditEnabled &&
@@ -570,6 +571,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
+        node.type == 'flutter.widgets.ExcludeFocus' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -977,6 +979,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parentBox == null) {
       return null;
     }
+    final requiredChildOwner = _requiredChildOwner(
+      widget.model.root,
+      sourceWidgetId,
+    );
+    if (requiredChildOwner != null &&
+        (requiredChildOwner.id != parentWidgetId || slotName != 'child')) {
+      // A move cannot expose an invalid empty required slot. Keep same-slot
+      // no-op previews; the host still owns final mutation validation.
+      return null;
+    }
     final modelSlot = parentNode.slot(slotName);
     final reviewedSlot = canvasDropSlotForWidgetSlot(parentNode.type, slotName);
     final slotKind = modelSlot?.kind ?? reviewedSlot?.modelSlotKind;
@@ -1204,6 +1216,20 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       parentRect.right,
       center + half,
     );
+  }
+
+  CanvasNode? _requiredChildOwner(CanvasNode node, String childId) {
+    if (isCanvasReviewedRequiredChildWrapperWidgetType(node.type) &&
+        node.slot('child')?.child?.id == childId) {
+      return node;
+    }
+    for (final slot in node.slots.values) {
+      for (final child in slot.children) {
+        final owner = _requiredChildOwner(child, childId);
+        if (owner != null) return owner;
+      }
+    }
+    return null;
   }
 
   CanvasNode? _findCanvasNode(CanvasNode node, String id) {
@@ -2355,6 +2381,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     required this.selectedWidgetId,
     required this.onSelected,
     required this.nodeKey,
+    required this.designerFocusParent,
     required this.overlayScale,
     required this.inlineTextEditEnabled,
     required this.inlineTextEditingWidgetId,
@@ -2370,6 +2397,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   final String? selectedWidgetId;
   final ValueChanged<String> onSelected;
   final GlobalKey Function(String id) nodeKey;
+  final FocusNode designerFocusParent;
   final double overlayScale;
   final bool inlineTextEditEnabled;
   final String? inlineTextEditingWidgetId;
@@ -2415,6 +2443,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Flexible' => _single('child')!,
       'flutter.widgets.SafeArea' => _safeArea(),
       'flutter.widgets.Directionality' => _directionality(),
+      'flutter.widgets.ExcludeFocus' => ExcludeFocus(
+        excluding: _boolean('excluding') ?? true,
+        child: _single('child')!,
+      ),
       'flutter.widgets.Spacer' => Spacer(flex: _integer('flex') ?? 1),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),
       'flutter.widgets.Align' => _align(),
@@ -4790,6 +4822,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _inlineTextEditor(BuildContext context) => _CanvasInlineTextEditor(
     key: ValueKey('canvas-inline-text-editor-${node.id}'),
     widgetId: node.id,
+    designerFocusParent: designerFocusParent,
     initialText: _string('data')!,
     style: _textStyle(context),
     strutStyle: _strutStyle(),
@@ -4966,6 +4999,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     selectedWidgetId: selectedWidgetId,
     onSelected: onSelected,
     nodeKey: nodeKey,
+    designerFocusParent: designerFocusParent,
     overlayScale: overlayScale,
     inlineTextEditEnabled: inlineTextEditEnabled,
     inlineTextEditingWidgetId: inlineTextEditingWidgetId,
@@ -5532,6 +5566,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 class _CanvasInlineTextEditor extends StatefulWidget {
   const _CanvasInlineTextEditor({
     required this.widgetId,
+    required this.designerFocusParent,
     required this.initialText,
     required this.style,
     required this.strutStyle,
@@ -5545,6 +5580,7 @@ class _CanvasInlineTextEditor extends StatefulWidget {
   });
 
   final String widgetId;
+  final FocusNode designerFocusParent;
   final String initialText;
   final TextStyle? style;
   final StrutStyle? strutStyle;
@@ -5601,29 +5637,38 @@ class _CanvasInlineTextEditorState extends State<_CanvasInlineTextEditor> {
       if (!_composing)
         const SingleActivator(LogicalKeyboardKey.escape): _cancel,
     };
-    return CallbackShortcuts(
-      bindings: bindings,
-      child: TextField(
-        controller: _controller,
-        focusNode: _focusNode,
-        autofocus: true,
-        keyboardType: TextInputType.multiline,
-        maxLines: widget.maxLines,
-        style: widget.style,
-        strutStyle: widget.strutStyle,
-        textAlign: widget.textAlign,
-        textDirection: widget.textDirection,
-        cursorColor: widget.cursorColor,
-        decoration: InputDecoration(
-          isDense: true,
-          contentPadding: EdgeInsets.zero,
-          border: InputBorder.none,
-          enabledBorder: InputBorder.none,
-          focusedBorder: InputBorder.none,
-          errorBorder: InputBorder.none,
-          focusedErrorBorder: InputBorder.none,
-          errorText: _validationError,
-          errorStyle: const TextStyle(fontSize: 10, height: 1),
+    // This is Designer UI, not an application TextField. Keep its focus branch
+    // under the outer Designer surface so application ExcludeFocus still gates
+    // every real application descendant without disabling F2 editing.
+    return Focus(
+      parentNode: widget.designerFocusParent,
+      canRequestFocus: false,
+      skipTraversal: true,
+      includeSemantics: false,
+      child: CallbackShortcuts(
+        bindings: bindings,
+        child: TextField(
+          controller: _controller,
+          focusNode: _focusNode,
+          autofocus: true,
+          keyboardType: TextInputType.multiline,
+          maxLines: widget.maxLines,
+          style: widget.style,
+          strutStyle: widget.strutStyle,
+          textAlign: widget.textAlign,
+          textDirection: widget.textDirection,
+          cursorColor: widget.cursorColor,
+          decoration: InputDecoration(
+            isDense: true,
+            contentPadding: EdgeInsets.zero,
+            border: InputBorder.none,
+            enabledBorder: InputBorder.none,
+            focusedBorder: InputBorder.none,
+            errorBorder: InputBorder.none,
+            focusedErrorBorder: InputBorder.none,
+            errorText: _validationError,
+            errorStyle: const TextStyle(fontSize: 10, height: 1),
+          ),
         ),
       ),
     );

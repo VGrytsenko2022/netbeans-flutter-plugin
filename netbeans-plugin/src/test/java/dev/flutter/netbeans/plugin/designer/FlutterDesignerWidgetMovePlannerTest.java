@@ -309,6 +309,37 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void completedExcludeFocusMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "focus child");
+        WidgetNode excludeFocus = new WidgetNode(
+                A_ID,
+                new WidgetTypeId("flutter.widgets.ExcludeFocus"),
+                Map.of(new PropertyName("excluding"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(excludeFocus, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                excludeFocus.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(excludeFocus.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                excludeFocus.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, excludeFocus, result);
+    }
+
+    @Test
     void completedSafeAreaMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "safe child");
         WidgetNode safeArea = new WidgetNode(

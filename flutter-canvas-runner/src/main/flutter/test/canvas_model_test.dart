@@ -6912,7 +6912,7 @@ void main() {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Directionality\n');
       final end = contract.indexOf(
-        'W|flutter.widgets.ExcludeSemantics\n',
+        'W|flutter.widgets.ExcludeFocus\n',
         start,
       );
       expect(start, greaterThanOrEqualTo(0));

@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics` and `IndexedSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics` and `ExcludeFocus`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,18 +241,18 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-59 reviewed Canvas widgets. Palette insertion evaluates 3,304 exact
-source/destination cells across 59 draggable sources and 56 insertable reviewed
-slots; 3,032 are accepted and 272 cells are rejected. Expanded and Flexible are
+60 reviewed Canvas widgets. Palette insertion evaluates 3,360 exact
+source/destination cells across 60 draggable sources and 56 insertable reviewed
+slots; 3,086 are accepted and 274 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea and Directionality are generic atomic wrappers around
+another widget. SafeArea, Directionality and ExcludeFocus are generic atomic wrappers around
 an existing widget,
 never an empty required-child prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
-wrapping remains available through the NetBeans tree. Neither wrapper can wrap
+wrapping remains available through the NetBeans tree. None of these wrappers can wrap
 Expanded, Flexible or Spacer because their ParentData must remain attached
 directly to Row or Column. The negotiated
 source-aware command binds the opaque token to the current reviewed type and
@@ -1001,10 +1001,25 @@ Moving content outside these wrappers restores ordinary Designer contributions.
 Manual ListView indexes require explicit parent addSemanticIndexes/semanticChildCount
 settings; no silent parent changes or automatic sibling renumbering are introduced.
 
-The aggregate catalog now has 59 widgets and 53 reviewed const definitions,
-with 765 writable rows (748 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, seventeen Basic, four Material and four Accessibility items; the
-backlog is 59/92 complete with 33 remaining. The 59 sources across 56
-insertable destinations form 3,304 cells, with 3,032 accepted and 272 rejected.
+ExcludeFocus uses actual ExcludeFocus with optional excluding (omitted true) and
+a required child. Its internal SDK Focus cannot request focus, skips traversal,
+adds no semantics and sets descendantsAreFocusable to !excluding. Enabling
+exclusion unfocuses a focused descendant; disabling it does not automatically
+refocus that descendant. Descendant FocusNode settings are not rewritten. Normal
+layout, paint, pointer hits and semantic labels remain. Required-child wrapping
+uses existing non-root Canvas targets, never an empty prototype or a fake child;
+root wrapping remains a NetBeans tree operation. The required slot is replaceable,
+not an insertable destination, and cannot be cleared. Exact Boolean/slot validation
+and existing payload versions apply. Only the temporary F2 Text editor attaches
+its service focus branch to the outer Designer FocusNode, leaving real application
+controls excluded. Move-preview geometry rejects dragging a direct required child
+out of its wrapper; intact wrappers and optional/list children remain movable,
+and final mutation validation remains host-authoritative.
+
+The aggregate catalog now has 60 widgets and 54 reviewed const definitions,
+with 766 writable rows (749 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seventeen Basic, four Material and five Accessibility items; the
+backlog is 60/92 complete with 32 remaining. The 60 sources across 56
+insertable destinations form 3,360 cells, with 3,086 accepted and 274 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

@@ -84,6 +84,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.RepaintBoundary", ICON_ROOT + "repaintboundary.svg"),
             Map.entry("flutter.widgets.MergeSemantics", ICON_ROOT + "mergesemantics.svg"),
             Map.entry("flutter.widgets.IndexedSemantics", ICON_ROOT + "indexedsemantics.svg"),
+            Map.entry("flutter.widgets.ExcludeFocus", ICON_ROOT + "excludefocus.svg"),
             Map.entry("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg"),
             Map.entry("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg"),
             Map.entry("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg"),

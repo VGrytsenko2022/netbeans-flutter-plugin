@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(59, javaTypes.size(),
+        assertEquals(60, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -82,6 +82,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.BlockSemantics"));
         assertTrue(javaTypes.contains("flutter.widgets.MergeSemantics"));
         assertTrue(javaTypes.contains("flutter.widgets.IndexedSemantics"));
+        assertTrue(javaTypes.contains("flutter.widgets.ExcludeFocus"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -119,6 +120,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.widgets.BlockSemantics\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.MergeSemantics\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.IndexedSemantics\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.ExcludeFocus\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -200,6 +202,8 @@ class FlutterWidgetCapabilityParityTest {
                 "Spacer has no child slot and is never a DnD destination");
         assertTrue(!javaContainers.contains("flutter.widgets.SafeArea"),
                 "SafeArea.child is required replacement-only, not an empty insertion target");
+        assertTrue(!javaContainers.contains("flutter.widgets.ExcludeFocus"),
+                "ExcludeFocus.child is required replacement-only, not an empty insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Directionality"),
                 "Directionality.child is required replacement-only, not an empty insertion target");
         assertTrue(javaContainers.contains("flutter.widgets.DecoratedBox"),

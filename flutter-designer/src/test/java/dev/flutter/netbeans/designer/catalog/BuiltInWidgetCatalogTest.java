@@ -33,7 +33,7 @@ class BuiltInWidgetCatalogTest {
     private static final String DART_UI_IMPORT = "dart:ui";
 
     @Test
-    void containsExactlyTheReviewedFiftyNineTypesInCanonicalOrder() {
+    void containsExactlyTheReviewedSixtyTypesInCanonicalOrder() {
         assertEquals(List.of(
                 "flutter.material.AppBar",
                 "flutter.material.ElevatedButton",
@@ -56,6 +56,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Container",
                 "flutter.widgets.DecoratedBox",
                 "flutter.widgets.Directionality",
+                "flutter.widgets.ExcludeFocus",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.Expanded",
                 "flutter.widgets.FittedBox",
@@ -98,11 +99,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(59, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(53, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(60, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(54, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(56, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(57, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -118,10 +119,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(765, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(766, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(748, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(749, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -155,6 +156,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.Container", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DecoratedBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Directionality", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ExcludeFocus", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ExcludeSemantics", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.BlockSemantics", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.MergeSemantics", WIDGETS_IMPORT),
@@ -341,7 +343,8 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
-                "flutter.widgets.IndexedSemantics"), typeIds(palette));
+                "flutter.widgets.IndexedSemantics",
+                "flutter.widgets.ExcludeFocus"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
@@ -358,7 +361,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());
-        assertEquals(4, palette.stream()
+        assertEquals(5, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.accessibility"))
                 .count());

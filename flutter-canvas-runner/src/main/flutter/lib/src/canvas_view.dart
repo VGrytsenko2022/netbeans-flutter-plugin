@@ -571,6 +571,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.DecoratedBox' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
+        node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.RepaintBoundary' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
@@ -2439,6 +2440,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
       'flutter.widgets.IgnorePointer' => _ignorePointer(),
+      'flutter.widgets.AbsorbPointer' => _absorbPointer(),
       'flutter.widgets.RepaintBoundary' => RepaintBoundary(
         child: _single('child'),
       ),
@@ -4568,6 +4570,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     position: _enum('position') == 'foreground'
         ? DecorationPosition.foreground
         : DecorationPosition.background,
+    child: _single('child'),
+  );
+
+  Widget _absorbPointer() => AbsorbPointer(
+    absorbing: _boolean('absorbing') ?? true,
+    // The pinned SDK still supports this deprecated compatibility branch.
+    // ignore: deprecated_member_use
+    ignoringSemantics: _boolean('ignoringSemantics'),
     child: _single('child'),
   );
 

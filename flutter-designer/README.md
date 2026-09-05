@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical fifty-five-widget Canvas
+responsive render profiles and the bounded canonical fifty-six-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,19 +40,19 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded catalog-backed presentation for all fifty-five canonical widgets: `Scaffold`,
+bounded catalog-backed presentation for all fifty-six canonical widgets: `Scaffold`,
 `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer` and `ExcludeSemantics`. Forty-nine
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer` and `ExcludeSemantics`. Fifty
 definitions use reviewed const constructors. IntrinsicHeight and RepaintBoundary
 have no scalar constructor properties; identity and child-slot editing remain
-available. The exact catalog currently contains 761 writable property
+available. The exact catalog currently contains 763 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-2,860-cell candidate matrix: fifty-five exact capability-reviewed sources target
-fifty insertable any-widget and two `PreferredSizeWidget` destinations,
-with exactly 2,608 accepted and 252 rejected cells, subject to
+2,968-cell candidate matrix: fifty-six exact capability-reviewed sources target
+fifty-one insertable any-widget and two `PreferredSizeWidget` destinations,
+with exactly 2,711 accepted and 257 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -116,7 +116,7 @@ and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer` and `ExcludeSemantics` from the reviewed
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer` and `ExcludeSemantics` from the reviewed
 built-in catalog and excludes project paths, Dart source, callback identifiers,
 extensions and persistence authority. The frame-kind whitelist is control JSON,
 model JSON, negotiated NBFC kind 4 `IMAGE_BYTES`, and reserved catalog JSON.
@@ -134,7 +134,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical fifty-five-widget model, renders it
+tests. The isolated runner decodes the canonical fifty-six-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -258,8 +258,8 @@ OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero,
 IntrinsicWidth two, Offstage one, SizedOverflowBox two, Transform five,
 RotatedBox one, ListBody two, OverflowBar six, SafeArea six, GridView.count 21,
 SingleChildScrollView 10, ColoredBox two, Placeholder four, Directionality one,
-DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three, PhysicalModel six, PhysicalShape five, RepaintBoundary zero, IgnorePointer two and ExcludeSemantics one, bringing the non-`Scaffold` total to
-744; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 761 writable rows across fifty-five
+DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three, PhysicalModel six, PhysicalShape five, RepaintBoundary zero, IgnorePointer two, AbsorbPointer two and ExcludeSemantics one, bringing the non-`Scaffold` total to
+746; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 763 writable rows across fifty-six
 canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
@@ -934,12 +934,22 @@ paint while ignored pointer hits can pass through. Properties/Slots, all placeme
 routes, generated const propagation, save/reopen/further edits, history and rollback
 share the existing typed boundary. No schema/API/model version changes are needed.
 
-The current practical backlog is 55/92 complete with 37
-remaining. The catalog contains 55 widgets and 49 reviewed const definitions,
-with 761 writable rows (744 outside Scaffold); Palette categories contain 31
-Layout, three Scrolling, sixteen Basic, four Material and one Accessibility item.
-The 55 sources and 52 insertable destinations form 2,860 cells, with 2,608
-admitted and 252 rejected. The new ShapeBorderClipper value advances Catalog
+AbsorbPointer adds the complete const STATIC_EDITABLE counterpart at Basic order
+170: optional BOOLEAN absorbing at 0, optional deprecated BOOLEAN ignoringSemantics
+at 1, and optional any-widget child at 2. No defaults are materialized: omitted
+absorbing stays SDK true and omitted semantics stays SDK null. Both explicit
+boolean values remain distinct from omission across generation, codec, payload,
+Properties/Slots, placement/move, save/reopen/further edits and history. Actual SDK
+hit testing blocks descendants and lower Stack siblings when absorbing, without
+changing layout or paint. The complete deprecated semantics matrix is retained;
+Designer selection and editing are separate from runtime pointer delivery.
+
+The current practical backlog is 56/92 complete with 36
+remaining. The catalog contains 56 widgets and 50 reviewed const definitions,
+with 763 writable rows (746 outside Scaffold); Palette categories contain 31
+Layout, three Scrolling, seventeen Basic, four Material and one Accessibility item.
+The 56 sources and 53 insertable destinations form 2,968 cells, with 2,711
+admitted and 257 rejected. The new ShapeBorderClipper value advances Catalog
 API to 14, `.fd` to v13 and Canvas model to v18. NBFC framing/control/wire remain
 v1.
 
@@ -1312,7 +1322,7 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the fifty-five-source insertion matrix
+disconnected. That stage is superseded by the fifty-six-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled Apache NetBeans IDE 31 runtime,
@@ -1320,19 +1330,19 @@ strict NBM verifier and isolated install lifecycle have an established passing
 baseline; this does not imply physical acceptance of every new palette widget.
 The global physical gate remains deferred until the palette target is complete.
 The accepted ADR-021
-Windows native read-only `FlutterView`, fifty-five-widget projection, responsive
-profiles, stable-ID tree selection, exact fifty-five-item context Palette and
+Windows native read-only `FlutterView`, fifty-six-widget projection, responsive
+profiles, stable-ID tree selection, exact fifty-six-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-761 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+763 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
 `AppBar`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the fifty-five exact capability-reviewed source
-definitions and fifty-two insertable catalog-authorized slots, for 2,860
-candidate cells: 2,608 admitted and 252 rejected. Expanded and Flexible each
+Palette DnD is enabled for the fifty-six exact capability-reviewed source
+definitions and fifty-three insertable catalog-authorized slots, for 2,968
+candidate cells: 2,711 admitted and 257 rejected. Expanded and Flexible each
 admit only direct `Row.children` or `Column.children` wrapping, while Spacer is
 inserted only into those two slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea and

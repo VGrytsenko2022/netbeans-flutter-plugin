@@ -804,6 +804,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.PhysicalShape",
                     "flutter.widgets.RepaintBoundary",
                     "flutter.widgets.IgnorePointer",
+                    "flutter.widgets.AbsorbPointer",
                     "flutter.widgets.ExcludeSemantics"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(

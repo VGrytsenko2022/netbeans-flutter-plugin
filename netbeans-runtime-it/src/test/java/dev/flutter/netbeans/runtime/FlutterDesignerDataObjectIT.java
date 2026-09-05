@@ -636,10 +636,17 @@ final class FlutterDesignerDataObjectIT {
             byte[] exactDart = source.dart().asBytes();
             byte[] exactModel = source.fd().asBytes();
 
-            DataObject oldDartObject = DataObject.find(source.dart());
+            // A warmed folder can cache ordinary Dart before createPair publishes
+            // the .fd file. Resolving the model promotes that unmodified owner;
+            // capture the current Dart owner only after this promotion completes.
+            // The separate dart_first fixture still verifies Dart-first loading.
             DataObject oldModelObject = DataObject.find(source.fd());
-            assertTrue("Move fixture has no paired Dart owner",
+            DataObject oldDartObject = DataObject.find(source.dart());
+            assertTrue("Move fixture has no paired Dart owner: "
+                    + oldDartObject.getClass().getName() + ", valid=" + oldDartObject.isValid(),
                     designerType.isInstance(oldDartObject));
+            assertSame("Move fixture retained a stale Dart owner after model promotion",
+                    oldDartObject, DataObject.find(source.dart()));
             assertTrue("Move fixture has no visible .fd owner",
                     modelType.isInstance(oldModelObject));
             assertFalse("The Dart DataObject unexpectedly enables generic one-file Move",

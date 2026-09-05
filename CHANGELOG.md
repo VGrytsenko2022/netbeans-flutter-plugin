@@ -6,6 +6,17 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `AbsorbPointer` in Basic at order 170 with all constructor fields: optional
+  absorbing (SDK true), deprecated ignoringSemantics (SDK null), optional child
+  and managed key. Both checkbox values stay distinct from unset, with complete
+  deprecated semantics hints. Actual Canvas absorption blocks child and lower
+  Stack hits rather than passing through; layout/paint and Designer editing remain
+  intact. Covers Properties/Slots, all placement/move routes, save/reopen/further
+  edits, Undo/Redo, rollback and four unique SVGs. Schema/API/model stay 13/14/18.
+  Current surface: 56 widgets, 50 const definitions, 763 rows (746 outside Scaffold),
+  2,968 placements (2,711 accepted / 257 rejected), Basic 17; historical practical
+  target 56/92 with 36 remaining. Full physical desktop acceptance remains deferred.
+
 - `IgnorePointer` in Basic at order 160 with its complete constructor: optional
   ignoring (SDK true), deprecated ignoringSemantics (SDK null), optional child and
   managed key. Both boolean fields retain explicit checkbox values versus unset;
@@ -13,7 +24,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   rendering keeps layout/paint and passes ignored pointer hits through, preserving
   the SDK semantics matrix. Includes Properties/Slots, all insertion/move routes,
   save/reopen/further edits, Undo/Redo, rollback and four SVG variants.
-  Schema/API/model stay 13/14/18. Current surface: 55 widgets, 49 const definitions,
+  Schema/API/model stay 13/14/18. At that milestone: 55 widgets, 49 const definitions,
   761 rows (744 outside Scaffold), 2,860 placements (2,608 accepted / 252 rejected),
   Basic 16; historical practical target 55/92, 37 remaining. Full desktop acceptance
   remains deferred.

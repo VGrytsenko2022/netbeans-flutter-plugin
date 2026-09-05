@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer` and `ExcludeSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-55 reviewed Canvas widgets. Palette insertion evaluates 2,860 exact
-source/destination cells across 55 draggable sources and 52 insertable reviewed
-slots; 2,608 are accepted and 252 cells are rejected. Expanded and Flexible are
+56 reviewed Canvas widgets. Palette insertion evaluates 2,968 exact
+source/destination cells across 56 draggable sources and 53 insertable reviewed
+slots; 2,711 are accepted and 257 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -947,10 +947,22 @@ explicit handle overlaps the body, not a full-body selection layer. Geometric Dn
 and tree-selected Text F2/keyboard commit remain independent of pointer filtering.
 No replacement AbsorbPointer, fake child or protocol change is introduced.
 
-The aggregate catalog now has 55 widgets and 49 reviewed const definitions,
-with 761 writable rows (744 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, sixteen Basic, four Material and one Accessibility item; the
-backlog is 55/92 complete with 37 remaining. The 55 sources across 52
-insertable destinations form 2,860 cells, with 2,608 accepted and 252 rejected.
+AbsorbPointer uses actual AbsorbPointer/RenderAbsorbPointer, absorbing default true,
+deprecated ignoringSemantics default null and optional child. The deprecated SDK
+call is narrowly suppressed rather than omitting the compatibility branch. Unlike
+IgnorePointer, absorbing terminates hit testing at its own size, so both child and
+lower Stack sibling are blocked. Layout/paint are unchanged. Semantics null retains
+labels but blocks actions while absorbing, false keeps actions, true excludes the
+subtree. Native/Web model-profile tests cover retained updates, complete semantics,
+absorption versus pass-through, nullable/tight layout, empty external targets,
+child replacement/removal, geometric DnD and tree-selected Text F2/keyboard commit.
+The AbsorbPointer body retains normal Designer selection; IgnorePointer's external
+nonempty-handle/transparency policy is not applied to it. Versions stay unchanged.
+
+The aggregate catalog now has 56 widgets and 50 reviewed const definitions,
+with 763 writable rows (746 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seventeen Basic, four Material and one Accessibility item; the
+backlog is 56/92 complete with 36 remaining. The 56 sources across 53
+insertable destinations form 2,968 cells, with 2,711 accepted and 257 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

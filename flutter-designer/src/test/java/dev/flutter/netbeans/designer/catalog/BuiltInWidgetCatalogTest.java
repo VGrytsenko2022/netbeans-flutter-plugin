@@ -39,6 +39,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.ElevatedButton",
                 "flutter.material.Scaffold",
                 "flutter.material.TextField",
+                "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.Align",
                 "flutter.widgets.AspectRatio",
                 "flutter.widgets.Baseline",
@@ -94,8 +95,8 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(55, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(49, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(56, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(50, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
         assertEquals(List.of(
@@ -109,10 +110,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(761, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(763, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(744, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(746, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -138,6 +139,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.PhysicalShape", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.RepaintBoundary", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.IgnorePointer", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.AbsorbPointer", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ClipRect", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.ColoredBox", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.Column", WIDGETS_IMPORT),
@@ -324,6 +326,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.PhysicalShape",
                 "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.IgnorePointer",
+                "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.ExcludeSemantics"), typeIds(palette));
         assertEquals(4, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
@@ -337,7 +340,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(16, palette.stream()
+        assertEquals(17, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

@@ -2674,8 +2674,138 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void ignorePointerCompletesExact2860CellModelWithAllSurfacePropertiesAndChild() {
+    void absorbPointerCompletesExact2968CellModelWithAllSurfacePropertiesAndChild() {
         List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, ABSORB_POINTER, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "AbsorbPointer -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "AbsorbPointer -> " + target.name());
+                assertEquals(ABSORB_POINTER, success.command().widget().type());
+                assertEquals(Map.of(),
+                        success.command().widget().properties(),
+                        "omission preserves absorbing=true and deprecated ignoringSemantics=null");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !ABSORB_POINTER.equals(type))
+                .toList();
+        MatrixTargetCase absorbPointerTarget = target(
+                "AbsorbPointer.child", ABSORB_POINTER, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    absorbPointerTarget.document(), BUILT_INS, source, ROOT_ID,
+                    absorbPointerTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> AbsorbPointer.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> AbsorbPointer.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedAbsorbPointer = occupiedTarget(
+                "AbsorbPointer.child", ABSORB_POINTER, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedAbsorbPointer.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(56, BUILT_INS.definitions().size()),
+                () -> assertEquals(53, allTargets.size()),
+                () -> assertEquals(51, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(53, previousOrdinarySources.size()),
+                () -> assertEquals(52, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(2968,
+                        2860 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2711,
+                        2608 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(257,
+                        252 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void ignorePointerCompletesExact2860CellModelWithAllSurfacePropertiesAndChild() {
+        List<MatrixTargetCase> allTargets = preAbsorbPointerDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2728,7 +2858,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preAbsorbPointerDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2787,7 +2917,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(55, BUILT_INS.definitions().size()),
+                () -> assertEquals(55, Math.toIntExact(preAbsorbPointerDefinitions().count())),
                 () -> assertEquals(52, allTargets.size()),
                 () -> assertEquals(50, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2796,7 +2926,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2860,
                         2754 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + Math.toIntExact(preAbsorbPointerDefinitions().count()) - 1),
                 () -> assertEquals(2608,
                         2507 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(252,
@@ -4161,9 +4291,14 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId REPAINT_BOUNDARY = new WidgetTypeId("flutter.widgets.RepaintBoundary");
 
     private static final WidgetTypeId IGNORE_POINTER = new WidgetTypeId("flutter.widgets.IgnorePointer");
+    private static final WidgetTypeId ABSORB_POINTER = new WidgetTypeId("flutter.widgets.AbsorbPointer");
+
+    private static Stream<WidgetDefinition> preAbsorbPointerDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !ABSORB_POINTER.equals(definition.typeId()));
+    }
 
     private static Stream<WidgetDefinition> preIgnorePointerDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !IGNORE_POINTER.equals(definition.typeId()));
+        return preAbsorbPointerDefinitions().filter(definition -> !IGNORE_POINTER.equals(definition.typeId()));
     }
 
     private static Stream<WidgetDefinition> preRepaintBoundaryDefinitions() {

@@ -1794,6 +1794,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.PhysicalShape", ICON_ROOT + "physicalshape.svg");
         expected.put("flutter.widgets.RepaintBoundary", ICON_ROOT + "repaintboundary.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
+        expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.ExcludeSemantics",
                 ICON_ROOT + "excludesemantics.svg");
         expected.put("flutter.widgets.Padding", ICON_ROOT + "padding.svg");

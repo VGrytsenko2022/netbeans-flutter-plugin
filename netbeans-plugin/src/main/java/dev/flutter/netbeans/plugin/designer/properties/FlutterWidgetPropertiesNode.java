@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -520,6 +521,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addDecoratedBoxPropertySets(sheet, hasSlotTab);
         } else if (IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.equals(widget.type())) {
             addIgnorePointerPropertySets(sheet, hasSlotTab);
+        } else if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())) {
+            addAbsorbPointerPropertySets(sheet, hasSlotTab);
         } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
                 widget.type())) {
             addExcludeSemanticsPropertySets(sheet, hasSlotTab);
@@ -1102,6 +1105,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child laid out and painted normally. Absorbing stops pointer hits at this widget, "
+                    + "blocking the child and targets behind it; unlike IgnorePointer, events do not pass through. "
+                    + "Designer selection and editing remain available. "
+                    + "Deprecated Ignoring semantics controls accessible actions or subtree exclusion. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child.";
         }
         if (IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2330,6 +2342,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addAbsorbPointerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<AbsorbPointerWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(AbsorbPointerWidgetPropertySchema.Group.class);
+        for (AbsorbPointerWidgetPropertySchema.Group group : AbsorbPointerWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = AbsorbPointerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String hint = property.name().value().equals("absorbing")
+                    ? " <not set> omits the argument and preserves Flutter's true default. "
+                            + "True stops pointer hit testing at this widget and blocks its child and targets behind it; "
+                            + "false restores normal hit testing. Unlike IgnorePointer, events do not pass through. "
+                            + "Layout and painting are unchanged; Designer selection and editing remain available."
+                    : " Deprecated Flutter argument, retained for compatibility. <not set> means default null: "
+                            + "while Absorbing is true, labels and other semantics remain but user actions are blocked. "
+                            + "Explicit false preserves semantics including actions even when Absorbing is true. "
+                            + "Explicit true removes the whole semantics subtree regardless of Absorbing. "
+                            + "Prefer leaving this unset; use ExcludeSemantics for intentional subtree exclusion.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + hint
+                            + " Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
         }
     }
 

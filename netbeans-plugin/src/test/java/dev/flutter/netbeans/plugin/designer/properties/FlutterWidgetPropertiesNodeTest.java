@@ -883,6 +883,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.PhysicalShape",
                     "flutter.widgets.RepaintBoundary",
                     "flutter.widgets.IgnorePointer",
+                    "flutter.widgets.AbsorbPointer",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -918,7 +919,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(761, writableCount,
+        assertEquals(763, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -931,7 +932,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(744, nonScaffoldWritableCount,
+        assertEquals(746, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2657,6 +2658,57 @@ class FlutterWidgetPropertiesNodeTest {
                         "without changing layout, painting, or hit testing")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void absorbPointerBooleanEditorsPreserveFocusIdentityAndExplainAllDeprecatedSemanticsStates() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.AbsorbPointer");
+        StableId id = StableId.parse("82a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName absorbingName = new PropertyName("absorbing");
+        PropertyName semanticsName = new PropertyName("ignoringSemantics");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        var absorbing = cellProperty(property(node, "absorbing"));
+        var semantics = cellProperty(property(node, "ignoringSemantics"));
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(4, sets.length);
+        for (var value : List.of(absorbing, semantics)) {
+            assertTrue(value.canWrite());
+            assertTrue(value.supportsDefaultValue());
+            assertTrue(value.isDefaultValue());
+            assertEquals(FlutterPropertyCellValue.unset(), value.getValue());
+            PropertyEditor editor = value.getPropertyEditor();
+            editor.setAsText("false");
+            assertNull(editor.getTags(), "explicit boolean must render as a checkbox, not dropdown");
+            assertTrue(editor.isPaintable());
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), cell(editor));
+        }
+        assertTrue(absorbing.getShortDescription().contains("true default"));
+        assertTrue(absorbing.getShortDescription().contains("events do not pass through"));
+        assertTrue(semantics.getDisplayName().contains("deprecated"));
+        assertTrue(semantics.getShortDescription().contains("default null"));
+        assertTrue(semantics.getShortDescription().contains("Explicit false preserves semantics including actions"));
+        assertTrue(semantics.getShortDescription().contains("regardless of Absorbing"));
+        assertTrue(semantics.getShortDescription().contains("Restore Default returns to <not set>"));
+        absorbing.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        assertEquals(List.of(new SetProperty(id, absorbingName, new PropertyValue.BooleanValue(false))), commands);
+        WidgetNode explicit = new WidgetNode(id, definition.typeId(), Map.of(absorbingName,
+                new PropertyValue.BooleanValue(false), semanticsName, new PropertyValue.BooleanValue(true)), widget.slots());
+        commands.clear();
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()), "editing must not recreate property groups");
+        assertSame(absorbing, property(node, "absorbing"));
+        assertSame(semantics, property(node, "ignoringSemantics"));
+        assertNull(absorbing.getPropertyEditor().getTags());
+        assertNull(semantics.getPropertyEditor().getTags());
+        assertTrue(semantics.getPropertyEditor().isPaintable());
+        semantics.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        absorbing.restoreDefaultValue();
+        semantics.restoreDefaultValue();
+        assertEquals(List.of(new SetProperty(id, semanticsName, new PropertyValue.BooleanValue(false)),
+                new ResetProperty(id, absorbingName), new ResetProperty(id, semanticsName)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("Designer selection and editing remain available"));
     }
 
     @Test
@@ -5501,6 +5553,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.PhysicalShape");
         typeIds.add("flutter.widgets.RepaintBoundary");
         typeIds.add("flutter.widgets.IgnorePointer");
+        typeIds.add("flutter.widgets.AbsorbPointer");
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -5527,7 +5580,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(55, iconPaths.size(),
+        assertEquals(56, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -128,6 +128,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.PhysicalShape",
                 "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.IgnorePointer",
+                "flutter.widgets.AbsorbPointer",
                 "flutter.widgets.ExcludeSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
@@ -1143,6 +1144,47 @@ class CanvasModelPayloadCodecTest {
             for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
                     new PropertyValue.DartExpressionValue("secretProjectCode()"))) {
                 var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.IgnorePointer"),
+                        Map.of(new PropertyName(property), value), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+            }
+        }
+    }
+
+    @Test
+    void absorbPointerPayloadRetainsBothExplicitFalseFlagsAndExactOmissionWithoutProtocolBump() throws Exception {
+        var states = List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true));
+        for (var absorbing : states) {
+            for (var semantics : states) {
+                for (boolean child : List.of(false, true)) {
+                    var values = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                    absorbing.ifPresent(value -> values.put(new PropertyName("absorbing"), new PropertyValue.BooleanValue(value)));
+                    semantics.ifPresent(value -> values.put(new PropertyName("ignoringSemantics"), new PropertyValue.BooleanValue(value)));
+                    var node = new WidgetNode(StableId.random(), type("flutter.widgets.AbsorbPointer"), values,
+                            Map.of(new SlotName("child"), child ? WidgetSlot.SingleSlot.of(text(
+                                    "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb", "AbsorbPointer child")) : WidgetSlot.SingleSlot.empty()));
+                    String json = new String(new CanvasModelPayloadCodec().encode(request(
+                            new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                    assertTrue(json.contains("\"protocolVersion\":18"), json);
+                    assertTrue(json.contains("\"type\":\"flutter.widgets.AbsorbPointer\""), json);
+                    assertEquals(absorbing.isPresent(), json.contains("\"absorbing\":"), json);
+                    assertEquals(semantics.isPresent(), json.contains("\"ignoringSemantics\":"), json);
+                    absorbing.ifPresent(value -> assertTrue(json.contains(
+                            "\"absorbing\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                    semantics.ifPresent(value -> assertTrue(json.contains(
+                            "\"ignoringSemantics\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                    assertEquals(child, json.contains("AbsorbPointer child"), json);
+                }
+            }
+        }
+    }
+
+    @Test
+    void absorbPointerPayloadRejectsRawOrNullBooleanSubstitutionBeforeSerialization() {
+        for (String property : List.of("absorbing", "ignoringSemantics")) {
+            for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                    new PropertyValue.DartExpressionValue("secretProjectCode()"))) {
+                var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.AbsorbPointer"),
                         Map.of(new PropertyName(property), value), Map.of());
                 assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), invalid))));

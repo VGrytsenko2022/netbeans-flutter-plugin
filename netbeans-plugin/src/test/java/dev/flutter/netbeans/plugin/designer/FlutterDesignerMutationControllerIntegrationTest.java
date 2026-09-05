@@ -5971,6 +5971,200 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteAbsorbPointerSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8c8c8c8c-8c8c-4c8c-8c8c-8c8c8c8c8c8c");
+        StableId childId = StableId.parse("8d8d8d8d-8d8d-4d8d-8d8d-8d8d8d8d8d8d");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.AbsorbPointer");
+        PropertyName absorbing = new PropertyName("absorbing");
+        PropertyName semantics = new PropertyName("ignoringSemantics");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(absorbing, new PropertyValue.BooleanValue(false));
+        configured.put(semantics, new PropertyValue.BooleanValue(true));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("absorb_pointer_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const AbsorbPointer("));
+                assertFalse(request.content().contains("absorbing:"));
+                assertFalse(request.content().contains("ignoringSemantics:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> surfaceId));
+            var added = applyPhysicalModelMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(),
+                    surface.properties());
+            assertTrue(((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().isEmpty());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("absorb_pointer_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("absorbing", "ignoringSemantics")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const AbsorbPointer("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyPhysicalModelMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            var childPlan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(
+                            current.document().orElseThrow(), current.catalog().orElseThrow(),
+                            new WidgetTypeId("flutter.widgets.Text"), surfaceId, CHILD, 0, () -> childId));
+            current = applyPhysicalModelMutation(fixture, current, childPlan.command(), surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "both explicit booleans survive child insertion");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("absorbing: false"));
+            assertTrue(generated.contains("ignoringSemantics: true"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 3; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, surfaceId));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 3; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, surfaceId));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(3, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "absorb_pointer_test_rejection", "AbsorbPointer candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, absorbing, new PropertyValue.BooleanValue(true)),
+                    "AbsorbPointer.absorbing").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("AbsorbPointer candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("absorb_pointer_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var semanticsCell = cellProperty(properties, "ignoringSemantics");
+            semanticsCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(false)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("ignoringSemantics: false"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyPhysicalModelMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(semantics, new PropertyValue.BooleanValue(false));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            edited = applyPhysicalModelMutation(fixture, edited, new SetProperty(surfaceId,
+                    absorbing, new PropertyValue.BooleanValue(true)), surfaceId);
+            edited = applyPhysicalModelMutation(fixture, edited, new ResetProperty(surfaceId, semantics), surfaceId);
+            edited = applyPhysicalModelMutation(fixture, edited, new ResetProperty(surfaceId, absorbing), surfaceId);
+            assertEquals(Map.of(), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertFalse(resetDart.contains("absorbing:"));
+            assertFalse(resetDart.contains("ignoringSemantics:"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("absorb_pointer_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.unset(), cellProperty(properties, "absorbing").getValue());
+            assertEquals(FlutterPropertyCellValue.unset(), cellProperty(properties, "ignoringSemantics").getValue());
+            assertTrue(cellProperty(properties, "absorbing").canWrite());
+            assertTrue(cellProperty(properties, "ignoringSemantics").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside absorbing subtree after reopen")));
+            assertEquals(1, childEdits.size(), "runtime absorbing must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyPhysicalModelMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside absorbing subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            current = applyPhysicalModelMutation(fixture, current, new RemoveWidget(childId), surfaceId);
+            assertEquals(Map.of(), findModelWidget(current.document().orElseThrow().root(), surfaceId).slots());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(FIRST_ID, SECOND_ID, surfaceId));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(FIRST_ID, SECOND_ID, surfaceId));
+            assertEquals(Map.of(), findModelWidget(current.document().orElseThrow().root(), surfaceId).slots());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(FIRST_ID, SECOND_ID, surfaceId));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("absorb_pointer_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside absorbing subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
+        }
+    }
+
+    @Test
     void paletteIgnorePointerSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
             throws Exception {
         StableId surfaceId = StableId.parse("8a8a8a8a-8a8a-4a8a-8a8a-8a8a8a8a8a8a");

@@ -3788,6 +3788,13 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.AbsorbPointer': _WidgetSpec(
+    {
+      'absorbing': _PropertySpec({'boolean'}),
+      'ignoringSemantics': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.Align': _WidgetSpec(
     {
       'alignment': _PropertySpec({'alignmentGeometry'}),
@@ -5645,6 +5652,10 @@ P|textAlignVertical|string|0|-|-|string:pattern:KD86dG9wfGNlbnRlcnxib3R0b20p
 P|textCapitalization|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:TextCapitalization:characters,none,sentences,words
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 P|textInputAction|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3NlcnZpY2VzLmRhcnQ:TextInputAction:continueAction,done,emergencyCall,go,join,newline,next,none,previous,route,search,send,unspecified
+W|flutter.widgets.AbsorbPointer
+P|absorbing|boolean|0|-|-|boolean:any
+P|ignoringSemantics|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.Align
 P|alignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1

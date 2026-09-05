@@ -926,6 +926,71 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesAbsorbPointerCompleteConstructorIncludingDeprecatedSemantics() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("absorb_pointer_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const AbsorbPointer();
+                Widget nullableDefaults() => const AbsorbPointer(ignoringSemantics: null, child: null);
+                Widget nested() => const Center(child: AbsorbPointer(
+                  absorbing: false, child: AbsorbPointer(child: Text('Nested pointer filter')),
+                ));
+                Widget themed(BuildContext context) => AbsorbPointer(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+                );
+                Widget nonConstDescendant() => AbsorbPointer(child: Text(DateTime.now().toString()));
+                List<Widget> completeBooleanMatrix() => const <Widget>[
+                  AbsorbPointer(absorbing: true, child: Text('default semantics')),
+                  AbsorbPointer(absorbing: false, child: Text('default semantics')),
+                  AbsorbPointer(absorbing: true, ignoringSemantics: false, child: Text('legacy retained')),
+                  AbsorbPointer(absorbing: false, ignoringSemantics: false, child: Text('legacy retained')),
+                  AbsorbPointer(absorbing: true, ignoringSemantics: true, child: Text('excluded')),
+                  AbsorbPointer(absorbing: false, ignoringSemantics: true, child: Text('excluded')),
+                ];
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("absorb-pointer",
+                valid.indexOf("AbsorbPointer"), "AbsorbPointer",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 700, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 701;
+        for (String invalid : List.of(
+                "const AbsorbPointer(absorbing: null)",
+                "const AbsorbPointer(absorbing: 'true')",
+                "const AbsorbPointer(ignoringSemantics: 1)",
+                "const AbsorbPointer(ignoring: true)",
+                "const AbsorbPointer(child: 'not a widget')",
+                "const AbsorbPointer(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

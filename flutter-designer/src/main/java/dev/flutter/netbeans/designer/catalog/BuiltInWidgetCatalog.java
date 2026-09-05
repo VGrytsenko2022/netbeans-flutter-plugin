@@ -77,6 +77,7 @@ public final class BuiltInWidgetCatalog {
             physicalShape(),
             repaintBoundary(),
             ignorePointer(),
+            absorbPointer(),
             excludeSemantics(),
             elevatedButton(),
             textField()));
@@ -1450,6 +1451,20 @@ public final class BuiltInWidgetCatalog {
                 IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.value(),
                 "IgnorePointer", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.basic", 300, 160, "IgnorePointer"), properties,
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition absorbPointer() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("absorbing", 0, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("ignoringSemantics", 1, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != AbsorbPointerWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("AbsorbPointer catalog/property schema count mismatch");
+        }
+        return widget(
+                AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.value(),
+                "AbsorbPointer", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 170, "AbsorbPointer"), properties,
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 

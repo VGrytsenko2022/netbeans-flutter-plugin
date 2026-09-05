@@ -171,17 +171,17 @@ radius constraint adds `BorderRadiusValues.directionalAllowed`, making Catalog
 API 13. PhysicalShape's typed ShapeBorderClipper value and constraint establish
 the current Catalog API 14 boundary; API 1 through API 13 contributors fail closed.
 `netbeans-plugin` owns the paired UI, pair operation transactions, native
-Canvas/tree selection edge, fifty-five-item context Palette, selected-node
+Canvas/tree selection edge, fifty-six-item context Palette, selected-node
 Properties and the installed `PairSaveCoordinator`/`SaveCookie` persistence
 edge.
 
-Properties are writable for exactly 761 catalog-backed fields across
+Properties are writable for exactly 763 catalog-backed fields across
 `Scaffold`, `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Padding`,
 `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`,
 `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`,
-`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon`
-and `Image`. Forty-nine of the fifty-five definitions use reviewed const
-constructors; the fifty-four non-`Scaffold` definitions account for 744 rows.
+`Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon`
+and `Image`. Fifty of the fifty-six definitions use reviewed const
+constructors; the fifty-five non-`Scaffold` definitions account for 746 rows.
 AspectRatio adds one required
 finite positive double and one optional child slot; its creation value is
 `1.0` and it has no theme dependency. Scaffold contributes a closed 17-field
@@ -845,19 +845,27 @@ layout/paint and passes ignored hits through rather than absorbing them. The SDK
 semantics matrix is retained: null follows ignoring for action blocking while
 keeping labels, false preserves actions, true drops the subtree. All typed editor,
 slot, generation, persistence and history paths include the deprecated field.
-The current surface has 55 widgets, 49 reviewed const definitions
-and 761 writable rows (744 outside `Scaffold`): Layout has 31 items, Scrolling three, Basic sixteen,
-Material four and Accessibility one. The practical backlog is 55/92 complete
-with 37 remaining. PhysicalShape's value advances `.fd` schema to v13, Canvas model
+AbsorbPointer adds the corresponding complete two-BOOLEAN/optional-child contract,
+but preserves its different hit-test behavior: absorbing true terminates traversal
+at its own bounds, blocking both the child and lower Stack siblings. The real
+RenderAbsorbPointer does not forward hits or change layout/paint. The Designer body
+remains selectable, with empty external targets, geometric DnD and tree-selected
+descendant editing independent of runtime absorption. Omitted absorbing/default
+true and ignoringSemantics/default null stay distinct from both checkbox values;
+its deprecated semantics override follows the same null/false/true SDK matrix.
+The current surface has 56 widgets, 50 reviewed const definitions
+and 763 writable rows (746 outside `Scaffold`): Layout has 31 items, Scrolling three, Basic seventeen,
+Material four and Accessibility one. The practical backlog is 56/92 complete
+with 36 remaining. PhysicalShape's value advances `.fd` schema to v13, Canvas model
 to v18 and contributor Catalog API to 14. NBFC framing, control and
 wire remain v1.
 
-The current contract admits fifty-five exact capability-gated Palette sources
-across fifty insertable any-widget and two `PreferredSizeWidget`
-destination slots: 2,860 candidates, of which 2,608 are accepted and 252
+The current contract admits fifty-six exact capability-gated Palette sources
+across fifty-one insertable any-widget and two `PreferredSizeWidget`
+destination slots: 2,968 candidates, of which 2,711 are accepted and 257
 rejected. Expanded and Flexible enter only direct `Row.children` and
 `Column.children` wrapper targets; Spacer enters those two list slots by
-ordinary insertion; SafeArea is admitted to the fifty any-widget slots
+ordinary insertion; SafeArea is admitted to the fifty-one any-widget slots
 but rejected by the two trait-bound slots. Directionality follows the same
 any-widget admission and trait rejection. All required wrapper child slots are
 replacement-only and excluded
@@ -1034,7 +1042,7 @@ supervise its child surface.
 The first Java-to-Flutter drag/drop vertical slice was Windows-only and
 Text-only. It established that a native OLE drag carries only the bounded
 process-local one-shot opaque token issued by the active Designer view. That
-historical source restriction is superseded by the current fifty-five-definition
+historical source restriction is superseded by the current fifty-six-definition
 capability-gated catalog matrix; the transport and identity fencing remain
 unchanged. Before native transfer, the source-aware control binds that token to
 the exact current canonical type and traits for compatible hover filtering. The
@@ -1078,7 +1086,7 @@ project paths, Dart source, file handles, Save, Undo/Redo or persistence
 authority. Image creation additionally resolves the first sorted declared asset
 when available, or stores the reserved unresolved provider when the inventory is
 empty or unavailable; only destination and authority failures reject DnD. DnD
-outside the fifty-five-source, 2,860-candidate matrix (2,608 accepted, 252 rejected)
+outside the fifty-six-source, 2,968-candidate matrix (2,711 accepted, 257 rejected)
 remains disabled; process separation is not described as an OS security
 sandbox.
 
@@ -1095,7 +1103,7 @@ the Canvas capability: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
 `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `ListView`, `GridView.count`,
-`SingleChildScrollView`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
+`SingleChildScrollView`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `Container`, `Opacity`, `Text`, `Icon` and `Image`.
 Java fingerprints the complete property/slot schema and the
 isolated Flutter runner independently enforces the same reviewed contract; it
 cannot execute arbitrary project code. `CATALOG_JSON` remains reserved for a
@@ -1304,9 +1312,9 @@ synchronization at the final target.
 Stable widget IDs synchronize selection between the native
 Canvas and the Explorer/Nodes tree; the selected Node is published through the
 standard Explorer lookup with catalog-driven typed Properties, while the active
-Design lookup supplies a Palette filtered to the exact fifty-five widgets carrying
+Design lookup supplies a Palette filtered to the exact fifty-six widgets carrying
 the Create capability. The 52 built-ins with scalar properties, including `Scaffold`,
-admit the reviewed 761-property Set/Reset/Patch slice through an exact revision token
+admit the reviewed 763-property Set/Reset/Patch slice through an exact revision token
 and analyzed pair-save. IntrinsicHeight and RepaintBoundary have zero scalar
 constructor properties but retain structural child-slot editing. The 120 AppBar and 59
 Text leaves use typed string/list, optional checkbox, numeric, enum,

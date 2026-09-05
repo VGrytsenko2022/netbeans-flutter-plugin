@@ -300,6 +300,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.ExcludeFocusTraversal".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.ExcludeFocusTraversal.Name"));
                 setShortDescription(message("Widget.ExcludeFocusTraversal.Description"));
+            } else if ("flutter.widgets.Visibility".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.Visibility.Name"));
+                setShortDescription(message("Widget.Visibility.Description"));
             } else if ("flutter.widgets.IndexedSemantics".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.IndexedSemantics.Name"));
                 setShortDescription(message("Widget.IndexedSemantics.Description"));

@@ -129,6 +129,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.AbsorbPointer",
+                "flutter.widgets.Visibility",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -1350,6 +1351,54 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new PropertyName("excluding"), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+    }
+
+    @Test
+    void visibilityPayloadPreservesBothBranchesAndAllBooleanStatesWithoutRuntimeOrSourceData() throws Exception {
+        var child = text("dc52facb-cb38-41f5-ae2e-af97424c8ea4", "Visibility child");
+        var replacement = text("df33eade-ae49-4a34-bfd2-4e0f391d9f82", "Visibility replacement");
+        for (Optional<Boolean> state : List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true))) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            state.ifPresent(value -> List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                    "maintainSemantics", "maintainInteractivity", "maintainFocusability").forEach(name ->
+                    properties.put(new PropertyName(name), new PropertyValue.BooleanValue(value))));
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.Visibility"), properties,
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child),
+                            new SlotName("replacement"), WidgetSlot.SingleSlot.of(replacement)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"type\":\"flutter.widgets.Visibility\""), json);
+            assertTrue(json.contains("Visibility child"), json);
+            assertTrue(json.contains("Visibility replacement"), json);
+            for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                    "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+                assertEquals(state.isPresent(), json.contains("\"" + name + "\":"), json);
+                state.ifPresent(value -> assertTrue(json.contains("\"" + name + "\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+            }
+            for (String name : List.of("maintain", "canRequestFocus", "descendantsAreFocusable", "includeSemantics", "key")) {
+                assertFalse(json.contains("\"" + name + "\":"), json);
+            }
+        }
+    }
+
+    @Test
+    void visibilityPayloadRejectsInvalidDependenciesMalformedBooleansAndMissingChild() {
+        var child = text("dc52facb-cb38-41f5-ae2e-af97424c8ea4", "Visibility child");
+        for (String name : List.of("maintainAnimation", "maintainSize", "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.Visibility"),
+                    Map.of(new PropertyName(name), new PropertyValue.BooleanValue(true)),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        for (var node : List.of(
+                new WidgetNode(StableId.random(), type("flutter.widgets.Visibility"), Map.of(), Map.of()),
+                new WidgetNode(StableId.random(), type("flutter.widgets.Visibility"), Map.of(new PropertyName("visible"), new PropertyValue.NullValue()),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))))) {
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

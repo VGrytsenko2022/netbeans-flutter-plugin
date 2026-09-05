@@ -1797,6 +1797,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.IndexedSemantics", ICON_ROOT + "indexedsemantics.svg");
         expected.put("flutter.widgets.ExcludeFocus", ICON_ROOT + "excludefocus.svg");
         expected.put("flutter.widgets.ExcludeFocusTraversal", ICON_ROOT + "excludefocustraversal.svg");
+        expected.put("flutter.widgets.Visibility", ICON_ROOT + "visibility.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

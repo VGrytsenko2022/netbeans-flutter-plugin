@@ -418,11 +418,14 @@ public final class DartRegionGenerator {
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
             if (value != null) {
-                if (node.type().value().equals("flutter.widgets.Transform")
+                if ((node.type().value().equals("flutter.widgets.Transform")
+                        || (node.type().value().equals("flutter.widgets.Visibility")
+                        && slot.name().value().equals("replacement")))
                         && !slot.parameter().required()
                         && value instanceof WidgetSlot.SingleSlot single
                         && single.child().isEmpty()) {
-                    // Preserve Transform.new's omitted nullable child in generated Dart.
+                    // Preserve omitted Transform.child and Visibility's non-null
+                    // SizedBox.shrink replacement default; empty is not Dart null.
                     continue;
                 }
                 String slotPath = path + "/slots/" + pointer(slot.name().value());

@@ -83,6 +83,116 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void visibilityProjectsAllSevenCheckboxUnsetCellsAndRetainsPropertyIdentity() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.Visibility");
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                StableId.parse("92a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        WidgetNode widget = new WidgetNode(StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a"),
+                definition.typeId(), Map.of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child),
+                        new SlotName("replacement"), WidgetSlot.SingleSlot.empty()));
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+            var cell = cellProperty(property(node, name));
+            assertTrue(cell.canWrite(), name);
+            assertTrue(cell.supportsDefaultValue());
+            assertEquals(FlutterPropertyCellValue.unset(), cell.getValue());
+            for (boolean flag : List.of(true, false)) {
+                PropertyEditor editor = cell.getPropertyEditor();
+                editor.setAsText(Boolean.toString(flag));
+                assertNull(editor.getTags());
+                assertTrue(editor.isPaintable());
+                assertEquals(new PropertyValue.BooleanValue(flag), cell(editor).explicitValue().orElseThrow());
+            }
+            assertTrue(cell.getShortDescription().contains("Changing Maintain flags can discard descendant state"));
+            assertTrue(cell.getShortDescription().contains("Visibility.maintain"));
+            var explicit = new WidgetNode(widget.id(), widget.type(),
+                    Map.of(new PropertyName(name), new PropertyValue.BooleanValue(false)), widget.slots());
+            node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            assertEquals(List.of(sets), List.of(node.getPropertySets()));
+            assertSame(cell, property(node, name));
+            assertNull(cell.getPropertyEditor().getTags());
+            commands.clear();
+            cell.restoreDefaultValue();
+            assertEquals(List.of(new ResetProperty(widget.id(), new PropertyName(name))), commands);
+            node.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        }
+        assertTrue(property(node, "child").getShortDescription().contains("cannot be removed or cleared"));
+        assertTrue(property(node, "replacement").getShortDescription().contains("SizedBox.shrink"));
+        assertTrue(property(node, "replacement").getShortDescription().contains("Ignored while Maintain state is true"));
+    }
+
+    @Test
+    void visibilityEnablingEachDependentSetsOnlyItsRequiredPrerequisitesInOneAtomicCommand() throws Exception {
+        Map<String, List<String>> prerequisites = Map.of(
+                "maintainState", List.of(),
+                "maintainAnimation", List.of("maintainState"),
+                "maintainSize", List.of("maintainState", "maintainAnimation"),
+                "maintainSemantics", List.of("maintainState", "maintainAnimation", "maintainSize"),
+                "maintainInteractivity", List.of("maintainState", "maintainAnimation", "maintainSize"),
+                "maintainFocusability", List.of("maintainState"));
+        WidgetDefinition definition = definition("flutter.widgets.Visibility");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition,
+                StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a"));
+        for (var entry : prerequisites.entrySet()) {
+            List<DesignerCommand> commands = new ArrayList<>();
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            cellProperty(property(node, entry.getKey())).setValue(
+                    FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+            assertEquals(1, commands.size());
+            if (entry.getValue().isEmpty()) {
+                assertEquals(new SetProperty(widget.id(), new PropertyName(entry.getKey()),
+                        new PropertyValue.BooleanValue(true)), commands.getFirst());
+            } else {
+                List<PatchProperties.Patch> expected = new ArrayList<>();
+                for (String name : entry.getValue()) {
+                    expected.add(new PatchProperties.SetPatch(new PropertyName(name), new PropertyValue.BooleanValue(true)));
+                }
+                expected.add(new PatchProperties.SetPatch(new PropertyName(entry.getKey()), new PropertyValue.BooleanValue(true)));
+                assertEquals(expected, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches());
+            }
+        }
+    }
+
+    @Test
+    void visibilityDisablingOrResettingPrerequisitesUnsetsOnlyTrueTransitiveDependents() throws Exception {
+        Map<String, List<String>> dependents = Map.of(
+                "maintainState", List.of("maintainAnimation", "maintainSize", "maintainSemantics",
+                        "maintainInteractivity", "maintainFocusability"),
+                "maintainAnimation", List.of("maintainSize", "maintainSemantics", "maintainInteractivity"),
+                "maintainSize", List.of("maintainSemantics", "maintainInteractivity"));
+        WidgetDefinition definition = definition("flutter.widgets.Visibility");
+        for (var entry : dependents.entrySet()) {
+            for (boolean reset : List.of(false, true)) {
+                Map<PropertyName, PropertyValue> values = new LinkedHashMap<>();
+                for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                        "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+                    values.put(new PropertyName(name), new PropertyValue.BooleanValue(!"maintainInteractivity".equals(name)));
+                }
+                var widget = new WidgetNode(StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a"),
+                        definition.typeId(), values, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty(),
+                                new SlotName("replacement"), WidgetSlot.SingleSlot.empty()));
+                List<DesignerCommand> commands = new ArrayList<>();
+                var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+                var cell = cellProperty(property(node, entry.getKey()));
+                if (reset) cell.restoreDefaultValue();
+                else cell.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+                assertEquals(1, commands.size());
+                List<PatchProperties.Patch> expected = new ArrayList<>();
+                for (String name : entry.getValue()) {
+                    if (!"maintainInteractivity".equals(name)) expected.add(new PatchProperties.ResetPatch(new PropertyName(name)));
+                }
+                expected.add(reset ? new PatchProperties.ResetPatch(new PropertyName(entry.getKey()))
+                        : new PatchProperties.SetPatch(new PropertyName(entry.getKey()), new PropertyValue.BooleanValue(false)));
+                assertEquals(expected, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches(),
+                        "unrelated values and explicit false dependents must survive " + entry.getKey());
+            }
+        }
+    }
+
+    @Test
     void singleChildScrollViewProjectsExactTenPropertiesAndOptionalChildSlot()
             throws Exception {
         WidgetDefinition definition = definition(
@@ -891,6 +1001,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.IndexedSemantics",
                     "flutter.widgets.ExcludeFocus",
                     "flutter.widgets.ExcludeFocusTraversal",
+                    "flutter.widgets.Visibility",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -926,7 +1037,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(767, writableCount,
+        assertEquals(774, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -939,7 +1050,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(750, nonScaffoldWritableCount,
+        assertEquals(757, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -5788,6 +5899,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.IndexedSemantics");
         typeIds.add("flutter.widgets.ExcludeFocus");
         typeIds.add("flutter.widgets.ExcludeFocusTraversal");
+        typeIds.add("flutter.widgets.Visibility");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -5817,7 +5929,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(61, iconPaths.size(),
+        assertEquals(62, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

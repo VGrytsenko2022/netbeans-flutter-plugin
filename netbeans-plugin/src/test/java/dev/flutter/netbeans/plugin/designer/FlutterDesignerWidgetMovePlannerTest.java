@@ -137,6 +137,37 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void completedVisibilityMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
+        WidgetNode requiredChild = validText(D_ID, "focus child");
+        WidgetNode visibility = new WidgetNode(
+                A_ID,
+                new WidgetTypeId("flutter.widgets.Visibility"),
+                Map.of(new PropertyName("visible"),
+                        new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild), new SlotName("replacement"), WidgetSlot.SingleSlot.empty()));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(
+                ROOT_ID,
+                COLUMN,
+                CHILDREN,
+                List.of(visibility, stack)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                visibility.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(visibility.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0),
+                command.destination());
+        assertEquals(requiredChild, ((WidgetSlot.SingleSlot)
+                visibility.slots().get(CHILD)).child().orElseThrow());
+        assertAcceptedCommandApplies(document, BUILT_INS, visibility, result);
+    }
+
+    @Test
     void onListPlansTerminalPostRemovalIndexWithoutMutatingSubtree() {
         WidgetNode nestedText = validText(D_ID, "nested");
         WidgetNode source = new WidgetNode(

@@ -42,6 +42,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
+import dev.flutter.netbeans.designer.command.AddWidget;
 import dev.flutter.netbeans.designer.command.DesignerCommandRevision;
 import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
@@ -554,6 +555,331 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     }
                 });
             }
+        }
+    }
+
+
+
+    @Test
+    void visibilityAtomicDependenciesAndBothSlotsSurviveSaveReopenHistoryAndRollback() throws Exception {
+        StableId wrapperId = StableId.parse("8a8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId replacementId = StableId.parse("9a949494-9494-4494-8494-949494949494");
+        SlotName replacementSlot = new SlotName("replacement");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.Visibility");
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("visibility_atomic_flags_slots", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready();
+            var wrap = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            current.document().orElseThrow(), current.catalog().orElseThrow(),
+                            type, FIRST_ID, () -> wrapperId));
+            current = applyVisibilityMutation(fixture, current, wrap.command(), wrapperId);
+            WidgetNode icon = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(), replacementId);
+            current = applyVisibilityMutation(fixture, current,
+                    new AddWidget(new WidgetPlacement(wrapperId, replacementSlot, 0), icon), wrapperId);
+            current = applyVisibilityMutation(fixture, current,
+                    new SetProperty(wrapperId, new PropertyName("visible"), new PropertyValue.BooleanValue(false)), wrapperId);
+            WidgetNode before = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            List<DesignerCommand> edits = new ArrayList<>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, before,
+                    current.catalog().orElseThrow().find(type).orElseThrow(), edits::add);
+            cellProperty(properties, "maintainSemantics").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+            assertEquals(1, edits.size());
+            assertEquals(4, assertInstanceOf(PatchProperties.class, edits.getFirst()).patches().size());
+            current = applyVisibilityMutation(fixture, current, edits.getFirst(), wrapperId);
+            WidgetNode maintained = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            assertEquals(icon, ((WidgetSlot.SingleSlot) maintained.slots().get(replacementSlot)).child().orElseThrow(),
+                    "ignored replacement is retained, never dropped by a Maintain edit");
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+            assertEquals(before, findModelWidget(current.document().orElseThrow().root(), wrapperId),
+                    "one Undo restores every prerequisite and edited flag");
+            token = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+            assertEquals(maintained, findModelWidget(current.document().orElseThrow().root(), wrapperId));
+            for (String name : List.of("maintainInteractivity", "maintainFocusability")) {
+                WidgetNode owner = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+                edits.clear();
+                properties = new FlutterWidgetPropertiesNode(Children.LEAF, owner,
+                        current.catalog().orElseThrow().find(type).orElseThrow(), edits::add);
+                cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+                current = applyVisibilityMutation(fixture, current, edits.getFirst(), wrapperId);
+            }
+            WidgetNode allMaintained = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            for (String name : List.of("maintainState", "maintainAnimation", "maintainSize",
+                    "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+                assertEquals(new PropertyValue.BooleanValue(true), allMaintained.properties().get(new PropertyName(name)));
+            }
+            edits.clear();
+            properties = new FlutterWidgetPropertiesNode(Children.LEAF, allMaintained,
+                    current.catalog().orElseThrow().find(type).orElseThrow(), edits::add);
+            cellProperty(properties, "maintainState").restoreDefaultValue();
+            assertEquals(6, assertInstanceOf(PatchProperties.class, edits.getFirst()).patches().size());
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request, "visibility_atomic_rejected", "Visibility atomic candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), edits.getFirst(),
+                    "Visibility atomic reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(allMaintained, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId));
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            saved = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_atomic_reopened", saved)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            assertEquals(replacementId, ((WidgetSlot.SingleSlot) restored.slots().get(replacementSlot)).child().orElseThrow().id());
+            List<DesignerCommand> edits = new ArrayList<>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored,
+                    current.catalog().orElseThrow().find(type).orElseThrow(), edits::add);
+            cellProperty(properties, "maintainSize").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+            assertEquals(3, assertInstanceOf(PatchProperties.class, edits.getFirst()).patches().size());
+            current = applyVisibilityMutation(fixture, current, edits.getFirst(), wrapperId);
+            WidgetNode changed = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            assertFalse(changed.properties().containsKey(new PropertyName("maintainSemantics")));
+            assertFalse(changed.properties().containsKey(new PropertyName("maintainInteractivity")));
+            assertEquals(new PropertyValue.BooleanValue(true), changed.properties().get(new PropertyName("maintainFocusability")));
+            current = applyVisibilityMutation(fixture, current,
+                    new SetProperty(FIRST_ID, DATA, new PropertyValue.StringValue("Hidden child edited after reopen")), wrapperId);
+            current = applyVisibilityMutation(fixture, current,
+                    new SetProperty(replacementId, new PropertyName("semanticLabel"),
+                            new PropertyValue.StringValue("Ignored replacement edited after reopen")), wrapperId);
+            WidgetNode replacement = findModelWidget(current.document().orElseThrow().root(), replacementId);
+            current = applyVisibilityMutation(fixture, current, new RemoveWidget(replacementId), wrapperId);
+            assertTrue(((WidgetSlot.SingleSlot) findModelWidget(current.document().orElseThrow().root(), wrapperId)
+                    .slots().getOrDefault(replacementSlot, WidgetSlot.SingleSlot.empty())).child().isEmpty());
+            assertFalse(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8)
+                    .contains("replacement:"), "clearing preserves the SDK default instead of persisting a fake child");
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+            assertEquals(replacement, findModelWidget(current.document().orElseThrow().root(), replacementId));
+            byte[] beforeBadMove = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new MoveWidget(FIRST_ID, new WidgetPlacement(COLUMN_ID, CHILDREN, 2)),
+                    "Move Visibility required child out to Column").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertArrayEquals(beforeBadMove, fixture.editor().liveSnapshot().markerBearingUtf8());
+            saved = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_slots_further_reopened", saved)) {
+            var current = fixture.ready();
+            assertEquals(new PropertyValue.StringValue("Hidden child edited after reopen"),
+                    findModelWidget(current.document().orElseThrow().root(), FIRST_ID).properties().get(DATA));
+            assertEquals(new PropertyValue.StringValue("Ignored replacement edited after reopen"),
+                    findModelWidget(current.document().orElseThrow().root(), replacementId).properties().get(new PropertyName("semanticLabel")));
+        }
+    }
+
+    @Test
+    void paletteVisibilitySaveReopenAllPropertiesChildUndoRedoAndFailureRollback()
+            throws Exception {
+        StableId surfaceId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8e");
+        StableId childId = FIRST_ID;
+        StableId replacementId = StableId.parse("94949494-9494-4494-8494-949494949494");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.Visibility");
+        PropertyName excluding = new PropertyName("visible");
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+            configured.put(new PropertyName(name), new PropertyValue.BooleanValue(false));
+        }
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("visibility_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("const Visibility("));
+                assertFalse(request.content().contains("visible:"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                            ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, childId, () -> surfaceId));
+            var added = applyVisibilityMutation(fixture, ready, plan.command(), surfaceId);
+            WidgetNode surface = findModelWidget(added.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(),
+                    surface.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) surface.slots().get(CHILD)).child().orElseThrow().id());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, current.catalog().orElseThrow().find(type).orElseThrow(),
+                    ignored -> { });
+            for (String name : List.of("visible", "maintainState", "maintainAnimation", "maintainSize",
+                    "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+                assertTrue(cellProperty(properties, name).canWrite(), name);
+                assertNotNull(cellProperty(properties, name).getPropertyEditor(), name);
+            }
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("const Visibility("));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                current = applyVisibilityMutation(fixture, current,
+                        new SetProperty(surfaceId, entry.getKey(), entry.getValue()), surfaceId);
+            }
+            current = applyVisibilityMutation(fixture, current,
+                    new SetProperty(childId, DATA, new PropertyValue.StringValue("Child edited after toggling visibility")),
+                    surfaceId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, complete.properties(),
+                    "explicit false survives descendant editing");
+            assertEquals(childId, ((WidgetSlot.SingleSlot) complete.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            PairSaveEvidence evidence = fixture.coordinator().stagedEvidence();
+            byte[] exactDart = evidence.candidateDartBytes();
+            byte[] exactFd = evidence.preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("visible: false"));
+            DesignerCombinedUndoRedo combined = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 8; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canUndo()); combined.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            for (int index = 0; index < 8; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(combined.canRedo()); combined.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(surfaceId, SECOND_ID));
+            }
+            assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), surfaceId));
+            assertEquals(8, analyses.get(), "Undo/Redo must reuse the exact analyzed pairs");
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            byte[] retainedLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request,
+                            "visibility_test_rejection", "Visibility candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(surfaceId, excluding, new PropertyValue.BooleanValue(true)),
+                    "Visibility.visible").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejected.outcome(), rejected::reason);
+            assertTrue(rejected.reason().contains("Visibility candidate rejected"));
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot()
+                    .document().orElseThrow().root(), surfaceId));
+            assertArrayEquals(retainedLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence()
+                    .preparedPairIdentity().prospectiveFdBytes());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_configured_reopened", configuredPair)) {
+            var reopened = fixture.ready();
+            WidgetNode restored = findModelWidget(reopened.document().orElseThrow().root(), surfaceId);
+            assertEquals(configured, restored.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD))
+                    .child().orElseThrow().id());
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, restored, reopened.catalog().orElseThrow().find(type).orElseThrow(),
+                    commands::add);
+            var excludingCell = cellProperty(properties, "visible");
+            excludingCell.setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.BooleanValue(true)));
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("visible: true"));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var edited = applyVisibilityMutation(fixture, reopened, commands.getFirst(), surfaceId);
+            WidgetNode after = findModelWidget(edited.document().orElseThrow().root(), surfaceId);
+            var expected = new java.util.LinkedHashMap<>(configured);
+            expected.put(excluding, new PropertyValue.BooleanValue(true));
+            assertEquals(expected, after.properties());
+            assertEquals(restored.slots(), after.slots());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            for (PropertyName name : configured.keySet()) {
+                edited = applyVisibilityMutation(fixture, edited, new ResetProperty(surfaceId, name), surfaceId);
+            }
+            assertEquals(Map.of(), findModelWidget(edited.document().orElseThrow().root(), surfaceId).properties());
+            String resetDart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertFalse(resetDart.contains("visible:"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_reset_reopened", configuredPair)) {
+            var ready = fixture.ready();
+            WidgetNode widget = findModelWidget(ready.document().orElseThrow().root(), surfaceId);
+            assertEquals(Map.of(), widget.properties());
+            assertEquals(childId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget,
+                    ready.catalog().orElseThrow().find(type).orElseThrow(), ignored -> { });
+            assertEquals(FlutterPropertyCellValue.unset(), cellProperty(properties, "visible").getValue());
+            assertTrue(cellProperty(properties, "visible").canWrite());
+            WidgetNode child = ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow();
+            List<DesignerCommand> childEdits = new ArrayList<>();
+            FlutterWidgetPropertiesNode childProperties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, child, ready.catalog().orElseThrow().find(child.type()).orElseThrow(),
+                    childEdits::add);
+            cellProperty(childProperties, "data").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.StringValue("Edited inside hidden subtree after reopen")));
+            assertEquals(1, childEdits.size(), "hidden visibility must not disable Designer child editing");
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyVisibilityMutation(fixture, ready, childEdits.getFirst(), surfaceId);
+            WidgetNode editedChild = findModelWidget(current.document().orElseThrow().root(), childId);
+            assertEquals(new PropertyValue.StringValue("Edited inside hidden subtree after reopen"),
+                    editedChild.properties().get(DATA));
+            byte[] beforeIllegalRemoval = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejectedRemoval = fixture.mutations().submit(current.token().orElseThrow(),
+                    new RemoveWidget(childId), "Visibility required child removal").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED,
+                    rejectedRemoval.outcome(), rejectedRemoval::reason);
+            assertEquals(editedChild, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), childId));
+            assertArrayEquals(beforeIllegalRemoval, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = awaitReady(fixture.mutations());
+            WidgetNode replacement = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Icon")).orElseThrow(),
+                    replacementId);
+            current = applyVisibilityMutation(fixture, current,
+                    new ReplaceSlotChild(surfaceId, CHILD, childId, new ReplaceSlotChild.NewSubtree(replacement)), surfaceId);
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            var removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            var restoredToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), restoredToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(replacement, ((WidgetSlot.SingleSlot) findModelWidget(
+                    current.document().orElseThrow().root(), surfaceId).slots().get(CHILD)).child().orElseThrow());
+            removedToken = current.token().orElseThrow();
+            onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), removedToken,
+                    List.of(surfaceId, SECOND_ID));
+            assertEquals(editedChild, findModelWidget(current.document().orElseThrow().root(), childId));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("visibility_descendant_reopened", configuredPair)) {
+            var document = fixture.ready().document().orElseThrow();
+            assertEquals(Map.of(), findModelWidget(document.root(), surfaceId).properties());
+            assertEquals(new PropertyValue.StringValue("Edited inside hidden subtree after reopen"),
+                    findModelWidget(document.root(), childId).properties().get(DATA));
         }
     }
 
@@ -7291,11 +7617,23 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 List.of(wrapperId, SECOND_ID));
     }
 
+
+
     private static FlutterDesignerMutationController.Snapshot applyExcludeFocusTraversalMutation(
             MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
             DesignerCommand command, StableId wrapperId) throws Exception {
         var result = fixture.mutations().submit(before.token().orElseThrow(), command,
                 "ExcludeFocusTraversal properties and required child editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(wrapperId, SECOND_ID));
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyVisibilityMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "Visibility properties and both child slots editing").get(10, TimeUnit.SECONDS);
         assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
                 List.of(wrapperId, SECOND_ID));

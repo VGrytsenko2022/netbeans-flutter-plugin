@@ -1341,6 +1341,101 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesVisibilityCompleteConstructorAndMaintainEquivalent() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("visibility_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget omitted() => const Visibility(child: Text('Default visible'));
+                Widget replacement() => const Visibility(visible: false,
+                  child: Text('Hidden'), replacement: Icon(Icons.info));
+                Widget maintainNamed() => const Visibility.maintain(visible: false, child: TextField());
+                Widget maintainEquivalent() => const Visibility(visible: false, maintainState: true,
+                  maintainAnimation: true, maintainSize: true, maintainSemantics: true,
+                  maintainInteractivity: true, maintainFocusability: true, child: TextField());
+                Widget ignoredReplacement() => const Visibility(visible: false, maintainState: true,
+                  replacement: Text('Unused'), child: Text('State retained'));
+                Widget nested() => const Visibility(visible: false,
+                  child: Visibility.maintain(child: Text('Nested')));
+                Widget themed(BuildContext context) => Visibility(
+                  child: Text('Theme', style: TextStyle(color: Theme.of(context).colorScheme.primary)));
+                Widget changing(bool visible) => Visibility(visible: visible,
+                  child: Text(DateTime.now().toString()));
+                Widget focusAndSemantics() => const IndexedSemantics(index: 0,
+                  child: ExcludeFocusTraversal(child: Visibility.maintain(child: TextField())));
+                Widget scrolling() => ListView(children: const [
+                  Visibility(child: Text('First')), Visibility(visible: false, child: Text('Second')),
+                ]);
+                List<Widget> completeBooleanMatrix() => const <Widget>[
+                """);
+        List<String> flags = List.of("maintainState", "maintainAnimation", "maintainSize",
+                "maintainSemantics", "maintainInteractivity", "maintainFocusability");
+        int validStates = 0;
+        for (int mask = 0; mask < 64; mask++) {
+            boolean state = (mask & 1) != 0, animation = (mask & 2) != 0, size = (mask & 4) != 0;
+            boolean semantics = (mask & 8) != 0, interactivity = (mask & 16) != 0, focus = (mask & 32) != 0;
+            if ((!state && (animation || focus)) || (!animation && size) || (!size && (semantics || interactivity))) {
+                continue;
+            }
+            validStates++;
+            for (boolean visible : List.of(false, true)) {
+                valid.append("Visibility(child: Text('Matrix'), replacement: SizedBox.shrink(), visible: ")
+                        .append(visible);
+                for (int bit = 0; bit < flags.size(); bit++) {
+                    valid.append(", ").append(flags.get(bit)).append(": ").append((mask & (1 << bit)) != 0);
+                }
+                valid.append("),\n");
+            }
+        }
+        assertEquals(13, validStates);
+        valid.append("];\n");
+        String candidate = valid.toString();
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("visibility", candidate.indexOf("Visibility"),
+                "Visibility", "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1300, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1301;
+        for (String invalid : List.of(
+                "const Visibility()", "const Visibility(child: null)",
+                "const Visibility(child: Text('Bad'), replacement: null)",
+                "const Visibility(child: Text('Bad'), visible: null)",
+                "const Visibility(child: Text('Bad'), maintainState: 'true')",
+                "const Visibility(child: Text('Bad'), maintainAnimation: true)",
+                "const Visibility(child: Text('Bad'), maintainState: true, maintainSize: true)",
+                "const Visibility(child: Text('Bad'), maintainState: true, maintainAnimation: true, maintainSemantics: true)",
+                "const Visibility(child: Text('Bad'), maintainState: true, maintainAnimation: true, maintainInteractivity: true)",
+                "const Visibility(child: Text('Bad'), maintainFocusability: true)",
+                "const Visibility(child: Text('Bad'), maintain: true)",
+                "const Visibility(child: Text('Bad'), replacement: 'not a widget')",
+                "const Visibility.maintain(child: Text('Bad'), replacement: Text('Invalid named field'))",
+                "const Visibility(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

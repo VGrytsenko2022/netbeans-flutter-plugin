@@ -805,6 +805,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.RepaintBoundary",
                     "flutter.widgets.IgnorePointer",
                     "flutter.widgets.AbsorbPointer",
+                    "flutter.widgets.Visibility",
                     "flutter.widgets.ExcludeSemantics",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",

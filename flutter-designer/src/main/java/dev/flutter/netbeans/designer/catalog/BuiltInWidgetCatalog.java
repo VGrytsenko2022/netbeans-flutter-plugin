@@ -78,6 +78,7 @@ public final class BuiltInWidgetCatalog {
             repaintBoundary(),
             ignorePointer(),
             absorbPointer(),
+            visibility(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -1916,6 +1917,20 @@ public final class BuiltInWidgetCatalog {
                 "ExcludeFocusTraversal", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
                 palette("flutter.accessibility", 400, 60, "ExcludeFocusTraversal"), properties,
                 List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition visibility() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        VisibilityWidgetPropertySchema.definitions().forEach((name, schema) -> properties.add(
+                namedProperty(name, schema.dartOrder(), false, any(PropertyValueKind.BOOLEAN))));
+        if (properties.size() != VisibilityWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("Visibility catalog/property schema count mismatch");
+        }
+        return widget(VisibilityWidgetPropertySchema.VISIBILITY_TYPE.value(), "Visibility", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 180, "Visibility"), properties,
+                List.of(singleSlot("child", 0, true, 1, ANY_WIDGET),
+                        singleSlot("replacement", 1, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition textField() {

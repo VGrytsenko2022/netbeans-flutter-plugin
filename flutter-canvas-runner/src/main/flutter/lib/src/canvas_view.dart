@@ -573,6 +573,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
         node.type == 'flutter.widgets.ExcludeFocusTraversal' ||
+        node.type == 'flutter.widgets.Visibility' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
@@ -828,7 +829,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final node = _findCanvasNode(widget.model.root, widgetId);
     if (node == null ||
         node.type != 'flutter.widgets.Text' ||
-        node.properties['data']?.value is! String) {
+        node.properties['data']?.value is! String ||
+        !_isInteractiveDescendant(widget.model.root, widgetId)) {
       return false;
     }
     if (_inlineTextEditSession?.widgetId == widgetId) {
@@ -886,7 +888,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       return false;
     }
     return _findCanvasNode(widget.model.root, session.widgetId)?.type ==
-        'flutter.widgets.Text';
+            'flutter.widgets.Text' &&
+        _isInteractiveDescendant(widget.model.root, session.widgetId);
   }
 
   void _restoreCanvasFocusAfterFrame() {
@@ -988,6 +991,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         (requiredChildOwner.id != parentWidgetId || slotName != 'child')) {
       // A move cannot expose an invalid empty required slot. Keep same-slot
       // no-op previews; the host still owns final mutation validation.
+      return null;
+    }
+    if (!_isInteractiveDescendant(widget.model.root, parentWidgetId) ||
+        !_isInteractiveSlot(parentNode, slotName)) {
       return null;
     }
     final modelSlot = parentNode.slot(slotName);
@@ -1357,7 +1364,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       }
     } else {
       for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
-        if (!dropSlot.acceptsSource(source)) {
+        if (!dropSlot.acceptsSource(source) ||
+            !_isInteractiveSlot(node, dropSlot.slotName)) {
           continue;
         }
         final modelSlot = node.slot(dropSlot.slotName);
@@ -1451,6 +1459,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     String slotName,
     CanvasSlot slot,
   ) sync* {
+    if (!_isInteractiveSlot(node, slotName)) return;
     if (node.type == 'flutter.widgets.IndexedStack' && slotName == 'children') {
       final indexValue = node.properties['index'];
       final index = indexValue == null
@@ -1466,6 +1475,34 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     for (var index = 0; index < slot.children.length; index++) {
       yield index;
     }
+  }
+
+  bool _isInteractiveSlot(CanvasNode node, String slotName) {
+    if (node.type != 'flutter.widgets.Visibility') return true;
+    final visible = node.properties['visible']?.value != false;
+    return slotName == 'child'
+        ? visible
+        : slotName == 'replacement' &&
+              !visible &&
+              node.properties['maintainState']?.value != true;
+  }
+
+  // Model-tree selection remains host-authoritative, but invisible branches
+  // must not acquire geometry or open a Designer editor from an F2 request.
+  bool _isInteractiveDescendant(CanvasNode node, String widgetId) {
+    if (node.id == widgetId) return true;
+    for (final entry in node.slots.entries) {
+      for (final index in _interactiveChildIndexes(
+        node,
+        entry.key,
+        entry.value,
+      )) {
+        if (_isInteractiveDescendant(entry.value.children[index], widgetId)) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   Rect _ignorePointerHandleRect(Rect body, Rect viewport) {
@@ -2374,6 +2411,36 @@ class _InlineTextEditSession {
   final int logicalRevisionId;
 }
 
+/// Flutter 3.44.8's maintained-size Visibility marks only paint dirty when
+/// visible changes. If IgnorePointer does not also change, semantics can stay
+/// stale (or assert on the next child update). Invalidate the actual SDK render
+/// object; do not replace its layout, paint, hit, focus or semantics behavior.
+class _CanvasVisibility extends StatefulWidget {
+  const _CanvasVisibility({required this.visibility});
+
+  final Visibility visibility;
+
+  @override
+  State<_CanvasVisibility> createState() => _CanvasVisibilityState();
+}
+
+class _CanvasVisibilityState extends State<_CanvasVisibility> {
+  final _sdkKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(_CanvasVisibility oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visibility.visible != widget.visibility.visible &&
+        oldWidget.visibility.maintainSize) {
+      _sdkKey.currentContext?.findRenderObject()?.markNeedsSemanticsUpdate();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      KeyedSubtree(key: _sdkKey, child: widget.visibility);
+}
+
 class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
@@ -2451,6 +2518,19 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ExcludeFocusTraversal' => ExcludeFocusTraversal(
         excluding: _boolean('excluding') ?? true,
         child: _single('child')!,
+      ),
+      'flutter.widgets.Visibility' => _CanvasVisibility(
+        visibility: Visibility(
+          visible: _boolean('visible') ?? true,
+          maintainState: _boolean('maintainState') ?? false,
+          maintainAnimation: _boolean('maintainAnimation') ?? false,
+          maintainSize: _boolean('maintainSize') ?? false,
+          maintainSemantics: _boolean('maintainSemantics') ?? false,
+          maintainInteractivity: _boolean('maintainInteractivity') ?? false,
+          maintainFocusability: _boolean('maintainFocusability') ?? false,
+          replacement: _single('replacement') ?? const SizedBox.shrink(),
+          child: _single('child')!,
+        ),
       ),
       'flutter.widgets.Spacer' => Spacer(flex: _integer('flex') ?? 1),
       'flutter.widgets.Padding' => _padding(paddingGeometry!),

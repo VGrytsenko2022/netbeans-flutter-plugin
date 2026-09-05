@@ -157,18 +157,24 @@ public final class WidgetPlacementRules {
      */
     private static Optional<SlotDefinition> requiredAnyWidgetWrapperSlot(
             WidgetDefinition definition) {
-        if (definition.slots().size() != 1
-                || definition.properties().stream().anyMatch(property ->
+        if (definition.properties().stream().anyMatch(property ->
                 property.parameter().required()
                 && property.creationDefault().isEmpty())) {
             return Optional.empty();
         }
-        SlotDefinition slot = definition.slots().getFirst();
-        if (!"child".equals(slot.name().value())
-                || !slot.parameter().required()
+        SlotDefinition slot = definition.slots().stream()
+                .filter(value -> "child".equals(value.name().value())).findFirst().orElse(null);
+        if (slot == null || !slot.parameter().required()
+                || slot.cardinality() != dev.flutter.netbeans.designer.model.SlotCardinality.SINGLE
                 || slot.minChildren() != 1
                 || slot.maxChildren() != 1
                 || !(slot.acceptance() instanceof SlotAcceptance.AnyWidget)) {
+            return Optional.empty();
+        }
+        // Optional secondary slots may remain empty in the detached wrapper.
+        // A second required/minimum-bearing slot cannot be populated by WrapWidget.
+        if (definition.slots().stream().anyMatch(value -> value != slot
+                && (value.parameter().required() || value.minChildren() != 0))) {
             return Optional.empty();
         }
         return Optional.of(slot);

@@ -162,6 +162,115 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
+    void visibilityNeverCreatesAnEmptyPrototypeAndCanWrapTheDesignerRootExactly() {
+        AtomicInteger rejectedAllocations = new AtomicInteger();
+        Supplier<StableId> rejectedSupplier = () -> {
+            rejectedAllocations.incrementAndGet();
+            return NEW_ID;
+        };
+        FlutterDesignerPaletteDropPlanner.Rejected emptyList = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.Visibility"), ROOT_ID, CHILDREN, 0, rejectedSupplier));
+        FlutterDesignerPaletteDropPlanner.Rejected emptySingle = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(prototype(CENTER)), BUILT_INS,
+                        new WidgetTypeId("flutter.widgets.Visibility"), ROOT_ID, CHILD, 0, rejectedSupplier));
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptyList.code());
+        assertEquals(
+                FlutterDesignerPaletteDropPlanner.RejectionCode.WRAP_TARGET_REQUIRED,
+                emptySingle.code());
+        assertEquals(0, rejectedAllocations.get());
+
+        WidgetNode root = text(ROOT_ID, "root target");
+        FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(
+                        document(root), BUILT_INS, new WidgetTypeId("flutter.widgets.Visibility"), ROOT_ID, () -> NEW_ID));
+        assertEquals(ROOT_ID, wrapped.command().widgetId());
+        assertEquals(NEW_ID, wrapped.command().wrapper().id());
+        assertEquals(new WidgetTypeId("flutter.widgets.Visibility"), wrapped.command().wrapper().type());
+        assertTrue(wrapped.command().wrapper().properties().isEmpty());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty(), new SlotName("replacement"), WidgetSlot.SingleSlot.empty()),
+                wrapped.command().wrapper().slots());
+        assertEquals(CHILD, wrapped.command().wrapperSlot());
+        assertEquals(0, wrapped.command().wrapperIndex());
+    }
+
+    @Test
+    void visibilityCompletes3534CellMatrixAsRequiredWrapperAndOptionalReplacementDestination() {
+        WidgetTypeId visibility = new WidgetTypeId("flutter.widgets.Visibility");
+        SlotName replacement = new SlotName("replacement");
+        List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+                .flatMap(parent -> parent.slots().stream().filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> occupiedTarget(parent.palette().displayName() + "." + slot.name().value(),
+                                parent.typeId(), slot.name())))
+                .toList();
+        int sourceAccepted = 0;
+        int sourceRejected = 0;
+        for (var target : targets) {
+            var result = planner.plan(target.document(), BUILT_INS, visibility,
+                    ROOT_ID, target.slot(), 0, () -> NEW_ID);
+            if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) {
+                assertEquals(FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_REJECTS_WIDGET,
+                        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result).code());
+                sourceRejected++;
+            } else {
+                WrapWidget command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result,
+                        target.name()).command();
+                assertEquals(FIRST_ID, command.widgetId());
+                assertEquals(visibility, command.wrapper().type());
+                assertEquals(Map.of(), command.wrapper().properties());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty(),
+                        replacement, WidgetSlot.SingleSlot.empty()), command.wrapper().slots());
+                assertEquals(CHILD, command.wrapperSlot());
+                sourceAccepted++;
+            }
+        }
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(List.of(
+                new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        int targetAccepted = 0;
+        int targetRejected = 0;
+        for (WidgetDefinition source : preVisibilityDefinitions().toList()) {
+            boolean required = source.slot(CHILD).filter(slot -> slot.minChildren() > 0).isPresent();
+            MatrixTargetCase target = required
+                    ? occupiedTarget("Visibility.replacement", visibility, replacement)
+                    : target("Visibility.replacement", visibility, replacement);
+            var result = planner.plan(target.document(), BUILT_INS, source.typeId(),
+                    ROOT_ID, replacement, 0, choices, () -> NEW_ID);
+            if (List.of(EXPANDED, FLEXIBLE, SPACER).contains(source.typeId())) {
+                assertEquals(FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_REJECTS_WIDGET,
+                        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result).code());
+                targetRejected++;
+            } else {
+                if (required) {
+                    var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result,
+                            source.typeId().value()).command();
+                    assertEquals(FIRST_ID, command.widgetId());
+                    assertEquals(source.typeId(), command.wrapper().type());
+                } else {
+                    var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class, result,
+                            source.typeId().value()).command();
+                    assertEquals(source.typeId(), command.widget().type());
+                }
+                targetAccepted++;
+            }
+        }
+        assertEquals(62, BUILT_INS.definitions().size());
+        assertEquals(57, targets.size());
+        assertEquals(55, sourceAccepted);
+        assertEquals(2, sourceRejected);
+        assertEquals(58, targetAccepted);
+        assertEquals(3, targetRejected);
+        assertEquals(3534, 62 * targets.size());
+        assertEquals(3253, 3140 + sourceAccepted + targetAccepted);
+        assertEquals(281, 276 + sourceRejected + targetRejected);
+    }
+
+    @Test
     void plansTextIntoCatalogAcceptedListAndEmptySingleSlots() {
         List<AcceptedCase> cases = List.of(
                 new AcceptedCase(
@@ -1438,7 +1547,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void excludeFocusTraversalCompletesExact3416CellModelAsWrapperOnlyAcrossAllOptionalTargets() {
-        List<MatrixTargetCase> optionalTargets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> optionalTargets = preVisibilityDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> occupiedTarget(
@@ -1489,7 +1598,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(61, BUILT_INS.definitions().size()),
+                () -> assertEquals(61, Math.toIntExact(preVisibilityDefinitions().count())),
                 () -> assertEquals(56, optionalTargets.size()),
                 () -> assertEquals(54, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -4937,8 +5046,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preExcludeFocusTraversalDefinitions() {
+    private static Stream<WidgetDefinition> preVisibilityDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !"flutter.widgets.Visibility".equals(definition.typeId().value()));
+    }
+
+    private static Stream<WidgetDefinition> preExcludeFocusTraversalDefinitions() {
+        return preVisibilityDefinitions().filter(definition ->
                 !"flutter.widgets.ExcludeFocusTraversal".equals(definition.typeId().value()));
     }
 
@@ -5081,7 +5195,14 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static WidgetNode prototype(WidgetTypeId type) {
-        return WidgetNodePrototypeFactory.create(definition(type), ROOT_ID);
+        WidgetNode created = WidgetNodePrototypeFactory.create(definition(type), ROOT_ID);
+        if ("flutter.widgets.Visibility".equals(type.value())) {
+            return new WidgetNode(created.id(), created.type(), created.properties(),
+                    Map.of(CHILD, WidgetSlot.SingleSlot.of(text(
+                            id("112a3e9a-abf4-4a26-8af4-8fb1192f9d3b"), "required child")),
+                            new SlotName("replacement"), WidgetSlot.SingleSlot.empty()));
+        }
+        return created;
     }
 
     private static WidgetNode text(StableId id, String data) {

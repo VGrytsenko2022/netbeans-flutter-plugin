@@ -19,6 +19,7 @@ import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeFocusTraversalWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.VisibilityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -535,6 +536,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addExcludeFocusPropertySets(sheet, hasSlotTab);
         } else if (ExcludeFocusTraversalWidgetPropertySchema.EXCLUDE_FOCUS_TRAVERSAL_TYPE.equals(widget.type())) {
             addExcludeFocusTraversalPropertySets(sheet, hasSlotTab);
+        } else if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(widget.type())) {
+            addVisibilityPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -729,6 +732,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(widget.type())) {
+            if (CHILD_SLOT.equals(slot.name())) {
+                return "Required child controlled by Visible and the six Maintain flags. "
+                        + "Changing Maintain flags can discard descendant state; Designer selection and editing remain available. "
+                        + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                        + ". Replace the child atomically; it cannot be removed or cleared.";
+            }
+            if ("replacement".equals(slot.name().value())) {
+                return "Optional replacement shown when Visible and Maintain state are false. "
+                        + "Ignored while Maintain state is true, but retained for later editing. "
+                        + "Clearing omits the argument and preserves Flutter's SizedBox.shrink default. "
+                        + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                        + ". Add, move, replace or clear this widget atomically.";
+            }
+        }
         if (ASPECT_RATIO_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child laid out to fill the box resolved from Aspect ratio. "
@@ -2459,6 +2477,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addVisibilityPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<VisibilityWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(VisibilityWidgetPropertySchema.Group.class);
+        for (VisibilityWidgetPropertySchema.Group group : VisibilityWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = VisibilityWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " <not set> preserves Flutter's constructor default; explicit true/false uses the centered checkbox. "
+                            + "Restore Default returns to <not set>. Required Maintain prerequisites are enabled atomically; "
+                            + "disabling or resetting a prerequisite unsets enabled dependent flags in the same Undo step. "
+                            + "Changing Maintain flags can discard descendant state. All six Maintain flags true "
+                            + "represent Visibility.maintain. Replacement is ignored while Maintain state is true; "
+                            + "Designer selection and editing remain available."));
+        }
+    }
+
     private void addIndexedSemanticsPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<IndexedSemanticsWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(IndexedSemanticsWidgetPropertySchema.Group.class);
@@ -3167,10 +3207,55 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result;
     }
 
+    private static java.util.List<String> visibilityPrerequisites(String name) {
+        return switch (name) {
+            case "maintainAnimation" -> java.util.List.of("maintainState");
+            case "maintainSize" -> java.util.List.of("maintainState", "maintainAnimation");
+            case "maintainSemantics", "maintainInteractivity" ->
+                java.util.List.of("maintainState", "maintainAnimation", "maintainSize");
+            case "maintainFocusability" -> java.util.List.of("maintainState");
+            default -> java.util.List.of();
+        };
+    }
+
+    private DesignerCommand visibilityPropertyCommand(
+            WidgetNode currentWidget,
+            PropertyName propertyName,
+            FlutterPropertyCellValue accepted) {
+        java.util.ArrayList<PatchProperties.Patch> patches = new java.util.ArrayList<>();
+        PropertyValue.BooleanValue enabled = new PropertyValue.BooleanValue(true);
+        if (accepted.explicitValue().filter(enabled::equals).isPresent()) {
+            for (String prerequisite : visibilityPrerequisites(propertyName.value())) {
+                PropertyName name = new PropertyName(prerequisite);
+                if (!enabled.equals(currentWidget.properties().get(name))) {
+                    patches.add(new PatchProperties.SetPatch(name, enabled));
+                }
+            }
+        } else {
+            for (String dependent : java.util.List.of("maintainState", "maintainAnimation",
+                    "maintainSize", "maintainSemantics", "maintainInteractivity", "maintainFocusability")) {
+                PropertyName name = new PropertyName(dependent);
+                if (visibilityPrerequisites(dependent).contains(propertyName.value())
+                        && enabled.equals(currentWidget.properties().get(name))) {
+                    patches.add(new PatchProperties.ResetPatch(name));
+                }
+            }
+        }
+        patches.add(accepted.explicitValue()
+                .<PatchProperties.Patch>map(value -> new PatchProperties.SetPatch(propertyName, value))
+                .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
+        return patches.size() == 1
+                ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
+    }
+
     private DesignerCommand propertyMutationCommand(
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(currentWidget.type())) {
+            return visibilityPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(
                 currentWidget.type())) {
             java.util.List<PropertyName> compound =

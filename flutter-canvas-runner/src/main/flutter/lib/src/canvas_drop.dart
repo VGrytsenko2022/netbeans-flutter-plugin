@@ -263,6 +263,10 @@ const canvasEmptyChildDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'child',
 );
 
+const canvasVisibilityReplacementDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'replacement',
+);
+
 const canvasScaffoldBodyDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'body',
 );
@@ -339,6 +343,9 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.Stack' => const [canvasStackChildrenAppendDropSlot],
       'flutter.widgets.IndexedStack' => const [
         canvasIndexedStackChildrenAppendDropSlot,
+      ],
+      'flutter.widgets.Visibility' => const [
+        canvasVisibilityReplacementDropSlot,
       ],
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||

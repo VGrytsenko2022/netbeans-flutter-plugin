@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(61, javaTypes.size(),
+        assertEquals(62, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -84,6 +84,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.IndexedSemantics"));
         assertTrue(javaTypes.contains("flutter.widgets.ExcludeFocus"));
         assertTrue(javaTypes.contains("flutter.widgets.ExcludeFocusTraversal"));
+        assertTrue(javaTypes.contains("flutter.widgets.Visibility"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -123,6 +124,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.widgets.IndexedSemantics\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.ExcludeFocus\n"));
         assertTrue(dartContract.contains("W|flutter.widgets.ExcludeFocusTraversal\n"));
+        assertTrue(dartContract.contains("W|flutter.widgets.Visibility\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -196,6 +198,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ColoredBox.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.Placeholder"),
                 "Placeholder.child must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.Visibility"),
+                "Visibility.replacement is optional; its required child remains replacement-only");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),
                 "Expanded.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Flexible"),

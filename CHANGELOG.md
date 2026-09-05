@@ -6,6 +6,23 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `Visibility` in Basic at order 180 with all seven optional Boolean fields,
+  required child, optional non-null replacement and managed key. Centered
+  checkboxes preserve unset/false/true; dependent maintenance edits are one atomic
+  Undo step. Full Visibility.maintain behavior uses the equivalent six true flags
+  in the default constructor. Generic wrapping now admits a required child with
+  additional valid-empty optional slots. Child replacement is atomic; replacement
+  supports add/replace/clear, omitting its Dart argument instead of emitting null.
+  Actual Canvas preserves SDK state/ticker/layout/paint/semantics/hit/focus behavior
+  and filters inactive branch affordances. A narrow Canvas semantics invalidation
+  repairs a reproduced Flutter 3.44.8 hide/reveal defect without patching the SDK
+  used by generated applications. Includes typed validation/generation,
+  both slots, Palette/tree/Canvas moves, Save/reopen/further edits, Undo/Redo,
+  rollback and four SVGs. Current surface: 62 widgets, 56 const definitions,
+  774 rows (757 outside Scaffold), 3,534 placements (3,253 accepted / 281 rejected),
+  Basic 18. Historical target 62/92 with 30 remaining; schema/API/model remain
+  13/14/18. Full physical desktop acceptance remains deferred.
+
 - `ExcludeFocusTraversal` in Accessibility at order 60 with the complete const
   constructor: optional excluding (omitted true), required child and managed key.
   Centered checkbox unset/false/true and reset, generic atomic wrapping and required
@@ -13,7 +30,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Canvas traversal exclusion retains direct focus requests and existing focus,
   unlike ExcludeFocus; layout, paint, pointer hits and labels remain. Includes
   Properties/Slots, Palette/tree/Canvas wrapping/moves, Save/reopen/further edits,
-  Undo/Redo, rollback, F2 editing and four distinct SVGs. Current surface: 61 widgets,
+  Undo/Redo, rollback, F2 editing and four distinct SVGs. At that milestone: 61 widgets,
   55 const definitions, 767 rows (750 outside Scaffold), 3,416 placements
   (3,140 accepted / 276 rejected), Accessibility 6. Historical target 61/92 with
   31 remaining; schema/API/model stay 13/14/18. Full physical desktop acceptance

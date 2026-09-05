@@ -357,6 +357,25 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals("flutter.widgets.Visibility")) {
+            for (var dependency : List.of(
+                    List.of("maintainAnimation", "maintainState"),
+                    List.of("maintainSize", "maintainAnimation"),
+                    List.of("maintainSemantics", "maintainSize"),
+                    List.of("maintainInteractivity", "maintainSize"),
+                    List.of("maintainFocusability", "maintainState"))) {
+                if (Boolean.TRUE.equals(booleanValue(node, dependency.getFirst()))
+                        && !Boolean.TRUE.equals(booleanValue(node, dependency.getLast()))) {
+                    issues.add(issue(PROPERTY_DEPENDENCY,
+                            propertiesPath + '/' + dependency.getFirst(), node.id(),
+                            "Visibility " + dependency.getFirst() + "=true requires "
+                            + dependency.getLast() + "=true, even when visible=true. "
+                            + "Omitted maintenance flags default to false."));
+                }
+            }
+            return;
+        }
+
         if (type.equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value())) {
             validateStaticScrollViewSemanticChildCount(
                     node, propertiesPath, "GridView.count", issues);

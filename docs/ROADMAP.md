@@ -1618,13 +1618,31 @@ accepted architecture is documented in
   and retains current focus; nested false does not override excluded ancestors.
   Cover exact schema/projection, generation/provenance, codec/payload, Properties/
   Slots, wrapping/moves, Save/reopen/further editing, Undo/Redo, rollback, F2,
-  Tab/Shift+Tab, labels/layout/paint/pointer hits and four distinct SVGs. Current
-  surface: 61 widgets, 55 const definitions, 767 rows (750 outside Scaffold),
+  Tab/Shift+Tab, labels/layout/paint/pointer hits and four distinct SVGs. At that
+  milestone: 61 widgets, 55 const definitions, 767 rows (750 outside Scaffold),
   58 scalar plus three structural definitions; 54 any-widget plus two trait slots
   remain 56 insertable destinations, 3,416 cells (3,140 accepted / 276 rejected),
   Accessibility 6. Historical target 61/92 with 31 remaining; schema/API/model
   remain 13/14/18. This is an API-reviewed successor, not a recovered fixed-order
   inventory. Full physical desktop acceptance remains deferred.
+- [x] Add `Visibility` in Basic at order 180 with the complete const constructor:
+  required child/order 0, optional non-null replacement/order 1, visible/order 2
+  and all six maintain flags/orders 3–8. Preserve three-state checkbox/reset and
+  exact SDK defaults without persisted prototype values. Validate all five SDK
+  dependencies; repair prerequisite/dependent checkbox edits atomically. Cover
+  Visibility.maintain completely as the equivalent six true flags in the default
+  constructor. Generalize wrapping to a required child plus valid-empty optional
+  slots; replacement clearing omits its Dart argument instead of emitting null.
+  Use actual SDK disposal/tickers/layout/paint/semantics/pointer/focus behavior,
+  suppress inactive branch geometry/F2 without making hidden content visible,
+  and retain tree/property editing. Cover generation/provenance, codec/payload,
+  both slots, all wrapping/move routes, Save/reopen/further editing, Undo/Redo,
+  rollback and four SVGs. Current surface: 62 widgets, 56 const definitions,
+  774 rows (757 outside Scaffold), 59 scalar plus three structural definitions;
+  55 any-widget plus two trait slots form 57 destinations, 3,534 cells
+  (3,253 accepted / 281 rejected), Basic 18. Historical target 62/92 with 30
+  remaining; schema/API/model stay 13/14/18. This is an API-reviewed successor,
+  not a recovered fixed-order inventory. Full physical acceptance stays deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1642,8 +1660,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-one admitted built-ins.
-  The 58 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-two admitted built-ins.
+  The 59 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

@@ -3889,6 +3889,18 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _requiredSingleSlot},
   ),
+  'flutter.widgets.Visibility': _WidgetSpec(
+    {
+      'visible': _PropertySpec({'boolean'}),
+      'maintainState': _PropertySpec({'boolean'}),
+      'maintainAnimation': _PropertySpec({'boolean'}),
+      'maintainSize': _PropertySpec({'boolean'}),
+      'maintainSemantics': _PropertySpec({'boolean'}),
+      'maintainInteractivity': _PropertySpec({'boolean'}),
+      'maintainFocusability': _PropertySpec({'boolean'}),
+    },
+    {'child': _requiredSingleSlot, 'replacement': _optionalSingleSlot},
+  ),
   'flutter.widgets.RepaintBoundary': _WidgetSpec({}, {
     'child': _optionalSingleSlot,
   }),
@@ -6085,6 +6097,17 @@ P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:
 P|constrainedAxis|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Axis:horizontal,vertical
 P|textDirection|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextDirection:ltr,rtl
 S|child|single|0|0|1|any
+W|flutter.widgets.Visibility
+P|maintainAnimation|boolean|0|-|-|boolean:any
+P|maintainFocusability|boolean|0|-|-|boolean:any
+P|maintainInteractivity|boolean|0|-|-|boolean:any
+P|maintainSemantics|boolean|0|-|-|boolean:any
+P|maintainSize|boolean|0|-|-|boolean:any
+P|maintainState|boolean|0|-|-|boolean:any
+P|visible|boolean|0|-|-|boolean:any
+S|child|single|1|1|1|any
+S|replacement|single|0|0|1|any
+C|flutter.widgets.Visibility|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.Wrap
 P|alignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:WrapAlignment:center,end,spaceAround,spaceBetween,spaceEvenly,start
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
@@ -6180,7 +6203,7 @@ bool _isFlexParentDataWidgetType(String widgetType) =>
 /// existing child without inventing any persisted constructor value.
 bool isCanvasReviewedRequiredChildWrapperWidgetType(String widgetType) {
   final specification = _widgetSpecifications[widgetType];
-  if (specification == null || specification.slots.length != 1) {
+  if (specification == null) {
     return false;
   }
   final child = specification.slots['child'];
@@ -6190,6 +6213,13 @@ bool isCanvasReviewedRequiredChildWrapperWidgetType(String widgetType) {
       child.minimumChildren != 1 ||
       child.maximumChildren != 1 ||
       child.acceptance.kind != _SlotAcceptanceKind.any) {
+    return false;
+  }
+  if (specification.slots.entries.any(
+    (entry) =>
+        entry.key != 'child' &&
+        (entry.value.required || entry.value.minimumChildren != 0),
+  )) {
     return false;
   }
   return specification.properties.values.every(
@@ -6345,6 +6375,22 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.widgets.Visibility') {
+    for (final dependency in const {
+      'maintainAnimation': 'maintainState',
+      'maintainSize': 'maintainAnimation',
+      'maintainSemantics': 'maintainSize',
+      'maintainInteractivity': 'maintainSize',
+      'maintainFocusability': 'maintainState',
+    }.entries) {
+      _expect(
+        properties[dependency.key]?.value != true ||
+            properties[dependency.value]?.value == true,
+        'Canvas Visibility ${dependency.key} requires ${dependency.value}: '
+        '$path/properties/${dependency.key}',
+      );
+    }
+  }
   if (type == 'flutter.widgets.ClipPath') {
     _expect(
       !(properties.containsKey('clipper') && properties.containsKey('shape')),

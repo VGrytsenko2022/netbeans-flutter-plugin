@@ -4707,6 +4707,19 @@ final _widgetSpecifications = <String, _WidgetSpec>{
       enumValues: {'none', 'low', 'medium', 'high'},
     ),
   }, {}),
+  'flutter.widgets.ImageIcon': _WidgetSpec({
+    'image': _PropertySpec(
+      {'null', 'imageProvider'},
+      required: true,
+      creationDefaultFingerprint: 'null',
+    ),
+    'size': _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+    'color': _themeAwareColorProperty,
+    'semanticLabel': _PropertySpec({'string'}),
+  }, {}),
   'flutter.widgets.ListBody': _WidgetSpec(
     {
       'mainAxis': _PropertySpec(
@@ -5971,6 +5984,11 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.ImageIcon
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|image|imageProvider,null|1|null|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling);null:any
+P|semanticLabel|string|0|-|-|string:any
+P|size|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 W|flutter.widgets.IndexedSemantics
 P|index|integer|1|integer:0|integer:-9007199254740991:1:9007199254740991:1|integer:range:-9007199254740991:1:9007199254740991:1
 S|child|single|0|0|1|any
@@ -6557,6 +6575,17 @@ void _validatePropertyRelationships(
 
   if (type == 'flutter.widgets.DecoratedBox') {
     _recordBoxDecorationImageResource(properties['decoration']?.value, budget);
+    return;
+  }
+
+  if (type == 'flutter.widgets.ImageIcon') {
+    final provider = properties['image']!.value;
+    if (provider is CanvasImageProviderValue &&
+        provider.resolution is CanvasResolvedImageValue) {
+      budget.imageResourceIds.add(
+        (provider.resolution as CanvasResolvedImageValue).resourceId,
+      );
+    }
     return;
   }
 

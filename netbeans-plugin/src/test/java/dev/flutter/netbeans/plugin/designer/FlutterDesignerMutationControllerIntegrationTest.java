@@ -72,6 +72,7 @@ import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
 import dev.flutter.netbeans.plugin.designer.persistence.PairFileTransaction;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPlanner;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyCellValue;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotMutation;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
@@ -560,6 +561,172 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
 
+
+    @Test
+    void paletteImageIconSaveReopenAllFieldsNullProviderHistoryAndRollback() throws Exception {
+        StableId imageId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e8f");
+        WidgetTypeId type = new WidgetTypeId("flutter.widgets.ImageIcon");
+        PropertyName imageName = new PropertyName("image");
+        PropertyValue.ImageProviderValue provider = new PropertyValue.ImageProviderValue(
+                PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET, "assets/icon.png", Optional.of("ui_kit"),
+                Optional.of(new java.math.BigDecimal("2")),
+                Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig(Optional.of(48), Optional.of(64),
+                        PropertyValue.ImageProviderValue.ResizePolicy.FIT, true)));
+        Map<PropertyName, PropertyValue> configured = new java.util.LinkedHashMap<>();
+        configured.put(imageName, provider);
+        configured.put(new PropertyName("size"), new PropertyValue.DoubleValue(new java.math.BigDecimal("32.5")));
+        configured.put(new PropertyName("color"), new PropertyValue.ColorValue(0x80123456L));
+        configured.put(new PropertyName("semanticLabel"), new PropertyValue.StringValue("Custom image icon"));
+        ExactPair initialPair;
+        ExactPair configuredPair;
+        try (MutationFixture fixture = fixture("image_icon_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                assertTrue(request.content().contains("ImageIcon(null)"), request.content());
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2,
+                            FlutterImageAssetChoices.empty(), () -> imageId));
+            var added = applyImageIconMutation(fixture, ready, plan.command(), imageId);
+            assertEquals(Map.of(imageName, new PropertyValue.NullValue()),
+                    findModelWidget(added.document().orElseThrow().root(), imageId).properties());
+            initialPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("image_icon_reopened_configure", initialPair)) {
+            var current = fixture.ready();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), imageId);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            List<DesignerCommand> commands = new ArrayList<>();
+            FlutterWidgetPropertiesNode properties = new FlutterWidgetPropertiesNode(
+                    Children.LEAF, initial, definition, commands::add);
+            var propertySets = properties.getPropertySets();
+            var imageCell = cellProperty(properties, "image");
+            AtomicInteger analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) -> {
+                analyses.incrementAndGet();
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            for (var entry : configured.entrySet()) {
+                commands.clear();
+                var cell = cellProperty(properties, entry.getKey().value());
+                assertTrue(cell.canWrite());
+                cell.setValue(FlutterPropertyCellValue.explicit(entry.getValue()));
+                assertEquals(1, commands.size());
+                current = applyImageIconMutation(fixture, current, commands.getFirst(), imageId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), imageId),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, entry.getKey().value()));
+                assertEquals(List.of(propertySets), List.of(properties.getPropertySets()));
+            }
+            current = applyImageIconMutation(fixture, current,
+                    new SetProperty(imageId, imageName, new PropertyValue.NullValue()), imageId);
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8)
+                    .contains("ImageIcon("));
+            current = applyImageIconMutation(fixture, current, new SetProperty(imageId, imageName, provider), imageId);
+            WidgetNode complete = findModelWidget(current.document().orElseThrow().root(), imageId);
+            assertEquals(configured, complete.properties());
+            assertTrue(complete.slots().isEmpty());
+            byte[] exactDart = fixture.coordinator().stagedEvidence().candidateDartBytes();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            String generated = new String(exactDart, StandardCharsets.UTF_8);
+            for (String fragment : List.of("ImageIcon(", "ResizeImage(", "ExactAssetImage(", "ui_kit",
+                    "ResizeImagePolicy.fit", "allowUpscaling: true", "size: 32.5",
+                    "Color(0x80123456)", "semanticLabel: 'Custom image icon'")) {
+                assertTrue(generated.contains(fragment), fragment + " in " + generated);
+            }
+            DesignerCombinedUndoRedo history = fixture.dataObject().getCombinedUndoRedo();
+            for (int index = 0; index < 6; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(history.canUndo()); history.undo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, imageId));
+            }
+            assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), imageId));
+            for (int index = 0; index < 6; index++) {
+                var token = current.token().orElseThrow();
+                onEdt(() -> { assertTrue(history.canRedo()); history.redo(); });
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token,
+                        List.of(FIRST_ID, SECOND_ID, imageId));
+            }
+            assertEquals(6, analyses.get());
+            assertArrayEquals(exactDart, fixture.coordinator().stagedEvidence().candidateDartBytes());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            commands.clear();
+            imageCell.restoreDefaultValue();
+            assertFalse(imageCell.supportsDefaultValue());
+            assertThrows(IllegalArgumentException.class, () -> imageCell.setValue(FlutterPropertyCellValue.unset()));
+            assertTrue(commands.isEmpty());
+            assertSame(imageCell, cellProperty(properties, "image"));
+            String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(imageId, imageName),
+                    new SetProperty(imageId, new PropertyName("size"),
+                            new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid,
+                        "ImageIcon invalid property edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+                current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), imageId));
+                assertEquals(undoName, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(rejectedDiagnosticAnalysis(request, "image_icon_refused", "ImageIcon candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(imageId, imageName, new PropertyValue.NullValue()), "ImageIcon None")
+                    .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), imageId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName());
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("image_icon_configured_reopened", configuredPair)) {
+            var current = fixture.ready();
+            assertEquals(configured, findModelWidget(current.document().orElseThrow().root(), imageId).properties());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            Map<String, PropertyValue> continued = new java.util.LinkedHashMap<>();
+            continued.put("image", PropertyValue.ImageProviderValue.asset("assets/changed.png"));
+            continued.put("size", new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(24)));
+            continued.put("color", new PropertyValue.ColorValue(0xFFABCDEFL));
+            continued.put("semanticLabel", new PropertyValue.StringValue("Edited after reopen"));
+            for (var entry : continued.entrySet()) {
+                current = applyImageIconMutation(fixture, current,
+                        new SetProperty(imageId, new PropertyName(entry.getKey()), entry.getValue()), imageId);
+            }
+            for (String name : List.of("size", "color", "semanticLabel")) {
+                current = applyImageIconMutation(fixture, current, new ResetProperty(imageId, new PropertyName(name)), imageId);
+            }
+            current = applyImageIconMutation(fixture, current,
+                    new SetProperty(imageId, imageName, new PropertyValue.NullValue()), imageId);
+            assertEquals(Map.of(imageName, new PropertyValue.NullValue()),
+                    findModelWidget(current.document().orElseThrow().root(), imageId).properties());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8)
+                    .contains("ImageIcon(null)"));
+            configuredPair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("image_icon_none_reopened", configuredPair)) {
+            var current = fixture.ready();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), imageId);
+            assertEquals(Map.of(imageName, new PropertyValue.NullValue()), restored.properties());
+            fixture.mutations().setAnalyzerFactoryForTests((dartExecutable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            current = applyImageIconMutation(fixture, current, new SetProperty(imageId, imageName, provider), imageId);
+            assertEquals(provider, findModelWidget(current.document().orElseThrow().root(), imageId).properties().get(imageName));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyImageIconMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId imageId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command,
+                "ImageIcon property editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(),
+                List.of(FIRST_ID, SECOND_ID, imageId));
+    }
 
     @Test
     void paletteIconThemeSaveReopenAllPropertiesChildUndoRedoAndFailureRollback()

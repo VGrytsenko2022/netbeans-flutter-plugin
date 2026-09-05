@@ -357,6 +357,9 @@ public final class FlutterDesignerPalette {
                         + "deterministic first sorted asset and sets required Image.image; "
                         + "when no safe declared asset is available, creation uses an "
                         + "editable placeholder that can be replaced in Image properties.");
+            } else if (FlutterImageWidgetCreationValues.IMAGE_ICON_TYPE.equals(definition.typeId())) {
+                setDisplayName(message("Widget.ImageIcon.Name"));
+                setShortDescription(message("Widget.ImageIcon.Description"));
             } else if ("flutter.material.TextField".equals(
                     definition.typeId().value())) {
                 setShortDescription(

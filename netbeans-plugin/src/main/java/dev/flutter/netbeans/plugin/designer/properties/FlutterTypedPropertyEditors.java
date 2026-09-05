@@ -146,6 +146,10 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.ImageProviderValues.class::isInstance)) {
             editorKind = EditorKind.IMAGE_PROVIDER;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.IMAGE_PROVIDER, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(
+                        PropertyValueConstraint.ImageProviderValues.class::isInstance)) {
+            editorKind = EditorKind.NULLABLE_IMAGE_PROVIDER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxDecorationValues.class::isInstance)) {
@@ -194,6 +198,7 @@ final class FlutterTypedPropertyEditors {
         BOX_CONSTRAINTS,
         MATRIX4,
         IMAGE_PROVIDER,
+        NULLABLE_IMAGE_PROVIDER,
         BOX_DECORATION,
         BORDER_RADIUS,
         DART_OBJECT_REFERENCE,
@@ -314,7 +319,7 @@ final class FlutterTypedPropertyEditors {
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
-                        MATRIX4, IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
+                        MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
                         DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER ->
                     new StructuredEditor(this);
             };
@@ -957,6 +962,10 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
+            if (binding.editorKind() == EditorKind.NULLABLE_IMAGE_PROVIDER
+                    && explicitValue().orElse(null) instanceof PropertyValue.NullValue) {
+                return "None (empty image icon)";
+            }
             return explicitValue().map(PropertyValueFormatter::format)
                     .orElseGet(this::unsetText);
         }

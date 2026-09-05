@@ -797,6 +797,96 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void nullableImageIconEditorCommitsTypedProviderAndNoneTransactionally() throws Exception {
+        for (var policy : PropertyValue.ImageProviderValue.ResizePolicy.values()) {
+            PropertyEditor editor = binding(property("flutter.widgets.ImageIcon", "image")).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
+            editor.setValue(initial);
+            FeatureDescriptor descriptor = descriptor("ImageIcon", "Required nullable ImageIcon.image.");
+            descriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, new FlutterImageAssetChoices(
+                    List.of(new FlutterImageAssetChoices.Choice(java.util.Optional.of("ui_kit"), "assets/a.png", "Package image")),
+                    java.util.Optional.empty()));
+            PropertyEnv environment = PropertyEnv.create(descriptor);
+            ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                Component panel = editor.getCustomEditor();
+                JCheckBox none = findNamed(panel, JCheckBox.class, "flutter.imageIcon.imageProvider.none");
+                assertTrue(none.isSelected());
+                JComboBox<?> asset = findNamed(panel, JComboBox.class, "flutter.imageIcon.imageProvider.asset");
+                assertFalse(asset.isEnabled());
+                none.doClick();
+                assertTrue(asset.isEnabled());
+                findNamed(panel, JComboBox.class, "flutter.imageIcon.imageProvider.provider")
+                        .setSelectedItem(PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
+                findNamed(panel, JTextField.class, "flutter.imageIcon.imageProvider.exactScale").setText("2");
+                findNamed(panel, JCheckBox.class, "flutter.imageIcon.imageProvider.resize.enabled").doClick();
+                findNamed(panel, JTextField.class, "flutter.imageIcon.imageProvider.resize.width").setText("-1");
+                assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                assertEquals(initial, editor.getValue(), "an invalid or cancelled draft must not commit");
+                findNamed(panel, JTextField.class, "flutter.imageIcon.imageProvider.resize.width").setText("48");
+                findNamed(panel, JTextField.class, "flutter.imageIcon.imageProvider.resize.height").setText("64");
+                findNamed(panel, JComboBox.class, "flutter.imageIcon.imageProvider.resize.policy").setSelectedItem(policy);
+                findNamed(panel, JCheckBox.class, "flutter.imageIcon.imageProvider.resize.allowUpscaling").doClick();
+                assertEquals(initial, editor.getValue(), "valid drafts also wait for dialog commit");
+                environment.setState(PropertyEnv.STATE_VALID);
+                var provider = assertInstanceOf(PropertyValue.ImageProviderValue.class,
+                        ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+                assertEquals(java.util.Optional.of("ui_kit"), provider.packageName());
+                assertEquals(java.util.Optional.of(new BigDecimal("2")), provider.exactScale());
+                assertEquals(java.util.Optional.of(48), provider.resize().orElseThrow().width());
+                assertEquals(java.util.Optional.of(64), provider.resize().orElseThrow().height());
+                assertEquals(policy, provider.resize().orElseThrow().policy());
+                assertTrue(provider.resize().orElseThrow().allowUpscaling());
+                // One dialog has one commit lease; reopen before editing the committed provider.
+                PropertyEnv reopenedEnvironment = PropertyEnv.create(descriptor);
+                ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment);
+                Component reopened = editor.getCustomEditor();
+                JCheckBox reopenedNone = findNamed(reopened, JCheckBox.class,
+                        "flutter.imageIcon.imageProvider.none");
+                assertFalse(reopenedNone.isSelected());
+                reopenedNone.doClick();
+                assertEquals(provider, ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+                reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(initial, editor.getValue());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void nullableImageIconPreservesNullStoredMissingAndImportedUnresolvedWithoutAssets() throws Exception {
+        for (PropertyValue initial : List.of(new PropertyValue.NullValue(),
+                PropertyValue.ImageProviderValue.asset("assets/removed.png"),
+                PropertyValue.ImageProviderValue.unresolved())) {
+            PropertyEditor editor = binding(property("flutter.widgets.ImageIcon", "image")).createEditor();
+            var initialCell = FlutterPropertyCellValue.explicit(initial);
+            editor.setValue(initialCell);
+            PropertyEnv environment = PropertyEnv.create(descriptor("ImageIcon", "Required nullable provider."));
+            ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                Component panel = editor.getCustomEditor();
+                JCheckBox none = findNamed(panel, JCheckBox.class, "flutter.imageIcon.imageProvider.none");
+                assertEquals(initial instanceof PropertyValue.NullValue, none.isSelected());
+                assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+                assertEquals(initialCell, editor.getValue());
+                if (initial instanceof PropertyValue.NullValue) {
+                    none.doClick();
+                    assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                    assertEquals(initialCell, editor.getValue());
+                    none.doClick();
+                } else {
+                    none.doClick();
+                    assertEquals(initialCell, editor.getValue(), "None draft cancellation is non-mutating");
+                    none.doClick();
+                }
+                environment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(initialCell, editor.getValue(), "retains stored provider settings after toggling None");
+                return null;
+            });
+        }
+    }
+
+    @Test
     void directImageProviderEditorReusesDeclaredAssetProviderControls()
             throws Exception {
         FlutterImageAssetChoices choices = new FlutterImageAssetChoices(

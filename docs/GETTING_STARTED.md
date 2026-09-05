@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly sixty-six
+The current capability-gated Palette and native Canvas admit exactly sixty-seven
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle` and `IconTheme`.
-Sixty definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 793 typed writable rows: 776 across the sixty-five
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme` and `ImageIcon`.
+Sixty-one definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 797 typed writable rows: 780 across the sixty-six
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -737,9 +737,21 @@ An empty shadow list clears inherited shadows, unlike unset in merge mode.
 Merge itself has only false/true and cannot be reset away. Save/reopen and further
 editing preserve both modes, the required child and Undo/Redo history.
 
-The practical backlog is now 66/92 complete with 26 remaining; Layout contains
-31 items, Scrolling 3, Basic 22, Material 4 and Accessibility 6. The aggregate
-is 60 reviewed const definitions and 793 writable rows, including 776 outside
+**ImageIcon** is in Basic. Add it normally, then open **Image** and either select
+a declared asset or enable **None (empty image icon)**. No assets are required to
+add it: the first available asset is selected on creation, otherwise it starts as
+None. Provider controls support AssetImage, ExactAssetImage and optional ResizeImage
+dimensions/policy/upscaling. None is an explicit empty image, not an omitted required
+argument; Image cannot be reset away. Size, Color and Semantic label can be reset.
+Use Canvas to preview the selected image. IconTheme supplies size/color/opacity;
+its font axes, shadows and text-scaling flag do not affect ImageIcon. A local color
+still receives theme opacity. Null/provider changes survive save/reopen and Undo/Redo.
+The provider model remains asset-backed; arbitrary URLs/files/custom Dart and the
+newer useOriginalColors argument are not part of the pinned SDK slice.
+
+The practical backlog is now 67/92 complete with 25 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 4 and Accessibility 6. The aggregate
+is 61 reviewed const definitions and 797 writable rows, including 780 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -805,8 +817,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Sixty-six sources across fifty-five insertable any-widget and two trait-bound
-slots produce 3,762 compatibility candidates: 3,473 accepted and 289
+Sixty-seven sources across fifty-five insertable any-widget and two trait-bound
+slots produce 3,819 compatibility candidates: 3,528 accepted and 291
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

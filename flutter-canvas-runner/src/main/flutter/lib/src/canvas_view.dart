@@ -629,6 +629,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.GridView' ||
         node.type == 'flutter.widgets.SingleChildScrollView' ||
         node.type == 'flutter.widgets.Image' ||
+        node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2597,6 +2598,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.SizedBox' => _sizedBox(),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.ImageIcon' => _imageIcon(context),
       'flutter.material.TextField' => _textField(context),
       'flutter.widgets.Text' =>
         editing ? _inlineTextEditor(context) : _text(context),
@@ -4055,6 +4057,16 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       gaplessPlayback: _boolean('gaplessPlayback') ?? false,
       isAntiAlias: _boolean('isAntiAlias') ?? false,
       filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
+    );
+  }
+
+  Widget _imageIcon(BuildContext context) {
+    final value = node.properties['image']!.value;
+    return ImageIcon(
+      value is CanvasImageProviderValue ? _imageProvider(value).provider : null,
+      size: _number('size'),
+      color: _resolvedColor(context, 'color'),
+      semanticLabel: _string('semanticLabel'),
     );
   }
 

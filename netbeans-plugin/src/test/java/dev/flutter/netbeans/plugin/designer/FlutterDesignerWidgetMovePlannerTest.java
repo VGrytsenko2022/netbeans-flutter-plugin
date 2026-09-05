@@ -137,6 +137,23 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void imageIconMovesAsLeafWithNullOrProviderAndPreservesAllProperties() {
+        for (PropertyValue image : List.of(new PropertyValue.NullValue(),
+                PropertyValue.ImageProviderValue.asset("assets/icon.png"))) {
+            WidgetNode icon = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.ImageIcon"),
+                    Map.of(new PropertyName("image"), image, new PropertyName("size"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(24)),
+                            new PropertyName("semanticLabel"), new PropertyValue.StringValue("Move image")), Map.of());
+            WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+            DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(icon, stack)));
+            var result = planner.plan(document, BUILT_INS, icon.id(), new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+            MoveWidget command = accepted(result).command();
+            assertEquals(icon.id(), command.widgetId());
+            assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+            assertAcceptedCommandApplies(document, BUILT_INS, icon, result);
+        }
+    }
+
+    @Test
     void completedIconThemeMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "themed icon child");
         WidgetNode iconTheme = new WidgetNode(

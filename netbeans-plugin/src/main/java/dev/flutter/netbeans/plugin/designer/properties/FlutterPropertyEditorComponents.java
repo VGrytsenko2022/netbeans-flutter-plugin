@@ -102,7 +102,7 @@ final class FlutterPropertyEditorComponents {
                     EDGE_INSETS, COLOR,
                     THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
-                    SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER,
+                    SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
                     BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
                     SHAPE_BORDER_CLIPPER -> true;
             default -> false;
@@ -140,6 +140,8 @@ final class FlutterPropertyEditorComponents {
             case OFFSET -> FlutterOffsetPropertyEditorComponents.customEditor(
                     editor, binding, environment);
             case IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.customEditor(
+                    editor, binding, environment);
+            case NULLABLE_IMAGE_PROVIDER -> FlutterImagePropertyEditorComponents.nullableCustomEditor(
                     editor, binding, environment);
             case SHAPE_BORDER_CLIPPER ->
                 FlutterShapeBorderClipperEditorComponent.customEditor(

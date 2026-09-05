@@ -134,6 +134,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.DefaultTextHeightBehavior",
                 "flutter.widgets.DefaultSelectionStyle",
                 "flutter.widgets.IconTheme",
+                "flutter.widgets.ImageIcon",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -2370,6 +2371,88 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"fit\":\"cover\""), json);
         assertTrue(json.contains("\"repeat\":\"repeatX\""), json);
         assertTrue(json.contains("\"opacity\":0.75"), json);
+    }
+
+    @Test
+    void imageIconPayloadDistinguishesNullMissingAndReservedUnresolvedWithoutRequiringAssets() throws Exception {
+        var none = new WidgetNode(StableId.random(), type("flutter.widgets.ImageIcon"),
+                Map.of(new PropertyName("image"), new PropertyValue.NullValue()), Map.of());
+        var document = new DesignerDocument(DOCUMENT_ID, source(), none);
+        String json = new String(new CanvasModelPayloadCodec().encode(request(document)), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"image\":{\"kind\":\"null\"}"), json);
+        assertFalse(json.contains("\"resolution\":"), json);
+        assertFalse(json.contains("MaterialIcons"), json);
+        assertFalse(json.contains("unresolved-image"), json);
+        var unresolved = new WidgetNode(none.id(), none.type(), Map.of(new PropertyName("image"), PropertyValue.ImageProviderValue.unresolved()), Map.of());
+        var issue = new dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue(
+                CanvasImageAssetId.application(PropertyValue.ImageProviderValue.unresolved().assetName()),
+                dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue.Code.UNDECLARED,
+                "Select a declared image or None for ImageIcon.image.");
+        var unavailable = new CanvasImageResourceBundle(List.of(), List.of(), List.of(issue));
+        String retained = new String(new CanvasModelPayloadCodec().encode(request(PROFILE, new DesignerDocument(DOCUMENT_ID, source(), unresolved), unavailable)), StandardCharsets.UTF_8);
+        assertTrue(retained.contains("__netbeans_flutter_designer__/unresolved-image.png"), retained);
+        assertTrue(retained.contains("\"kind\":\"imageProvider\""), retained);
+        assertTrue(retained.contains("Select a declared image or None"), retained);
+        // Clearing the provider must also clear its revision-scoped resource issue.
+        assertThrows(CanvasModelPayloadException.class, () -> new CanvasModelPayloadCodec().encode(request(PROFILE, document, unavailable)));
+        assertThrows(CanvasModelPayloadException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), unresolved))));
+        var missing = new WidgetNode(none.id(), none.type(), Map.of(), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), missing))));
+    }
+
+    @Test
+    void imageIconPayloadResolvesAllAssetPackageExactResizeBranchesAndPreservesNullableAndThemeFields() throws Exception {
+        int count = 0;
+        for (var kind : PropertyValue.ImageProviderValue.ProviderKind.values()) for (boolean packaged : List.of(false, true)) {
+            var resizes = new java.util.ArrayList<Optional<PropertyValue.ImageProviderValue.ResizeImageConfig>>();
+            resizes.add(Optional.empty());
+            for (int dimensions = 1; dimensions <= 3; dimensions++) for (var policy : PropertyValue.ImageProviderValue.ResizePolicy.values()) for (boolean upscale : List.of(false, true)) {
+                resizes.add(Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig((dimensions & 1) != 0 ? Optional.of(16) : Optional.empty(), (dimensions & 2) != 0 ? Optional.of(24) : Optional.empty(), policy, upscale)));
+            }
+            for (var resize : resizes) {
+                count++;
+                var provider = new PropertyValue.ImageProviderValue(kind, "assets/icon.png", packaged ? Optional.of("reviewed_icons") : Optional.empty(),
+                        kind == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET ? Optional.of(new BigDecimal("2.5")) : Optional.empty(), resize);
+                var icon = new WidgetNode(StableId.random(), type("flutter.widgets.ImageIcon"), Map.of(
+                        new PropertyName("image"), provider,
+                        new PropertyName("size"), new PropertyValue.DoubleValue(new BigDecimal("32.5")),
+                        new PropertyName("color"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")),
+                        new PropertyName("semanticLabel"), new PropertyValue.StringValue("Image icon label")), Map.of());
+                var resource = CanvasImageResource.create(CanvasImageFormat.PNG, 40, 30, new byte[]{4, 3, 2, 1});
+                var assetId = new CanvasImageAssetId(provider.packageName(), provider.assetName());
+                var bundle = new CanvasImageResourceBundle(List.of(new CanvasImageAsset(assetId, resource.resourceId(), List.of(new CanvasImageVariant(BigDecimal.ONE, resource.resourceId())))), List.of(resource));
+                var request = request(PROFILE, new DesignerDocument(DOCUMENT_ID, source(), icon), bundle);
+                var codec = new CanvasModelPayloadCodec();
+                String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+                assertArrayEquals(codec.encode(request), codec.encode(request));
+                assertTrue(json.contains("\"type\":\"flutter.widgets.ImageIcon\""), json);
+                assertTrue(json.contains("\"image\":{\"kind\":\"imageProvider\",\"value\":{\"kind\":\"" + kind.wireName() + "\""), json);
+                assertTrue(json.contains("\"resolution\":{\"kind\":\"resolved\""), json);
+                assertEquals(packaged, json.contains("reviewed_icons"), json);
+                assertEquals(resize.isPresent(), json.contains("\"allowUpscaling\":"), json);
+                resize.ifPresent(value -> {
+                    assertTrue(json.contains("\"policy\":\"" + value.policy().wireName() + "\""), json);
+                    assertTrue(json.contains("\"allowUpscaling\":" + value.allowUpscaling()), json);
+                });
+                assertTrue(json.contains("material.colorScheme.primary"), json);
+                assertTrue(json.contains("Image icon label"), json);
+                assertFalse(json.contains("MaterialIcons"), json);
+            }
+        }
+        assertEquals(52, count);
+    }
+
+    @Test
+    void imageIconPayloadRejectsMalformedProviderKindsOptionalNullAndNewerSdkOnlyProperties() {
+        for (PropertyValue value : List.of(new PropertyValue.StringValue("assets/icon.png"), new PropertyValue.BooleanValue(true),
+                new PropertyValue.DartExpressionValue("NetworkImage('https://example.com/image.png')"))) {
+            var icon = new WidgetNode(StableId.random(), type("flutter.widgets.ImageIcon"), Map.of(new PropertyName("image"), value), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), icon))));
+        }
+        for (String name : List.of("size", "color", "semanticLabel", "useOriginalColors", "key", "fit")) {
+            var icon = new WidgetNode(StableId.random(), type("flutter.widgets.ImageIcon"), Map.of(new PropertyName("image"), new PropertyValue.NullValue(), new PropertyName(name), new PropertyValue.NullValue()), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), icon))));
+        }
     }
 
     @Test

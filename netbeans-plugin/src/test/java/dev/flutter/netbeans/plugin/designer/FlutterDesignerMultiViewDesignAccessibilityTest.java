@@ -810,6 +810,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.DefaultTextHeightBehavior",
                     "flutter.widgets.DefaultSelectionStyle",
                     "flutter.widgets.IconTheme",
+                    "flutter.widgets.ImageIcon",
                     "flutter.widgets.ExcludeSemantics",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",
@@ -987,6 +988,56 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 "Operation: apply Flutter Palette drop."));
         assertTrue(detail.get().contains("The target slot is full."));
         assertFalse(detail.get().contains("assets/example.png"));
+    }
+
+    @Test
+    void imageIconSlotReplacementUsesFirstAssetOrExplicitNoneWithoutBlocking() {
+        WidgetDefinition definition = BuiltInWidgetCatalog.getDefault()
+                .find(new WidgetTypeId("flutter.widgets.ImageIcon"))
+                .orElseThrow();
+        StableId expectedId = StableId.parse(
+                "23655e27-aa73-430f-9967-5344076c4fa2");
+        AtomicInteger availableAllocations = new AtomicInteger();
+        FlutterImageAssetChoices available = new FlutterImageAssetChoices(
+                List.of(
+                        new FlutterImageAssetChoices.Choice(
+                                Optional.empty(), "assets/z.png", "Z"),
+                        new FlutterImageAssetChoices.Choice(
+                                Optional.empty(), "assets/a.png", "A")),
+                Optional.empty());
+
+        WidgetNode prototype = FlutterDesignerMultiViewDesign
+                .createSlotReplacementPrototype(
+                        definition,
+                        available,
+                        () -> {
+                            availableAllocations.incrementAndGet();
+                            return expectedId;
+                        });
+
+        PropertyValue.ImageProviderValue image = assertInstanceOf(
+                PropertyValue.ImageProviderValue.class,
+                prototype.properties().get(new PropertyName("image")));
+        assertEquals(expectedId, prototype.id());
+        assertEquals("assets/a.png", image.assetName());
+        assertEquals(1, availableAllocations.get());
+
+        AtomicInteger placeholderAllocations = new AtomicInteger();
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(),
+                Optional.of("the current pubspec declares no safe image asset."));
+        WidgetNode placeholder = FlutterDesignerMultiViewDesign
+                .createSlotReplacementPrototype(
+                        definition,
+                        unavailable,
+                        () -> {
+                            placeholderAllocations.incrementAndGet();
+                            return expectedId;
+                        });
+        assertEquals(new PropertyValue.NullValue(),
+                placeholder.properties().get(new PropertyName("image")));
+        assertTrue(placeholder.slots().isEmpty());
+        assertEquals(1, placeholderAllocations.get());
     }
 
     @Test

@@ -83,6 +83,7 @@ public final class BuiltInWidgetCatalog {
             defaultTextHeightBehavior(),
             defaultSelectionStyle(),
             iconTheme(),
+            imageIcon(),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -596,6 +597,27 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("fontWeight", 11, false,
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
+                List.of());
+    }
+
+    private static WidgetDefinition imageIcon() {
+        return widget(
+                ImageIconWidgetPropertySchema.IMAGE_ICON_TYPE.value(),
+                "ImageIcon",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 230, "ImageIcon"),
+                List.of(
+                        new PropertyDefinition(new PropertyName("image"),
+                                DartParameter.positional(0),
+                                List.of(new PropertyValueConstraint.ImageProviderValues(),
+                                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL)),
+                                Optional.of(new PropertyValue.NullValue())),
+                        namedProperty("size", 0, false, nonNegativeNumbers()),
+                        namedProperty("color", 1, false, colorOrTheme()),
+                        namedProperty("semanticLabel", 2, false, any(PropertyValueKind.STRING))),
                 List.of());
     }
 

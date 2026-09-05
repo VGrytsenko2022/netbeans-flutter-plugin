@@ -83,6 +83,74 @@ import org.openide.nodes.Node;
 class FlutterWidgetPropertiesNodeTest {
 
     @Test
+    void imageIconProjectsAllFourFieldsWithExplicitNoneAndStableEditorIdentity() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.ImageIcon");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3b");
+        WidgetNode initial = WidgetNodePrototypeFactory.create(definition, id);
+        PropertyName imageName = new PropertyName("image");
+        assertEquals(Map.of(imageName, new PropertyValue.NullValue()), initial.properties());
+        assertTrue(initial.slots().isEmpty());
+        List<DesignerCommand> commands = new ArrayList<>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(4, sets.length);
+        assertEquals(List.of("image"), names(propertySet(node, "imageIconImage").getProperties()));
+        assertEquals(List.of("size", "color"), names(propertySet(node, "imageIconAppearance").getProperties()));
+        assertEquals(List.of("semanticLabel"), names(propertySet(node, "imageIconAccessibility").getProperties()));
+        var image = cellProperty(property(node, "image"));
+        assertFalse(image.supportsDefaultValue());
+        assertTrue(image.getShortDescription().contains("Required positional"));
+        assertTrue(image.getShortDescription().contains("None"));
+        assertTrue(image.getPropertyEditor().supportsCustomEditor());
+        var editor = image.getPropertyEditor();
+        editor.setValue(image.getValue());
+        assertEquals("None (empty image icon)", editor.getAsText());
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(FlutterPropertyCellValue.unset()));
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("<not set>"));
+        image.restoreDefaultValue();
+        assertTrue(commands.isEmpty());
+        Map<String, List<PropertyValue>> values = new LinkedHashMap<>();
+        values.put("image", List.of(new PropertyValue.NullValue(),
+                PropertyValue.ImageProviderValue.asset("assets/a.png"),
+                PropertyValue.ImageProviderValue.exactAsset("assets/2x/a.png", new BigDecimal("2")),
+                PropertyValue.ImageProviderValue.unresolved()));
+        values.put("size", List.of(new PropertyValue.IntegerValue(BigInteger.ZERO),
+                new PropertyValue.DoubleValue(new BigDecimal("23.5"))));
+        values.put("color", List.of(new PropertyValue.ColorValue(0x80123456L),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary"))));
+        values.put("semanticLabel", List.of(new PropertyValue.StringValue(""), new PropertyValue.StringValue("Image icon")));
+        for (var entry : values.entrySet()) {
+            var cell = cellProperty(property(node, entry.getKey()));
+            for (PropertyValue value : entry.getValue()) {
+                commands.clear();
+                cell.setValue(FlutterPropertyCellValue.explicit(value));
+                if (!value.equals(initial.properties().get(new PropertyName(entry.getKey())))) {
+                    assertEquals(List.of(new SetProperty(id, new PropertyName(entry.getKey()), value)), commands);
+                }
+                var current = new LinkedHashMap<>(initial.properties());
+                current.put(new PropertyName(entry.getKey()), value);
+                node.refreshPresentation(new WidgetNode(id, definition.typeId(), current, Map.of()),
+                        definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, property(node, entry.getKey()));
+                assertEquals(List.of(sets), List.of(node.getPropertySets()));
+                assertEquals(FlutterPropertyCellValue.explicit(value), cell.getValue());
+                if (!entry.getKey().equals("image")) {
+                    commands.clear();
+                    cell.restoreDefaultValue();
+                    assertEquals(List.of(new ResetProperty(id, new PropertyName(entry.getKey()))), commands);
+                }
+                node.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+        }
+        assertTrue(property(node, "color").getPropertyEditor().isPaintable());
+        for (String invalid : List.of("-1", "NaN", "Infinity")) {
+            assertThrows(IllegalArgumentException.class,
+                    () -> property(node, "size").getPropertyEditor().setAsText(invalid));
+        }
+        assertSame(image, property(node, "image"));
+    }
+
+    @Test
     void iconThemeProjectsAllDataEditorsAndRequiredMergeWithStableGroupsAndCells() throws Exception {
         WidgetDefinition definition = definition("flutter.widgets.IconTheme");
         StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
@@ -1290,6 +1358,8 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
         requiredValues.put("flutter.widgets.DefaultSelectionStyle",
                 Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
+        requiredValues.put("flutter.widgets.ImageIcon",
+                Map.of(new PropertyName("image"), new PropertyValue.NullValue()));
         requiredValues.put("flutter.widgets.IconTheme",
                 Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
         List<String> types = List.of(
@@ -1358,6 +1428,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.DefaultTextHeightBehavior",
                     "flutter.widgets.DefaultSelectionStyle",
                     "flutter.widgets.IconTheme",
+                    "flutter.widgets.ImageIcon",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -1393,7 +1464,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(793, writableCount,
+        assertEquals(797, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1406,7 +1477,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(776, nonScaffoldWritableCount,
+        assertEquals(780, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6260,6 +6331,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.DefaultTextHeightBehavior");
         typeIds.add("flutter.widgets.DefaultSelectionStyle");
         typeIds.add("flutter.widgets.IconTheme");
+        typeIds.add("flutter.widgets.ImageIcon");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
@@ -6289,7 +6361,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(66, iconPaths.size(),
+        assertEquals(67, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

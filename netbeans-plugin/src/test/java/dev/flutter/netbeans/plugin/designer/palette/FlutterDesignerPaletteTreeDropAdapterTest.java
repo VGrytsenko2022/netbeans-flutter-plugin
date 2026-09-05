@@ -677,6 +677,40 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void imageIconPreviewAndCommitUseExplicitNoneWhenInventoryIsUnavailable() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.ImageIcon"));
+        StringSelection transfer = new StringSelection(fixture.token());
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(), Optional.of("the current pubspec declares no safe image asset."));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        ROOT_ID,
+                        unavailable));
+        AtomicInteger allocations = new AtomicInteger();
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        unavailable,
+                        () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        })).command();
+        assertEquals(Map.of(new PropertyName("image"), new PropertyValue.NullValue()), command.widget().properties());
+        assertEquals(1, allocations.get());
+    }
+
+    @Test
     void imagePreviewAndCommitUseEditablePlaceholderWhenInventoryIsUnavailable() {
         Fixture fixture = fixture(IMAGE);
         StringSelection transfer = new StringSelection(fixture.token());

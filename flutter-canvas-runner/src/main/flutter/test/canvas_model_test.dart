@@ -4100,7 +4100,7 @@ void main() {
   test('Image reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Image\n');
-    final end = contract.indexOf('W|flutter.widgets.IndexedSemantics\n', start);
+    final end = contract.indexOf('W|flutter.widgets.ImageIcon\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));

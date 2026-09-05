@@ -1827,6 +1827,107 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesImageIconNullableAssetProvidersAndPinnedInheritanceContract() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("image_icon_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        assertFalse(originalPubspec.contains("uses-material-design"));
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                Widget empty() => const ImageIcon(null);
+                Widget labelledEmpty() => const ImageIcon(null, size: 0, semanticLabel: 'Empty image icon');
+                Widget explicitNulls() => const ImageIcon(null, size: null, color: null, semanticLabel: null);
+                Widget complete() => const ImageIcon(AssetImage('assets/star.png'), size: 32,
+                  color: Color(0x80123456), semanticLabel: 'Star');
+                Widget inherited() => const IconTheme(data: IconThemeData(size: 48,
+                  color: Color(0xCC123456), opacity: 0.5, applyTextScaling: true,
+                  shadows: [Shadow(blurRadius: 4)]), child: ImageIcon(AssetImage('assets/star.png')));
+                Widget merged() => IconTheme.merge(data: const IconThemeData(size: 40, opacity: 0.25),
+                  child: const ImageIcon(AssetImage('assets/star.png'), size: 20, color: Color(0x80123456)));
+                Widget themed(BuildContext context) => ImageIcon(const AssetImage('assets/star.png'),
+                  color: Theme.of(context).colorScheme.primary, semanticLabel: DateTime.now().toString());
+                Widget composition() => const Directionality(textDirection: TextDirection.rtl,
+                  child: Row(children: [ImageIcon(null), ImageIcon(AssetImage('assets/star.png'))]));
+                List<Widget> providerMatrix() => <Widget>[
+                """);
+        List<String> providers = List.of("null", "AssetImage('assets/star.png')",
+                "AssetImage('assets/star.png', package: 'example_icons')",
+                "ExactAssetImage('assets/star.png', scale: 2)",
+                "ExactAssetImage('assets/star.png', scale: 1.5, package: 'example_icons')",
+                "ResizeImage(AssetImage('assets/star.png'), width: 24)",
+                "ResizeImage(AssetImage('assets/star.png'), height: 48)",
+                "ResizeImage(ExactAssetImage('assets/star.png', scale: 2), width: 24, height: 32, policy: ResizeImagePolicy.exact)",
+                "ResizeImage(AssetImage('assets/star.png', package: 'example_icons'), width: 32, height: 48, policy: ResizeImagePolicy.fit, allowUpscaling: true)");
+        for (String provider : providers) {
+            valid.append("const ImageIcon(").append(provider).append("),\n");
+            valid.append("const ImageIcon(").append(provider)
+                    .append(", size: 28.5, color: Color(0x00123456), semanticLabel: 'Provider'),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("ImageIcon", "AssetImage", "ExactAssetImage", "ResizeImage",
+                "ResizeImagePolicy", "IconTheme", "IconThemeData", "Color")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("image-icon-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/widgets.dart", flutterSdk));
+        }
+        for (String policy : List.of("exact", "fit")) {
+            probes.add(probe("image-icon-resize-" + policy,
+                    candidate.indexOf("ResizeImagePolicy." + policy) + "ResizeImagePolicy.".length(),
+                    policy, "package:flutter/widgets.dart", flutterSdk));
+        }
+        probes.add(probe("image-icon-theme-merge", candidate.indexOf("IconTheme.merge(") + "IconTheme.".length(),
+                "merge", "package:flutter/widgets.dart", flutterSdk));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 1800, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 1801;
+        for (String invalid : List.of(
+                "const ImageIcon()",
+                "const ImageIcon(image: null)",
+                "const ImageIcon('assets/star.png')",
+                "const ImageIcon(null, size: 'large')",
+                "const ImageIcon(null, color: 123)",
+                "const ImageIcon(null, semanticLabel: 123)",
+                "const ImageIcon(null, child: Text('Not a wrapper'))",
+                "const ImageIcon(null, applyTextScaling: true)",
+                "const ImageIcon(null, shadows: [Shadow()])",
+                "const ImageIcon(null, useOriginalColors: true)",
+                "const ImageIcon(null, fit: BoxFit.cover)",
+                "const ImageIcon(AssetImage(123))",
+                "const ImageIcon(ExactAssetImage('assets/star.png', scale: '2'))",
+                "const ImageIcon(ResizeImage(AssetImage('assets/star.png')))",
+                "const ImageIcon(ResizeImage(AssetImage('assets/star.png'), width: 24, policy: 'fit'))",
+                "const ImageIcon.merge(null)")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

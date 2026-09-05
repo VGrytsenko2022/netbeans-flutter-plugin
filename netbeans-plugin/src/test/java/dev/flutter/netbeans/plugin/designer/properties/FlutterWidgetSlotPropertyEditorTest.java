@@ -65,6 +65,82 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void imageIconFreshRequiredSlotReplacementIsAtomicAndCancelHasNoMutation() throws Exception {
+        WidgetDefinition iconThemeDefinition = definition("flutter.widgets.IconTheme");
+        WidgetNode center = new WidgetNode(
+                id("e3a3ed63-209c-49fc-9bb7-d61a967522bd"),
+                type("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        WidgetNode iconTheme = new WidgetNode(
+                id("e00a3e9a-abf4-4a26-8af4-8fb1192f9d3b"),
+                iconThemeDefinition.typeId(),
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(center)),
+                Extensions.empty());
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                iconTheme,
+                iconThemeDefinition,
+                iconThemeDefinition.slot(CHILD).orElseThrow(),
+                new FlutterWidgetSlotEditorContext(
+                        document(iconTheme),
+                        CATALOG,
+                        List.of(type("flutter.widgets.ImageIcon"))));
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        editor.attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> moveSource = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+            assertFalse(labels(action).contains("Add new widget"));
+            assertTrue(labels(action).contains("Replace with new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            selectLabel(action, "Replace with new widget");
+            selectLabel(addType, "ImageIcon");
+            assertTrue(addType.isEnabled());
+            assertFalse(moveSource.isEnabled());
+            assertFalse(position.isEnabled());
+            assertFalse(current.isEnabled());
+
+            assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(),
+                    "Cancel before OK cannot publish a required child replacement");
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Replace replace = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(iconTheme.id(), replace.ownerId());
+            assertEquals(CHILD, replace.slotName());
+            assertEquals(center.id(), replace.expectedChildId());
+            FlutterWidgetSlotMutation.Replace.NewWidget fresh = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.NewWidget.class,
+                    replace.replacement());
+            assertEquals(type("flutter.widgets.ImageIcon"), fresh.widgetType());
+            return null;
+        });
+    }
+
+    @Test
     void iconThemeRequiredChildFreshReplacementIsAtomicAndCancelHasNoMutation() throws Exception {
         WidgetDefinition iconThemeDefinition = definition("flutter.widgets.IconTheme");
         WidgetNode center = new WidgetNode(

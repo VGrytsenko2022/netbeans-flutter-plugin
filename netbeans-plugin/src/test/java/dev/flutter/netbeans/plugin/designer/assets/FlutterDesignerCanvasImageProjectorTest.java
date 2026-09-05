@@ -44,6 +44,34 @@ class FlutterDesignerCanvasImageProjectorTest {
             new FlutterDesignerCanvasImageProjector();
 
     @Test
+    void imageIconNullHasNoResourcesWhileProvidersUseExactSharedProjection() throws Exception {
+        Path project = newProject("imageicon", "imageicon_app", """
+                  assets:
+                    - assets/logo.png
+                """);
+        write(project, "assets/logo.png", png(10, 10));
+        write(project, "assets/2x/logo.png", png(20, 20));
+        writePackageConfig(project, List.of(new PackageEntry("imageicon_app", "../")));
+        FlutterAssetInventory inventory = resolver.resolve(project);
+        WidgetNode seed = node(Map.of(), Map.of());
+        for (PropertyValue image : List.of(new PropertyValue.NullValue(),
+                PropertyValue.ImageProviderValue.asset("assets/logo.png"),
+                PropertyValue.ImageProviderValue.exactAsset("assets/2x/logo.png", new BigDecimal("2")))) {
+            DesignerDocument document = document(new WidgetNode(seed.id(),
+                    new WidgetTypeId("flutter.widgets.ImageIcon"), Map.of(new PropertyName("image"), image), Map.of()));
+            boolean present = image instanceof PropertyValue.ImageProviderValue;
+            assertEquals(present, projector.referencesImages(document));
+            var result = projector.project(document, inventory, 2);
+            assertEquals(present ? 1 : 0, result.bundle().assets().size());
+            assertEquals(present ? 1 : 0, result.bundle().resources().size());
+            assertTrue(result.bundle().issues().isEmpty());
+            if (present) {
+                assertEquals(20, result.bundle().resources().getFirst().pixelWidth());
+            }
+        }
+    }
+
+    @Test
     void recursivelyProjectsOnlyThePinnedSelectedVariant() throws Exception {
         Path project = newProject("selected", "selected_app", """
                   assets:

@@ -1696,13 +1696,29 @@ accepted architecture is documented in
   mode and `.merge` use actual inherited theme semantics, with local Icon precedence.
   Include exact composite/factory provenance, const propagation, codec/payload,
   generic root/non-root wrapping, child protection, save/reopen/further editing,
-  Undo/Redo, rollback, Canvas semantics/F2 and four light/dark SVGs. Current totals:
+  Undo/Redo, rollback, Canvas semantics/F2 and four light/dark SVGs. At that milestone:
   66 widgets, 60 const-capable definitions, 793 writable rows (776 outside Scaffold),
   63 scalar plus three structural definitions; nine generic wrappers, 57 insertable
   destinations, 3,762 cells (3,473 accepted / 289 rejected), Basic 22.
   Historical practical target 66/92 with 26 remaining; formats remain 13/14/18.
   Custom IconThemeData subclasses/resolvers remain outside the closed value model;
   fallback data is fully expressible with explicit field values.
+- [x] Add `ImageIcon` in Basic at order 230 with all four pinned constructor
+  properties: required nullable positional image, optional size/color/semanticLabel,
+  no child slots. Add a nullable provider editor with explicit None and existing
+  typed asset/exact/resize controls; use first declared asset on creation or null
+  when unavailable, without changing Image's unresolved-provider path. Preserve
+  actual IconTheme size/color/opacity inheritance, null space, image tint/scaleDown
+  and semantics; font axes/shadows/text scaling are not ImageIcon theme inputs.
+  Cover resource closure/exact-scale/resize validation, missing/corrupt diagnostics,
+  ordinary DnD, generation/provenance, save/reopen/further editing, Undo/Redo,
+  rollback, selection/accessibility and four SVGs. Current totals: 67 widgets,
+  61 const-capable definitions, 797 rows (780 outside Scaffold), 64 scalar plus
+  three structural definitions; nine generic wrappers and 57 destinations,
+  3,819 cells (3,528 accepted / 291 rejected), Basic 23. Historical target 67/92,
+  25 remaining; formats remain 13/14/18. Arbitrary network/file/custom providers
+  remain outside the existing asset-backed value model. useOriginalColors is absent
+  from pinned Flutter 3.44.8, so it is not admitted and no SDK upgrade is implied.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1720,8 +1736,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-six admitted built-ins.
-  The 63 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all sixty-seven admitted built-ins.
+  The 64 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

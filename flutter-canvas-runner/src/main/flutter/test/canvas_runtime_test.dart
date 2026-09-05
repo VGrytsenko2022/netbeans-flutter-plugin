@@ -896,6 +896,336 @@ void main() {
     },
   );
 
+  test(
+    'ImageIcon explicit null and unavailable providers need no resource descriptors or image-byte capability',
+    () async {
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final empty in [false, true]) {
+          final result = await _runImageIconRender(
+            _imageIconRuntimeModel(
+              empty: empty,
+              resolution: {
+                'kind': 'unavailable',
+                'code': 'missing',
+                'reason': 'The declared icon does not exist',
+              },
+            ),
+            host: host,
+            capability: false,
+          );
+          expect(result.diagnostics, isEmpty);
+          expect(result.runtime.model, isNotNull);
+          expect(result.runtime.model!.imageResourceIds, isEmpty);
+          expect(result.runtime.imageResources.isEmpty, true);
+        }
+      }
+    },
+  );
+
+  test(
+    'ImageIcon runtime binds asset exact package and Resize providers under both host codec profiles',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final exact in [false, true]) {
+          for (final package in [null, 'icons_pack']) {
+            for (final resize in [
+              null,
+              {
+                'width': 2,
+                'height': null,
+                'policy': 'exact',
+                'allowUpscaling': false,
+              },
+              {
+                'width': 16,
+                'height': 12,
+                'policy': 'fit',
+                'allowUpscaling': true,
+              },
+            ]) {
+              final result = await _runImageIconRender(
+                _imageIconRuntimeModel(
+                  resolution: {
+                    'kind': 'resolved',
+                    'resourceId': image.resourceId,
+                    'resolvedScale': 2,
+                  },
+                  exactScale: exact ? 2 : null,
+                  package: package,
+                  resize: resize,
+                ),
+                images: [image],
+                host: host,
+              );
+              expect(result.diagnostics, isEmpty);
+              expect(result.runtime.model!.imageResourceIds, {
+                image.resourceId,
+              });
+              expect(
+                result.runtime.imageResources[image.resourceId],
+                isNotNull,
+              );
+              expect(
+                result.runtime.imageResources.rejection(image.resourceId),
+                isNull,
+              );
+            }
+          }
+        }
+      }
+    },
+  );
+
+  test(
+    'ImageIcon runtime enforces descriptor closure required capability and ExactAsset resolved-scale identity',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      final other = _TestImageResource(
+        bytes: _testPng4,
+        pixelWidth: 4,
+        pixelHeight: 4,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final testCase in [
+          (
+            name: 'missing descriptor',
+            empty: false,
+            exactScale: null,
+            images: <_TestImageResource>[],
+            capability: true,
+          ),
+          (
+            name: 'unreferenced descriptor',
+            empty: false,
+            exactScale: null,
+            images: [image, other],
+            capability: true,
+          ),
+          (
+            name: 'explicit null references none',
+            empty: true,
+            exactScale: null,
+            images: [image],
+            capability: true,
+          ),
+          (
+            name: 'ExactAsset scale must match',
+            empty: false,
+            exactScale: 3,
+            images: [image],
+            capability: true,
+          ),
+          (
+            name: 'image bytes require negotiation',
+            empty: false,
+            exactScale: null,
+            images: [image],
+            capability: false,
+          ),
+        ]) {
+          final result = await _runImageIconRender(
+            _imageIconRuntimeModel(
+              empty: testCase.empty,
+              exactScale: testCase.exactScale,
+              resolution: {
+                'kind': 'resolved',
+                'resourceId': image.resourceId,
+                'resolvedScale': 2,
+              },
+            ),
+            images: testCase.images,
+            host: host,
+            capability: testCase.capability,
+          );
+          expect(result.runtime.model, isNull, reason: testCase.name);
+          expect(result.diagnostics, isNotEmpty, reason: testCase.name);
+          expect(
+            result.messages.last['type'],
+            'runner.failure',
+            reason: testCase.name,
+          );
+        }
+      }
+    },
+  );
+
+  test(
+    'ImageIcon Resize validation follows pinned native truncation Web rounding and rejects zero axes',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng4x3,
+        pixelWidth: 4,
+        pixelHeight: 3,
+      );
+      final thin = _TestImageResource(
+        bytes: _testPng100x1,
+        pixelWidth: 100,
+        pixelHeight: 1,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final testCase in [
+          (
+            image: image,
+            policy: 'exact',
+            rejected: host != CanvasRuntimeHostProfile.webView,
+          ),
+          (image: thin, policy: 'fit', rejected: true),
+        ]) {
+          final result = await _runImageIconRender(
+            _imageIconRuntimeModel(
+              resolution: {
+                'kind': 'resolved',
+                'resourceId': testCase.image.resourceId,
+                'resolvedScale': 1,
+              },
+              resize: {
+                'width': 1,
+                'height': null,
+                'policy': testCase.policy,
+                'allowUpscaling': false,
+              },
+            ),
+            images: [testCase.image],
+            host: host,
+          );
+          expect(result.diagnostics, isEmpty);
+          expect(result.runtime.model, isNotNull);
+          final rejection = result.runtime.imageResources.rejection(
+            testCase.image.resourceId,
+          );
+          if (testCase.rejected) {
+            expect(
+              rejection!.kind,
+              CanvasImageResourceRejectionKind.invalidResizeTarget,
+            );
+            expect(
+              result.runtime.imageResources[testCase.image.resourceId],
+              isNull,
+            );
+          } else {
+            expect(rejection, isNull);
+            expect(
+              result.runtime.imageResources[testCase.image.resourceId],
+              isNotNull,
+            );
+          }
+        }
+      }
+    },
+  );
+
+  test(
+    'ImageIcon corrupt resource becomes a concrete rejected binding without invalidating the model',
+    () async {
+      final image = _TestImageResource(
+        bytes: Uint8List.fromList([1, 2, 3, 4]),
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        final result = await _runImageIconRender(
+          _imageIconRuntimeModel(
+            resolution: {
+              'kind': 'resolved',
+              'resourceId': image.resourceId,
+              'resolvedScale': 1,
+            },
+          ),
+          images: [image],
+          host: host,
+        );
+        expect(result.runtime.model, isNotNull);
+        expect(result.diagnostics, isEmpty);
+        expect(result.runtime.imageResources[image.resourceId], isNull);
+        expect(
+          result.runtime.imageResources.rejection(image.resourceId)!.kind,
+          CanvasImageResourceRejectionKind.encodedContent,
+        );
+        expect(result.runtime.model!.imageResourceIds, {image.resourceId});
+      }
+    },
+  );
+
+  test(
+    'ImageIcon Image and decoration share one content-addressed descriptor without losing any provider use',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      final resolution = <String, Object?>{
+        'kind': 'resolved',
+        'resourceId': image.resourceId,
+        'resolvedScale': 2,
+      };
+      final model =
+          jsonDecode(utf8.decode(_imageContainerModel(resolution: resolution)))
+              as Map<String, Object?>;
+      Map body(Map model) =>
+          ((model['root'] as Map)['slots'] as Map)['body'] as Map;
+      final container = body(model)['child'];
+      final icon = body(
+        jsonDecode(utf8.decode(_imageIconRuntimeModel(resolution: resolution))),
+      )['child'];
+      final direct = body(
+        jsonDecode(
+          utf8.decode(
+            _directImageModel(
+              resolution: resolution,
+              centerSlice: {'left': 0, 'top': 0, 'right': 3, 'bottom': 3},
+            ),
+          ),
+        ),
+      )['child'];
+      body(model)['child'] = {
+        'id': '6cf65df3-796d-4680-9f80-4fdce3ad41a4',
+        'type': 'flutter.widgets.Column',
+        'properties': <String, Object?>{},
+        'slots': {
+          'children': {
+            'kind': 'list',
+            'children': [container, icon, direct],
+          },
+        },
+      };
+      final result = await _runImageIconRender(
+        Uint8List.fromList(utf8.encode(jsonEncode(model))),
+        images: [image],
+      );
+      expect(result.diagnostics, isEmpty);
+      expect(result.runtime.model!.imageResourceIds, {image.resourceId});
+      expect(result.runtime.imageResources.declaredResourceIds, {
+        image.resourceId,
+      });
+      expect(result.runtime.imageResources[image.resourceId], isNotNull);
+    },
+  );
+
   test('image rejection bundles validate ids and declared-id uniqueness', () {
     final resourceId = sha256Hex(_testPng8);
     final rejection = CanvasImageResourceRejection.encodedContent(resourceId);
@@ -4880,6 +5210,83 @@ Uint8List _directImageModel({
     'slots': <String, Object?>{},
   };
   return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+Uint8List _imageIconRuntimeModel({
+  required Map<String, Object?> resolution,
+  bool empty = false,
+  num? exactScale,
+  String? package,
+  Map<String, Object?>? resize,
+}) {
+  final model =
+      jsonDecode(
+            utf8.decode(
+              _directImageModel(
+                resolution: resolution,
+                centerSlice: {'left': 0, 'top': 0, 'right': 1, 'bottom': 1},
+                resize: resize,
+              ),
+            ),
+          )
+          as Map<String, Object?>;
+  final body = ((model['root'] as Map)['slots'] as Map)['body'] as Map;
+  final icon = body['child'] as Map;
+  icon['id'] = '2ef02614-543e-4fbc-9014-6d2e4a700c75';
+  icon['type'] = 'flutter.widgets.ImageIcon';
+  final image = (icon['properties'] as Map)['image'] as Map;
+  (image['value'] as Map).addAll(<String, Object?>{
+    'kind': exactScale == null ? 'asset' : 'exactAsset',
+    'exactScale': exactScale,
+    'packageName': package,
+  });
+  icon['properties'] = {
+    'image': empty ? {'kind': 'null'} : image,
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+Future<
+  ({
+    CanvasRuntimeController runtime,
+    List<String> diagnostics,
+    List<Map<String, Object?>> messages,
+  })
+>
+_runImageIconRender(
+  Uint8List model, {
+  List<_TestImageResource> images = const [],
+  CanvasRuntimeHostProfile host = CanvasRuntimeHostProfile.injectedTest,
+  bool capability = true,
+}) async {
+  final input = StreamController<List<int>>();
+  final output = <List<int>>[];
+  final diagnostics = <String>[];
+  final runtime = CanvasRuntimeController(
+    input: input.stream,
+    output: (bytes) => output.add(List<int>.from(bytes)),
+    flush: () async {},
+    diagnostic: diagnostics.add,
+    hostProfile: host,
+  );
+  final running = runtime.start();
+  input.add(
+    encodeNbfcFrame(
+      nbfcControlJson,
+      utf8.encode(jsonEncode(_hello(imageBytes: capability))),
+    ),
+  );
+  _addRender(input, model, images: images);
+  input.add(
+    encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_close()))),
+  );
+  await input.close();
+  await running;
+  return (
+    runtime: runtime,
+    diagnostics: diagnostics,
+    messages: _decodeControlMessages(output),
+  );
 }
 
 Uint8List _withForegroundImage(

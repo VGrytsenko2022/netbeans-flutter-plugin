@@ -2799,6 +2799,12 @@ Iterable<
   })
 >
 _canvasImageUses(CanvasNode node) sync* {
+  if (node.type == 'flutter.widgets.ImageIcon') {
+    final provider = node.properties['image']?.value;
+    if (provider is CanvasImageProviderValue) {
+      yield (provider: provider, centerSlice: null, scale: 1);
+    }
+  }
   if (node.type == 'flutter.widgets.Image') {
     final provider = node.properties['image']?.value;
     if (provider is CanvasImageProviderValue) {

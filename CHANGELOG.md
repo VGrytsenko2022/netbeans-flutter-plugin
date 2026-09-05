@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `ImageIcon` in Basic at order 230 with all four pinned Flutter 3.44.8 properties:
+  required nullable positional image plus optional size, color and semanticLabel.
+  The dedicated nullable provider editor exposes explicit None or existing typed
+  AssetImage/ExactAssetImage/ResizeImage settings. Creation chooses the first
+  declared asset or null when none is available; Image's unresolved path is unchanged.
+  Actual Canvas inherits IconTheme size/color/opacity, not font axes/shadows/scaling,
+  and retains null versus unavailable-provider semantics. Includes provider/resource
+  validation, provenance, ordinary DnD, save/reopen/further editing, Undo/Redo,
+  rollback and four SVGs. Current totals: 67 widgets, 61 const-capable definitions,
+  797 rows (780 outside Scaffold), 3,819 placements (3,528 accepted / 291 rejected),
+  Basic 23. Historical target 67/92, 25 remaining. Formats remain 13/14/18.
+  Providers remain within the existing asset-backed model; the newer SDK-only
+  useOriginalColors argument is not introduced into the pinned 3.44.8 contract.
+
 - `IconTheme` in Basic at order 220 with all nine nullable IconThemeData leaves,
   a required child and required Designer-only Merge checkbox, initially false.
   Direct mode always emits required data, while `.merge` inherits unset fields
@@ -13,7 +27,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   explicit empty shadows, semantic colors and SDK-clamped finite opacity.
   Includes composite/factory provenance, const rules, codec/payload, wrapping,
   slot protection, save/reopen/further edits, Undo/Redo, rollback and four SVGs.
-  Current surface: 66 widgets, 60 const-capable definitions, 793 writable rows
+  At that milestone: 66 widgets, 60 const-capable definitions, 793 writable rows
   (776 outside Scaffold), 3,762 placements (3,473 accepted / 289 rejected), Basic 22.
   Historical practical target 66/92, 26 remaining; the ordered inventory is not
   recovered. Schema/API/model remain 13/14/18. Physical acceptance stays deferred.

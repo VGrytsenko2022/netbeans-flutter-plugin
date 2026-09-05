@@ -24,6 +24,7 @@ import dev.flutter.netbeans.designer.catalog.TickerModeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ImageIconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -550,6 +551,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addDefaultSelectionStylePropertySets(sheet, hasSlotTab);
         } else if (IconThemeWidgetPropertySchema.ICON_THEME_TYPE.equals(widget.type())) {
             addIconThemePropertySets(sheet, hasSlotTab);
+        } else if (ImageIconWidgetPropertySchema.IMAGE_ICON_TYPE.equals(widget.type())) {
+            addImageIconPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -2520,6 +2523,31 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
                             + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addImageIconPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ImageIconWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ImageIconWidgetPropertySchema.Group.class);
+        for (ImageIconWidgetPropertySchema.Group group : ImageIconWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = ImageIconWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + (property.name().value().equals("image")
+                                    ? " Required positional argument: None is explicit Dart null, not <not set>. "
+                                            + "Choose a declared app/package AssetImage or ExactAssetImage, with optional "
+                                            + "ResizeImage dimensions, exact/fit policy, and upscaling. Imported unresolved "
+                                            + "providers remain editable placeholders; None creates no asset dependency. "
+                                            + "The argument cannot be unset or reset. Network, File, and custom providers are not supported."
+                                    : " Restore Default returns this optional field to <not set>. "
+                                            + "Size and color inherit IconTheme; its opacity still multiplies explicit color alpha. "
+                                            + "ImageIcon tints the source alpha mask, rather than preserving original colors.")));
         }
     }
 

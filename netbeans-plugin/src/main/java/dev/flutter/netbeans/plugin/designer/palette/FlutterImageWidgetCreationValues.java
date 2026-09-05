@@ -16,6 +16,8 @@ import java.util.function.Supplier;
 public final class FlutterImageWidgetCreationValues {
     static final WidgetTypeId IMAGE_TYPE =
             new WidgetTypeId("flutter.widgets.Image");
+    static final WidgetTypeId IMAGE_ICON_TYPE =
+            new WidgetTypeId("flutter.widgets.ImageIcon");
     private static final PropertyName IMAGE_PROPERTY = new PropertyName("image");
 
     private FlutterImageWidgetCreationValues() {
@@ -46,10 +48,15 @@ public final class FlutterImageWidgetCreationValues {
             FlutterImageAssetChoices choices) {
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(choices, "choices");
-        if (!IMAGE_TYPE.equals(definition.typeId())) {
+        boolean imageIcon = IMAGE_ICON_TYPE.equals(definition.typeId());
+        if (!IMAGE_TYPE.equals(definition.typeId()) && !imageIcon) {
             return new Available(Map.of(), "No creation-time values are required.");
         }
         if (choices.choices().isEmpty()) {
+            if (imageIcon) {
+                return new Available(Map.of(IMAGE_PROPERTY, new PropertyValue.NullValue()),
+                        "Create ImageIcon with explicit None; no declared asset is required.");
+            }
             return new Available(
                     Map.of(IMAGE_PROPERTY,
                             PropertyValue.ImageProviderValue.unresolved()),
@@ -66,7 +73,8 @@ public final class FlutterImageWidgetCreationValues {
                         java.util.Optional.empty());
         return new Available(
                 Map.of(IMAGE_PROPERTY, provider),
-                "Create Image with first declared asset " + first.externalName() + '.');
+                "Create " + (imageIcon ? "ImageIcon" : "Image")
+                        + " with first declared asset " + first.externalName() + '.');
     }
 
     sealed interface Result permits Available, Unavailable {

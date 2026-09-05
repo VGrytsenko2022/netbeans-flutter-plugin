@@ -81,6 +81,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.widgets.RepaintBoundary"));
         assertTrue(typeIds(result).contains("flutter.widgets.IgnorePointer"));
         assertTrue(typeIds(result).contains("flutter.widgets.AbsorbPointer"));
+        assertTrue(typeIds(result).contains("flutter.widgets.BlockSemantics"));
     }
 
     @Test
@@ -168,7 +169,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(56, result.catalog().definitions().size());
+        assertEquals(57, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -201,7 +202,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(56, result.catalog().definitions().size());
+        assertEquals(57, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

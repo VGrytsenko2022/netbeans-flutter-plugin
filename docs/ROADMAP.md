@@ -1545,10 +1545,24 @@ accepted architecture is documented in
   without changing layout/paint or disabling Designer selection and editing.
   Include typed validation, generation, all placement/move routes, Slots,
   Save/reopen/further edits, Undo/Redo, rollback, accessibility and four SVGs.
-  Current surface: 56 widgets, 50 const definitions, 763 rows (746 outside Scaffold),
+  At that milestone: 56 widgets, 50 const definitions, 763 rows (746 outside Scaffold),
   51 any-widget plus two trait destinations, 2,968 cells (2,711 accepted / 257
   rejected), Basic 17; historical target 56/92 with 36 remaining. Schema/API/model
   remain 13/14/18; full physical desktop acceptance stays deferred.
+- [x] Add `BlockSemantics` as the next reviewed accessibility slice (category
+  Accessibility, order 20), with optional blocking (SDK true), optional child and
+  managed key. Preserve explicit false/true versus unset in the centered checkbox
+  editor. Use actual RenderBlockSemantics to drop earlier-painted semantics only
+  below the same semantic boundary, retaining its own child/later content and
+  normal pointer hits, layout and paint. Cover full Canvas semantics through
+  Designer instrumentation, typed validation/projection, generation/provenance,
+  Properties/Slots, all insertion/move routes, Save/reopen/further edits, Undo/Redo,
+  rollback, empty external targets, accessibility and four SVGs. Current surface:
+  57 widgets, 51 const definitions, 764 rows (747 outside Scaffold), 52 any-widget
+  plus two trait destinations, 3,078 cells (2,816 accepted / 262 rejected), Basic
+  17 and Accessibility 2. Historical target 57/92 with 35 remaining; this is an
+  API-reviewed successor, not a recovered full ordered 92-item inventory.
+  Schema/API/model remain 13/14/18; full physical desktop acceptance stays deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1566,8 +1580,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all fifty-six admitted built-ins.
-  The 54 definitions with scalar fields expose typed Properties; IntrinsicHeight
+  vertical slices. The current catalog presents all fifty-seven admitted built-ins.
+  The 55 definitions with scalar fields expose typed Properties; IntrinsicHeight
   and RepaintBoundary have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

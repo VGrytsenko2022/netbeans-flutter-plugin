@@ -363,6 +363,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.RepaintBoundary' ||
       'flutter.widgets.IgnorePointer' ||
       'flutter.widgets.AbsorbPointer' ||
+      'flutter.widgets.BlockSemantics' ||
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||

@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -523,6 +524,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIgnorePointerPropertySets(sheet, hasSlotTab);
         } else if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())) {
             addAbsorbPointerPropertySets(sheet, hasSlotTab);
+        } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
+            addBlockSemanticsPropertySets(sheet, hasSlotTab);
         } else if (ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.equals(
                 widget.type())) {
             addExcludeSemanticsPropertySets(sheet, hasSlotTab);
@@ -1105,6 +1108,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
+        }
+        if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child keeps its own semantics and normal layout, painting, and hit testing. "
+                    + "Blocking hides earlier-painted semantic nodes in the same semantics container; "
+                    + "own child and later nodes remain. Unlike ExcludeSemantics it does not exclude this child, "
+                    + "and unlike AbsorbPointer it does not block pointer hits. Designer editing remains available. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child.";
         }
         if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
@@ -2342,6 +2354,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     Optional.empty(),
                     schema.displayName(),
                     schema.description()));
+        }
+    }
+
+    private void addBlockSemanticsPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<BlockSemanticsWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(BlockSemanticsWidgetPropertySchema.Group.class);
+        for (BlockSemanticsWidgetPropertySchema.Group group : BlockSemanticsWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = BlockSemanticsWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " <not set> omits the argument and preserves Flutter's true default. "
+                            + "True hides earlier-painted semantic nodes in the same semantics container; "
+                            + "own child and later nodes remain. False disables this semantics blocking. "
+                            + "Unlike ExcludeSemantics it does not exclude its own child, and unlike AbsorbPointer "
+                            + "it does not block pointer hits. Layout and painting are unchanged. "
+                            + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
         }
     }
 

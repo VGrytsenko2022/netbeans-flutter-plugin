@@ -79,6 +79,7 @@ public final class BuiltInWidgetCatalog {
             ignorePointer(),
             absorbPointer(),
             excludeSemantics(),
+            blockSemantics(),
             elevatedButton(),
             textField()));
 
@@ -1850,6 +1851,19 @@ public final class BuiltInWidgetCatalog {
                 Set.of(),
                 palette("flutter.accessibility", 400, 10, "ExcludeSemantics"),
                 properties,
+                List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition blockSemantics() {
+        List<PropertyDefinition> properties = List.of(namedProperty(
+                "blocking", 0, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != BlockSemanticsWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("BlockSemantics catalog/property schema count mismatch");
+        }
+        return widget(
+                BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.value(),
+                "BlockSemantics", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.accessibility", 400, 20, "BlockSemantics"), properties,
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 

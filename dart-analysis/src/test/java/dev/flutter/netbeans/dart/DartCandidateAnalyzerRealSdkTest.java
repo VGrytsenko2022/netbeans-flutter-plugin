@@ -991,6 +991,72 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesBlockSemanticsCompleteConstructor() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("block_semantics_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String valid = """
+                import 'package:flutter/material.dart';
+                Widget empty() => const BlockSemantics();
+                Widget nullableChild() => const BlockSemantics(child: null);
+                Widget explicitDefault() => const BlockSemantics(blocking: true);
+                Widget disabledEmpty() => const BlockSemantics(blocking: false);
+                Widget nested() => const Center(child: BlockSemantics(
+                  blocking: false, child: BlockSemantics(child: Text('Nested semantics')),
+                ));
+                Widget themed(BuildContext context) => BlockSemantics(
+                  child: ColoredBox(color: Theme.of(context).colorScheme.surface),
+                );
+                Widget nonConstDescendant() => BlockSemantics(child: Text(DateTime.now().toString()));
+                List<Widget> paintOrder() => const <Widget>[
+                  Text('Before'),
+                  BlockSemantics(blocking: true, child: Text('Retained child')),
+                  BlockSemantics(blocking: false, child: Text('No blocking')),
+                  Text('After'),
+                ];
+                """;
+        Path flutterLibrary = flutterSdk.resolve("packages/flutter/lib");
+        List<DartSymbolProbe> probes = List.of(probe("block-semantics",
+                valid.indexOf("BlockSemantics"), "BlockSemantics",
+                "package:flutter/widgets.dart", flutterLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, valid, 800, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        long version = 801;
+        for (String invalid : List.of(
+                "const BlockSemantics(blocking: null)",
+                "const BlockSemantics(blocking: 'true')",
+                "const BlockSemantics(blocking: 1)",
+                "const BlockSemantics(excluding: true)",
+                "const BlockSemantics(absorbing: true)",
+                "const BlockSemantics(child: 'not a widget')",
+                "const BlockSemantics(child: Text(DateTime.now().toString()))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

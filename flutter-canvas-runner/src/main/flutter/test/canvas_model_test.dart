@@ -6236,7 +6236,7 @@ void main() {
   test('Baseline reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Baseline\n');
-    final end = contract.indexOf('W|flutter.widgets.Center\n', start);
+    final end = contract.indexOf('W|flutter.widgets.BlockSemantics\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

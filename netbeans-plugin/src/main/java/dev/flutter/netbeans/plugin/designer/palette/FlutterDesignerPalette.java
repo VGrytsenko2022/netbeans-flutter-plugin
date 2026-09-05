@@ -291,6 +291,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.AbsorbPointer".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.AbsorbPointer.Name"));
                 setShortDescription(message("Widget.AbsorbPointer.Description"));
+            } else if ("flutter.widgets.BlockSemantics".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.BlockSemantics.Name"));
+                setShortDescription(message("Widget.BlockSemantics.Description"));
             } else if ("flutter.widgets.RepaintBoundary".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.RepaintBoundary.Name"));
                 setShortDescription(message("Widget.RepaintBoundary.Description"));

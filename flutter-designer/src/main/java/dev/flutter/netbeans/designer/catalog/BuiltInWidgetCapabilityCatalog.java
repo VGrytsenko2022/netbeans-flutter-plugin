@@ -209,7 +209,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.RepaintBoundary", STATIC_STRUCTURAL),
             Map.entry("flutter.widgets.IgnorePointer", STATIC_EDITABLE),
             Map.entry("flutter.widgets.AbsorbPointer", STATIC_EDITABLE),
-            Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE));
+            Map.entry("flutter.widgets.ExcludeSemantics", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.BlockSemantics", STATIC_EDITABLE));
 
     private static final CanvasNumericBounds UNBOUNDED_NUMERIC =
             bounds(null, true, null, true);
@@ -680,6 +681,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.ExcludeSemantics", projection(Map.ofEntries(
                     property("excluding", PropertyValueKind.BOOLEAN)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
+            Map.entry("flutter.widgets.BlockSemantics", projection(Map.ofEntries(
+                    property("blocking", PropertyValueKind.BOOLEAN)),
                     Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry("flutter.widgets.Container", containerProjection()),
             Map.entry("flutter.widgets.Icon", iconProjection()),

@@ -2674,8 +2674,138 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
-    void absorbPointerCompletesExact2968CellModelWithAllSurfacePropertiesAndChild() {
+    void blockSemanticsCompletesExact3078CellModelWithAllSurfacePropertiesAndChild() {
         List<MatrixTargetCase> allTargets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream()
+                        .filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(
+                                definition.palette().displayName() + "."
+                                        + slot.name().value(),
+                                definition.typeId(),
+                                slot.name())))
+                .toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(
+                List.of(new FlutterImageAssetChoices.Choice(
+                        Optional.empty(), "assets/matrix.png", "Matrix asset")),
+                Optional.empty());
+        AtomicInteger sourceAccepted = new AtomicInteger();
+        AtomicInteger sourceRejected = new AtomicInteger();
+
+        assertAll(allTargets.stream().map(target -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    target.document(), BUILT_INS, BLOCK_SEMANTICS, ROOT_ID,
+                    target.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (target.name().equals("Scaffold.appBar")
+                    || target.name().equals("AppBar.bottom")) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        "BlockSemantics -> " + target.name());
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                sourceRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        "BlockSemantics -> " + target.name());
+                assertEquals(BLOCK_SEMANTICS, success.command().widget().type());
+                assertEquals(Map.of(),
+                        success.command().widget().properties(),
+                        "omission preserves the SDK blocking=true default");
+                assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        success.command().widget().slots());
+                assertEquals(1, allocations.get());
+                sourceAccepted.incrementAndGet();
+            }
+        }));
+
+        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+                .map(WidgetDefinition::typeId)
+                .filter(type -> !SAFE_AREA.equals(type))
+                .filter(type -> !DIRECTIONALITY.equals(type))
+                .filter(type -> !BLOCK_SEMANTICS.equals(type))
+                .toList();
+        MatrixTargetCase blockSemanticsTarget = target(
+                "BlockSemantics.child", BLOCK_SEMANTICS, CHILD);
+        AtomicInteger targetAccepted = new AtomicInteger();
+        AtomicInteger targetRejected = new AtomicInteger();
+
+        assertAll(previousOrdinarySources.stream().map(source -> (Executable) () -> {
+            AtomicInteger allocations = new AtomicInteger();
+            FlutterDesignerPaletteDropPlanner.Result result = planner.plan(
+                    blockSemanticsTarget.document(), BUILT_INS, source, ROOT_ID,
+                    blockSemanticsTarget.slot(), 0, choices, () -> {
+                        allocations.incrementAndGet();
+                        return NEW_ID;
+                    });
+            if (source.equals(EXPANDED)
+                    || source.equals(FLEXIBLE)
+                    || source.equals(SPACER)) {
+                FlutterDesignerPaletteDropPlanner.Rejected failure = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        result,
+                        source.value() + " -> BlockSemantics.child");
+                assertEquals(
+                        FlutterDesignerPaletteDropPlanner.RejectionCode
+                                .SLOT_REJECTS_WIDGET,
+                        failure.code());
+                assertEquals(0, allocations.get());
+                targetRejected.incrementAndGet();
+            } else {
+                FlutterDesignerPaletteDropPlanner.Accepted success = assertInstanceOf(
+                        FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        result,
+                        source.value() + " -> BlockSemantics.child");
+                assertEquals(ROOT_ID, success.command().destination().parentId());
+                assertEquals(CHILD, success.command().destination().slotName());
+                assertEquals(source, success.command().widget().type());
+                assertEquals(1, allocations.get());
+                targetAccepted.incrementAndGet();
+            }
+        }));
+
+        MatrixTargetCase occupiedBlockSemantics = occupiedTarget(
+                "BlockSemantics.child", BLOCK_SEMANTICS, CHILD);
+        for (WidgetTypeId wrapperType : List.of(SAFE_AREA, DIRECTIONALITY)) {
+            FlutterDesignerPaletteDropPlanner.Wrapped wrapped = assertInstanceOf(
+                    FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(
+                            occupiedBlockSemantics.document(), BUILT_INS, wrapperType,
+                            ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+            assertEquals(FIRST_ID, wrapped.command().widgetId());
+            assertEquals(wrapperType, wrapped.command().wrapper().type());
+            targetAccepted.incrementAndGet();
+        }
+
+        assertAll(
+                () -> assertEquals(57, BUILT_INS.definitions().size()),
+                () -> assertEquals(54, allTargets.size()),
+                () -> assertEquals(52, sourceAccepted.get()),
+                () -> assertEquals(2, sourceRejected.get()),
+                () -> assertEquals(54, previousOrdinarySources.size()),
+                () -> assertEquals(53, targetAccepted.get()),
+                () -> assertEquals(3, targetRejected.get()),
+                () -> assertEquals(3078,
+                        2968 + allTargets.size()
+                                + BUILT_INS.definitions().size() - 1),
+                () -> assertEquals(2816,
+                        2711 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(262,
+                        257 + sourceRejected.get() + targetRejected.get()));
+    }
+
+    @Test
+    void absorbPointerCompletesExact2968CellModelWithAllSurfacePropertiesAndChild() {
+        List<MatrixTargetCase> allTargets = preBlockSemanticsDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(
@@ -2728,7 +2858,7 @@ class FlutterDesignerPaletteDropPlannerTest {
             }
         }));
 
-        List<WidgetTypeId> previousOrdinarySources = BUILT_INS.definitions().stream()
+        List<WidgetTypeId> previousOrdinarySources = preBlockSemanticsDefinitions()
                 .map(WidgetDefinition::typeId)
                 .filter(type -> !SAFE_AREA.equals(type))
                 .filter(type -> !DIRECTIONALITY.equals(type))
@@ -2787,7 +2917,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(56, BUILT_INS.definitions().size()),
+                () -> assertEquals(56, Math.toIntExact(preBlockSemanticsDefinitions().count())),
                 () -> assertEquals(53, allTargets.size()),
                 () -> assertEquals(51, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
@@ -2796,7 +2926,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 () -> assertEquals(3, targetRejected.get()),
                 () -> assertEquals(2968,
                         2860 + allTargets.size()
-                                + BUILT_INS.definitions().size() - 1),
+                                + Math.toIntExact(preBlockSemanticsDefinitions().count()) - 1),
                 () -> assertEquals(2711,
                         2608 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(257,
@@ -4292,9 +4422,14 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId IGNORE_POINTER = new WidgetTypeId("flutter.widgets.IgnorePointer");
     private static final WidgetTypeId ABSORB_POINTER = new WidgetTypeId("flutter.widgets.AbsorbPointer");
+    private static final WidgetTypeId BLOCK_SEMANTICS = new WidgetTypeId("flutter.widgets.BlockSemantics");
+
+    private static Stream<WidgetDefinition> preBlockSemanticsDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !BLOCK_SEMANTICS.equals(definition.typeId()));
+    }
 
     private static Stream<WidgetDefinition> preAbsorbPointerDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !ABSORB_POINTER.equals(definition.typeId()));
+        return preBlockSemanticsDefinitions().filter(definition -> !ABSORB_POINTER.equals(definition.typeId()));
     }
 
     private static Stream<WidgetDefinition> preIgnorePointerDefinitions() {

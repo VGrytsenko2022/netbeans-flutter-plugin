@@ -572,6 +572,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
+        node.type == 'flutter.widgets.BlockSemantics' ||
         node.type == 'flutter.widgets.RepaintBoundary' ||
         node.type == 'flutter.widgets.ColoredBox' ||
         (node.type == 'flutter.widgets.Opacity' &&
@@ -2441,6 +2442,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
       'flutter.widgets.IgnorePointer' => _ignorePointer(),
       'flutter.widgets.AbsorbPointer' => _absorbPointer(),
+      'flutter.widgets.BlockSemantics' => _blockSemantics(),
       'flutter.widgets.RepaintBoundary' => RepaintBoundary(
         child: _single('child'),
       ),
@@ -4570,6 +4572,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     position: _enum('position') == 'foreground'
         ? DecorationPosition.foreground
         : DecorationPosition.background,
+    child: _single('child'),
+  );
+
+  Widget _blockSemantics() => BlockSemantics(
+    blocking: _boolean('blocking') ?? true,
     child: _single('child'),
   );
 

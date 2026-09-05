@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer` and `ExcludeSemantics`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics` and `BlockSemantics`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-56 reviewed Canvas widgets. Palette insertion evaluates 2,968 exact
-source/destination cells across 56 draggable sources and 53 insertable reviewed
-slots; 2,711 are accepted and 257 cells are rejected. Expanded and Flexible are
+57 reviewed Canvas widgets. Palette insertion evaluates 3,078 exact
+source/destination cells across 57 draggable sources and 54 insertable reviewed
+slots; 2,816 are accepted and 262 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -959,10 +959,18 @@ child replacement/removal, geometric DnD and tree-selected Text F2/keyboard comm
 The AbsorbPointer body retains normal Designer selection; IgnorePointer's external
 nonempty-handle/transparency policy is not applied to it. Versions stay unchanged.
 
-The aggregate catalog now has 56 widgets and 50 reviewed const definitions,
-with 763 writable rows (746 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, seventeen Basic, four Material and one Accessibility item; the
-backlog is 56/92 complete with 36 remaining. The 56 sources across 53
-insertable destinations form 2,968 cells, with 2,711 accepted and 257 rejected.
+BlockSemantics constructs actual BlockSemantics/RenderBlockSemantics with optional
+blocking (omitted true) and nullable child. Its semantics flag removes previously
+painted nodes below the same semantic boundary, retaining its child and later
+content. The complete Canvas tests verify paint order and container scope through
+Designer instrumentation, live updates, childless/tight layout, ordinary hit testing,
+selection, child edits, DnD and F2 editing. It is not a pointer blocker or descendant
+semantics exclusion. Empty targets remain external; no fake content is introduced.
+
+The aggregate catalog now has 57 widgets and 51 reviewed const definitions,
+with 764 writable rows (747 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, seventeen Basic, four Material and two Accessibility items; the
+backlog is 57/92 complete with 35 remaining. The 57 sources across 54
+insertable destinations form 3,078 cells, with 2,816 accepted and 262 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

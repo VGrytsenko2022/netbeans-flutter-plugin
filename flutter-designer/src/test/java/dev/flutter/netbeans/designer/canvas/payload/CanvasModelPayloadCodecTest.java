@@ -129,7 +129,8 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.RepaintBoundary",
                 "flutter.widgets.IgnorePointer",
                 "flutter.widgets.AbsorbPointer",
-                "flutter.widgets.ExcludeSemantics"),
+                "flutter.widgets.ExcludeSemantics",
+                "flutter.widgets.BlockSemantics"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -1189,6 +1190,46 @@ class CanvasModelPayloadCodecTest {
                 assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), invalid))));
             }
+        }
+    }
+
+    @Test
+    void blockSemanticsPayloadPreservesOmissionExplicitFalseAndTrueWithOptionalChild() throws Exception {
+        for (var blocking : List.of(Optional.<Boolean>empty(), Optional.of(false), Optional.of(true))) {
+            for (boolean child : List.of(false, true)) {
+                Map<PropertyName, PropertyValue> values = blocking.<Map<PropertyName, PropertyValue>>map(value ->
+                        Map.of(new PropertyName("blocking"), new PropertyValue.BooleanValue(value))).orElseGet(Map::of);
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.BlockSemantics"), values,
+                        Map.of(new SlotName("child"), child ? WidgetSlot.SingleSlot.of(text(
+                                "a763c527-e067-45f4-b348-06e8b70249ce", "BlockSemantics child")) : WidgetSlot.SingleSlot.empty()));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"type\":\"flutter.widgets.BlockSemantics\""), json);
+                assertEquals(blocking.isPresent(), json.contains("\"blocking\":"), json);
+                blocking.ifPresent(value -> assertTrue(json.contains(
+                        "\"blocking\":{\"kind\":\"boolean\",\"value\":" + value + "}"), json));
+                assertEquals(child, json.contains("BlockSemantics child"), json);
+                assertFalse(json.contains("\"excluding\":"), json);
+                assertFalse(json.contains("\"ignoringSemantics\":"), json);
+            }
+        }
+    }
+
+    @Test
+    void blockSemanticsPayloadRejectsRawNullAndInventedOverridesBeforeSerialization() {
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("false"),
+                new PropertyValue.DartExpressionValue("secretProjectCode()"))) {
+            var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.BlockSemantics"),
+                    Map.of(new PropertyName("blocking"), value), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+        for (String invented : List.of("key", "excluding", "ignoringSemantics", "absorbing", "blockUserActions")) {
+            var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.BlockSemantics"),
+                    Map.of(new PropertyName(invented), new PropertyValue.BooleanValue(false)), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), invalid))));
         }
     }
 

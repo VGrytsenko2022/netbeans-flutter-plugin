@@ -62,6 +62,7 @@ class FlutterDesignerPaletteTest {
                     "flutter.widgets.RepaintBoundary",
                     "flutter.widgets.IgnorePointer",
                     "flutter.widgets.AbsorbPointer",
+                    "flutter.widgets.BlockSemantics",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -102,8 +103,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(56, CATALOG.definitions().size());
-        assertEquals(50, CATALOG.definitions().stream()
+        assertEquals(57, CATALOG.definitions().size());
+        assertEquals(51, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -135,8 +136,8 @@ class FlutterDesignerPaletteTest {
                 "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer"),
                 itemLabels(categories[3]));
         assertEquals(17, itemLabels(categories[3]).size());
-        assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
-        assertEquals(1, itemLabels(categories[4]).size());
+        assertEquals(List.of("Exclude Semantics", "BlockSemantics"), itemLabels(categories[4]));
+        assertEquals(2, itemLabels(categories[4]).size());
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
                 .lookup(FlutterDesignerPaletteCategory.class);
@@ -174,7 +175,7 @@ class FlutterDesignerPaletteTest {
                 "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
                 "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer"),
                 itemLabels(categories[3]));
-        assertEquals(List.of("Exclude Semantics"), itemLabels(categories[4]));
+        assertEquals(List.of("Exclude Semantics", "BlockSemantics"), itemLabels(categories[4]));
 
         PaletteController textOnly = FlutterDesignerPalette.create(
                 CATALOG,
@@ -1262,6 +1263,27 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void blockSemanticsPaletteSelectionExplainsAccessibilityPaintOrderAndDistinctIcon()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.widgets.BlockSemantics";
+        PaletteController controller = FlutterDesignerPalette.create(
+                CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId);
+        WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(),
+                "flutter.accessibility", 400, 20, "BlockSemantics"),
+                node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertSame(CATALOG.find(definition.typeId()).orElseThrow(), definition);
+        assertEquals("BlockSemantics", node.getDisplayName());
+        assertTrue(node.getShortDescription().contains("earlier-painted semantic nodes"));
+        assertTrue(node.getShortDescription().contains("same semantics container"));
+        assertTrue(node.getShortDescription().contains("Own child and later nodes remain"));
+        assertTrue(node.getShortDescription().contains("pointer hit testing are unchanged"));
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(),
+                declaredIconPath(node));
+    }
+
+    @Test
     void absorbPointerPaletteSelectionExplainsFullSurfaceAndDistinctIcon()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.AbsorbPointer";
@@ -1716,7 +1738,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(56, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(57, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

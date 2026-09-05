@@ -3788,6 +3788,12 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     traits: const {_preferredSizeWidgetTrait},
   ),
+  'flutter.widgets.BlockSemantics': _WidgetSpec(
+    {
+      'blocking': _PropertySpec({'boolean'}),
+    },
+    {'child': _optionalSingleSlot},
+  ),
   'flutter.widgets.AbsorbPointer': _WidgetSpec(
     {
       'absorbing': _PropertySpec({'boolean'}),
@@ -5667,6 +5673,9 @@ S|child|single|0|0|1|any
 W|flutter.widgets.Baseline
 P|baseline|double|1|double:24|double:*:1:*:1|double:range:*:1:*:1
 P|baselineType|enum|1|enum:TextBaseline:alphabetic|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
+S|child|single|0|0|1|any
+W|flutter.widgets.BlockSemantics
+P|blocking|boolean|0|-|-|boolean:any
 S|child|single|0|0|1|any
 W|flutter.widgets.Center
 P|heightFactor|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1

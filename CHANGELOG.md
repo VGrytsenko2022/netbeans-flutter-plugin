@@ -6,6 +6,17 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `BlockSemantics` in Accessibility at order 20 with its complete constructor:
+  optional blocking (SDK true), optional child and managed key. Centered checkbox
+  values remain distinct from unset. The real Canvas widget hides earlier-painted
+  semantics only within the same semantic container, retaining its child/later
+  content without changing pointer hits, layout or paint. Includes Properties/Slots,
+  all insertion/move routes, Save/reopen/further editing, Undo/Redo, rollback,
+  accessibility and four unique SVGs. Schema/API/model remain 13/14/18.
+  Current surface: 57 widgets, 51 const definitions, 764 rows (747 outside Scaffold),
+  3,078 placements (2,816 accepted / 262 rejected), Accessibility 2. Historical
+  practical target 57/92 with 35 remaining; full physical desktop gate is deferred.
+
 - `AbsorbPointer` in Basic at order 170 with all constructor fields: optional
   absorbing (SDK true), deprecated ignoringSemantics (SDK null), optional child
   and managed key. Both checkbox values stay distinct from unset, with complete
@@ -13,7 +24,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Stack hits rather than passing through; layout/paint and Designer editing remain
   intact. Covers Properties/Slots, all placement/move routes, save/reopen/further
   edits, Undo/Redo, rollback and four unique SVGs. Schema/API/model stay 13/14/18.
-  Current surface: 56 widgets, 50 const definitions, 763 rows (746 outside Scaffold),
+  At that milestone: 56 widgets, 50 const definitions, 763 rows (746 outside Scaffold),
   2,968 placements (2,711 accepted / 257 rejected), Basic 17; historical practical
   target 56/92 with 36 remaining. Full physical desktop acceptance remains deferred.
 

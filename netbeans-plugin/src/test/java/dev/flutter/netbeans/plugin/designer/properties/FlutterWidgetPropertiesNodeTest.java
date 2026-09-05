@@ -884,6 +884,7 @@ class FlutterWidgetPropertiesNodeTest {
                     "flutter.widgets.RepaintBoundary",
                     "flutter.widgets.IgnorePointer",
                     "flutter.widgets.AbsorbPointer",
+                    "flutter.widgets.BlockSemantics",
                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
 
@@ -919,7 +920,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(763, writableCount,
+        assertEquals(764, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -932,7 +933,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(746, nonScaffoldWritableCount,
+        assertEquals(747, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -2658,6 +2659,51 @@ class FlutterWidgetPropertiesNodeTest {
                         "without changing layout, painting, or hit testing")),
                 () -> assertTrue(child.getShortDescription().contains(
                         "Occupancy: 0/1")));
+    }
+
+    @Test
+    void blockSemanticsBooleanEditorPreservesFocusIdentityAndExplainsPaintOrderScope() throws Exception {
+        WidgetDefinition definition = definition("flutter.widgets.BlockSemantics");
+        StableId id = StableId.parse("83a8930b-26e9-41f2-a8a5-c100c3380c3a");
+        PropertyName name = new PropertyName("blocking");
+        WidgetNode widget = WidgetNodePrototypeFactory.create(definition, id);
+        List<DesignerCommand> commands = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+        var blocking = cellProperty(property(node, "blocking"));
+        Node.PropertySet[] sets = node.getPropertySets();
+        assertEquals(3, sets.length, "identity, semantics and child Slots");
+        assertTrue(blocking.canWrite());
+        assertTrue(blocking.supportsDefaultValue());
+        assertTrue(blocking.isDefaultValue());
+        assertEquals(FlutterPropertyCellValue.unset(), blocking.getValue());
+        for (String value : List.of("true", "false")) {
+            PropertyEditor editor = blocking.getPropertyEditor();
+            editor.setAsText(value);
+            assertNull(editor.getTags(), "explicit values must not regress to dropdowns");
+            assertTrue(editor.isPaintable());
+            assertEquals(new PropertyValue.BooleanValue(Boolean.parseBoolean(value)), cell(editor).explicitValue().orElseThrow());
+        }
+        assertTrue(blocking.getShortDescription().contains("true default"));
+        assertTrue(blocking.getShortDescription().contains("earlier-painted semantic nodes"));
+        assertTrue(blocking.getShortDescription().contains("same semantics container"));
+        assertTrue(blocking.getShortDescription().contains("own child and later nodes remain"));
+        assertTrue(blocking.getShortDescription().contains("does not block pointer hits"));
+        blocking.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.BooleanValue(false))), commands);
+        WidgetNode explicit = new WidgetNode(id, definition.typeId(),
+                Map.of(name, new PropertyValue.BooleanValue(false)), widget.slots());
+        commands.clear();
+        node.refreshPresentation(explicit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+        assertEquals(List.of(sets), List.of(node.getPropertySets()), "editing must retain property groups and focus identity");
+        assertSame(blocking, property(node, "blocking"));
+        assertNull(blocking.getPropertyEditor().getTags());
+        assertTrue(blocking.getPropertyEditor().isPaintable());
+        blocking.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+        blocking.restoreDefaultValue();
+        assertEquals(List.of(new SetProperty(id, name, new PropertyValue.BooleanValue(true)),
+                new ResetProperty(id, name)), commands);
+        assertTrue(property(node, "child").getShortDescription().contains("own semantics"));
+        assertTrue(property(node, "child").getShortDescription().contains("Occupancy: 0/1"));
     }
 
     @Test
@@ -5554,6 +5600,7 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.RepaintBoundary");
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
+        typeIds.add("flutter.widgets.BlockSemantics");
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -5580,7 +5627,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(56, iconPaths.size(),
+        assertEquals(57, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

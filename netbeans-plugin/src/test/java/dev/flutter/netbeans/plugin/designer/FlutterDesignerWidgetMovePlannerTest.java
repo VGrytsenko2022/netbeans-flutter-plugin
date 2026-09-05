@@ -1502,6 +1502,26 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void existingTextMovesIntoEmptyBlockSemanticsChildWithStableIdPreserved() {
+        WidgetNode source = validText(A_ID, "move into BlockSemantics");
+        WidgetNode empty = WidgetNodePrototypeFactory.create(
+                definition(new WidgetTypeId("flutter.widgets.BlockSemantics")), B_ID);
+        DesignerDocument document = document(listParent(
+                ROOT_ID, COLUMN, CHILDREN, List.of(source, empty)));
+
+        FlutterDesignerWidgetMovePlanner.Result result = planner.plan(
+                document,
+                BUILT_INS,
+                source.id(),
+                new FlutterDesignerWidgetMovePlanner.On(empty.id()));
+        MoveWidget command = accepted(result).command();
+
+        assertEquals(source.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
     void existingTextMovesIntoEmptyAbsorbPointerChildWithStableIdPreserved() {
         WidgetNode source = validText(A_ID, "move into AbsorbPointer");
         WidgetNode empty = WidgetNodePrototypeFactory.create(
@@ -1539,6 +1559,22 @@ class FlutterDesignerWidgetMovePlannerTest {
         assertEquals(source.id(), command.widgetId());
         assertEquals(new WidgetPlacement(empty.id(), CHILD, 0), command.destination());
         assertAcceptedCommandApplies(document, BUILT_INS, source, result);
+    }
+
+    @Test
+    void configuredBlockSemanticsMovesWithoutLosingBooleanChildOrStableIds() {
+        WidgetNode child = validText(D_ID, "own semantics and child remain editable");
+        WidgetNode widget = new WidgetNode(A_ID, new WidgetTypeId("flutter.widgets.BlockSemantics"),
+                Map.of(new PropertyName("blocking"), new PropertyValue.BooleanValue(true)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(widget, stack)));
+        var result = planner.plan(document, BUILT_INS, widget.id(),
+                new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        MoveWidget command = accepted(result).command();
+        assertEquals(widget.id(), command.widgetId());
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), command.destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, widget, result);
     }
 
     @Test

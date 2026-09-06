@@ -1349,6 +1349,11 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Fixed
 
+- Remove the extra leading paragraph margin in Plugin Description. NetBeans
+  already supplies the section heading and spacing; developer/contact/support
+  sections and links retain their existing layout. A Swing rendering regression
+  checks both themes, narrow/wide panes and standard/enlarged text.
+
 - Transform insertion and Matrix4 property edits no longer fail pair-save with
   `UNTRUSTED_NAVIGATION_TARGET`. Generated symbol evidence now records
   `Matrix4` under its real `package:vector_math/vector_math_64.dart` owner even

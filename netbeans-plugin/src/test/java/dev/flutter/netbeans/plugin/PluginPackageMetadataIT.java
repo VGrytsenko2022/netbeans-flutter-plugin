@@ -5,6 +5,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.awt.Color;
+import java.awt.Font;
+import java.awt.geom.Rectangle2D;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -26,9 +29,14 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
+import javax.swing.BorderFactory;
+import javax.swing.JTextPane;
+import javax.swing.SwingUtilities;
+import javax.swing.text.BadLocationException;
 import javax.swing.text.MutableAttributeSet;
 import javax.swing.text.html.HTML;
 import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.StyleSheet;
 import javax.swing.text.html.parser.ParserDelegator;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
@@ -341,6 +349,59 @@ class PluginPackageMetadataIT {
                 "Plugin Manager metadata and the actual runtime bundle must expose the same description");
         assertContactDescription(infoDescription, "Info/info.xml");
         assertContactDescription(bundleDescription, MODULE_BUNDLE);
+    }
+
+    @Test
+    void descriptionDoesNotAddParagraphSpacingBelowThePluginManagerHeading() throws Exception {
+        String description = firstElement(readInfo(requiredPath("nbm.file")).getDocumentElement(), "manifest")
+                .getAttribute(LONG_DESCRIPTION_KEY);
+        String plainIntro = "<html>" + LONG_DESCRIPTION_INTRO + "</html>";
+        // UnitDetails supplies <h3>Plugin Description</h3> and strips only the opening <html>.
+        // Its HTMLEditorKitEx delegates text layout unchanged to Swing's HTML factory.
+        SwingUtilities.invokeAndWait(() -> {
+            for (int fontSize : new int[] {12, 16}) {
+                for (int width : new int[] {300, 460}) {
+                    for (boolean dark : new boolean[] {false, true}) {
+                        double normalGap = descriptionLeadingGap(plainIntro, fontSize, width, dark);
+                        double actualGap = descriptionLeadingGap(description, fontSize, width, dark);
+                        assertEquals(normalGap, actualGap, 0.01,
+                                "Description must not add a paragraph margin after the host heading: "
+                                        + fontSize + "pt, " + width + "px, dark=" + dark);
+                        String legacyParagraph = description.replaceFirst("<html>", "<html><p>")
+                                .replace("<p><b>Developer contact", "</p><p><b>Developer contact");
+                        assertTrue(descriptionLeadingGap(legacyParagraph, fontSize, width, dark) > actualGap,
+                                "The regression must detect the old extra leading paragraph margin");
+                    }
+                }
+            }
+        });
+    }
+
+    private static double descriptionLeadingGap(String description, int fontSize, int width, boolean dark) {
+        JTextPane pane = new JTextPane();
+        HTMLEditorKit kit = new HTMLEditorKit();
+        StyleSheet css = new StyleSheet();
+        css.addRule("body { font-family: Dialog; font-size: " + fontSize + "pt; }");
+        css.addStyleSheet(kit.getStyleSheet());
+        kit.setStyleSheet(css);
+        pane.setEditorKit(kit);
+        pane.putClientProperty(JTextPane.HONOR_DISPLAY_PROPERTIES, Boolean.TRUE);
+        pane.setFont(new Font(Font.DIALOG, Font.PLAIN, fontSize));
+        pane.setForeground(dark ? Color.LIGHT_GRAY : Color.BLACK);
+        pane.setBackground(dark ? Color.DARK_GRAY : Color.WHITE);
+        pane.setEditable(false);
+        pane.setBorder(BorderFactory.createEmptyBorder(3, 3, 0, 0));
+        pane.setText("<html><body><b>Version:</b> 0.1.3<br><br><h3>Plugin Description</h3>"
+                + description.substring("<html>".length()));
+        pane.setSize(width, 500);
+        try {
+            String text = pane.getDocument().getText(0, pane.getDocument().getLength());
+            Rectangle2D heading = pane.modelToView2D(text.indexOf("Plugin Description"));
+            Rectangle2D intro = pane.modelToView2D(text.indexOf("Adds Dart editing"));
+            return intro.getY() - heading.getMaxY();
+        } catch (BadLocationException exception) {
+            throw new AssertionError("Cannot measure the rendered plugin description", exception);
+        }
     }
 
     @Test

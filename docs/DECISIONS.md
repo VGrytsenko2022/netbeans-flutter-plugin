@@ -38,10 +38,10 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, and ADR-099 establishes the current `Badge`
-surface: 881 typed rows across seventy-one widgets, sixty-five const-constructor
-definitions and 4,260 Palette/DnD candidates, including 3,952 accepted and 308
-rejected cells. The 864-field
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, and ADR-100 establishes the current `CircleAvatar`
+surface: 890 typed rows across seventy-two widgets, sixty-six const-constructor
+definitions and 4,392 Palette/DnD candidates, including 4,079 accepted and 313
+rejected cells. The 873-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-098 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-100 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-099 make 864 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-100 make 873 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -357,7 +357,9 @@ Card adds 31 typed rows, all three constructor variants, ten built-in shapes,
 an analyzed ShapeBorder reference alternative and an optional child slot.
 Badge adds 41 typed rows, both constructors and optional Label/Child slots,
 including the full TextStyle projection and state-aware count/label exclusivity.
-Scaffold separately contributes 17 rows, giving 881 overall.
+CircleAvatar adds all nine optional scalar fields and one optional Child slot,
+including both image layers, error callbacks and fixed/bounded/infinite radii.
+Scaffold separately contributes 17 rows, giving 890 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -445,8 +447,10 @@ ADR-097 establishes the historical sixty-nine-source, 3,933-candidate matrix
 (3,638 accepted / 295 rejected).
 ADR-098 establishes the historical seventy-source, 4,060-candidate matrix
 (3,760 accepted / 300 rejected).
-ADR-099 establishes the current seventy-one-source, 4,260-candidate matrix
+ADR-099 establishes the historical seventy-one-source, 4,260-candidate matrix
 (3,952 accepted / 308 rejected).
+ADR-100 establishes the current seventy-two-source, 4,392-candidate matrix
+(4,079 accepted / 313 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -457,7 +461,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -471,12 +475,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated seventy-one-widget model for Mobile, Tablet,
+Canvas now renders the validated seventy-two-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those seventy-one Create-capable definitions, and the DnD-capable set uses the
-reviewed 4,260-cell candidate matrix across fifty-eight insertable any-widget and two
-trait-bound destination slots; 3,952 cells are accepted and 308 rejected.
+those seventy-two Create-capable definitions, and the DnD-capable set uses the
+reviewed 4,392-cell candidate matrix across fifty-nine insertable any-widget and two
+trait-bound destination slots; 4,079 cells are accepted and 313 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -5373,3 +5377,142 @@ freshness, package metadata, license and artifact checks. The resulting
 SHA-256 `EE0C4E764A4724C27B45C20BFBA4C8B31D60CC7F53A7F13D3A3EC49F80F61AC3`.
 No installed userdir or interactive desktop acceptance is claimed; no unrelated
 platform work, user Flutter project changes or IDE launch was performed.
+
+## ADR-100 — CircleAvatar completes both image layers and radius alternatives
+
+Admit `flutter.material.CircleAvatar` at Material/order 90 in the canonical G:
+checkout. The official constructor and pinned Flutter 3.44.8 implementation agree:
+one const constructor, nine optional scalar arguments and one optional Child slot.
+No constructor branch or scalar creation default is invented. New nodes retain
+the equivalent of `const CircleAvatar()`, whose all-unset radii resolve to 20.
+This is an API-reviewed successor to Badge, not a recovered historical 92-item order.
+
+Expose backgroundColor, backgroundImage, foregroundImage, onBackgroundImageError,
+onForegroundImageError, foregroundColor, radius, minRadius and maxRadius in exact
+SDK parameter order after Child. Reuse literal/semantic colors, the closed declared
+AssetImage/ExactAssetImage/ResizeImage algebra and strict Dart callback identifiers.
+Each image-error callback requires its own provider. Resetting a provider clears
+that callback in the same atomic UI patch; setting an orphan callback is rejected.
+Both image references participate in the existing resource closure and deduplication.
+No provider is required for creation. Network/file/custom provider families remain
+outside the shared asset-backed editor; arbitrary callback code is not executed by
+the isolated Canvas and its identifier is not transported there.
+
+Fixed radius and min/max bounds are mutually exclusive. UI changes clear only the
+conflicting radius fields, preserving other values, Child and a one-step Undo.
+Every radius admits a nonnegative finite integer/double or the exact existing
+`EnumValue("double", "infinity")`, bound to `dart:core`. This closed static constant
+requires no new model/wire kind. Explicit infinity must not be silently mapped to
+unset: maxRadius infinity alone yields minimum zero and unbounded maximum, unlike
+the all-unset fixed default. Validate effective doubled double-precision bounds,
+not arbitrary decimal ordering or a half-MAX_VALUE cap: two finite radii may both
+overflow to infinite diameters. Infinite fixed/minimum constraints need a bounded
+parent during layout. Invalid finite/NaN/negative bounds are not proven safe by
+candidate analysis, because CircleAvatar's constructor leaves those constraints to
+its AnimatedContainer build. Strict model and Canvas validators enforce the rule.
+
+Render actual SDK CircleAvatar. Preserve Material 3 primaryContainer/onPrimaryContainer
+and titleMedium inheritance, Material 2 contrast/primary-text-theme behavior,
+child IconTheme and MediaQuery.withNoTextScaling. Circle decorations crop image
+layers but do not ClipOval arbitrary Child. Foreground image paints above Child;
+background image is behind it. An unavailable foreground must not become a
+successfully painted checker image that hides valid fallback content. Omit an
+unavailable layer with a property-specific diagnostic; safely report corrupt image
+decode errors without invoking user code. Finite size/color changes keep normal
+SDK animation. Finite/infinite constraint changes key only the SDK shell because
+BoxConstraints interpolation cannot mix finite and infinite bounds; stable keyed
+child state/focus is preserved. Empty and zero-size external selection/Child drop
+affordances must remain usable after animated size changes.
+
+The catalog now contains 72 widgets, 66 reviewed const definitions and 890 writable
+rows (873 outside Scaffold): 69 scalar plus three structural definitions, 134 Boolean
+fields and nine required-child wrappers. There are 59 any-widget and two trait-bound
+destinations: 72x61 = 4,392 placements, 4,079 accepted and 313 rejected. Categories:
+Layout 31, Scrolling 3, Basic 23, Material 9, Accessibility 6. Historical target 72/92
+leaves 20; the missing ordered inventory is not claimed recovered. FD13, contributor
+API14, Canvas model18 and NBFC1 remain unchanged. Physical acceptance stays deferred.
+
+The real-SDK scope regression also proves that introducing only a prefixed
+`dart:core` import removes the implicit unprefixed core scope, breaking otherwise
+unchanged user String/Object references. Generation remains source-independent:
+lower only this exact reviewed positive-infinity value to the fixed constant
+expression `(1.0 / 0.0)`, which contains no shadowable user identifiers and adds no
+core import. A const-constructor assertion proves its equality to the SDK's positive
+infinity. The enum's closed identity is retained in model/UI/wire; this is not a
+user-supplied expression escape hatch. No unrelated enum emission, user import
+show/hide scope, source declarations or trust boundaries are changed.
+
+The focused real-SDK overlay verifies all nine fields, both image layers and
+callbacks, asset/exact/resize providers, null omissions, M2/M3, theme colors,
+finite/infinite radii and finite overflow. Twelve exact symbol probes pass, including
+`double` and `infinity` under the actual Flutter sky_engine core library. The initial
+test expected standalone dart-sdk/lib; Flutter navigation actually resolves
+bin/cache/pkg/sky_engine/lib/core, so the fixture was corrected without changing
+production trust boundaries. Fifteen invalid constructor/type/callback variants are
+rejected. A separate accepted candidate records that negative/NaN/inverted layout
+constraints are not analyzer errors. Source/pubspec bytes remain unchanged.
+
+Core verification passes all 1,377 tests with no failures, errors or skips,
+including 20 new tests: ten contract, seven command/history and three payload
+cases. The contract covers 125 radius combinations, 212 single-layer provider/
+callback combinations, 52 dual-layer resource variants and five unchanged user
+core-import forms through Infinity set/reset. Normal enum/import behavior is
+unchanged. Initial test compilation required making the new validation helper
+static. Final review narrowed the new core-import omission to CircleAvatar alone;
+a contributor `double.maxFinite` regression proves unchanged generation/imports
+both alone and beside CircleAvatar. The final core install passed in 12.537 seconds.
+
+Flutter verification passes all 1,037 tests, including 18 new tests (16 focused
+CircleAvatar and two protocol/runtime cases); analyze and formatting are clean.
+Coverage includes M2/M3 light/dark, exact SDK pixel comparisons, unclipped Child,
+both image layers/fallback/decoder errors, no text scaling, zero-size DnD after
+animation and stable TextField/inline-edit state through finite/infinite changes.
+An old Card test fixture's block delimiter was narrowed to avoid including the
+new unrelated CircleAvatar builder; the successful full suite contains no skips.
+
+The offline pinned Web release rebuild passed in 14.9 seconds. Source and Web
+manifests were rehashed; main.dart.js is 2,914,108 bytes with SHA-256
+`d3982fbe880f5cb9e99f464a0ea1183fece57241256190f726c81755e876315a`.
+Independent read-only cross-layer and documentation audits found no functional
+regressions; stale current-total headings were corrected without rewriting
+historical milestones or changing resource budgets.
+
+The focused NetBeans UI gate passes 701 tests with no failures/errors/skips,
+including all nine live edits, save/reopen/further editing, exact Undo/Redo and
+rejected-edit rollback, optional image dialogs, Infinity inline editing, typed
+colors/callbacks, child slots/moves, accessible metadata, four SVGs and all 4,392
+prototype placements. Shared Image/ImageIcon required-provider behavior remains
+covered. Three host/runner parity tests and 23 Web artifact contract tests pass
+against the freshly packaged runner and current Web artifact. The successful
+scoped run finished at 14:43:03 +03:00; all 47 non-documentation changed inputs
+were then frozen before the final full reactor install.
+
+Final reactor install succeeds across all 11 modules in 11:45 minutes, finishing
+at 2026-09-06 14:58:22 +03:00. Surefire records 3,822 tests, zero failures/errors
+and six declared optional skips; Failsafe records 15 tests, zero failures/errors
+and one optional native-desktop skip. All 358 XML reports are fresh from this
+full run. The real-SDK analysis module passes 47 tests, including all 25 candidate
+analyzer cases; the mutation-controller lifecycle suite passes all 93 cases.
+The NetBeans test fork repeats the previously recorded 30-second shutdown
+timeout after System.exit(0): its dump shows the Windows AWT ToolkitShutdown
+hook in native WToolkit.shutdown. This is recorded as a test-process shutdown
+warning, not a passed physical-desktop check or a test failure; Maven exits zero.
+
+The staged whitespace gate then removed one redundant blank line at the new
+schema file's EOF, with no executable-code change. All 1,377 core tests were
+rerun successfully, followed by the four CircleAvatar property contract tests
+and nine package metadata integration tests during a fresh plugin install.
+The rest of the full-reactor evidence above remains from the complete run,
+not from this scoped repackage.
+
+Development nbm:cluster and release metadata/freshness verification both pass
+again for the final package at 15:01:54 +03:00. The package is
+netbeans-plugin/target/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm,
+7,419,473 bytes, SHA-256
+`E5716EC9D4DAF7E6A384E858CBCFDDD47AA02CC2887F9F739FFC71DA2F5BDEA1`.
+Packaged and development-cluster module JAR hashes match; all four CircleAvatar
+SVGs are present. SHA-256 comparison confirms that all 47 changed non-documentation
+inputs remained identical throughout the final reactor run. Plugin basename,
+developer contacts, donation link and the corrected description spacing remain
+unchanged. No installed userdir was changed and no user IDE was launched; global
+interactive physical acceptance remains deferred until palette completion.

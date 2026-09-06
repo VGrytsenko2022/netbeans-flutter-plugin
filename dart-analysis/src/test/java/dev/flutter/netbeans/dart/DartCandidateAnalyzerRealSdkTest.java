@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -2401,6 +2402,132 @@ class DartCandidateAnalyzerRealSdkTest {
                 """;
         DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(
                 projectRoot, file, runtimeAssertions, version++, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    @Test
+    void validatesCircleAvatarAllFieldsProvidersCallbacksAndInfiniteRadii() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path coreLibrary = flutterSdk.resolve("bin/cache/pkg/sky_engine/lib/core");
+        Path projectRoot = Files.createDirectories(workspace.resolve("circle_avatar_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String candidate = """
+                import 'package:flutter/material.dart';
+                String unchangedUserCoreScope(String value, Object object) => value;
+                void imageError(Object exception, StackTrace? stackTrace) {}
+                Widget complete() => const CircleAvatar(
+                  child: Text('VH'), backgroundColor: Color(0xFF123456),
+                  backgroundImage: AssetImage('assets/fallback.png'),
+                  foregroundImage: ResizeImage(ExactAssetImage('assets/avatar.png', scale: 2),
+                    width: 64, height: 64, policy: ResizeImagePolicy.fit, allowUpscaling: false),
+                  onBackgroundImageError: imageError, onForegroundImageError: imageError,
+                  foregroundColor: Color(0xFFFEDCBA), minRadius: 12.5, maxRadius: 32);
+                Widget semanticColors(BuildContext context) => CircleAvatar(
+                  backgroundColor: Theme.of(context).colorScheme.primaryContainer,
+                  foregroundColor: Theme.of(context).colorScheme.onPrimaryContainer,
+                  radius: 20.5, child: const Icon(Icons.person));
+                List<Widget> boundaries() => <Widget>[
+                  const CircleAvatar(), const CircleAvatar(child: Text('Only child')),
+                  const CircleAvatar(backgroundImage: AssetImage('assets/fallback.png')),
+                  const CircleAvatar(foregroundImage: ExactAssetImage('avatar.png', package: 'avatars')),
+                  const CircleAvatar(backgroundColor: null, foregroundColor: null,
+                    backgroundImage: null, foregroundImage: null,
+                    onBackgroundImageError: null, onForegroundImageError: null,
+                    radius: null, minRadius: null, maxRadius: null, child: null),
+                  const CircleAvatar(radius: 0), const CircleAvatar(minRadius: 0, maxRadius: 0),
+                  const CircleAvatar(minRadius: 10), const CircleAvatar(maxRadius: 30),
+                  const CircleAvatar(maxRadius: (1.0 / 0.0)),
+                  const CircleAvatar(radius: (1.0 / 0.0)),
+                  const CircleAvatar(minRadius: (1.0 / 0.0)),
+                  const CircleAvatar(minRadius: (1.0 / 0.0), maxRadius: (1.0 / 0.0)),
+                  const CircleAvatar(radius: 1.7976931348623157e308),
+                  const CircleAvatar(minRadius: 1.7e308, maxRadius: 1.6e308),
+                  Theme(data: ThemeData(useMaterial3: false), child: const CircleAvatar()),
+                  Theme(data: ThemeData(useMaterial3: true), child: const CircleAvatar()),
+                ];
+                // Constant evaluation must take the null branch, otherwise CircleAvatar's
+                // radius/minRadius assertion makes this entire candidate invalid.
+                const exactPositiveInfinityProof = CircleAvatar(radius: 20,
+                  minRadius: (1.0 / 0.0) == double.infinity && (1.0 / 0.0) > 0 ? null : 1);
+                """;
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("CircleAvatar", "AssetImage", "ExactAssetImage", "ResizeImage",
+                "ResizeImagePolicy", "Color", "Text", "Icon", "Theme", "ThemeData")) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("circle-avatar-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/material.dart", flutterSdk));
+        }
+        // Prove the exact SDK identity used by the lowering proof. Generated radii
+        // need no new core import: a closed constant expression avoids scope changes.
+        int infinityOffset = candidate.indexOf("double.infinity");
+        probes.add(probe("circle-avatar-double", infinityOffset,
+                "double", "dart:core", coreLibrary));
+        probes.add(probe("circle-avatar-infinity", infinityOffset + "double.".length(),
+                "infinity", "dart:core", coreLibrary));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(
+                projectRoot, file, candidate, 2300, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(12, probes.size());
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        long version = 2301;
+        DartCandidateAnalysisResult lostImplicitCore = await(analyzer.analyze(request(
+                projectRoot, file, "import 'dart:core' as core;\n" + candidate, version++, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.REJECTED, lostImplicitCore.status(),
+                "A new prefixed core import alone must not silently remove String/Object from user scope");
+        assertTrue(lostImplicitCore.diagnostics().stream().anyMatch(diagnostic ->
+                diagnostic.blocking() && diagnostic.code().filter("undefined_class"::equals).isPresent()));
+        for (String invalid : List.of(
+                "const CircleAvatar(radius: 20, minRadius: 10)",
+                "const CircleAvatar(radius: 20, maxRadius: 30)",
+                "const CircleAvatar(onBackgroundImageError: imageError)",
+                "const CircleAvatar(onForegroundImageError: imageError)",
+                "const CircleAvatar(backgroundColor: true)",
+                "const CircleAvatar(foregroundColor: 'red')",
+                "const CircleAvatar(backgroundImage: 'asset.png')",
+                "const CircleAvatar(foregroundImage: Color(0xFF000000))",
+                "const CircleAvatar(radius: 'infinity')",
+                "const CircleAvatar(minRadius: false)",
+                "const CircleAvatar(maxRadius: Alignment.center)",
+                "const CircleAvatar(child: 'VH')",
+                "const CircleAvatar(textStyle: TextStyle())",
+                "const CircleAvatar(backgroundImage: AssetImage('a.png'), onBackgroundImageError: wrongError)",
+                "const CircleAvatar(foregroundImage: AssetImage('a.png'), onForegroundImageError: wrongError)")) {
+            String content = "import 'package:flutter/material.dart';\n"
+                    + "void imageError(Object exception, StackTrace? stackTrace) {}\n"
+                    + "void wrongError() {}\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        // CircleAvatar's constructor does not validate its derived BoxConstraints;
+        // negative, NaN and inverted finite sizes are layout failures, not analyzer errors.
+        String runtimeOnly = """
+                import 'package:flutter/material.dart';
+                List<Widget> runtimeOnly() => [const CircleAvatar(radius: -1),
+                  const CircleAvatar(minRadius: 20, maxRadius: 10),
+                  const CircleAvatar(radius: double.nan)];
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(
+                projectRoot, file, runtimeOnly, version, List.of())));
         assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
         assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
         assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));

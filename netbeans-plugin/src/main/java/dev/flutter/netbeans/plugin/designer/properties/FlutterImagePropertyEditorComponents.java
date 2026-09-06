@@ -18,7 +18,63 @@ final class FlutterImagePropertyEditorComponents {
             PropertyEditor editor,
             FlutterTypedPropertyEditors.Binding binding,
             PropertyEnv environment) {
-        return new ImageProviderPanel(editor, binding, environment);
+        return binding.optional()
+                ? new OptionalImageProviderPanel(editor, binding, environment)
+                : new ImageProviderPanel(editor, binding, environment);
+    }
+
+    /** Optional providers share the declared-asset pipeline, but omission needs no asset. */
+    private static final class OptionalImageProviderPanel
+            extends FlutterPropertyEditorComponents.CommitOnValidPanel {
+        private final JCheckBox useDefault = new JCheckBox("Use default (omit image provider)");
+        private final FlutterImageProviderEditorComponent providerEditor;
+        private final String description;
+
+        OptionalImageProviderPanel(PropertyEditor editor,
+                FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
+            super(editor, binding, environment);
+            String name = binding.definition().name().value();
+            String target = "CircleAvatar." + name;
+            String prefix = "flutter.circleAvatar." + name;
+            description = "Edits " + target + " using declared AssetImage, ExactAssetImage or ResizeImage. "
+                    + "Use default omits the provider and clears its image-error callback in the same undoable edit.";
+            setLayout(new BorderLayout());
+            setName(prefix + ".custom");
+            getAccessibleContext().setAccessibleName(target + " image-provider editor");
+            getAccessibleContext().setAccessibleDescription(description);
+            useDefault.setName(prefix + ".unset");
+            useDefault.getAccessibleContext().setAccessibleDescription(description);
+            var initial = initialValue().explicitValue();
+            boolean unresolved = initial.filter(PropertyValue.ImageProviderValue.class::isInstance)
+                    .map(PropertyValue.ImageProviderValue.class::cast)
+                    .map(PropertyValue.ImageProviderValue::isUnresolved).orElse(false);
+            providerEditor = new FlutterImageProviderEditorComponent(
+                    ImageProviderPanel.assetChoices(environment), target, prefix,
+                    unresolved ? FlutterImageProviderEditorComponent.EmptySelectionPolicy.PRESERVE_INITIAL_UNRESOLVED
+                            : FlutterImageProviderEditorComponent.EmptySelectionPolicy.REQUIRE_DECLARED_ASSET,
+                    this::refresh);
+            initial.map(PropertyValue.ImageProviderValue.class::cast).ifPresent(providerEditor::populate);
+            useDefault.setSelected(initial.isEmpty());
+            useDefault.addActionListener(ignored -> refresh());
+            add(useDefault, BorderLayout.NORTH);
+            JScrollPane scroll = new JScrollPane(providerEditor);
+            scroll.setBorder(null);
+            add(scroll, BorderLayout.CENTER);
+            refresh();
+            activate();
+        }
+
+        private void refresh() {
+            providerEditor.updateEnabledState(!useDefault.isSelected());
+            try {
+                var value = useDefault.isSelected() ? FlutterPropertyCellValue.unset()
+                        : FlutterPropertyCellValue.explicit(providerEditor.value());
+                clearInvalid(providerEditor, description);
+                markValid(value);
+            } catch (IllegalArgumentException failure) {
+                markInvalid(ImageProviderPanel.concreteMessage(failure), providerEditor);
+            }
+        }
     }
 
     static Component nullableCustomEditor(

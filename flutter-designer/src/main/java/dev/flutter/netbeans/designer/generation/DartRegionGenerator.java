@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -5562,6 +5563,14 @@ public final class DartRegionGenerator {
                     Optional.of(DartManagedRegionId.BUILD),
                     "Validated enum property '" + definition.name().value()
                     + "' has no Dart enum symbol binding.")));
+            if (binding.dartType().libraryUri().equals("dart:core")
+                    && binding.dartType().name().equals("double")
+                    && enumValue.type().equals("double") && enumValue.value().equals("infinity")) {
+                // A prefixed dart:core import suppresses Dart's implicit core scope.
+                // This fixed, compile-time IEEE expression preserves positive infinity
+                // without changing user imports or accepting arbitrary expressions.
+                return scalar("(1.0 / 0.0)", true, path, widgetId, context);
+            }
             RenderedSymbol symbol = context.planner().renderedSymbol(binding.dartType());
             return scalar(
                     symbol.text() + "." + enumValue.value(),
@@ -5570,13 +5579,8 @@ public final class DartRegionGenerator {
                     widgetId,
                     context,
                     List.of(occurrence(
-                            "widget:" + widgetId + ":property:"
-                                    + definition.name().value() + ":enum-type",
-                            symbol.nameOffset(),
-                            symbol.name(),
-                            symbol.libraryUri(),
-                            path,
-                            Optional.of(widgetId))));
+                            "widget:" + widgetId + ":property:" + definition.name().value() + ":enum-type",
+                            symbol.nameOffset(), symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
         }
         if (value instanceof PropertyValue.ColorValue color) {
             RenderedSymbol symbol = context.planner().renderedSymbol(
@@ -6380,6 +6384,10 @@ public final class DartRegionGenerator {
             }
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
+                    if (definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
+                            && uri.equals("dart:core") && !uris.contains(uri)) {
+                        continue;
+                    }
                     if (uri.equals(GESTURES_IMPORT) && !requiresGestures) {
                         continue;
                     }

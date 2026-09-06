@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.validation;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -446,6 +447,10 @@ public final class WidgetTreeValidator {
 
         if (type.equals(CardWidgetPropertySchema.CARD_TYPE.value())) {
             validateCardShape(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.value())) {
+            validateCircleAvatar(node, propertiesPath, issues);
             return;
         }
         if (type.equals(BadgeWidgetPropertySchema.BADGE_TYPE.value())) {
@@ -1301,6 +1306,40 @@ public final class WidgetTreeValidator {
                         "Card StarBorder pointRounding plus valleyRounding must not exceed one."));
             }
         }
+    }
+
+    private static void validateCircleAvatar(WidgetNode node, String path, IssueCollector issues) {
+        for (String layer : List.of("Background", "Foreground")) {
+            String image = Character.toLowerCase(layer.charAt(0)) + layer.substring(1) + "Image";
+            String callback = "on" + layer + "ImageError";
+            if (node.properties().containsKey(new PropertyName(callback))
+                    && !node.properties().containsKey(new PropertyName(image))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + callback, node.id(),
+                        "CircleAvatar " + callback + " requires " + image + ". Set the image first."));
+            }
+        }
+        validateMutuallyExclusiveProperties(node, path, issues,
+                "radius", "minRadius", "CircleAvatar radii");
+        validateMutuallyExclusiveProperties(node, path, issues,
+                "radius", "maxRadius", "CircleAvatar radii");
+        double minimum = circleAvatarDiameter(node.properties().get(new PropertyName("minRadius")), 0);
+        double maximum = circleAvatarDiameter(node.properties().get(new PropertyName("maxRadius")),
+                Double.POSITIVE_INFINITY);
+        if (minimum > maximum) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/minRadius", node.id(),
+                    "CircleAvatar resolved minimum diameter must not exceed maximum diameter."));
+        }
+    }
+
+    private static double circleAvatarDiameter(PropertyValue value, double omittedDiameter) {
+        if (value instanceof PropertyValue.IntegerValue integer) {
+            return 2.0 * integer.value().doubleValue();
+        }
+        if (value instanceof PropertyValue.DoubleValue decimal) {
+            return 2.0 * decimal.value().doubleValue();
+        }
+        return CircleAvatarWidgetPropertySchema.POSITIVE_INFINITY.equals(value)
+                ? Double.POSITIVE_INFINITY : omittedDiameter;
     }
 
     private static BigDecimal numericValue(

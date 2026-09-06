@@ -1766,10 +1766,23 @@ accepted architecture is documented in
   defaults, RTL/offset geometry, foreground-Paint precedence and hidden-label state.
   Cover conditional DnD/moves, tiny/hidden insertion targets, stable Properties,
   save/reopen/further edits, Undo/Redo, rollback, accessibility and four SVGs.
-  Current totals: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
+  At that milestone: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
   68 scalar plus three structural, 134 Boolean fields, nine wrappers/60 destinations,
   4,260 placements (3,952 accepted / 308 rejected), Material 8/Basic 23. Historical
   target 71/92 with 21 remaining; formats stay 13/14/18. Physical acceptance deferred.
+- [x] Add CircleAvatar at Material/order 90 with all nine optional constructor
+  properties and one Child slot. Cover both asset/exact/resize image layers, their
+  error callbacks, literal/theme colors, fixed versus min/max radii and explicit
+  Infinity. Reject invalid dependencies/bounds; radius mode switches and image
+  resets clear only dependent scalar values in one atomic Undo. Preserve real SDK
+  M2/M3, unscaled child text, image circle cropping without clipping Child, layer
+  fallback and finite size/color animation. Cover resource diagnostics, child
+  identity through finite/infinite transitions, ordinary DnD/moves, stable cells,
+  save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current totals:
+  72 widgets, 66 const definitions, 890 rows (873 outside Scaffold), 69 scalar plus
+  three structural definitions, 134 Boolean fields, nine wrappers/61 destinations,
+  4,392 placements (4,079 accepted / 313 rejected), Material 9/Basic 23. Historical
+  target 72/92 with 20 remaining; formats stay 13/14/18. Physical acceptance deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1787,8 +1800,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-one admitted built-ins.
-  The 68 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-two admitted built-ins.
+  The 69 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

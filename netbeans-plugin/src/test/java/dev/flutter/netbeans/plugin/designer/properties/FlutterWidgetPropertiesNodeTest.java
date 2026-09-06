@@ -1538,6 +1538,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.VerticalDivider",
                 "flutter.material.Card",
                 "flutter.material.Badge",
+                "flutter.material.CircleAvatar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1635,7 +1636,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(881, writableCount,
+        assertEquals(890, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1648,7 +1649,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(864, nonScaffoldWritableCount,
+        assertEquals(873, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6444,6 +6445,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.VerticalDivider",
                 "flutter.material.Card",
                 "flutter.material.Badge",
+                "flutter.material.CircleAvatar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6536,7 +6538,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(71, iconPaths.size(),
+        assertEquals(72, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

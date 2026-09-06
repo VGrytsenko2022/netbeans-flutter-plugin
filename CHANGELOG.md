@@ -6,6 +6,17 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `CircleAvatar` at Material/order 90 with every constructor field: nine optional
+  scalar properties and one Child slot. Supports both asset-backed image layers,
+  per-image error callbacks, literal/theme colors and exclusive fixed/bounded
+  radii including explicit Infinity. Keeps SDK defaults, M2/M3 inheritance,
+  no-text-scaling and foreground/background/Child fallback order. Atomic dependent
+  resets, generation/provenance, ordinary DnD, stable Properties, save/reopen,
+  further edits, Undo/Redo, rollback and four SVGs use the existing formats.
+  Current totals: 72 widgets, 66 const definitions, 890 rows (873 outside Scaffold),
+  4,392 placements (4,079 accepted / 313 rejected), Material 9/Basic 23; historical
+  target 72/92 with 20 remaining. Formats stay 13/14/18.
+
 - English developer contact and project-support information in the NetBeans
   Plugin Description: email, Telegram channel and a PayPal donation link.
   The same contact links are available in the README and verified in the NBM metadata.
@@ -18,7 +29,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Includes state-aware label/child DnD, actual BadgeTheme/RTL/offset/text-Paint
   precedence, dot/count/hidden states, stable rich editors, centered Booleans,
   generation/provenance, save/reopen/further editing, Undo/Redo and four SVGs.
-  Current totals: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
+  At that milestone: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
   4,260 placements (3,952 accepted / 308 rejected), Material 8/Basic 23; historical
   target 71/92 with 21 remaining. Formats stay 13/14/18.
 

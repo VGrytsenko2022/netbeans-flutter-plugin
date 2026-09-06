@@ -5032,6 +5032,25 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     const {'label': _optionalSingleSlot, 'child': _optionalSingleSlot},
   ),
+  'flutter.material.CircleAvatar': _WidgetSpec(
+    {
+      'backgroundColor': _themeAwareColorProperty,
+      'foregroundColor': _themeAwareColorProperty,
+      'backgroundImage': _PropertySpec({'imageProvider'}),
+      'foregroundImage': _PropertySpec({'imageProvider'}),
+      'onBackgroundImageError': _PropertySpec({'callback'}),
+      'onForegroundImageError': _PropertySpec({'callback'}),
+      for (final name in const ['radius', 'minRadius', 'maxRadius'])
+        name: _PropertySpec(
+          {'integer', 'double', 'enum'},
+          numericBounds: _nonNegativeNumberBounds,
+          enumLibraryUri: 'dart:core',
+          enumType: 'double',
+          enumValues: {'infinity'},
+        ),
+    },
+    const {'child': _optionalSingleSlot},
+  ),
   'flutter.material.Card': _WidgetSpec(
     {
       'color': _themeAwareColorProperty,
@@ -5664,6 +5683,17 @@ P|shapeTopSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:
 P|shapeValleyRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
 P|surfaceTintColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|variant|string|1|string:ZWxldmF0ZWQ|-|string:pattern:KD86ZWxldmF0ZWR8ZmlsbGVkfG91dGxpbmVkKQ
+S|child|single|0|0|1|any
+W|flutter.material.CircleAvatar
+P|backgroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|backgroundImage|imageProvider|0|-|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling)
+P|foregroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|foregroundImage|imageProvider|0|-|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling)
+P|maxRadius|double,enum,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity;integer:range:0:1:9007199254740991:1
+P|minRadius|double,enum,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity;integer:range:0:1:9007199254740991:1
+P|onBackgroundImageError|callback|0|-|-|callback:callbackReference
+P|onForegroundImageError|callback|0|-|-|callback:callbackReference
+P|radius|double,enum,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
 W|flutter.material.Divider
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
@@ -6758,6 +6788,47 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.material.CircleAvatar') {
+    _expect(
+      !properties.containsKey('radius') ||
+          (!properties.containsKey('minRadius') &&
+              !properties.containsKey('maxRadius')),
+      'Canvas CircleAvatar radius excludes minRadius and maxRadius: '
+      '$path/properties/radius',
+    );
+    double? radius(String name) {
+      final value = properties[name]?.value;
+      return value is CanvasEnumValue
+          ? double.infinity
+          : (value as num?)?.toDouble();
+    }
+
+    _expect(
+      2 * (radius('radius') ?? radius('minRadius') ?? 0) <=
+          2 * (radius('radius') ?? radius('maxRadius') ?? double.infinity),
+      'Canvas CircleAvatar minimum diameter cannot exceed maximum diameter: '
+      '$path/properties/minRadius',
+    );
+    for (final pair in const {
+      'backgroundImage': 'onBackgroundImageError',
+      'foregroundImage': 'onForegroundImageError',
+    }.entries) {
+      final provider = properties[pair.key]?.value;
+      _expect(
+        !properties.containsKey(pair.value) ||
+            provider is CanvasImageProviderValue,
+        'Canvas CircleAvatar ${pair.value} requires ${pair.key}: '
+        '$path/properties/${pair.value}',
+      );
+      if (provider is CanvasImageProviderValue &&
+          provider.resolution is CanvasResolvedImageValue) {
+        budget.imageResourceIds.add(
+          (provider.resolution as CanvasResolvedImageValue).resourceId,
+        );
+      }
+    }
+    return;
+  }
   if (type == 'flutter.widgets.Visibility') {
     for (final dependency in const {
       'maintainAnimation': 'maintainState',

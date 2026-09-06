@@ -29,6 +29,7 @@ import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -565,6 +566,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addCardPropertySets(sheet, hasSlotTab);
         } else if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(widget.type())) {
             addBadgePropertySets(sheet, hasSlotTab);
+        } else if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(widget.type())) {
+            addCircleAvatarPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -759,6 +762,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Optional avatar content, commonly initials or an icon. Child inherits the avatar foreground "
+                    + "text/icon color and titleMedium with text scaling disabled. Foreground image paints over Child; "
+                    + "the circular image decoration does not clip arbitrary child content. Designer selection and "
+                    + "editing remain available. Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Add, move, replace or clear this child atomically.";
+        }
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(widget.type())) {
             return slot.name().value().equals("label")
                     ? "Optional label for Badge(). An empty Label shows a small dot. Badge.count owns its generated "
@@ -2554,6 +2565,27 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addCircleAvatarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<CircleAvatarWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(CircleAvatarWidgetPropertySchema.Group.class);
+        for (var group : CircleAvatarWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = CircleAvatarWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description()
+                            + " Restore Default omits this optional field; no defaults are stored on creation. "
+                            + "Radius and Min/Max radius switch atomically in one undoable edit. "
+                            + "Enter Infinity for explicit double.infinity; invalid radius bounds are rejected, not clamped. "
+                            + "Image-error callbacks require their matching image provider; resetting that provider "
+                            + "also resets its callback in one undoable edit."));
+        }
+    }
+
     private void addBadgePropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<BadgeWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(BadgeWidgetPropertySchema.Group.class);
@@ -3562,6 +3594,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(currentWidget.type())) {
+            return circleAvatarPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
             return badgePropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -3623,6 +3658,39 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
         return patches.size() == 1
                 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand circleAvatarPropertyCommand(
+            WidgetNode currentWidget, PropertyName propertyName, FlutterPropertyCellValue accepted) {
+        String name = propertyName.value();
+        boolean setting = accepted.explicitValue().isPresent();
+        String requiredProvider = switch (name) {
+            case "onBackgroundImageError" -> "backgroundImage";
+            case "onForegroundImageError" -> "foregroundImage";
+            default -> null;
+        };
+        if (setting && requiredProvider != null
+                && !currentWidget.properties().containsKey(new PropertyName(requiredProvider))) {
+            throw new IllegalArgumentException("Cannot set " + name + " on CircleAvatar '" + currentWidget.id()
+                    + "': set " + requiredProvider + " first; an image-error callback requires its matching provider.");
+        }
+        java.util.List<String> resetNames = setting ? switch (name) {
+            case "radius" -> java.util.List.of("minRadius", "maxRadius");
+            case "minRadius", "maxRadius" -> java.util.List.of("radius");
+            default -> java.util.List.of();
+        } : switch (name) {
+            case "backgroundImage" -> java.util.List.of("onBackgroundImageError");
+            case "foregroundImage" -> java.util.List.of("onForegroundImageError");
+            default -> java.util.List.of();
+        };
+        java.util.ArrayList<PatchProperties.Patch> patches = new java.util.ArrayList<>();
+        resetNames.stream().map(PropertyName::new).filter(currentWidget.properties()::containsKey)
+                .forEach(reset -> patches.add(new PatchProperties.ResetPatch(reset)));
+        patches.add(accepted.explicitValue().<PatchProperties.Patch>map(value ->
+                new PatchProperties.SetPatch(propertyName, value))
+                .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
     }
 

@@ -75,6 +75,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.VerticalDivider", ICON_ROOT + "verticaldivider.svg"),
             Map.entry("flutter.material.Card", ICON_ROOT + "card.svg"),
             Map.entry("flutter.material.Badge", ICON_ROOT + "badge.svg"),
+            Map.entry("flutter.material.CircleAvatar", ICON_ROOT + "circleavatar.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

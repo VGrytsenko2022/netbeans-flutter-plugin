@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card` and `Badge`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge` and `CircleAvatar`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-71 reviewed Canvas widgets. Palette insertion evaluates 4,260 exact
-source/destination cells across 71 draggable sources and 60 insertable reviewed
-slots; 3,952 are accepted and 308 cells are rejected. Expanded and Flexible are
+72 reviewed Canvas widgets. Palette insertion evaluates 4,392 exact
+source/destination cells across 72 draggable sources and 61 insertable reviewed
+slots; 4,079 are accepted and 313 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1170,10 +1170,23 @@ object, while model GlobalKeys retain Child/Label Element, State, input and focu
 Raw SDK reproduction plus local/theme changes, both constructors and active F2
 tests cover this preview-only workaround; no SDK file or generated Dart is patched.
 
-The aggregate catalog now has 71 widgets and 65 reviewed const definitions,
-with 881 writable rows (864 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, eight Material and six Accessibility items; the
-backlog is 71/92 complete with 21 remaining. The 71 sources across 60
-insertable destinations form 4,260 cells, with 3,952 accepted and 308 rejected.
+CircleAvatar admits all nine optional constructor fields and Child. Render the real
+SDK CircleAvatar, including M2/M3 color/text/icon inheritance, no child text scaling,
+finite geometry/color animation and circular image decorations without clipping
+arbitrary Child. Foreground paints above Child, background behind it. Resolve both
+providers through the shared bounded resource closure, but omit an unavailable
+layer with a property-specific diagnostic instead of masking fallback content with
+the ordinary image checker. Decode failures report diagnostics and never invoke
+user callback identifiers. Radius enum `double.infinity` is allowed only as that
+exact pair; effective doubled min/max bounds and radius exclusivity are validated.
+Changing constraint finiteness keys only the SDK shell to avoid unsupported
+BoxConstraints interpolation, preserving the keyed child's state/focus. Empty and
+zero-sized avatars keep external selection and Child insertion affordances.
+
+The aggregate catalog now has 72 widgets and 66 reviewed const definitions,
+with 890 writable rows (873 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, nine Material and six Accessibility items; the
+backlog is 72/92 complete with 20 remaining. The 72 sources across 61
+insertable destinations form 4,392 cells, with 4,079 accepted and 313 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

@@ -84,6 +84,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.VerticalDivider",
                 "flutter.material.Card",
                 "flutter.material.Badge",
+                "flutter.material.CircleAvatar",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3100,6 +3101,99 @@ class CanvasModelPayloadCodecTest {
     private static StableId id(String value) {
         return StableId.parse(value);
     }
+
+
+    @Test
+    void circleAvatarBothImageLayersResolveAll52ProviderBranchesWithDeduplicatedResources() throws Exception {
+        int count = 0;
+        for (var kind : PropertyValue.ImageProviderValue.ProviderKind.values()) for (boolean packaged : List.of(false, true)) {
+            var resizes = new java.util.ArrayList<Optional<PropertyValue.ImageProviderValue.ResizeImageConfig>>();
+            resizes.add(Optional.empty());
+            for (int dimensions = 1; dimensions <= 3; dimensions++) for (var policy : PropertyValue.ImageProviderValue.ResizePolicy.values()) for (boolean upscale : List.of(false, true)) {
+                resizes.add(Optional.of(new PropertyValue.ImageProviderValue.ResizeImageConfig((dimensions & 1) != 0 ? Optional.of(16) : Optional.empty(), (dimensions & 2) != 0 ? Optional.of(24) : Optional.empty(), policy, upscale)));
+            }
+            for (var resize : resizes) {
+                var provider = new PropertyValue.ImageProviderValue(kind, "assets/avatar.png", packaged ? Optional.of("reviewed_avatars") : Optional.empty(),
+                        kind == PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET ? Optional.of(new BigDecimal("2.5")) : Optional.empty(), resize);
+                var avatar = new WidgetNode(StableId.random(), type("flutter.material.CircleAvatar"), Map.of(
+                        new PropertyName("backgroundImage"), provider, new PropertyName("foregroundImage"), provider,
+                        new PropertyName("backgroundColor"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")),
+                        new PropertyName("foregroundColor"), new PropertyValue.ColorValue(0xffffffffL),
+                        new PropertyName("onBackgroundImageError"), new PropertyValue.CallbackValue("privateBackgroundError"),
+                        new PropertyName("onForegroundImageError"), new PropertyValue.CallbackValue("privateForegroundError"),
+                        new PropertyName("maxRadius"), new PropertyValue.EnumValue("double", "infinity")), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+                var resource = CanvasImageResource.create(CanvasImageFormat.PNG, 40, 30, new byte[]{4, 3, 2, 1});
+                var assetId = new CanvasImageAssetId(provider.packageName(), provider.assetName());
+                var bundle = new CanvasImageResourceBundle(List.of(new CanvasImageAsset(assetId, resource.resourceId(), List.of(new CanvasImageVariant(BigDecimal.ONE, resource.resourceId())))), List.of(resource));
+                var request = request(PROFILE, new DesignerDocument(DOCUMENT_ID, source(), avatar), bundle);
+                var codec = new CanvasModelPayloadCodec();
+                String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+                assertArrayEquals(codec.encode(request), codec.encode(request));
+                for (String layer : List.of("backgroundImage", "foregroundImage")) {
+                    assertTrue(json.contains("\"" + layer + "\":{\"kind\":\"imageProvider\",\"value\":{\"kind\":\"" + kind.wireName() + "\""), json);
+                }
+                assertTrue(json.contains("\"maxRadius\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"), json);
+                assertTrue(json.contains("\"kind\":\"callbackPresence\""), json);
+                assertFalse(json.contains("privateBackgroundError"), json);
+                assertFalse(json.contains("privateForegroundError"), json);
+                assertTrue(json.contains("\"resolution\":{\"kind\":\"resolved\""), json);
+                assertEquals(packaged, json.contains("reviewed_avatars"), json);
+                assertEquals(resize.isPresent(), json.contains("\"allowUpscaling\":"), json);
+                resize.ifPresent(value -> {
+                    assertTrue(json.contains("\"policy\":\"" + value.policy().wireName() + "\""), json);
+                    assertTrue(json.contains("\"allowUpscaling\":" + value.allowUpscaling()), json);
+                });
+                assertFalse(json.contains("MaterialIcons"), json);
+                assertThrows(CanvasModelPayloadException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), avatar))));
+                count++;
+            }
+        }
+        assertEquals(52, count);
+    }
+
+    @Test
+    void circleAvatarEmptyAndInfinityNeedNoImagesWhileRetainedUnresolvedNeedsExactIssueClosure() throws Exception {
+        var empty = new WidgetNode(StableId.random(), type("flutter.material.CircleAvatar"), Map.of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertFalse(json.contains("imageProvider"), json);
+        assertFalse(json.contains("MaterialIcons"), json);
+        for (String name : List.of("radius", "minRadius", "maxRadius")) {
+            var infinity = new WidgetNode(empty.id(), empty.type(), Map.of(new PropertyName(name), new PropertyValue.EnumValue("double", "infinity")), empty.slots());
+            String encoded = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), infinity))), StandardCharsets.UTF_8);
+            assertTrue(encoded.contains("\"" + name + "\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"), encoded);
+            assertFalse(encoded.contains("imageProvider"), encoded);
+        }
+        var provider = PropertyValue.ImageProviderValue.unresolved();
+        var unresolved = new WidgetNode(empty.id(), empty.type(), Map.of(new PropertyName("backgroundImage"), provider, new PropertyName("foregroundImage"), provider), empty.slots());
+        var issue = new dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue(
+                CanvasImageAssetId.application(provider.assetName()),
+                dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue.Code.UNDECLARED,
+                "CircleAvatar images are not declared; retain background and Child fallback.");
+        var bundle = new CanvasImageResourceBundle(List.of(), List.of(), List.of(issue));
+        String encoded = new String(new CanvasModelPayloadCodec().encode(request(PROFILE, new DesignerDocument(DOCUMENT_ID, source(), unresolved), bundle)), StandardCharsets.UTF_8);
+        assertTrue(encoded.contains("CircleAvatar images are not declared"), encoded);
+        assertTrue(encoded.contains("__netbeans_flutter_designer__/unresolved-image.png"), encoded);
+        assertThrows(CanvasModelPayloadException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), unresolved))));
+        assertThrows(CanvasModelPayloadException.class, () -> new CanvasModelPayloadCodec().encode(request(PROFILE, new DesignerDocument(DOCUMENT_ID, source(), empty), bundle)));
+    }
+
+    @Test
+    void circleAvatarPayloadRejectsConflictsNullProvidersOrphansAndForeignInfinity() {
+        var invalid = List.of(
+                Map.of(new PropertyName("radius"), new PropertyValue.DoubleValue(BigDecimal.ONE), new PropertyName("minRadius"), new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                Map.of(new PropertyName("minRadius"), new PropertyValue.DoubleValue(BigDecimal.TEN), new PropertyName("maxRadius"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("onBackgroundImageError"), new PropertyValue.CallbackValue("onError")),
+                Map.of(new PropertyName("onForegroundImageError"), new PropertyValue.CallbackValue("onError")),
+                Map.of(new PropertyName("backgroundImage"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("foregroundImage"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("radius"), new PropertyValue.StringValue("Infinity")),
+                Map.of(new PropertyName("maxRadius"), new PropertyValue.EnumValue("double", "nan")));
+        for (var properties : invalid) {
+            var avatar = new WidgetNode(StableId.random(), type("flutter.material.CircleAvatar"), new java.util.LinkedHashMap<PropertyName, PropertyValue>(properties), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), avatar))));
+        }
+    }
+
 
     private static WidgetTypeId type(String value) {
         return new WidgetTypeId(value);

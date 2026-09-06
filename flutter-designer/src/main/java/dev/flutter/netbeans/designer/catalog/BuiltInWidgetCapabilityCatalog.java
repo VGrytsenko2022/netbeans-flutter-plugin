@@ -200,6 +200,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.VerticalDivider", STATIC_EDITABLE),
             Map.entry("flutter.material.Card", STATIC_EDITABLE),
             Map.entry("flutter.material.Badge", STATIC_EDITABLE),
+            Map.entry("flutter.material.CircleAvatar", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -594,6 +595,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.material.Card", cardProjection()),
             Map.entry("flutter.material.Badge", badgeProjection()),
+            Map.entry("flutter.material.CircleAvatar", circleAvatarProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1937,6 +1939,27 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection circleAvatarProjection() {
+        Map<PropertyValueKind, String> radiusFingerprints = new java.util.EnumMap<>(PropertyValueKind.class);
+        radiusFingerprints.putAll(rangeConstraintFingerprints(NON_NEGATIVE_NUMBER_BOUNDS));
+        radiusFingerprints.put(PropertyValueKind.ENUM,
+                "enum:" + base64("dart:core") + ":double:infinity");
+        CanvasPropertyContract radius = new CanvasPropertyContract(
+                Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.ENUM),
+                false, Optional.empty(), NON_NEGATIVE_NUMBER_BOUNDS, radiusFingerprints);
+        return projection(Map.ofEntries(
+                colorOrThemeProperty("backgroundColor"),
+                Map.entry("backgroundImage", constrainedSchema(
+                        PropertyValueKind.IMAGE_PROVIDER, IMAGE_PROVIDER_CONTRACT_FINGERPRINT)),
+                Map.entry("foregroundImage", constrainedSchema(
+                        PropertyValueKind.IMAGE_PROVIDER, IMAGE_PROVIDER_CONTRACT_FINGERPRINT)),
+                callbackProperty("onBackgroundImageError"),
+                callbackProperty("onForegroundImageError"),
+                colorOrThemeProperty("foregroundColor"),
+                Map.entry("radius", radius), Map.entry("minRadius", radius), Map.entry("maxRadius", radius)),
+                Map.of("child", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection badgeProjection() {

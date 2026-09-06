@@ -81,6 +81,14 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(
                 PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE))) {
             editorKind = EditorKind.NUMBER;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER,
+                PropertyValueKind.DOUBLE, PropertyValueKind.ENUM))
+                && definition.constraints().stream().anyMatch(value ->
+                        value instanceof PropertyValueConstraint.EnumValues values
+                        && values.dartType().libraryUri().equals("dart:core")
+                        && values.dartType().name().equals("double")
+                        && values.values().equals(List.of("infinity")))) {
+            editorKind = EditorKind.NUMBER_WITH_INFINITY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ENUM))
                 && definition.constraints().getFirst()
                         instanceof PropertyValueConstraint.EnumValues) {
@@ -181,6 +189,7 @@ final class FlutterTypedPropertyEditors {
         NULLABLE_INTEGER,
         DOUBLE,
         NUMBER,
+        NUMBER_WITH_INFINITY,
         ENUM,
         EDGE_INSETS,
         COLOR,
@@ -310,7 +319,7 @@ final class FlutterTypedPropertyEditors {
                 case INTEGER -> new IntegerEditor(this);
                 case NULLABLE_INTEGER -> new NullableIntegerEditor(this);
                 case DOUBLE -> new DoubleEditor(this);
-                case NUMBER -> new NumberEditor(this);
+                case NUMBER, NUMBER_WITH_INFINITY -> new NumberEditor(this);
                 case ENUM -> new CatalogEnumEditor(this);
                 case EDGE_INSETS -> new EdgeInsetsEditor(this);
                 case COLOR -> new ColorEditor(this);
@@ -675,6 +684,7 @@ final class FlutterTypedPropertyEditors {
             return explicitValue().map(value -> switch (value) {
                 case PropertyValue.IntegerValue integer -> integer.value().toString();
                 case PropertyValue.DoubleValue decimal -> decimal.value().toPlainString();
+                case PropertyValue.EnumValue infinity -> "Infinity";
                 default -> throw new IllegalStateException(
                         "Unexpected numeric value " + value.kind());
             }).orElseGet(this::unsetText);
@@ -686,6 +696,11 @@ final class FlutterTypedPropertyEditors {
                 return;
             }
             String normalized = text.strip();
+            if (binding.editorKind() == EditorKind.NUMBER_WITH_INFINITY
+                    && normalized.equalsIgnoreCase("infinity")) {
+                setExplicit(new PropertyValue.EnumValue("double", "infinity"));
+                return;
+            }
             try {
                 boolean decimalSyntax = normalized.indexOf('.') >= 0
                         || normalized.indexOf('e') >= 0

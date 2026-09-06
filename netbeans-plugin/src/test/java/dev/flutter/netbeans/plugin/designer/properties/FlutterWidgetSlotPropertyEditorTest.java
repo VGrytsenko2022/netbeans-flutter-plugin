@@ -4680,6 +4680,36 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void circleAvatarOptionalChildSupportsReplaceClearAndCancelledDrafts() throws Exception {
+        WidgetDefinition definition = definition("flutter.material.CircleAvatar");
+        var child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"), id("e7a3ed63-209c-49fc-9bb7-d61a967522bd"));
+        var avatar = new WidgetNode(id("e40a3e9a-abf4-4a26-8af4-8fb1192f9d3b"), definition.typeId(), Map.of(), Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        for (String actionLabel : List.of("Replace with new widget", "Clear single child")) {
+            var editor = new FlutterWidgetSlotPropertyEditor(avatar, definition, definition.slot(CHILD).orElseThrow(),
+                    new FlutterWidgetSlotEditorContext(document(avatar), CATALOG, List.of(type("flutter.widgets.Icon"))));
+            var environment = PropertyEnv.create(descriptor("Child")); editor.attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor();
+                var action = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertTrue(labels(action).contains("Replace with new widget"));
+                assertTrue(labels(action).contains("Clear single child"));
+                assertFalse(labels(action).contains("Add new widget")); selectLabel(action, actionLabel);
+                if (actionLabel.startsWith("Replace")) selectLabel(component(panel, FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME, JComboBox.class), "Icon");
+                assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty());
+                environment.setState(PropertyEnv.STATE_VALID);
+                var mutation = ((FlutterWidgetSlotCellValue) editor.getValue()).mutation().orElseThrow();
+                assertEquals(avatar.id(), mutation.ownerId()); assertEquals(CHILD, mutation.slotName());
+                if (actionLabel.startsWith("Replace")) {
+                    var replace = assertInstanceOf(FlutterWidgetSlotMutation.Replace.class, mutation);
+                    assertEquals(child.id(), replace.expectedChildId());
+                    assertEquals(type("flutter.widgets.Icon"), assertInstanceOf(FlutterWidgetSlotMutation.Replace.NewWidget.class, replace.replacement()).widgetType());
+                } else assertEquals(child.id(), assertInstanceOf(FlutterWidgetSlotMutation.Remove.class, mutation).childId());
+                return null;
+            });
+        }
+    }
+
+    @Test
     void cardOccupiedChildSupportsExplicitReplaceClearAndCancelledDrafts() throws Exception {
         WidgetDefinition definition = definition("flutter.material.Card");
         WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),

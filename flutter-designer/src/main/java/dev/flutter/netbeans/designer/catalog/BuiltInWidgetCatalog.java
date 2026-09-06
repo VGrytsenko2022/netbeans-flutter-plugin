@@ -95,6 +95,7 @@ public final class BuiltInWidgetCatalog {
             verticalDivider(),
             card(),
             badge(),
+            circleAvatar(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -602,6 +603,31 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition circleAvatar() {
+        List<PropertyValueConstraint> radiusValues = new ArrayList<>(nonNegativeNumbers());
+        radiusValues.add(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference("dart:core", "double"), List.of("infinity")));
+        return widget(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.value(),
+                "CircleAvatar", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 90, "CircleAvatar"),
+                List.of(
+                        namedProperty("backgroundColor", 1, false, colorOrTheme()),
+                        namedProperty("backgroundImage", 2, false,
+                                List.of(new PropertyValueConstraint.ImageProviderValues())),
+                        namedProperty("foregroundImage", 3, false,
+                                List.of(new PropertyValueConstraint.ImageProviderValues())),
+                        namedProperty("onBackgroundImageError", 4, false,
+                                List.of(new PropertyValueConstraint.CallbackReference())),
+                        namedProperty("onForegroundImageError", 5, false,
+                                List.of(new PropertyValueConstraint.CallbackReference())),
+                        namedProperty("foregroundColor", 6, false, colorOrTheme()),
+                        namedProperty("radius", 7, false, radiusValues),
+                        namedProperty("minRadius", 8, false, radiusValues),
+                        namedProperty("maxRadius", 9, false, radiusValues)),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition badge() {

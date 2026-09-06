@@ -897,6 +897,146 @@ void main() {
   );
 
   test(
+    'CircleAvatar authenticates both image layers including shared resources and exact scale on both host profiles',
+    () async {
+      final image = _TestImageResource(
+        bytes: _testPng8,
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final layer in ['backgroundImage', 'foregroundImage']) {
+          for (final scale in [null, 2, 3]) {
+            final bytes = _circleAvatarRuntimeModel(
+              layer: layer,
+              resolution: {
+                'kind': 'resolved',
+                'resourceId': image.resourceId,
+                'resolvedScale': 2,
+              },
+              exactScale: scale,
+              bothLayers: true,
+            );
+            final result = await _runImageIconRender(
+              bytes,
+              images: [image],
+              host: host,
+            );
+            if (scale == 3) {
+              expect(result.runtime.model, isNull);
+              expect(result.diagnostics, isNotEmpty);
+            } else {
+              expect(result.diagnostics, isEmpty);
+              expect(result.runtime.model!.imageResourceIds, {
+                image.resourceId,
+              });
+              expect(
+                result.runtime.imageResources[image.resourceId],
+                isNotNull,
+              );
+            }
+          }
+          for (final capability in [false, true]) {
+            final result = await _runImageIconRender(
+              _circleAvatarRuntimeModel(
+                layer: layer,
+                resolution: {
+                  'kind': 'resolved',
+                  'resourceId': image.resourceId,
+                  'resolvedScale': 2,
+                },
+              ),
+              images: capability ? [] : [image],
+              host: host,
+              capability: capability,
+            );
+            expect(result.runtime.model, isNull);
+            expect(result.messages.last['type'], 'runner.failure');
+          }
+          final unavailable = await _runImageIconRender(
+            _circleAvatarRuntimeModel(
+              layer: layer,
+              resolution: {
+                'kind': 'unavailable',
+                'code': 'missing',
+                'reason': 'Avatar not declared',
+              },
+            ),
+            host: host,
+            capability: false,
+          );
+          expect(unavailable.diagnostics, isEmpty);
+          expect(unavailable.runtime.model!.imageResourceIds, isEmpty);
+        }
+      }
+    },
+  );
+
+  test(
+    'CircleAvatar rejects corrupt or paint-unsafe resize resources per layer without invalidating the model',
+    () async {
+      final rectangular = _TestImageResource(
+        bytes: _testPng4x3,
+        pixelWidth: 4,
+        pixelHeight: 3,
+      );
+      final corrupt = _TestImageResource(
+        bytes: Uint8List.fromList([1, 2, 3, 4]),
+        pixelWidth: 8,
+        pixelHeight: 8,
+      );
+      for (final host in [
+        CanvasRuntimeHostProfile.injectedTest,
+        CanvasRuntimeHostProfile.webView,
+      ]) {
+        for (final layer in ['backgroundImage', 'foregroundImage']) {
+          for (final image in [rectangular, corrupt]) {
+            final result = await _runImageIconRender(
+              _circleAvatarRuntimeModel(
+                layer: layer,
+                resolution: {
+                  'kind': 'resolved',
+                  'resourceId': image.resourceId,
+                  'resolvedScale': 1,
+                },
+                resize: {
+                  'width': 1,
+                  'height': null,
+                  'policy': 'exact',
+                  'allowUpscaling': false,
+                },
+              ),
+              images: [image],
+              host: host,
+            );
+            expect(result.diagnostics, isEmpty);
+            expect(result.runtime.model, isNotNull);
+            final rejection = result.runtime.imageResources.rejection(
+              image.resourceId,
+            );
+            if (identical(image, corrupt)) {
+              expect(
+                rejection!.kind,
+                CanvasImageResourceRejectionKind.encodedContent,
+              );
+            } else if (host == CanvasRuntimeHostProfile.webView) {
+              expect(rejection, isNull);
+            } else {
+              expect(
+                rejection!.kind,
+                CanvasImageResourceRejectionKind.invalidResizeTarget,
+              );
+            }
+          }
+        }
+      }
+    },
+  );
+
+  test(
     'ImageIcon explicit null and unavailable providers need no resource descriptors or image-byte capability',
     () async {
       for (final host in [
@@ -5208,6 +5348,37 @@ Uint8List _directImageModel({
       'centerSliceBottom': {'kind': 'double', 'value': centerSlice['bottom']},
     },
     'slots': <String, Object?>{},
+  };
+  return Uint8List.fromList(utf8.encode(jsonEncode(model)));
+}
+
+Uint8List _circleAvatarRuntimeModel({
+  required String layer,
+  required Map<String, Object?> resolution,
+  num? exactScale,
+  Map<String, Object?>? resize,
+  bool bothLayers = false,
+}) {
+  final model =
+      jsonDecode(
+            utf8.decode(
+              _imageIconRuntimeModel(
+                resolution: resolution,
+                exactScale: exactScale,
+                resize: resize,
+              ),
+            ),
+          )
+          as Map<String, Object?>;
+  final child =
+      (((model['root'] as Map)['slots'] as Map)['body'] as Map)['child'] as Map;
+  final provider = (child['properties'] as Map)['image'];
+  child['type'] = 'flutter.material.CircleAvatar';
+  child['properties'] = {
+    layer: provider,
+    if (bothLayers)
+      layer == 'backgroundImage' ? 'foregroundImage' : 'backgroundImage':
+          provider,
   };
   return Uint8List.fromList(utf8.encode(jsonEncode(model)));
 }

@@ -75,6 +75,100 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void circleAvatarOptionalImagesCommitResizeAndUnsetWithoutLeakingCancelledDrafts() throws Exception {
+        for (String name : List.of("backgroundImage", "foregroundImage")) {
+            for (var policy : PropertyValue.ImageProviderValue.ResizePolicy.values()) {
+                PropertyEditor editor = binding(property("flutter.material.CircleAvatar", name)).createEditor();
+                editor.setValue(FlutterPropertyCellValue.unset());
+                FeatureDescriptor descriptor = descriptor(name, "Optional CircleAvatar image provider.");
+                descriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, new FlutterImageAssetChoices(
+                        List.of(new FlutterImageAssetChoices.Choice(Optional.of("ui_kit"), "assets/avatar.png", "Package avatar")), Optional.empty()));
+                PropertyEnv environment = PropertyEnv.create(descriptor); ((ExPropertyEditor) editor).attachEnv(environment);
+                onEdt(() -> {
+                    String prefix = "flutter.circleAvatar." + name;
+                    Component panel = editor.getCustomEditor();
+                    JCheckBox unset = findNamed(panel, JCheckBox.class, prefix + ".unset");
+                    assertTrue(unset.isSelected());
+                    assertAccessibleNameContains(panel, "circleavatar", name.toLowerCase(java.util.Locale.ROOT));
+                    var asset = findNamed(panel, JComboBox.class, prefix + ".asset");
+                    assertFalse(asset.isEnabled()); unset.doClick(); assertTrue(asset.isEnabled());
+                    findNamed(panel, JComboBox.class, prefix + ".provider").setSelectedItem(PropertyValue.ImageProviderValue.ProviderKind.EXACT_ASSET);
+                    findNamed(panel, JTextField.class, prefix + ".exactScale").setText("2");
+                    findNamed(panel, JCheckBox.class, prefix + ".resize.enabled").doClick();
+                    findNamed(panel, JTextField.class, prefix + ".resize.width").setText("-1");
+                    assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                    assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    findNamed(panel, JTextField.class, prefix + ".resize.width").setText("48");
+                    findNamed(panel, JTextField.class, prefix + ".resize.height").setText("64");
+                    findNamed(panel, JComboBox.class, prefix + ".resize.policy").setSelectedItem(policy);
+                    findNamed(panel, JCheckBox.class, prefix + ".resize.allowUpscaling").doClick();
+                    assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    environment.setState(PropertyEnv.STATE_VALID);
+                    var provider = assertInstanceOf(PropertyValue.ImageProviderValue.class,
+                            ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+                    assertEquals(Optional.of("ui_kit"), provider.packageName());
+                    assertEquals(Optional.of(BigDecimal.valueOf(2)), provider.exactScale());
+                    assertEquals(Optional.of(48), provider.resize().orElseThrow().width());
+                    assertEquals(Optional.of(64), provider.resize().orElseThrow().height());
+                    assertEquals(policy, provider.resize().orElseThrow().policy());
+                    assertTrue(provider.resize().orElseThrow().allowUpscaling());
+                    var reopenedEnvironment = PropertyEnv.create(descriptor); ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment);
+                    var reopened = editor.getCustomEditor();
+                    findNamed(reopened, JCheckBox.class, prefix + ".unset").doClick();
+                    assertEquals(provider, ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+                    reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+                    assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    return null;
+                });
+            }
+        }
+    }
+
+    @Test
+    void circleAvatarUnsetImagesNeedNoAssetsAndKeepStoredMissingOrUnresolvedProviders() throws Exception {
+        for (String name : List.of("backgroundImage", "foregroundImage")) {
+            for (var initial : List.of(FlutterPropertyCellValue.unset(),
+                    FlutterPropertyCellValue.explicit(PropertyValue.ImageProviderValue.asset("assets/removed.png")),
+                    FlutterPropertyCellValue.explicit(PropertyValue.ImageProviderValue.unresolved()))) {
+                PropertyEditor editor = binding(property("flutter.material.CircleAvatar", name)).createEditor(); editor.setValue(initial);
+                PropertyEnv environment = PropertyEnv.create(descriptor(name, "Optional image without assets."));
+                ((ExPropertyEditor) editor).attachEnv(environment);
+                onEdt(() -> {
+                    Component panel = editor.getCustomEditor();
+                    var unset = findNamed(panel, JCheckBox.class, "flutter.circleAvatar." + name + ".unset");
+                    assertEquals(initial.explicitValue().isEmpty(), unset.isSelected());
+                    assertEquals(PropertyEnv.STATE_NEEDS_VALIDATION, environment.getState());
+                    if (initial.explicitValue().isEmpty()) {
+                        unset.doClick(); assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                        assertEquals(initial, editor.getValue()); unset.doClick();
+                    }
+                    environment.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue());
+                    return null;
+                });
+            }
+        }
+    }
+
+    @Test
+    void circleAvatarInfinityRemainsAnInlineNumericControlWithUnsetSupport() throws Exception {
+        for (String name : List.of("radius", "minRadius", "maxRadius")) {
+            var binding = binding(property("flutter.material.CircleAvatar", name));
+            var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var inplace = FlutterPropertyEditorComponents.inplaceFactory(binding).orElseThrow().getInplaceEditor();
+            onEdt(() -> {
+                inplace.connect(editor, PropertyEnv.create(descriptor(name, "Radius or Infinity.")));
+                var input = assertInstanceOf(JTextField.class, inplace.getComponent());
+                assertEquals(FlutterPropertyEditorComponents.NUMERIC_COMPONENT_NAME, input.getName());
+                input.setText("Infinity"); editor.setAsText((String) inplace.getValue());
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "infinity")), editor.getValue());
+                input.setText("<not set>"); editor.setAsText((String) inplace.getValue());
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                return null;
+            });
+        }
+    }
+
+    @Test
     void badgeAllRichPropertyRoutesExposeTransactionalCustomEditorsAndNoUnexpectedWidgets() throws Exception {
         var widget = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.Badge")).orElseThrow();
         for (String name : List.of("backgroundColor", "textColor", "padding", "alignment", "offset", "textStyleColor",

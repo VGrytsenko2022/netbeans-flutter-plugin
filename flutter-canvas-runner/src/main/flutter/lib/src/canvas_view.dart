@@ -655,6 +655,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
         node.type == 'flutter.material.Badge' ||
+        node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2555,6 +2556,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.AppBar' => _appBar(context),
       'flutter.material.Card' => _card(context),
       'flutter.material.Badge' => _badge(context),
+      'flutter.material.CircleAvatar' => _circleAvatar(context),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4310,6 +4312,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   String _imageStatusSemantics() {
     final statuses = <String>[];
+    if (node.type == 'flutter.material.CircleAvatar') {
+      for (final name in const ['backgroundImage', 'foregroundImage']) {
+        final provider = node.properties[name]?.value;
+        if (provider is CanvasImageProviderValue) {
+          _appendImageStatus(statuses, provider, propertyName: name);
+        }
+      }
+    }
     final directProvider = node.properties['image']?.value;
     if (directProvider is CanvasImageProviderValue) {
       _appendImageStatus(statuses, directProvider);
@@ -4326,10 +4336,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   void _appendImageStatus(
     List<String> statuses,
-    CanvasImageProviderValue provider,
-  ) {
+    CanvasImageProviderValue provider, {
+    String? propertyName,
+  }) {
     final resolution = provider.resolution;
-    final identity = _imageProviderIdentity(provider);
+    final identity =
+        '${propertyName == null ? '' : '$propertyName: '}'
+        '${_imageProviderIdentity(provider)}';
     if (resolution is CanvasUnavailableImageValue) {
       statuses.add(
         'Image preview unavailable for $identity. '
@@ -4609,6 +4622,80 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return ClipPath(
       clipBehavior: _clipBehavior() ?? Clip.antiAlias,
       child: _single('child'),
+    );
+  }
+
+  Widget _circleAvatar(BuildContext context) {
+    ({ImageProvider<Object>? provider, ImageErrorListener? onError}) image(
+      String name,
+    ) {
+      final value = node.properties[name]?.value;
+      if (value is! CanvasImageProviderValue) {
+        return (provider: null, onError: null);
+      }
+      final binding = _imageProvider(value);
+      // A checkerboard foreground would hide the valid background/initials.
+      // A missing/rejected layer is omitted with slot-specific diagnostics,
+      // retaining CircleAvatar's actual SDK foreground/background fallback.
+      if (binding.placeholder) return (provider: null, onError: null);
+      final resource = binding.resolution as CanvasResolvedImageValue;
+      return (
+        provider: binding.provider,
+        // This is a Canvas safety reporter, not execution of the model's Dart
+        // callback reference. It also protects previews without a callback.
+        onError: (error, stack) =>
+            onImageError?.call(resource.resourceId, error, stack),
+      );
+    }
+
+    double? radius(String name) {
+      final value = node.properties[name]?.value;
+      return value is CanvasEnumValue
+          ? double.infinity
+          : (value as num?)?.toDouble();
+    }
+
+    final fixed = radius('radius');
+    final minimum = radius('minRadius');
+    final maximum = radius('maxRadius');
+    final defaults = fixed == null && minimum == null && maximum == null;
+    final minDiameter = defaults ? 40.0 : 2 * (fixed ?? minimum ?? 0);
+    final maxDiameter = defaults
+        ? 40.0
+        : 2 * (fixed ?? maximum ?? double.infinity);
+    final background = image('backgroundImage');
+    final foreground = image('foregroundImage');
+    final avatar = CircleAvatar(
+      // Flutter cannot interpolate finite and infinite BoxConstraints. Reset
+      // only that SDK animation shell on this boundary; global Canvas child
+      // keys preserve the existing subtree's state/focus across the reparent.
+      key: ValueKey((
+        'circle-avatar-constraint-finiteness',
+        minDiameter.isInfinite,
+        maxDiameter.isInfinite,
+      )),
+      backgroundColor: _resolvedColor(context, 'backgroundColor'),
+      foregroundColor: _resolvedColor(context, 'foregroundColor'),
+      backgroundImage: background.provider,
+      foregroundImage: foreground.provider,
+      onBackgroundImageError: background.onError,
+      onForegroundImageError: foreground.onError,
+      radius: fixed,
+      minRadius: minimum,
+      maxRadius: maximum,
+      child: _single('child'),
+    );
+    // AnimatedContainer can reach zero after the model revision's first
+    // layout. Refresh the surface-only selection handle when that animation
+    // changes size, without inserting a visible child or changing SDK bounds.
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        context
+            .findAncestorStateOfType<_CanvasDocumentViewState>()
+            ?._refreshZeroSizedWidgetTargetsAfterFrame();
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(child: avatar),
     );
   }
 

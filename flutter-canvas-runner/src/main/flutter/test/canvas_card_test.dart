@@ -64,7 +64,7 @@ void main() {
       final start = contract.indexOf('W|$_type\n');
       final block = contract.substring(
         start,
-        contract.indexOf('W|flutter.material.Divider\n', start),
+        contract.indexOf('W|', start + 'W|$_type\n'.length),
       );
       expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(31));
       expect(block, contains('P|variant|string|1|string:ZWxldmF0ZWQ|'));

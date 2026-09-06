@@ -137,6 +137,25 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void circleAvatarMovesWithExactPropertiesAndChildAndAllowsChildMoveInAndOut() {
+        WidgetNode child = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), D_ID);
+        WidgetNode avatar = new WidgetNode(A_ID, type("flutter.material.CircleAvatar"),
+                Map.of(new PropertyName("radius"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(24)),
+                        new PropertyName("backgroundColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode destination = listParent(B_ID, STACK, CHILDREN, List.of());
+        var wholeDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(avatar, destination)));
+        assertAcceptedCommandApplies(wholeDocument, BUILT_INS, avatar,
+                planner.plan(wholeDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        assertAcceptedCommandApplies(wholeDocument, BUILT_INS, child,
+                planner.plan(wholeDocument, BUILT_INS, D_ID, new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)));
+        var empty = new WidgetNode(A_ID, avatar.type(), avatar.properties(), Map.of(CHILD, WidgetSlot.SingleSlot.empty()));
+        var emptyDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(empty, child)));
+        assertAcceptedCommandApplies(emptyDocument, BUILT_INS, child,
+                planner.plan(emptyDocument, BUILT_INS, D_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(A_ID, CHILD, 0)));
+    }
+
+    @Test
     void badgeCountModeRejectsLabelMovesButChildAndWholeBadgeMovesRemainAvailable() {
         WidgetNode source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
         SlotName label = new SlotName("label");

@@ -89,7 +89,7 @@ final class FlutterPropertyEditorComponents {
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
             case BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
-            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER -> Optional.of(
+            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NUMBER_WITH_INFINITY -> Optional.of(
                     () -> new NumericInplaceEditor(binding));
             default -> Optional.empty();
         };

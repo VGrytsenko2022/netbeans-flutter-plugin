@@ -737,6 +737,22 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void circleAvatarTreeDropAllocatesExactlyOnceWithoutAnImageAsset() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.CircleAvatar"));
+        StringSelection transfer = new StringSelection(fixture.token());
+        var unavailable = new FlutterImageAssetChoices(List.of(), Optional.of("No image assets are declared."));
+        var document = document(column(List.of()));
+        var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document, CATALOG, ROOT_ID, unavailable));
+        AtomicInteger allocations = new AtomicInteger();
+        var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document, CATALOG, unavailable,
+                        () -> { allocations.incrementAndGet(); return NEW_ID; })).command().widget();
+        assertEquals(1, allocations.get()); assertTrue(added.properties().isEmpty());
+        assertTrue(((WidgetSlot.SingleSlot) added.slots().get(CHILD)).child().isEmpty());
+    }
+
+    @Test
     void cardTreeDropCreatesLeafWithoutInventedDefaults() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.material.Card"));
         StringSelection transfer = new StringSelection(fixture.token());

@@ -801,6 +801,137 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteCircleAvatarAllNineFieldsSaveReopenAtomicDependenciesHistoryAndRollback() throws Exception {
+        StableId avatarId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e98");
+        StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e99");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.CircleAvatar");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("circle_avatar_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, FlutterImageAssetChoices.empty(), () -> avatarId));
+            var added = applyCircleAvatarMutation(fixture, ready, plan.command(), avatarId);
+            assertTrue(findModelWidget(added.document().orElseThrow().root(), avatarId).properties().isEmpty());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("const CircleAvatar("));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("circle_avatar_reopened_nine", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), avatarId);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var states = new ArrayList<WidgetNode>(); states.add(initial);
+            for (String name : List.of("backgroundColor", "foregroundColor", "backgroundImage", "foregroundImage",
+                    "onBackgroundImageError", "onForegroundImageError", "radius", "minRadius", "maxRadius")) {
+                var value = dev.flutter.netbeans.plugin.designer.properties.CircleAvatarPropertyContractTest.value(name);
+                var cell = cellProperty(properties, name); commands.clear();
+                cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size());
+                current = applyCircleAvatarMutation(fixture, current, commands.getFirst(), avatarId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), avatarId);
+                assertEquals(value, edited.properties().get(new PropertyName(name)));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, name)); assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                states.add(edited);
+            }
+            assertEquals(10, states.size()); var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, avatarId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), avatarId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, avatarId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), avatarId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            var complete = states.getLast(); configured = complete.properties();
+            String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(
+                    new SetProperty(avatarId, new PropertyName("minRadius"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(33))),
+                    new SetProperty(avatarId, new PropertyName("maxRadius"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))),
+                    new ResetProperty(avatarId, new PropertyName("backgroundImage")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "CircleAvatar invalid dependency edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+                current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), avatarId));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertEquals(undoName, history.getUndoPresentationName());
+            }
+            properties.refreshPresentation(complete, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            commands.clear(); cellProperty(properties, "radius").setValue(FlutterPropertyCellValue.explicit(
+                    new PropertyValue.EnumValue("double", "infinity")));
+            assertEquals(3, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches().size());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "circle_avatar_refused", "CircleAvatar candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "CircleAvatar radius switch").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), avatarId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName());
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("circle_avatar_configured_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var restored = findModelWidget(current.document().orElseThrow().root(), avatarId); assertEquals(configured, restored.properties());
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            var imageCell = cellProperty(properties, "foregroundImage"); imageCell.restoreDefaultValue();
+            assertEquals(2, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches().size());
+            current = applyCircleAvatarMutation(fixture, current, commands.getFirst(), avatarId);
+            var cleared = findModelWidget(current.document().orElseThrow().root(), avatarId);
+            assertFalse(cleared.properties().containsKey(new PropertyName("foregroundImage")));
+            assertFalse(cleared.properties().containsKey(new PropertyName("onForegroundImageError")));
+            assertTrue(cleared.properties().containsKey(new PropertyName("onBackgroundImageError")));
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, avatarId));
+            assertEquals(restored, findModelWidget(current.document().orElseThrow().root(), avatarId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, avatarId));
+            assertEquals(cleared, findModelWidget(current.document().orElseThrow().root(), avatarId));
+            var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), childId);
+            current = applyCircleAvatarMutation(fixture, current, new AddWidget(new WidgetPlacement(avatarId, CHILD, 0), child), avatarId);
+            current = applyCircleAvatarMutation(fixture, current, new SetProperty(childId, DATA, new PropertyValue.StringValue("Avatar initials after reopen")), avatarId);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), avatarId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            for (var field : definition.properties().reversed()) {
+                var cell = cellProperty(properties, field.name().value()); if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(1, commands.size());
+                current = applyCircleAvatarMutation(fixture, current, commands.getFirst(), avatarId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), avatarId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+            }
+            assertTrue(findModelWidget(current.document().orElseThrow().root(), avatarId).properties().isEmpty());
+            assertSame(imageCell, cellProperty(properties, "foregroundImage")); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("circle_avatar_reset_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyCircleAvatarMutation(fixture, fixture.ready(), new SetProperty(avatarId, new PropertyName("radius"),
+                    new PropertyValue.EnumValue("double", "infinity")), avatarId);
+            current = applyCircleAvatarMutation(fixture, current, new SetProperty(childId, DATA, new PropertyValue.StringValue("Still editable")), avatarId);
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("radius: (1.0 / 0.0)"));
+            assertEquals(new PropertyValue.StringValue("Still editable"), findModelWidget(current.document().orElseThrow().root(), childId).properties().get(DATA));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyCircleAvatarMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId avatarId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "CircleAvatar property/slot editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, avatarId));
+    }
+
+    @Test
     void paletteCardAll31FieldsSaveReopenModesShapesChildHistoryAndRollback() throws Exception {
         StableId cardId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e92");
         StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e93");

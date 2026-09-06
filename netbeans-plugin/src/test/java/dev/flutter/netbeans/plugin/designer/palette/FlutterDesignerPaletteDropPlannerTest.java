@@ -162,20 +162,57 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void refreshProgressCompletes4575CellMatrixAndCreatesWithoutDefaultsOrAssets() {
-        var type = new WidgetTypeId("flutter.material.RefreshProgressIndicator");
+    void refreshIndicatorCompletes4636CellMatrixAndWrapsExistingChildrenWithoutAssets() {
+        var type = new WidgetTypeId("flutter.material.RefreshIndicator");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0, wrappers = 0;
+        for (var definition : BUILT_INS.definitions()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            if (wrapper) wrappers++;
+            for (var target : targets) {
+                var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+                var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+                if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+            }
+        }
+        assertEquals(76, BUILT_INS.definitions().size()); assertEquals(61, targets.size()); assertEquals(12, wrappers);
+        assertEquals(10, BUILT_INS.definitions().stream().filter(d ->
+                dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(d) == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD)
+                .filter(d -> !List.of("flutter.widgets.Expanded", "flutter.widgets.Flexible").contains(d.typeId().value())).count());
+        assertEquals(4636, accepted + rejected); assertEquals(4315, accepted); assertEquals(321, rejected);
+        for (var target : targets) {
+            var destination = occupiedTarget(target.name(), target.document().root().type(), target.slot());
+            var result = planner.plan(destination.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
+            if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
+            else {
+                var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result).command();
+                assertEquals(FIRST_ID, command.widgetId()); assertEquals(CHILD, command.wrapperSlot());
+                assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), command.wrapper().properties());
+                assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty()), command.wrapper().slots());
+            }
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void refreshProgressCompletes4575CellMatrixAndCreatesWithoutDefaultsOrAssets() {
+        var type = new WidgetTypeId("flutter.material.RefreshProgressIndicator");
+        var targets = preRefreshIndicatorDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
         int accepted = 0, rejected = 0;
-        for (var definition : BUILT_INS.definitions()) for (var target : targets) {
+        for (var definition : preRefreshIndicatorDefinitions().toList()) for (var target : targets) {
             boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
                     == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
             var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
         }
-        assertEquals(75, BUILT_INS.definitions().size()); assertEquals(61, targets.size());
+        assertEquals(75, preRefreshIndicatorDefinitions().count()); assertEquals(61, targets.size());
         assertEquals(4575, accepted + rejected); assertEquals(4256, accepted); assertEquals(319, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
@@ -5805,8 +5842,13 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preRefreshProgressIndicatorDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition ->
+        return preRefreshIndicatorDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.RefreshProgressIndicator"));
+    }
+
+    private static Stream<WidgetDefinition> preRefreshIndicatorDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.RefreshIndicator"));
     }
 
     private static Stream<WidgetDefinition> preCardDefinitions() {

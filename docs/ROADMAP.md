@@ -1819,10 +1819,21 @@ accepted architecture is documented in
   SDK refresh-arrow animation, foreground alpha and Material appearance; diagnose
   project-code and resolved-geometry limits without model mutation. Include stable
   editors, save/reopen/further editing, Undo/Redo, rejection, DnD and accessibility.
-  Current totals: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
+  At that milestone: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
   72 scalar plus three structural definitions, 136 Boolean fields, nine wrappers/
   61 destinations, 4,575 placements (4,256 accepted / 319 rejected), Material 12/
   Basic 23. Historical target 75/92 leaves 17; formats stay 13/14/18.
+- [x] Add RefreshIndicator at Material/order 130 with material/adaptive/noSpinner,
+  all 12 SDK scalar fields plus a required variant and one required Child wrapper
+  slot. Include type-proved RefreshCallback, predicate presets/project functions,
+  nullable-status callbacks, all numeric/color/trigger/semantics fields, atomic
+  variant/status/spinner transitions, no-op required refresh generation when unset,
+  real SDK Canvas cycles, explicit isolated callback/filter limitations with the
+  child preserved, stable Properties, persistence/history, DnD and four SVGs.
+  Current totals: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
+  73 scalar plus three structural definitions, 136 Boolean fields, ten generic wrappers/
+  61 insertable destinations, 4,636 placements (4,315 accepted / 321 rejected),
+  Material 13/Basic 23. Historical target 76/92 leaves 16; formats stay 13/14/18.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1840,8 +1851,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-five admitted built-ins.
-  The 72 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-six admitted built-ins.
+  The 73 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

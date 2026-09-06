@@ -9,6 +9,7 @@ import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -374,6 +375,8 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
+                    && property.name().value().equals("variant")) continue;
             if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
                     && property.name().value().equals("variant")) continue;
             if (node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)
@@ -447,9 +450,18 @@ public final class DartRegionGenerator {
                                 && property.name().value().equals("valueColor")
                                 && !(value instanceof PropertyValue.DartObjectReferenceValue)
                                 ? renderProgressValueColor(value, property, propertyPath, node.id(), context)
+                                : node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
+                                        && property.name().value().equals("notificationPredicate")
+                                        && value instanceof PropertyValue.StringValue preset
+                                        ? renderRefreshNotificationPredicate(preset, propertyPath, node.id(), context)
                                 : renderProperty(value, property, propertyPath, node.id(), context,
                                         constructorBaseIndent + 2)));
             }
+        }
+        if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
+                && !node.properties().containsKey(new PropertyName("onRefresh"))) {
+            arguments.add(new ConstructorArgument(DartParameter.named(2, true), "onRefresh", false,
+                    scalar("() async {}", false, path + "/properties/onRefresh", node.id(), context)));
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
@@ -591,6 +603,14 @@ public final class DartRegionGenerator {
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":badgeCountConstructor", constructor.length() + 1,
                     "count", renderedClass.libraryUri(), path + "/properties/count", Optional.of(node.id())));
             constructor += ".count";
+        } else if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)) {
+            String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
+            if (!variant.equals("material")) {
+                constructorOccurrences.add(occurrence("widget:" + node.id() + ":refreshVariantConstructor",
+                        constructor.length() + 1, variant, renderedClass.libraryUri(),
+                        path + "/properties/variant", Optional.of(node.id())));
+                constructor += "." + variant;
+            }
         } else if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)) {
             String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
             if (variant.equals("adaptive")) {
@@ -3153,6 +3173,25 @@ public final class DartRegionGenerator {
         appendAppBarSystemUiOverlayStyle(
                 grouped.get(AppBarWidgetPropertySchema.Target.SYSTEM_UI_OVERLAY_STYLE),
                 valueIndent, path, node.id(), context, arguments);
+    }
+
+    private RenderedValue renderRefreshNotificationPredicate(PropertyValue.StringValue preset,
+            String propertyPath, StableId widgetId, GenerationContext context) {
+        return switch (preset.value()) {
+            case "default" -> {
+                RenderedSymbol symbol = context.planner().renderedSymbol(
+                        MATERIAL_IMPORT, "defaultScrollNotificationPredicate");
+                yield scalar(symbol.text(), true, propertyPath, widgetId, context,
+                        List.of(occurrence("widget:" + widgetId + ":refreshNotificationPredicate",
+                                symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                                propertyPath, Optional.of(widgetId))));
+            }
+            case "depthZero" -> scalar("(notification) => notification.depth == 0",
+                    false, propertyPath, widgetId, context);
+            case "all" -> scalar("(_) => true", false, propertyPath, widgetId, context);
+            default -> throw catalogInconsistency(propertyPath, widgetId,
+                    "Unsupported validated RefreshIndicator notification predicate preset '" + preset.value() + "'.");
+        };
     }
 
     private void appendAppBarNotificationPredicate(

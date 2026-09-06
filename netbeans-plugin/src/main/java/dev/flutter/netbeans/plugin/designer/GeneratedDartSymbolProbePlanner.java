@@ -81,6 +81,8 @@ final class GeneratedDartSymbolProbePlanner {
             .build();
     private static final String WIDGETS_LIBRARY_URI =
             "package:flutter/widgets.dart";
+    private static final String MATERIAL_LIBRARY_URI =
+            "package:flutter/material.dart";
     private static final String GENERATED_BUILD_PROOF_PREFIX =
             "  @override\n  Widget build(BuildContext context) {\n";
     private static final String CLASS_TARGET_KIND = "CLASS";
@@ -138,6 +140,16 @@ final class GeneratedDartSymbolProbePlanner {
                 .anyMatch(occurrence -> occurrence.staticTypeRequirement().isPresent())
                 ? Math.addExact(buildStart, staticTypeStatementInsertion(generated))
                 : -1;
+        // A candidate has one strict proof context. Material reexports Widgets,
+        // so select its umbrella for every probe when any Material-only function
+        // typedef is present, regardless of occurrence order. Navigation roots
+        // remain bound to each original symbol's actual library.
+        String staticTypeLibrary = generated.symbolOccurrences().stream()
+                .flatMap(occurrence -> occurrence.staticTypeRequirement().stream())
+                .map(GeneratedDartStaticTypeRequirement::expectedDartType)
+                .anyMatch(type -> type.equals("RefreshCallback")
+                        || type.equals("ValueChanged<RefreshIndicatorStatus?>"))
+                ? MATERIAL_LIBRARY_URI : WIDGETS_LIBRARY_URI;
 
         ArrayList<DartSymbolProbe> probes = new ArrayList<>();
         Path normalizedRoot = trustedFlutterSdkRoot.normalize();
@@ -221,7 +233,8 @@ final class GeneratedDartSymbolProbePlanner {
                     candidate,
                     importsStart,
                     buildStart,
-                    staticTypeStatementInsertion));
+                    staticTypeStatementInsertion,
+                    staticTypeLibrary));
             probes.add(new DartSymbolProbe(
                     occurrence.id(),
                     candidateOffset,
@@ -274,7 +287,8 @@ final class GeneratedDartSymbolProbePlanner {
             String candidate,
             int importsStart,
             int buildStart,
-            int statementInsertion) {
+            int statementInsertion,
+            String expectedTypeLibraryUri) {
         if (occurrence.region() != DartManagedRegionId.BUILD) {
             throw new IllegalArgumentException(
                     "Static-type occurrence is outside the generated build region: "
@@ -301,7 +315,7 @@ final class GeneratedDartSymbolProbePlanner {
                 importsStart,
                 statementInsertion,
                 requirement.expectedDartType(),
-                WIDGETS_LIBRARY_URI);
+                expectedTypeLibraryUri);
     }
 
     private static boolean isProjectLibraryUri(String value) {

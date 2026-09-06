@@ -127,6 +127,7 @@ final class FlutterDartObjectReferenceEditorComponent {
         private final String argumentName;
         private final String argumentDisplayName;
         private final boolean shapeBranch;
+        private final boolean noOpRefreshBranch;
         private boolean updating;
 
         ReferencePanel(
@@ -146,7 +147,9 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + argumentName.substring(1);
             shapeBranch = "shape".equals(argumentName)
                     && "ShapeBorder".equals(expectedDartType);
-            useDefault = new JCheckBox("Use Flutter default (omit " + argumentName + ")");
+            noOpRefreshBranch = "onRefresh".equals(argumentName) && "RefreshCallback".equals(expectedDartType);
+            useDefault = new JCheckBox(noOpRefreshBranch ? "Use generated no-op refresh callback"
+                    : "Use Flutter default (omit " + argumentName + ")");
 
             setLayout(new BorderLayout(0, 8));
             setName(PANEL_NAME);
@@ -158,10 +161,10 @@ final class FlutterDartObjectReferenceEditorComponent {
 
             useDefault.setName(DEFAULT_NAME);
             useDefault.getAccessibleContext().setAccessibleName(
-                    "Use Flutter default without " + argumentDisplayName);
+                    noOpRefreshBranch ? "Use generated no-op refresh callback" : "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
-                    "When selected, removes the optional " + argumentName
-                    + " Dart object reference.");
+                    noOpRefreshBranch ? "Removes the project reference and generates the required async no-op callback, not a null callback."
+                            : "When selected, removes the optional " + argumentName + " Dart object reference.");
             if (binding.optional()) {
                 add(useDefault, BorderLayout.NORTH);
             }
@@ -338,7 +341,8 @@ final class FlutterDartObjectReferenceEditorComponent {
         private void updatePreview(boolean unset, boolean imported, boolean invocation) {
             String rendered;
             if (unset) {
-                rendered = shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
+                rendered = noOpRefreshBranch ? "onRefresh: () async {}"
+                        : shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
                         : argumentName + ": <Flutter default null>";
             } else {
                 String symbol = rootSymbol.getText().strip();
@@ -379,6 +383,9 @@ final class FlutterDartObjectReferenceEditorComponent {
         private String description() {
             String base = "The Dart analyzer validates that the selected Dart "
                     + "symbol is assignable to " + expectedDartType + ". ";
+            if (noOpRefreshBranch) {
+                base += "Omission generates the required onRefresh: () async {} no-op; it does not emit null or omit the required Dart argument. ";
+            }
             if ("CustomClipper<RRect>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores ClipRRect.borderRadius. ";
             } else if ("CustomClipper<RSuperellipse>".equals(expectedDartType)) {
@@ -390,6 +397,15 @@ final class FlutterDartObjectReferenceEditorComponent {
             } else if ("ShapeBorder".equals(expectedDartType)) {
                 base += "A project-defined shape replaces any mutually exclusive shape configuration "
                         + "atomically. Omission restores the widget's Flutter/theme default. ";
+            }
+            if (noOpRefreshBranch) {
+                return base + "Isolated Canvas retains the wrapper and editable child, but disables refresh activation and reports this project callback; it never fakes successful refresh.";
+            }
+            if ("onStatusChange".equals(argumentName) && "ValueChanged<RefreshIndicatorStatus?>".equals(expectedDartType)) {
+                return base + "Isolated Canvas retains the wrapper and editable child, skips this observer with a diagnostic, and permits the SDK refresh cycle.";
+            }
+            if ("notificationPredicate".equals(argumentName) && "ScrollNotificationPredicate".equals(expectedDartType)) {
+                return base + "Isolated Canvas retains the wrapper and editable child, but disables refresh activation and reports the custom predicate; it never substitutes another filter.";
             }
             return base
                     + "The isolated Canvas cannot execute project or dependency Dart and displays an "

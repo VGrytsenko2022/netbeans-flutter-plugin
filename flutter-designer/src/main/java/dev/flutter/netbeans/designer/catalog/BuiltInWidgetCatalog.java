@@ -99,6 +99,7 @@ public final class BuiltInWidgetCatalog {
             linearProgressIndicator(),
             circularProgressIndicator(),
             refreshProgressIndicator(),
+            refreshIndicator(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -606,6 +607,35 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition refreshIndicator() {
+        List<PropertyValueConstraint> predicate = new ArrayList<>(
+                stringPattern("(?:default|depthZero|all)", "RefreshIndicator notification predicate preset"));
+        predicate.add(new PropertyValueConstraint.DartObjectReferenceValues("ScrollNotificationPredicate"));
+        return widget(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.value(),
+                "RefreshIndicator", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 130, "RefreshIndicator"),
+                List.of(namedProperty("displacement", 0, false, nonNegativeNumbers()),
+                        namedProperty("edgeOffset", 1, false, cardNumbers(null, null)),
+                        namedProperty("onRefresh", 2, false,
+                                List.of(new PropertyValueConstraint.DartObjectReferenceValues("RefreshCallback"))),
+                        namedProperty("color", 3, false, colorOrTheme()),
+                        namedProperty("backgroundColor", 4, false, colorOrTheme()),
+                        namedProperty("notificationPredicate", 5, false, predicate),
+                        namedProperty("semanticsLabel", 6, false, any(PropertyValueKind.STRING)),
+                        namedProperty("semanticsValue", 7, false, any(PropertyValueKind.STRING)),
+                        namedProperty("strokeWidth", 8, false, cardNumbers(null, null)),
+                        namedProperty("triggerMode", 9, false, List.of(new PropertyValueConstraint.EnumValues(
+                                new DartSymbolReference(MATERIAL_IMPORT, "RefreshIndicatorTriggerMode"),
+                                List.of("onEdge", "anywhere")))),
+                        namedProperty("elevation", 10, false, nonNegativeNumbers()),
+                        namedProperty("onStatusChange", 12, false,
+                                List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<RefreshIndicatorStatus?>"))),
+                        namedProperty("variant", 13, true,
+                                stringPattern("(?:material|adaptive|noSpinner)", "RefreshIndicator constructor variant"),
+                                new PropertyValue.StringValue("material"))),
+                List.of(singleSlot("child", 11, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition refreshProgressIndicator() {

@@ -69,6 +69,9 @@ final class FlutterTypedPropertyEditors {
                     .orElse(newlineStringList
                             ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
             }
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && !presets.isEmpty() && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
+            editorKind = EditorKind.PRESET_DART_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN))) {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
@@ -192,6 +195,7 @@ final class FlutterTypedPropertyEditors {
     enum EditorKind {
         STRING,
         STRING_PRESET,
+        PRESET_DART_REFERENCE,
         NEWLINE_STRING_LIST,
         BOOLEAN,
         INTEGER,
@@ -236,9 +240,9 @@ final class FlutterTypedPropertyEditors {
             Objects.requireNonNull(textSchema, "textSchema");
             stringPresets = List.copyOf(
                     Objects.requireNonNull(stringPresets, "stringPresets"));
-            if ((editorKind == EditorKind.STRING_PRESET) != !stringPresets.isEmpty()) {
+            if ((editorKind == EditorKind.STRING_PRESET || editorKind == EditorKind.PRESET_DART_REFERENCE) != !stringPresets.isEmpty()) {
                 throw new IllegalArgumentException(
-                        "Only the String preset editor may carry preset values.");
+                        "Only a reviewed preset editor may carry preset values.");
             }
         }
 
@@ -340,7 +344,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION ->
+                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, PRESET_DART_REFERENCE ->
                     new StructuredEditor(this);
             };
         }
@@ -1005,6 +1009,10 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
+            if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
+                return explicitValue().map(value -> value instanceof PropertyValue.StringValue preset
+                        ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
+            }
             if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue
                         ? "AlwaysStoppedAnimation<Color?>(null)"

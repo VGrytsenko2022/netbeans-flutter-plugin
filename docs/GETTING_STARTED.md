@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly seventy-five
+The current capability-gated Palette and native Canvas admit exactly seventy-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator` and `RefreshProgressIndicator`.
-Sixty-nine definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 930 typed writable rows: 913 across the seventy-four
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator` and `RefreshIndicator`.
+Seventy definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 943 typed writable rows: 926 across the seventy-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -882,9 +882,32 @@ same stopped-color and typed project-animation choices as the other indicators.
 Canvas preserves SDK animation/arrow behavior and reports exact project-code or
 resolved-layout limitations, including a visible arrow in a non-square paint area.
 
-The practical backlog is now 75/92 complete with 17 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 12 and Accessibility 6. The aggregate
-is 69 reviewed const definitions and 930 writable rows, including 913 outside
+Wrap an existing scrollable with **Material → RefreshIndicator**. Choose
+**Constructor** material, adaptive or noSpinner; Child is required. Configure
+**On refresh** with a project function returning Future<void>, or a factory
+returning RefreshCallback. Unset produces an async no-op, not a real data reload.
+**Notification predicate** supports the default/depthZero/all presets and project
+ScrollNotificationPredicate references. Choose scroll physics that permit overscroll;
+the wrapper does not silently alter its child's physics.
+
+**On status change** takes a function accepting nullable RefreshIndicatorStatus;
+setting it switches to noSpinner and clears unsupported spinner fields. Switching
+to material/adaptive clears that callback; setting a spinner-only field from
+noSpinner switches to material. These changes are one Undo/Redo operation. Displacement,
+Edge offset, both colors, Stroke width, Trigger mode, Elevation and semantics are
+typed Properties with reset and save/reopen/further-editing coverage. NoSpinner
+keeps the refresh lifecycle without drawing a spinner; adaptive follows the SDK's
+Theme.platform behavior.
+
+Canvas leaves the child visible and scrollable but never executes project code.
+Project On refresh/custom filter disables preview refresh activation with an explicit
+diagnostic; a project status callback is reported as unexecuted. The default handler
+uses the generated no-op. This distinction avoids falsely showing project data as
+refreshed or silently replacing a configured notification filter.
+
+The practical backlog is now 76/92 complete with 16 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 13 and Accessibility 6. The aggregate
+is 70 reviewed const definitions and 943 writable rows, including 926 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -950,13 +973,13 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Seventy-five sources across fifty-nine insertable any-widget and two trait-bound
-slots produce 4,575 compatibility candidates: 4,256 accepted and 319
+Seventy-six sources across fifty-nine insertable any-widget and two trait-bound
+slots produce 4,636 compatibility candidates: 4,315 accepted and 321
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle and IconTheme use the
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme and RefreshIndicator use the
 same generic atomic required-child wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and none can wrap
 Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse, PhysicalModel and ExcludeSemantics

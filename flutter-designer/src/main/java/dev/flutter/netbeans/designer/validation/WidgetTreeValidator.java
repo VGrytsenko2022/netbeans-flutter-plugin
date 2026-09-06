@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -453,6 +454,20 @@ public final class WidgetTreeValidator {
         }
         if (type.equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.value())) {
             validateCircleAvatar(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.value())) {
+            if (RefreshIndicatorWidgetPropertySchema.isNoSpinner(node)) {
+                for (String name : RefreshIndicatorWidgetPropertySchema.spinnerOnlyProperties()) {
+                    if (node.properties().containsKey(new PropertyName(name))) {
+                        issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/" + name, node.id(),
+                                "RefreshIndicator.noSpinner has no " + name + " argument. Use Material or Adaptive, or reset this field."));
+                    }
+                }
+            } else if (node.properties().containsKey(new PropertyName("onStatusChange"))) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/onStatusChange", node.id(),
+                        "RefreshIndicator On status change requires the No spinner constructor."));
+            }
             return;
         }
         if (type.equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.value())) {

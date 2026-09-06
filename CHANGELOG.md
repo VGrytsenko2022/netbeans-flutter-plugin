@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `RefreshIndicator` at Material/order 130, with material, adaptive and noSpinner
+  constructors, all 12 SDK scalar fields plus a required variant, and one required
+  Child slot. Includes typed RefreshCallback, ScrollNotificationPredicate presets/
+  references and ValueChanged<RefreshIndicatorStatus?> references. Unset onRefresh
+  emits the required async no-op; noSpinner/status/spinner-field transitions are
+  strict in the model and atomic in Properties. Real SDK Canvas keeps the child
+  visible, preserves supported refresh cycles and diagnoses unexecuted project
+  callbacks/custom filters without pretending they completed. Includes numeric,
+  color, semantics, trigger modes, all three variants, stable editors, persistence/
+  history, DnD, accessibility and four SVGs.
+  Current totals: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
+  4,636 placements (4,315 accepted / 321 rejected), 136 Boolean fields, Material 13.
+  Historical target 76/92 leaves 16; formats stay 13/14/18.
+
 - `RefreshProgressIndicator` at Material/order 120 with all 12 optional constructor
   fields, no child slots/defaults and a const constructor. Includes stopped
   literal/theme/null and typed project color animations, signed finite stroke
@@ -16,7 +30,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   foreground opacity and Material appearance, with explicit project-code and
   resolved-geometry limitations. Stable Properties, persistence/history, DnD,
   accessibility and four SVGs cover the full slice.
-  Current totals: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
+  At that milestone: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
   4,575 placements (4,256 accepted / 319 rejected), 136 Boolean fields, Material 12.
   Historical target 75/92 with 17 remaining; formats stay 13/14/18.
 

@@ -1811,6 +1811,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.LinearProgressIndicator", ICON_ROOT + "linearprogressindicator.svg");
         expected.put("flutter.material.CircularProgressIndicator", ICON_ROOT + "circularprogressindicator.svg");
         expected.put("flutter.material.RefreshProgressIndicator", ICON_ROOT + "refreshprogressindicator.svg");
+        expected.put("flutter.material.RefreshIndicator", ICON_ROOT + "refreshindicator.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

@@ -723,13 +723,14 @@ void main() {
     );
   });
 
-  test('closes the 75-source by 61-destination compatibility matrix', () {
+  test('closes the 76-source by 61-destination compatibility matrix', () {
     const sourceTypes = {
       'flutter.material.Card',
       'flutter.material.Badge',
       'flutter.material.CircleAvatar',
       'flutter.material.CircularProgressIndicator',
       'flutter.material.RefreshProgressIndicator',
+      'flutter.material.RefreshIndicator',
       'flutter.material.LinearProgressIndicator',
       'flutter.material.Divider',
       'flutter.material.VerticalDivider',
@@ -809,7 +810,7 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(75));
+    expect(sourceTypes, hasLength(76));
     expect(destinations, hasLength(61));
 
     var accepted = 0;
@@ -836,9 +837,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 4256);
-    expect(rejected, 319);
-    expect(accepted + rejected, 4575);
+    expect(accepted, 4315);
+    expect(rejected, 321);
+    expect(accepted + rejected, 4636);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (

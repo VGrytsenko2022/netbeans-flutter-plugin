@@ -700,6 +700,37 @@ class PairSaveEvidenceGateTest {
     }
 
     @Test
+    void refreshFunctionProofLibraryCoversMixedWidgetReferencesWithoutChangingNavigation() throws Exception {
+        for (String property : List.of("onRefresh", "notificationPredicate", "onStatusChange")) {
+            for (boolean imported : List.of(false, true)) {
+                var reference = new PropertyValue.DartObjectReferenceValue(
+                        imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                        "configuredFunction", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+                Fixture fixture = fixture(Optional.of(reference), true, List.of(),
+                        "flutter.material.RefreshIndicator", property);
+                PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+                var typed = ticket.request().symbolProbes().stream()
+                        .flatMap(probe -> probe.staticTypeProbe().stream()).toList();
+                assertEquals(3, typed.size());
+                String library = property.equals("notificationPredicate")
+                        ? "package:flutter/widgets.dart" : "package:flutter/material.dart";
+                assertEquals(List.of(library), typed.stream().map(value -> value.expectedTypeLibraryUri()).distinct().toList());
+                assertTrue(typed.stream().anyMatch(value -> value.expectedDartType().equals("Animation<Color?>")));
+                assertTrue(typed.stream().anyMatch(value -> value.expectedDartType().equals("CustomClipper<RRect>")));
+                DartSymbolProbe configured = ticket.request().symbolProbes().stream()
+                        .filter(probe -> probe.expectedSymbolName().equals("configuredFunction")).findFirst().orElseThrow();
+                assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current",
+                        configured.expectedLibraryUri());
+                assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), configured.expectedTargetRoot());
+                PairAnalyzedCandidateResult analyzed = ticket.accept(analysis(ticket, fixture.acceptedEvidence()));
+                assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
+                assertTrue(PairSaveEvidenceGate.bindApplied(analyzed.analyzedOptional().orElseThrow(), fixture.live()).ready());
+            }
+        }
+    }
+
+    @Test
     void bindsClipPathBranchesWithExactGeometryAndStaticHelperEvidence()
             throws Exception {
         for (String property : List.of("clipper", "shape")) {
@@ -741,6 +772,28 @@ class PairSaveEvidenceGateTest {
                         bound.evidenceOptional().orElseThrow().candidateDartBytes());
             }
         }
+    }
+
+    @Test
+    void rejectsStaleWidgetsProofLibraryForMaterialCallbackEvidence() throws Exception {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredFunction",
+                Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.RefreshIndicator", "onStatusChange");
+        PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+        DartSymbolEvidence original = fixture.acceptedEvidence().stream()
+                .filter(value -> value.probe().staticTypeProbe().isPresent()).findFirst().orElseThrow();
+        DartSymbolProbe probe = original.probe();
+        var type = probe.staticTypeProbe().orElseThrow();
+        assertEquals("package:flutter/material.dart", type.expectedTypeLibraryUri());
+        var staleType = new dev.flutter.netbeans.dart.DartStaticTypeProbe(type.expressionOffset(), type.expressionLength(),
+                type.importInsertionOffset(), type.statementInsertionOffset(), type.expectedDartType(), "package:flutter/widgets.dart");
+        var staleProbe = new DartSymbolProbe(probe.id(), probe.offset(), probe.length(), probe.expectedSymbolName(),
+                probe.expectedLibraryUri(), probe.expectedTargetRoot(), probe.expectedTargetKind(), Optional.of(staleType));
+        var staleEvidence = new DartSymbolEvidence(staleProbe, original.targets(), true, Optional.empty(),
+                Optional.of(new DartStaticTypeEvidence(staleType, true, Optional.empty())));
+        var evidence = fixture.acceptedEvidence().stream().map(value -> value == original ? staleEvidence : value).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)),
+                PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
     }
 
     @Test
@@ -1737,6 +1790,25 @@ class PairSaveEvidenceGateTest {
             String propertyName) {
         if (projectReference.isEmpty()) {
             return document(descriptor, text);
+        }
+        if (widgetType.equals("flutter.material.RefreshIndicator")) {
+            var animation = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredAnimation",
+                    Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var clipper = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredClipper",
+                    Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var progress = new WidgetNode(StableId.parse("11111111-1111-4111-8111-111111111111"),
+                    new WidgetTypeId("flutter.material.CircularProgressIndicator"),
+                    Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material"),
+                            new PropertyName("valueColor"), animation), Map.of());
+            var clipped = new WidgetNode(StableId.parse("22222222-2222-4222-8222-222222222222"),
+                    new WidgetTypeId("flutter.widgets.ClipRRect"), Map.of(new PropertyName("clipper"), clipper),
+                    Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(progress))));
+            var refresh = new WidgetNode(StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                    new WidgetTypeId(widgetType), Map.of(new PropertyName(propertyName), projectReference.orElseThrow(),
+                            new PropertyName("variant"), new PropertyValue.StringValue(
+                                    propertyName.equals("onStatusChange") ? "noSpinner" : "material")),
+                    Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(clipped))));
+            return new DesignerDocument(DOCUMENT_ID, descriptor, refresh);
         }
         WidgetNode root = new WidgetNode(
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),

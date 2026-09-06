@@ -88,6 +88,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.LinearProgressIndicator",
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
+            "flutter.material.RefreshIndicator",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3398,6 +3399,74 @@ class CanvasModelPayloadCodecTest {
             var node = new WidgetNode(StableId.random(), type("flutter.material.RefreshProgressIndicator"), properties, Map.of());
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
+    }
+
+    @Test
+    void refreshIndicatorPayloadRetainsAllThreeVariantsRequiredChildAndPrivateReferencePresence() throws Exception {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_refresh/callbacks.dart"),
+                "privateRefresh", Optional.of("privateMember"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        for (String variant : List.of("material", "adaptive", "noSpinner")) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            properties.put(new PropertyName("onRefresh"), reference);
+            properties.put(new PropertyName("notificationPredicate"), reference);
+            properties.put(new PropertyName("semanticsLabel"), new PropertyValue.StringValue("Refresh records"));
+            properties.put(new PropertyName("semanticsValue"), new PropertyValue.StringValue("45%"));
+            properties.put(new PropertyName("elevation"), new PropertyValue.DoubleValue(BigDecimal.ZERO));
+            properties.put(new PropertyName("triggerMode"), new PropertyValue.EnumValue("RefreshIndicatorTriggerMode", "anywhere"));
+            if (variant.equals("noSpinner")) properties.put(new PropertyName("onStatusChange"), reference);
+            else {
+                properties.put(new PropertyName("displacement"), new PropertyValue.DoubleValue(BigDecimal.TEN));
+                properties.put(new PropertyName("edgeOffset"), new PropertyValue.DoubleValue(BigDecimal.ONE.negate()));
+                properties.put(new PropertyName("strokeWidth"), new PropertyValue.DoubleValue(new BigDecimal("-2.5")));
+                properties.put(new PropertyName("color"), new PropertyValue.ColorValue(0xff123456L));
+                properties.put(new PropertyName("backgroundColor"), new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")));
+            }
+            var node = refreshIndicatorPayloadNode(properties);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"onRefresh\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"notificationPredicate\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertEquals(variant.equals("noSpinner"), json.contains("\"onStatusChange\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("Refresh child"), json);
+            for (String forbidden : List.of("privateRefresh", "privateMember", "private_refresh", "imageProvider", "MaterialIcons")) assertFalse(json.contains(forbidden), json);
+        }
+    }
+
+    @Test
+    void refreshIndicatorPayloadKeepsPresetsSeparateFromCustomPredicateAndOmission() throws Exception {
+        for (String preset : List.of("unset", "default", "depthZero", "all")) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("variant"), new PropertyValue.StringValue("material"));
+            if (!preset.equals("unset")) properties.put(new PropertyName("notificationPredicate"), new PropertyValue.StringValue(preset));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), refreshIndicatorPayloadNode(properties)))), StandardCharsets.UTF_8);
+            assertEquals(!preset.equals("unset"), json.contains("\"notificationPredicate\":"), json);
+            assertFalse(json.contains("\"onRefresh\":"), json);
+            assertFalse(json.contains("dartObjectReferencePresence"), json);
+        }
+    }
+
+    @Test
+    void refreshIndicatorPayloadRejectsBranchConflictsNullAndMissingChild() {
+        var cases = new java.util.ArrayList<Map<PropertyName, PropertyValue>>();
+        cases.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("noSpinner"), new PropertyName("color"), new PropertyValue.ColorValue(0xff123456L)));
+        cases.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material"), new PropertyName("strokeWidth"), new PropertyValue.NullValue()));
+        cases.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"), new PropertyName("controller"), new PropertyValue.StringValue("controller")));
+        cases.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material"), new PropertyName("onRefresh"), new PropertyValue.CallbackValue("refresh")));
+        cases.add(Map.of());
+        for (var properties : cases) {
+            var document = new DesignerDocument(DOCUMENT_ID, source(), refreshIndicatorPayloadNode(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(document)));
+        }
+        var empty = new WidgetNode(StableId.random(), type("flutter.material.RefreshIndicator"),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))));
+    }
+
+    private static WidgetNode refreshIndicatorPayloadNode(Map<PropertyName, PropertyValue> properties) {
+        var child = new WidgetNode(StableId.random(), type("flutter.widgets.Text"),
+                Map.of(new PropertyName("data"), new PropertyValue.StringValue("Refresh child")), Map.of());
+        return new WidgetNode(StableId.random(), type("flutter.material.RefreshIndicator"), properties,
+                Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(child))));
     }
 
     private static WidgetTypeId type(String value) {

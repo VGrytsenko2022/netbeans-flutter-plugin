@@ -50,6 +50,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.LinearProgressIndicator",
             "flutter.material.CircularProgressIndicator",
             "flutter.material.RefreshProgressIndicator",
+            "flutter.material.RefreshIndicator",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -115,6 +116,18 @@ class FlutterDesignerPaletteTest {
             SingleChildScrollViewWidgetPropertySchema
                     .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
+
+    @Test
+    void refreshIndicatorPaletteExplainsAllThreeConstructorsRequiredChildTypedCallbacksAndNoOpDefault() throws ReflectiveOperationException {
+        String type = "flutter.material.RefreshIndicator";
+        var controller = FlutterDesignerPalette.create(CATALOG, definition -> type.equals(definition.typeId().value()));
+        var node = itemNode(controller, type); var definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 130, "RefreshIndicator"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals(13, definition.properties().size()); assertEquals(1, definition.slots().size()); assertEquals(1, definition.slots().getFirst().minChildren());
+        for (String hint : List.of("13 scalar", "required child", "No spinner", "async no-op", "default/depthZero/all",
+                "ScrollNotificationPredicate", "RefreshCallback", "atomically", "never executes", "vertical ScrollView")) assertTrue(node.getShortDescription().contains(hint), hint);
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node));
+    }
 
     @Test
     void refreshProgressPaletteExposesTwelveOptionalFieldsAndDistinctNullWidthWithoutChildSlots() throws ReflectiveOperationException {
@@ -352,8 +365,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(75, CATALOG.definitions().size());
-        assertEquals(69, CATALOG.definitions().stream()
+        assertEquals(76, CATALOG.definitions().size());
+        assertEquals(70, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -364,9 +377,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator"),
                 itemLabels(categories[0]));
-        assertEquals(12, itemLabels(categories[0]).size());
+        assertEquals(13, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
@@ -407,7 +420,7 @@ class FlutterDesignerPaletteTest {
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
                         "flutter.basic", "flutter.accessibility"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -2071,7 +2084,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(75, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(76, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

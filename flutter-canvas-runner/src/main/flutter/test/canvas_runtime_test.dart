@@ -4772,6 +4772,24 @@ void main() {
         reason: 'Directionality wraps existing children only',
       );
 
+      for (final entry in [
+        (parent: rowId, slot: 'children', index: 0, accepted: true),
+        (parent: expandedId, slot: 'child', index: 0, accepted: true),
+        (parent: rowId, slot: 'children', index: 1, accepted: false),
+        (parent: rowId, slot: 'children', index: 2, accepted: false),
+      ].indexed) {
+        await expectTarget(
+          parentWidgetId: entry.$2.parent,
+          slotName: entry.$2.slot,
+          insertionIndex: entry.$2.index,
+          accepted: entry.$2.accepted,
+          generation: 10 + entry.$1,
+          wrapperWidgetType: 'flutter.material.RefreshIndicator',
+          reason:
+              'RefreshIndicator atomically wraps only an existing legal child',
+        );
+      }
+
       await input.close();
       await running;
       await tester.pumpWidget(const SizedBox.shrink());

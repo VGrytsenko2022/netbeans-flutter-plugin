@@ -1,10 +1,16 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/rendering.dart' show OverflowBoxFit, ScrollCacheExtent;
+import 'package:flutter/rendering.dart'
+    show
+        OverflowBoxFit,
+        ScrollCacheExtent,
+        RenderProxyBox,
+        RenderObjectWithLayoutCallbackMixin;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
@@ -32,6 +38,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.RefreshIndicator') {
+    return _refreshIndicatorReferenceMessage(node);
+  }
   if (node.type == 'flutter.material.RefreshProgressIndicator') {
     return context == null
         ? null
@@ -999,6 +1008,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.material.CircularProgressIndicator' ||
         node.type == 'flutter.material.RefreshProgressIndicator' ||
+        node.type == 'flutter.material.RefreshIndicator' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2900,6 +2910,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Card' => _card(context),
       'flutter.material.Badge' => _badge(context),
       'flutter.material.CircleAvatar' => _circleAvatar(context),
+      'flutter.material.RefreshIndicator' => _CanvasRefreshIndicatorPreview(
+        node: node,
+        color: _resolvedColor(context, 'color'),
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        child: _single('child')!,
+      ),
       'flutter.material.LinearProgressIndicator' => _linearProgressIndicator(
         context,
       ),
@@ -7720,5 +7736,431 @@ TargetPlatform canvasAdaptiveTargetPlatform(String platform) =>
         'Unsupported target',
       ),
     };
+
+String? _refreshIndicatorReferenceMessage(CanvasNode node) {
+  final disabled = [
+    for (final name in const ['onRefresh', 'notificationPredicate'])
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') name,
+  ];
+  final skipped = node.properties.containsKey('onStatusChange');
+  if (disabled.isEmpty && !skipped) return null;
+  return 'RefreshIndicator.${[...disabled, if (skipped) 'onStatusChange'].join('/')} '
+      'preview unavailable: isolated Canvas does not execute project or dependency Dart. '
+      '${disabled.isEmpty ? 'The SDK refresh cycle remains available; the project status observer is not invoked.' : 'Refresh activation is disabled, not simulated as a successful callback or a different notification filter.'} '
+      'The real SDK wrapper, child scrolling, stored properties and generated Dart are preserved.';
+}
+
+// Only the SDK's active Material branch consumes these properties. The actual
+// wrapper size is inspected at notification time, after its child has laid out.
+String? _refreshIndicatorGeometryMessage(
+  CanvasNode node,
+  BuildContext context,
+  Size size,
+  Color? color,
+) {
+  final variant = node.properties['variant']?.value;
+  final platform = Theme.of(context).platform;
+  if (variant == 'noSpinner') return null;
+  double number(String name, double fallback) =>
+      (node.properties[name]?.value as num?)?.toDouble() ?? fallback;
+  final displacement = number('displacement', 40);
+  final offset = number('edgeOffset', 0);
+  final apple =
+      variant == 'adaptive' &&
+      (platform == TargetPlatform.iOS || platform == TargetPlatform.macOS);
+  final overlayHeight = (displacement + (apple ? 20 : 49)) * 1.5;
+  if (!size.isFinite ||
+      !overlayHeight.isFinite ||
+      !(offset + overlayHeight).isFinite) {
+    return 'RefreshIndicator.displacement/edgeOffset preview unavailable: the active overlay exceeds finite SDK layout geometry. Child scrolling and stored values are unchanged.';
+  }
+  if (apple) {
+    return null;
+  }
+  final semanticValue = node.properties['semanticsValue']?.value as String?;
+  if (semanticValue != null) {
+    final parsed =
+        double.tryParse(semanticValue) ??
+        (semanticValue.endsWith('%')
+            ? double.tryParse(
+                semanticValue.substring(0, semanticValue.length - 1),
+              )
+            : null);
+    if (semanticValue.isEmpty || parsed == null || parsed < 0 || parsed > 100) {
+      return 'RefreshIndicator.semanticsValue preview unavailable: the SDK drag-phase progressBar requires a number from 0 to 100 or a percentage from 0% to 100%. The explicit string and child are preserved.';
+    }
+  }
+  // RefreshIndicator passes its color animation directly to RefreshProgressIndicator.
+  // A transparent effective color suppresses arc/arrow painting, not its Material.
+  // ignore: deprecated_member_use
+  if ((color ?? Theme.of(context).colorScheme.primary).alpha == 0) return null;
+  final paintWidth = math.max(
+    0.0,
+    math.min(41.0, math.max(0.0, size.width - 8)) - 24,
+  );
+  if (paintWidth != 17) {
+    return 'RefreshIndicator.child preview unavailable for pull-to-refresh: the resolved width ${size.width} makes the SDK arrow paint area non-square. The child remains visible and scrollable; no width is invented.';
+  }
+  final stroke = number(
+    'strokeWidth',
+    RefreshProgressIndicator.defaultStrokeWidth,
+  );
+  final alignment = ProgressIndicatorTheme.of(context).strokeAlign ?? 0;
+  final strokeOffset = stroke / 2 * -alignment;
+  final arc = 17 - strokeOffset * 2;
+  final arrow = stroke * 2;
+  if (!strokeOffset.isFinite ||
+      !(strokeOffset * 2).isFinite ||
+      !arc.isFinite ||
+      !(strokeOffset + arc).isFinite ||
+      !arrow.isFinite ||
+      !(8.5 + arrow).isFinite ||
+      !(8.5 - arrow).isFinite) {
+    return 'RefreshIndicator.strokeWidth preview unavailable: strokeWidth and the resolved theme strokeAlign overflow finite SDK arc/arrow geometry. The signed value and child are unchanged.';
+  }
+  return null;
+}
+
+class _CanvasRefreshIndicatorPreview extends StatefulWidget {
+  const _CanvasRefreshIndicatorPreview({
+    required this.node,
+    required this.color,
+    required this.backgroundColor,
+    required this.child,
+  });
+  final CanvasNode node;
+  final Color? color;
+  final Color? backgroundColor;
+  final Widget child;
+
+  @override
+  State<_CanvasRefreshIndicatorPreview> createState() =>
+      _CanvasRefreshIndicatorPreviewState();
+}
+
+class _CanvasRefreshIndicatorPreviewState
+    extends State<_CanvasRefreshIndicatorPreview> {
+  GlobalKey<RefreshIndicatorState> _indicatorKey =
+      GlobalKey<RefreshIndicatorState>();
+  final Completer<void> _unavailableRefresh = Completer<void>();
+  String? _geometryFailure;
+  bool _notificationsEnabled = true;
+
+  double _number(String name, double fallback) =>
+      (widget.node.properties[name]?.value as num?)?.toDouble() ?? fallback;
+  String? _string(String name) =>
+      widget.node.properties[name]?.value as String?;
+  bool get _projectRefresh =>
+      widget.node.properties['onRefresh']?.kind ==
+      'dartObjectReferencePresence';
+  bool get _projectPredicate =>
+      widget.node.properties['notificationPredicate']?.kind ==
+      'dartObjectReferencePresence';
+
+  Future<void> _onRefresh() => _projectRefresh
+      // Never claim that the project callback completed. Product Canvas has no
+      // programmatic show action; this also guards direct SDK show invocation.
+      ? _unavailableRefresh.future
+      : Future<void>.value();
+
+  bool _predicate(ScrollNotification notification) {
+    if (_projectRefresh || _projectPredicate) {
+      return false;
+    }
+    final preset = _string('notificationPredicate');
+    final accepted =
+        preset == 'all' ||
+        (preset == 'depthZero'
+            ? notification.depth == 0
+            : defaultScrollNotificationPredicate(notification));
+    if (!accepted) return false;
+    final render = _indicatorKey.currentContext?.findRenderObject();
+    if (render is RenderBox && render.hasSize) {
+      final failure = _refreshIndicatorGeometryMessage(
+        widget.node,
+        context,
+        render.size,
+        widget.color,
+      );
+      if (_geometryFailure != failure) {
+        final observedNode = widget.node;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted && identical(widget.node, observedNode)) {
+            setState(() => _geometryFailure = failure);
+          }
+        });
+      }
+      if (failure != null) return false;
+    }
+    return true;
+  }
+
+  @override
+  void didUpdateWidget(_CanvasRefreshIndicatorPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _geometryFailure = null;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      _RefreshLayoutObserver(builder: _buildIndicator);
+
+  Widget _buildIndicator(BuildContext context, BoxConstraints constraints) {
+    final render = _indicatorKey.currentContext?.findRenderObject();
+    final failure = render is RenderBox && render.hasSize
+        ? _refreshIndicatorGeometryMessage(
+            widget.node,
+            context,
+            Size(
+              constraints.hasTightWidth
+                  ? constraints.maxWidth
+                  : render.size.width,
+              constraints.hasTightHeight
+                  ? constraints.maxHeight
+                  : render.size.height,
+            ),
+            widget.color,
+          )
+        : null;
+    final enabled = !_projectRefresh && !_projectPredicate && failure == null;
+    if (_notificationsEnabled && !enabled) {
+      // When an edit makes a currently active spinner unsafe, dispose that SDK
+      // cycle only. Ordinary safe property/history edits keep its exact State.
+      _indicatorKey = GlobalKey<RefreshIndicatorState>();
+    }
+    _notificationsEnabled = enabled;
+    final variant = _string('variant');
+    final trigger =
+        widget.node.properties['triggerMode']?.value as CanvasEnumValue?;
+    final mode = trigger?.value == 'anywhere'
+        ? RefreshIndicatorTriggerMode.anywhere
+        : RefreshIndicatorTriggerMode.onEdge;
+    final Widget indicator;
+    if (variant == 'noSpinner') {
+      indicator = RefreshIndicator.noSpinner(
+        key: _indicatorKey,
+        onRefresh: _onRefresh,
+        // The project observer is intentionally absent, never executed.
+        notificationPredicate: _predicate,
+        semanticsLabel: _string('semanticsLabel'),
+        semanticsValue: _string('semanticsValue'),
+        triggerMode: mode,
+        elevation: _number('elevation', 2),
+        child: widget.child,
+      );
+    } else if (variant == 'adaptive') {
+      indicator = RefreshIndicator.adaptive(
+        key: _indicatorKey,
+        displacement: _number('displacement', 40),
+        edgeOffset: _number('edgeOffset', 0),
+        onRefresh: _onRefresh,
+        color: widget.color,
+        backgroundColor: widget.backgroundColor,
+        notificationPredicate: _predicate,
+        semanticsLabel: _string('semanticsLabel'),
+        semanticsValue: _string('semanticsValue'),
+        strokeWidth: _number(
+          'strokeWidth',
+          RefreshProgressIndicator.defaultStrokeWidth,
+        ),
+        triggerMode: mode,
+        elevation: _number('elevation', 2),
+        child: widget.child,
+      );
+    } else {
+      indicator = RefreshIndicator(
+        key: _indicatorKey,
+        displacement: _number('displacement', 40),
+        edgeOffset: _number('edgeOffset', 0),
+        onRefresh: _onRefresh,
+        color: widget.color,
+        backgroundColor: widget.backgroundColor,
+        notificationPredicate: _predicate,
+        semanticsLabel: _string('semanticsLabel'),
+        semanticsValue: _string('semanticsValue'),
+        strokeWidth: _number(
+          'strokeWidth',
+          RefreshProgressIndicator.defaultStrokeWidth,
+        ),
+        triggerMode: mode,
+        elevation: _number('elevation', 2),
+        child: widget.child,
+      );
+    }
+    final message = [
+      _refreshIndicatorReferenceMessage(widget.node),
+      failure ?? _geometryFailure,
+    ].whereType<String>().join(' ');
+    // Keep the same metadata wrappers even when no diagnostic is needed: they
+    // neither cover the child nor replace the real SDK RefreshIndicator State.
+    return Tooltip(
+      message: message,
+      child: Semantics(
+        tooltip: message.isEmpty ? null : message,
+        child: indicator,
+      ),
+    );
+  }
+}
+
+// Unlike LayoutBuilder, the SDK child exists before the first layout. Intrinsic
+// and dry-layout queries therefore delegate to that real child without builds,
+// state changes, guessed dimensions or a duplicate measurement subtree.
+class _RefreshLayoutObserver extends RenderObjectWidget {
+  const _RefreshLayoutObserver({required this.builder});
+  final Widget Function(BuildContext, BoxConstraints) builder;
+
+  @override
+  RenderObjectElement createElement() => _RefreshLayoutObserverElement(this);
+  @override
+  _RefreshLayoutRenderBox createRenderObject(BuildContext context) =>
+      _RefreshLayoutRenderBox();
+}
+
+class _RefreshLayoutObserverElement extends RenderObjectElement {
+  _RefreshLayoutObserverElement(_RefreshLayoutObserver super.widget);
+  Element? _child;
+  BoxConstraints? _previousConstraints;
+  Size? _previousSize;
+  bool _needsBuild = false;
+  bool _deferredCallbackScheduled = false;
+  late final BuildScope _scope = BuildScope(scheduleRebuild: _scheduleRebuild);
+
+  @override
+  BuildScope get buildScope => _scope;
+
+  void _scheduleRebuild() {
+    if (_deferredCallbackScheduled) return;
+    final phase = SchedulerBinding.instance.schedulerPhase;
+    if (phase != SchedulerPhase.idle &&
+        phase != SchedulerPhase.postFrameCallbacks) {
+      renderObject.scheduleLayoutCallback();
+      return;
+    }
+    _deferredCallbackScheduled = true;
+    SchedulerBinding.instance.scheduleFrameCallback((_) {
+      _deferredCallbackScheduled = false;
+      if (mounted) renderObject.scheduleLayoutCallback();
+    });
+  }
+
+  @override
+  _RefreshLayoutRenderBox get renderObject =>
+      super.renderObject as _RefreshLayoutRenderBox;
+
+  void _buildChild(BoxConstraints constraints) {
+    _child = updateChild(
+      _child,
+      (widget as _RefreshLayoutObserver).builder(this, constraints),
+      null,
+    );
+    _needsBuild = false;
+  }
+
+  @override
+  void mount(Element? parent, Object? newSlot) {
+    super.mount(parent, newSlot);
+    renderObject.onConstraints = _layout;
+    // Eager creation is essential: IntrinsicWidth can query this render object
+    // before performLayout has ever been called.
+    _buildChild(const BoxConstraints());
+  }
+
+  @override
+  void update(covariant _RefreshLayoutObserver newWidget) {
+    super.update(newWidget);
+    // Apply ordinary source/history edits during the normal build phase so a
+    // following intrinsic query observes the new child, not stale dimensions.
+    _buildChild(_previousConstraints ?? const BoxConstraints());
+    renderObject.scheduleLayoutCallback();
+  }
+
+  @override
+  void markNeedsBuild() {
+    _needsBuild = true;
+    renderObject.scheduleLayoutCallback();
+  }
+
+  @override
+  void performRebuild() {
+    super.performRebuild();
+    _needsBuild = true;
+    renderObject.scheduleLayoutCallback();
+  }
+
+  bool _layout(BoxConstraints constraints) {
+    final measuredSize = renderObject.measuredSize;
+    final rebuild =
+        _needsBuild ||
+        constraints != _previousConstraints ||
+        measuredSize != _previousSize;
+    _previousConstraints = constraints;
+    _previousSize = measuredSize;
+    // The SDK's layout-callback mixin permits mutations only in this subtree;
+    // buildScope performs the child update before layout/paint, never setState
+    // on an ancestor or a post-frame stale-size repair.
+    // Always flush this private scope, including SDK ticker/scroll dirty nodes
+    // whose geometry did not change. Never flush an ancestor/sibling scope.
+    owner!.buildScope(this, rebuild ? () => _buildChild(constraints) : null);
+    return rebuild;
+  }
+
+  @override
+  void visitChildren(ElementVisitor visitor) {
+    if (_child != null) visitor(_child!);
+  }
+
+  @override
+  void forgetChild(Element child) {
+    assert(child == _child);
+    _child = null;
+    super.forgetChild(child);
+  }
+
+  @override
+  void insertRenderObjectChild(RenderObject child, Object? slot) {
+    renderObject.child = child as RenderBox;
+  }
+
+  @override
+  void moveRenderObjectChild(
+    RenderObject child,
+    Object? oldSlot,
+    Object? newSlot,
+  ) {
+    assert(false, 'Refresh layout observer has a single child');
+  }
+
+  @override
+  void removeRenderObjectChild(RenderObject child, Object? slot) {
+    renderObject.child = null;
+  }
+
+  @override
+  void unmount() {
+    renderObject.onConstraints = null;
+    super.unmount();
+  }
+}
+
+class _RefreshLayoutRenderBox extends RenderProxyBox
+    with RenderObjectWithLayoutCallbackMixin {
+  bool Function(BoxConstraints)? onConstraints;
+  Size? measuredSize;
+  bool _rebuilt = false;
+  @override
+  void layoutCallback() => _rebuilt = onConstraints?.call(constraints) ?? false;
+  @override
+  void performLayout() {
+    runLayoutCallback();
+    super.performLayout();
+    // Loose constraints can stay identical while an intrinsic/fixed-size child
+    // changes the actual Stack width. Inspect that measured size before paint,
+    // then finish layout once more only if disposing an unsafe cycle rebuilt it.
+    measuredSize = size;
+    runLayoutCallback();
+    if (_rebuilt) super.performLayout();
+  }
+}
 
 String _displayType(String type) => type.substring(type.lastIndexOf('.') + 1);

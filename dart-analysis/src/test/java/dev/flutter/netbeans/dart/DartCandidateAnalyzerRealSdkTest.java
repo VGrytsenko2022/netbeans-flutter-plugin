@@ -3025,6 +3025,210 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesRefreshIndicatorAllConstructorsAndTypedFunctionContracts() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("refresh_indicator_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLibrary = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedFile = dependencyLibrary.resolve("refresh_wrapper.dart");
+        String importedSource = """
+                import 'package:flutter/material.dart';
+                Future<void> importedRefresh() async {}
+                bool importedPredicate(ScrollNotification notification) => notification.depth == 1;
+                void importedStatus(RefreshIndicatorStatus? status) {}
+                """;
+        Files.writeString(importedFile, importedSource, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String prelude = """
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/refresh_wrapper.dart' as project_refresh;
+                String unchangedCoreScope(String value, Object object) => value;
+                Future<void> localRefresh() async {}
+                RefreshCallback refreshFactory() => localRefresh;
+                bool localPredicate(ScrollNotification notification) => notification.depth == 1;
+                ScrollNotificationPredicate predicateFactory() => localPredicate;
+                void localStatus(RefreshIndicatorStatus? status) {}
+                ValueChanged<RefreshIndicatorStatus?> statusFactory() => localStatus;
+                dynamic dynamicRefresh = localRefresh;
+                RefreshCallback? nullableRefresh;
+                void synchronousRefresh() {}
+                dynamic dynamicPredicate = localPredicate;
+                ScrollNotificationPredicate? nullablePredicate;
+                bool? nullablePredicateResult(ScrollNotification notification) => null;
+                bool wrongPredicateArgument(String notification) => true;
+                dynamic dynamicStatus = localStatus;
+                ValueChanged<RefreshIndicatorStatus?>? nullableStatus;
+                void narrowStatus(RefreshIndicatorStatus status) {}
+                void wrongStatusArgument(String? status) {}
+                const Animation<Color?> localAnimation = AlwaysStoppedAnimation<Color?>(null);
+                const CustomClipper<RRect> localClipper = RefreshProofClipper();
+                class RefreshProofClipper extends CustomClipper<RRect> {
+                  const RefreshProofClipper();
+                  @override
+                  RRect getClip(Size size) => RRect.fromRectAndRadius(Offset.zero & size, Radius.zero);
+                  @override
+                  bool shouldReclip(covariant RefreshProofClipper oldClipper) => false;
+                }
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        List<String[]> references = List.of(
+                new String[]{"localRefresh", "localRefresh", "onRefresh", "RefreshCallback"},
+                new String[]{"refreshFactory()", "refreshFactory", "onRefresh", "RefreshCallback"},
+                new String[]{"project_refresh.importedRefresh", "importedRefresh", "onRefresh", "RefreshCallback"},
+                new String[]{"localPredicate", "localPredicate", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"predicateFactory()", "predicateFactory", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"project_refresh.importedPredicate", "importedPredicate", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"localStatus", "localStatus", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"},
+                new String[]{"statusFactory()", "statusFactory", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"},
+                new String[]{"project_refresh.importedStatus", "importedStatus", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"});
+        StringBuilder valid = new StringBuilder(prelude);
+        for (String variant : List.of("material", "adaptive", "noSpinner")) {
+            String constructor = variant.equals("material") ? "RefreshIndicator" : "RefreshIndicator." + variant;
+            valid.append("Widget ").append(variant).append("Complete() => const ").append(constructor)
+                    .append("(onRefresh: localRefresh, notificationPredicate: defaultScrollNotificationPredicate, ")
+                    .append("semanticsLabel: 'Refresh list', semanticsValue: '45%', triggerMode: RefreshIndicatorTriggerMode.anywhere, ")
+                    .append("elevation: 3, child: SizedBox(width: 240, height: 320), ")
+                    .append(variant.equals("noSpinner") ? "onStatusChange: localStatus" :
+                            "displacement: 48, edgeOffset: -4, color: Color(0xFF123456), backgroundColor: Color(0xFFABCDEF), strokeWidth: -2")
+                    .append(");\n");
+            valid.append("Widget ").append(variant).append("Prototype() => ").append(constructor)
+                    .append("(onRefresh: () async {}, child: ListView(physics: const AlwaysScrollableScrollPhysics()));\n");
+            for (String[] spec : references) {
+                if (spec[2].equals("onStatusChange") && !variant.equals("noSpinner")) continue;
+                valid.append("Widget ").append(variant).append(spec[1]).append("() => ").append(constructor).append('(')
+                        .append(spec[2].equals("onRefresh") ? "" : "onRefresh: localRefresh, ")
+                        .append(spec[2]).append(": ").append(spec[0]).append(", child: const SizedBox());\n");
+            }
+            for (String predicate : List.of("(notification) => notification.depth == 0", "(_) => true")) {
+                valid.append("Widget ").append(variant).append(predicate.startsWith("(_)") ? "All" : "DepthZero")
+                        .append("() => ").append(constructor).append("(onRefresh: localRefresh, notificationPredicate: ")
+                        .append(predicate).append(", child: const SizedBox());\n");
+            }
+            valid.append("Widget ").append(variant).append("Theme(BuildContext context) => Theme(data: ThemeData(platform: TargetPlatform.iOS), child: ")
+                    .append(constructor).append("(onRefresh: localRefresh, child: const SizedBox(), ")
+                    .append(variant.equals("noSpinner") ? "onStatusChange: null" : "color: Theme.of(context).colorScheme.primary")
+                    .append("));\n");
+        }
+        valid.append("""
+                List<Widget> boundaries() => const <Widget>[
+                  RefreshIndicator(onRefresh: localRefresh, child: SizedBox(), displacement: 0, edgeOffset: -1e308, strokeWidth: 0, elevation: 0),
+                  RefreshIndicator.adaptive(onRefresh: localRefresh, child: SizedBox(), displacement: 1e308, edgeOffset: 1e308, strokeWidth: -1e308),
+                  RefreshIndicator.noSpinner(onRefresh: localRefresh, child: SizedBox(), onStatusChange: null,
+                    semanticsLabel: null, semanticsValue: null, triggerMode: RefreshIndicatorTriggerMode.onEdge),
+                ];
+                Widget mixedReferences() => RefreshIndicator(onRefresh: localRefresh,
+                  child: ClipRRect(clipper: localClipper,
+                    child: CircularProgressIndicator(valueColor: localAnimation)));
+                """);
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("RefreshIndicator", "RefreshCallback", "ScrollNotification", "ScrollNotificationPredicate",
+                "RefreshIndicatorStatus", "ValueChanged", "RefreshIndicatorTriggerMode", "defaultScrollNotificationPredicate",
+                "Color", "SizedBox", "ListView", "AlwaysScrollableScrollPhysics", "Theme", "ThemeData", "TargetPlatform")) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("refresh-wrapper-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        for (String member : List.of("adaptive", "noSpinner")) {
+            probes.add(probe("refresh-wrapper-" + member, candidate.indexOf("RefreshIndicator." + member)
+                    + "RefreshIndicator.".length(), member, "package:flutter/material.dart", flutterSdk));
+        }
+        for (String variant : List.of("material", "adaptive", "noSpinner")) {
+            for (String[] spec : references) {
+                if (spec[2].equals("onStatusChange") && !variant.equals("noSpinner")) continue;
+                int methodOffset = candidate.indexOf("Widget " + variant + spec[1] + "()");
+                int offset = candidate.indexOf(spec[2] + ": " + spec[0], methodOffset) + spec[2].length() + 2;
+                boolean imported = spec[0].startsWith("project_refresh.");
+                probes.add(typedProbe("refresh-wrapper-" + variant + '-' + spec[1],
+                        offset + (imported ? "project_refresh.".length() : 0), spec[1],
+                        imported ? "package:clipper_dependency/refresh_wrapper.dart" : "project:current",
+                        imported ? dependencyLibrary : lib, offset, spec[0].length(), candidate, spec[3], "package:flutter/material.dart"));
+            }
+        }
+        for (String[] spec : List.of(new String[]{"localAnimation", "Animation<Color?>"},
+                new String[]{"localClipper", "CustomClipper<RRect>"})) {
+            int offset = candidate.indexOf(spec[0], candidate.indexOf("Widget mixedReferences()"));
+            probes.add(0, typedProbe("refresh-wrapper-mixed-" + spec[0], offset, spec[0], "project:current", lib,
+                    offset, spec[0].length(), candidate, spec[1], "package:flutter/material.dart"));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2700, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(40, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(23, passed.symbolEvidence().stream().filter(e -> e.staticTypeEvidence().isPresent()).count());
+        long version = 2701;
+        for (String[] spec : List.of(
+                new String[]{"dynamicRefresh", "onRefresh", "RefreshCallback"},
+                new String[]{"nullableRefresh", "onRefresh", "RefreshCallback"},
+                new String[]{"synchronousRefresh", "onRefresh", "RefreshCallback"},
+                new String[]{"dynamicPredicate", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"nullablePredicate", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"nullablePredicateResult", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"wrongPredicateArgument", "notificationPredicate", "ScrollNotificationPredicate"},
+                new String[]{"dynamicStatus", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"},
+                new String[]{"nullableStatus", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"},
+                new String[]{"narrowStatus", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"},
+                new String[]{"wrongStatusArgument", "onStatusChange", "ValueChanged<RefreshIndicatorStatus?>"})) {
+            String invalid = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n" + prelude
+                    + "Widget invalid() => RefreshIndicator.noSpinner("
+                    + (spec[1].equals("onRefresh") ? "" : "onRefresh: localRefresh, ")
+                    + spec[1] + ": " + spec[0] + ", child: const SizedBox());\n";
+            int offset = invalid.indexOf(spec[0], invalid.indexOf("Widget invalid()"));
+            DartSymbolProbe typeProbe = typedProbe("refresh-wrapper-invalid-" + spec[0], offset, spec[0],
+                    "project:current", lib, offset, spec[0].length(), invalid, spec[2], "package:flutter/material.dart");
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of(typeProbe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> spec[0] + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        for (String args : List.of("displacement: null", "edgeOffset: null", "onRefresh: null", "color: true",
+                "backgroundColor: 'red'", "notificationPredicate: null", "semanticsLabel: 1", "semanticsValue: false",
+                "strokeWidth: null", "triggerMode: null", "triggerMode: Axis.vertical", "elevation: -1", "elevation: null",
+                "onStatusChange: localStatus", "variant: 'adaptive'")) {
+            String invalid = prelude + "Widget invalid() => const RefreshIndicator("
+                    + (args.startsWith("onRefresh:") ? "" : "onRefresh: localRefresh, ") + args + ", child: SizedBox());\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> args + ": " + rejected);
+        }
+        for (String args : List.of("displacement: 0", "edgeOffset: 0", "color: null", "backgroundColor: null", "strokeWidth: 0")) {
+            String invalid = prelude + "Widget invalid() => const RefreshIndicator.noSpinner(onRefresh: localRefresh, "
+                    + args + ", child: SizedBox());\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> args + ": " + rejected);
+        }
+        for (String constructor : List.of("RefreshIndicator", "RefreshIndicator.adaptive", "RefreshIndicator.noSpinner")) {
+            for (String args : List.of("child: SizedBox()", "onRefresh: localRefresh", "onRefresh: localRefresh, child: null")) {
+                String invalid = prelude + "Widget invalid() => const " + constructor + '(' + args + ");\n";
+                DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of())));
+                assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> constructor + ' ' + args + ": " + rejected);
+            }
+        }
+        String runtimeOnly = prelude + """
+                Widget negativeDisplacement() => const RefreshIndicator(onRefresh: localRefresh, child: SizedBox(), displacement: -1);
+                Widget nonConstElevation() => RefreshIndicator(onRefresh: localRefresh, child: const SizedBox(), elevation: -1);
+                Widget infiniteGeometry() => const RefreshIndicator(onRefresh: localRefresh, child: SizedBox(), displacement: double.infinity, edgeOffset: double.infinity, strokeWidth: double.infinity);
+                Widget activeSemantics() => const RefreshIndicator(onRefresh: localRefresh, child: SizedBox(), semanticsValue: 'Refreshing items');
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(projectRoot, file, runtimeOnly, version, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(importedSource, Files.readString(importedFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {
@@ -3232,6 +3436,14 @@ class DartCandidateAnalyzerRealSdkTest {
             int expressionLength,
             String candidate,
             String expectedDartType) {
+        return typedProbe(id, offset, symbol, libraryUri, expectedRoot, expressionOffset,
+                expressionLength, candidate, expectedDartType, "package:flutter/widgets.dart");
+    }
+
+    private static DartSymbolProbe typedProbe(
+            String id, int offset, String symbol, String libraryUri, Path expectedRoot,
+            int expressionOffset, int expressionLength, String candidate,
+            String expectedDartType, String expectedTypeLibraryUri) {
         int statementInsertion = candidate.indexOf(
                 "  // analyzer static-type proof insertion");
         if (statementInsertion < 0) {
@@ -3251,7 +3463,7 @@ class DartCandidateAnalyzerRealSdkTest {
                         0,
                         statementInsertion,
                         expectedDartType,
-                        "package:flutter/widgets.dart")));
+                        expectedTypeLibraryUri)));
     }
 
     private void writeFlutterPackageConfig(

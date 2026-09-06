@@ -932,6 +932,161 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteRefreshIndicatorAllThirteenFieldsThreeBranchesSaveReopenHistoryAndRollback() throws Exception {
+        StableId wrapperId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.RefreshIndicator");
+        var variant = new PropertyName("variant"); var status = new PropertyName("onStatusChange");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("refresh_indicator_wrap", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var original = findModelWidget(ready.document().orElseThrow().root(), FIRST_ID);
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, FIRST_ID, () -> wrapperId));
+            var added = applyRefreshIndicatorMutation(fixture, ready, plan.command(), wrapperId);
+            var widget = findModelWidget(added.document().orElseThrow().root(), wrapperId);
+            assertEquals(Map.of(variant, new PropertyValue.StringValue("material")), widget.properties());
+            assertEquals(original, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("onRefresh: () async {}"));
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = added.token().orElseThrow(); onEdt(history::undo);
+            var undone = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            assertEquals(original, findModelWidget(undone.document().orElseThrow().root(), FIRST_ID));
+            token = undone.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("refresh_indicator_reopened_all_fields", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var states = new ArrayList<WidgetNode>(); states.add(initial);
+            for (var field : definition.properties()) {
+                String name = field.name().value(); var value = dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.value(name);
+                var cell = cellProperty(properties, name); commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(1, commands.size()); current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+                assertEquals(value, edited.properties().get(field.name())); assertEquals(initial.slots(), edited.slots());
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, name)); assertEquals(List.of(sets), List.of(properties.getPropertySets())); states.add(edited);
+            }
+            assertEquals(14, states.size()); var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] exactFd = refreshProgressFdBytes(fixture);
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), wrapperId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), wrapperId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            var complete = states.getLast(); configured = complete.properties(); String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new SetProperty(wrapperId, new PropertyName("strokeWidth"), new PropertyValue.NullValue()),
+                    new SetProperty(wrapperId, new PropertyName("displacement"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))),
+                    new SetProperty(wrapperId, status, dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.value("onStatusChange")),
+                    new ResetProperty(wrapperId, variant))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "RefreshIndicator invalid edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), wrapperId)); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, refreshProgressFdBytes(fixture)); assertEquals(undoName, history.getUndoPresentationName());
+            }
+            properties.refreshPresentation(complete, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            commands.clear(); cellProperty(properties, "onStatusChange").setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.value("onStatusChange")));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "refresh_status_refused", "RefreshIndicator status reference rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "RefreshIndicator atomic status branch").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undoName, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_indicator_configured_reopened_branches", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var restored = findModelWidget(current.document().orElseThrow().root(), wrapperId); assertEquals(configured, restored.properties());
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            var statusCell = cellProperty(properties, "onStatusChange"); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String constructor : List.of("material", "adaptive", "noSpinner")) {
+                commands.clear(); cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(constructor)));
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+                assertEquals(restored.slots(), edited.slots());
+                String dart = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+                assertTrue(dart.contains(constructor.equals("material") ? "RefreshIndicator(" : "RefreshIndicator." + constructor + "("));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            // Every visual field can recover from No spinner in one undoable property-cell edit.
+            for (String spinner : dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema.spinnerOnlyProperties()) {
+                commands.clear(); statusCell.setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.value("onStatusChange")));
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                var before = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+                assertEquals(new PropertyValue.StringValue("noSpinner"), before.properties().get(variant));
+                properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                commands.clear(); cellProperty(properties, spinner).setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.value(spinner)));
+                assertInstanceOf(dev.flutter.netbeans.designer.command.PatchProperties.class, commands.getFirst());
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), wrapperId);
+                assertEquals(new PropertyValue.StringValue("material"), edited.properties().get(variant)); assertFalse(edited.properties().containsKey(status));
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), wrapperId));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(wrapperId, SECOND_ID));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty()); assertSame(statusCell, cellProperty(properties, "onStatusChange"));
+            }
+            for (String name : List.of("onRefresh", "notificationPredicate", "onStatusChange")) {
+                var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:mutation_controller_fixture/refresh.dart"), "Handlers", Optional.of("create"),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(reference));
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), wrapperId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("package:mutation_controller_fixture/refresh.dart"));
+            }
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_indicator_reopened_factories_reset_and_reedit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, findModelWidget(current.document().orElseThrow().root(), wrapperId), definition, commands::add);
+            for (String name : List.of("onRefresh", "notificationPredicate", "onStatusChange"))
+                assertInstanceOf(PropertyValue.DartObjectReferenceValue.class, findModelWidget(current.document().orElseThrow().root(), wrapperId).properties().get(new PropertyName(name)));
+            for (String preset : List.of("default", "depthZero", "all")) {
+                commands.clear(); cellProperty(properties, "notificationPredicate").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(preset)));
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                assertEquals(new PropertyValue.StringValue(preset), findModelWidget(current.document().orElseThrow().root(), wrapperId).properties().get(new PropertyName("notificationPredicate")));
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), wrapperId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            for (var field : definition.properties().reversed()) {
+                if (field.parameter().required()) continue;
+                var cell = cellProperty(properties, field.name().value()); if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(List.of(new ResetProperty(wrapperId, field.name())), commands);
+                current = applyRefreshIndicatorMutation(fixture, current, commands.getFirst(), wrapperId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), wrapperId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            assertEquals(Map.of(variant, new PropertyValue.StringValue("noSpinner")), findModelWidget(current.document().orElseThrow().root(), wrapperId).properties());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("onRefresh: () async {}"));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_indicator_omitted_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyRefreshIndicatorMutation(fixture, fixture.ready(), new SetProperty(wrapperId, new PropertyName("onRefresh"),
+                    dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.reference("_refreshAgain")), wrapperId);
+            assertEquals(FIRST_ID, ((WidgetSlot.SingleSlot) findModelWidget(current.document().orElseThrow().root(), wrapperId).slots().get(CHILD)).child().orElseThrow().id());
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyRefreshIndicatorMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId wrapperId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "RefreshIndicator properties and required child").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(wrapperId, SECOND_ID));
+    }
+
+    @Test
     void paletteRefreshProgressAllTwelveFieldsWidthModesSaveReopenHistoryAndRollback() throws Exception {
         StableId progressId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9c");
         WidgetTypeId type = new WidgetTypeId("flutter.material.RefreshProgressIndicator");

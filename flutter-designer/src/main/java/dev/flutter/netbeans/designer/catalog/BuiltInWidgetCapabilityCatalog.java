@@ -204,6 +204,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.LinearProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.material.CircularProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.material.RefreshProgressIndicator", STATIC_EDITABLE),
+            Map.entry("flutter.material.RefreshIndicator", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -602,6 +603,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.LinearProgressIndicator", linearProgressIndicatorProjection()),
             Map.entry("flutter.material.CircularProgressIndicator", circularProgressIndicatorProjection()),
             Map.entry("flutter.material.RefreshProgressIndicator", refreshProgressIndicatorProjection()),
+            Map.entry("flutter.material.RefreshIndicator", refreshIndicatorProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1945,6 +1947,38 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection refreshIndicatorProjection() {
+        CanvasPropertyContract signed = cardNumberSchema(null, null);
+        Map<PropertyValueKind, String> predicate = Map.of(
+                PropertyValueKind.STRING, "pattern:" + base64("(?:default|depthZero|all)"),
+                PropertyValueKind.DART_OBJECT_REFERENCE,
+                refreshIndicatorReferenceFingerprint("ScrollNotificationPredicate"));
+        return projection(Map.ofEntries(
+                numericProperty("displacement", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                Map.entry("edgeOffset", signed),
+                Map.entry("onRefresh", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                        refreshIndicatorReferenceFingerprint("RefreshCallback"))),
+                colorOrThemeProperty("color"), colorOrThemeProperty("backgroundColor"),
+                Map.entry("notificationPredicate", new CanvasPropertyContract(predicate.keySet(), false,
+                        Optional.empty(), Map.of(), predicate)),
+                property("semanticsLabel", PropertyValueKind.STRING), property("semanticsValue", PropertyValueKind.STRING),
+                Map.entry("strokeWidth", signed),
+                Map.entry("triggerMode", constrainedSchema(PropertyValueKind.ENUM,
+                        "enum:" + base64("package:flutter/material.dart") + ":RefreshIndicatorTriggerMode:anywhere,onEdge")),
+                numericProperty("elevation", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                Map.entry("onStatusChange", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                        refreshIndicatorReferenceFingerprint("ValueChanged<RefreshIndicatorStatus?>"))),
+                Map.entry("variant", new CanvasPropertyContract(Set.of(PropertyValueKind.STRING), true,
+                        Optional.of("string:" + base64("material")), Map.of(),
+                        Map.of(PropertyValueKind.STRING, "pattern:" + base64("(?:material|adaptive|noSpinner)"))))),
+                Map.of("child", singleSlotSchema(true, 1)));
+    }
+
+    private static String refreshIndicatorReferenceFingerprint(String type) {
+        return DART_OBJECT_REFERENCE_CONTRACT_PREFIX + type
+                + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)";
     }
 
     private static CanvasProjection refreshProgressIndicatorProjection() {

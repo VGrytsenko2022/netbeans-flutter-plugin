@@ -75,6 +75,85 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void refreshPredicateUnionCommitsPresetsOmissionAndCurrentOrPackageReferencesOnce() throws Exception {
+        var definition = property("flutter.material.RefreshIndicator", "notificationPredicate");
+        var binding = FlutterTypedPropertyEditors.binding(definition, Optional.empty(), false,
+                List.of("default", "depthZero", "all")).orElseThrow();
+        for (String branch : List.of("default", "depthZero", "all", "current", "factory", "omit")) {
+            var editor = binding.createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("depthZero")); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor("Notification predicate", "Reviewed preset or typed project predicate."));
+            ((ExPropertyEditor) editor).attachEnv(environment);
+            var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "notificationpredicate", "preset", "reference");
+                var mode = findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME);
+                var preset = findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME);
+                assertEquals(3, mode.getItemCount()); assertEquals(3, preset.getItemCount());
+                FlutterPropertyCellValue expected;
+                if (List.of("current", "factory").contains(branch)) {
+                    mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PROJECT);
+                    var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                    for (String invalid : List.of("", "() => true", "predicate(1)", "a + b")) {
+                        root.setText(invalid); environment.setState(PropertyEnv.STATE_VALID);
+                        assertEquals(PropertyEnv.STATE_INVALID, environment.getState()); assertEquals(initial, editor.getValue());
+                    }
+                    if (branch.equals("factory")) {
+                        findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+                        var uri = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME);
+                        uri.setText("file:///tmp/predicate.dart"); root.setText("Predicates");
+                        assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                        uri.setText("package:demo/refresh.dart");
+                        findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("create");
+                        findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                        expected = FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:demo/refresh.dart"),
+                                "Predicates", Optional.of("create"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+                    } else {
+                        root.setText("_predicate"); expected = FlutterPropertyCellValue.explicit(RefreshIndicatorPropertyContractTest.reference("_predicate"));
+                    }
+                    assertTrue(findNamed(panel, JTextArea.class, FlutterPresetDartReferenceEditorComponent.NOTE_NAME).getText().contains("ScrollNotificationPredicate"));
+                } else if (branch.equals("omit")) {
+                    mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.OMIT); expected = FlutterPropertyCellValue.unset();
+                } else {
+                    mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET); preset.setSelectedItem(branch);
+                    expected = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(branch));
+                }
+                assertEquals(initial, editor.getValue(), "Cancel never publishes drafts"); assertEquals(0, commits.get());
+                environment.setState(PropertyEnv.STATE_VALID); assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION); environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                var reopenedEnvironment = PropertyEnv.create(descriptor("Notification predicate", "Reopened predicate."));
+                ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment); var reopened = editor.getCustomEditor();
+                assertEquals(mode.getSelectedItem(), findNamed(reopened, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).getSelectedItem());
+                findNamed(reopened, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET);
+                findNamed(reopened, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME).setSelectedItem("all");
+                assertEquals(expected, editor.getValue()); return null;
+            });
+        }
+    }
+
+    @Test
+    void refreshCallbackDefaultExplainsGeneratedNoOpWithoutChangingOtherReferenceDefaults() throws Exception {
+        for (String name : List.of("onRefresh", "onStatusChange")) {
+            var editor = binding(property("flutter.material.RefreshIndicator", name)).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(RefreshIndicatorPropertyContractTest.reference("_callback")); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor(name, "Typed refresh callback.")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                assertEquals(name.equals("onRefresh"), clear.getText().contains("generated no-op"));
+                clear.doClick(); assertEquals(initial, editor.getValue());
+                var preview = findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText();
+                assertTrue(preview.contains(name.equals("onRefresh") ? "onRefresh: () async {}" : "<Flutter default null>"));
+                environment.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.STRING,
+                binding(property("flutter.material.RefreshIndicator", "semanticsLabel")).editorKind());
+        var width = binding(property("flutter.material.RefreshIndicator", "strokeWidth"));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.NUMBER, width.editorKind());
+        assertThrows(IllegalArgumentException.class, () -> width.createEditor().setAsText("null"));
+    }
+
+    @Test
     void refreshNullableWidthInactiveAndInlinePresentationRoundTripWithoutLeakingNull() throws Exception {
         var binding = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")); var editor = binding.createEditor();
         var initial = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); editor.setValue(initial);

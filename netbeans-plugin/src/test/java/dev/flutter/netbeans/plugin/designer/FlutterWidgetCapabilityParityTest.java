@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(75, javaTypes.size(),
+        assertEquals(76, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -98,6 +98,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.material.LinearProgressIndicator"));
         assertTrue(javaTypes.contains("flutter.material.CircularProgressIndicator"));
         assertTrue(javaTypes.contains("flutter.material.RefreshProgressIndicator"));
+        assertTrue(javaTypes.contains("flutter.material.RefreshIndicator"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -151,6 +152,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.material.LinearProgressIndicator\n"));
         assertTrue(dartContract.contains("W|flutter.material.CircularProgressIndicator\n"));
         assertTrue(dartContract.contains("W|flutter.material.RefreshProgressIndicator\n"));
+        assertTrue(dartContract.contains("W|flutter.material.RefreshIndicator\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -232,6 +234,8 @@ class FlutterWidgetCapabilityParityTest {
                 "DefaultTextHeightBehavior.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.DefaultSelectionStyle"),
                 "DefaultSelectionStyle.child is required replacement-only, not an insertion target");
+        assertTrue(!javaContainers.contains("flutter.material.RefreshIndicator"),
+                "RefreshIndicator.child is required replacement-only, never an empty insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.IconTheme"),
                 "IconTheme.child is required replacement-only, not an insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.Expanded"),

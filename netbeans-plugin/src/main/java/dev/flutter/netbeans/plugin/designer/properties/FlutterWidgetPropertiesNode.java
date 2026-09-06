@@ -33,6 +33,7 @@ import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -577,6 +578,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addCircularProgressIndicatorPropertySets(sheet, hasSlotTab);
         } else if (RefreshProgressIndicatorWidgetPropertySchema.REFRESH_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
             addRefreshProgressIndicatorPropertySets(sheet, hasSlotTab);
+        } else if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())) {
+            addRefreshIndicatorPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -771,6 +774,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type()) && CHILD_SLOT.equals(slot.name())) {
+            return "Required child retained by all three refresh constructors. Usually contains a vertical ScrollView; "
+                    + "short contents need AlwaysScrollableScrollPhysics on that descendant. Any widget is accepted, "
+                    + "but this wrapper does not invent scrolling or execute project callbacks in isolated Canvas. "
+                    + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
         if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional avatar content, commonly initials or an icon. Child inherits the avatar foreground "
@@ -2574,6 +2584,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addRefreshIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<RefreshIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(RefreshIndicatorWidgetPropertySchema.Group.class);
+        for (var group : RefreshIndicatorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        var ordered = definition.properties().stream().sorted(java.util.Comparator.comparingInt(
+                (PropertyDefinition property) -> property.name().value().equals("variant") ? -1
+                        : RefreshIndicatorWidgetPropertySchema.find(property.name()).orElseThrow().dartOrder())).toList();
+        for (var property : ordered) {
+            var schema = RefreshIndicatorWidgetPropertySchema.find(property.name()).orElseThrow();
+            var presets = switch (property.name().value()) {
+                case "variant" -> java.util.List.of("material", "adaptive", "noSpinner");
+                case "notificationPredicate" -> RefreshIndicatorWidgetPropertySchema.notificationPredicatePresets();
+                default -> java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + " All property rows remain stable across constructor changes. "
+                            + "Setting On status change selects No spinner and clears its five unsupported visual fields; "
+                            + "setting a spinner-only field in No spinner selects Material and clears On status change. "
+                            + "Child and shared settings are retained in the same undoable edit.",
+                    false, presets));
+        }
+    }
+
     private void addRefreshProgressIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<RefreshProgressIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(RefreshProgressIndicatorWidgetPropertySchema.Group.class);
@@ -3689,6 +3725,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
+        if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(currentWidget.type())) {
+            return refreshIndicatorPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(currentWidget.type())) {
             return circleAvatarPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -3989,6 +4028,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result.toString();
     }
 
+    private DesignerCommand refreshIndicatorPropertyCommand(WidgetNode currentWidget,
+            PropertyName name, FlutterPropertyCellValue accepted) {
+        if (accepted.explicitValue().isEmpty()) return ordinaryPropertyCommand(currentWidget, name, accepted);
+        var value = accepted.explicitValue().orElseThrow();
+        var variant = new PropertyName("variant");
+        var status = new PropertyName("onStatusChange");
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        boolean selectingNoSpinner = name.equals(variant) && new PropertyValue.StringValue("noSpinner").equals(value);
+        boolean settingStatus = name.equals(status);
+        boolean settingSpinner = RefreshIndicatorWidgetPropertySchema.spinnerOnlyProperties().contains(name.value());
+        if (selectingNoSpinner || settingStatus) {
+            for (String spinner : RefreshIndicatorWidgetPropertySchema.spinnerOnlyProperties()) {
+                var key = new PropertyName(spinner);
+                if (currentWidget.properties().containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
+            }
+            if (settingStatus && !RefreshIndicatorWidgetPropertySchema.isNoSpinner(currentWidget))
+                patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("noSpinner")));
+        } else if (name.equals(variant) || settingSpinner && RefreshIndicatorWidgetPropertySchema.isNoSpinner(currentWidget)) {
+            if (currentWidget.properties().containsKey(status)) patches.add(new PatchProperties.ResetPatch(status));
+            if (settingSpinner) patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("material")));
+        }
+        patches.add(new PatchProperties.SetPatch(name, value));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, name, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
+    }
+
     private String propertyDescription(
             PropertyDefinition property,
             String schemaDescription) {
@@ -4003,10 +4068,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             reset = " This required Designer-only selector cannot be unset or reset; "
                     + "no merge argument is emitted.";
         } else if ((CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
-                || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type()))
+                || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())
+                || RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type()))
                 && "variant".equals(property.name().value())) {
             reset = " This required Designer constructor selector cannot be unset or reset; "
                     + "no variant argument is emitted.";
+        } else if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
+                && "onRefresh".equals(property.name().value())) {
+            reset = " Restore Default removes the project reference and generates onRefresh: () async {}; the required callback is not null or omitted.";
         } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {

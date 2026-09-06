@@ -43,6 +43,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.Divider",
                 "flutter.material.ElevatedButton",
                 "flutter.material.LinearProgressIndicator",
+                "flutter.material.RefreshIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.Scaffold",
                 "flutter.material.TextField",
@@ -114,11 +115,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(75, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(69, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(76, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(70, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(72, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(73, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -134,10 +135,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(930, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(943, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(913, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(926, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -152,6 +153,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.Card", MATERIAL_IMPORT),
                 Map.entry("flutter.material.CircleAvatar", MATERIAL_IMPORT),
                 Map.entry("flutter.material.CircularProgressIndicator", MATERIAL_IMPORT),
+                Map.entry("flutter.material.RefreshIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.RefreshProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.LinearProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Divider", MATERIAL_IMPORT),
@@ -291,6 +293,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(SERVICES_IMPORT, "MaxLengthEnforcement"),
                 new DartSymbolReference(WIDGETS_IMPORT, "OverflowBarAlignment"),
                 new DartSymbolReference(RENDERING_IMPORT, "OverflowBoxFit"),
+                new DartSymbolReference(MATERIAL_IMPORT, "RefreshIndicatorTriggerMode"),
                 new DartSymbolReference(
                         WIDGETS_IMPORT, "ScrollViewKeyboardDismissBehavior"),
                 new DartSymbolReference(SERVICES_IMPORT, "SmartDashesType"),
@@ -329,6 +332,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.LinearProgressIndicator",
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
+                "flutter.material.RefreshIndicator",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -392,7 +396,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IndexedSemantics",
                 "flutter.widgets.ExcludeFocus",
                 "flutter.widgets.ExcludeFocusTraversal"), typeIds(palette));
-        assertEquals(12, palette.stream()
+        assertEquals(13, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

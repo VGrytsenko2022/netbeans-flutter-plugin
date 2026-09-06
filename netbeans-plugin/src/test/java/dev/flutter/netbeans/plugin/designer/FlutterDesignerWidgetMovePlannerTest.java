@@ -305,6 +305,22 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void completedRefreshIndicatorMovesAsOneSubtreeAndCannotLoseItsRequiredChild() {
+        var requiredChild = validText(D_ID, "refresh child");
+        var wrapper = new WidgetNode(A_ID, type("flutter.material.RefreshIndicator"),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("noSpinner"),
+                        new PropertyName("onStatusChange"), dev.flutter.netbeans.plugin.designer.properties.RefreshIndicatorPropertyContractTest.reference("_status")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        var destination = listParent(B_ID, STACK, CHILDREN, List.of());
+        var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(wrapper, destination)));
+        var result = planner.plan(document, BUILT_INS, wrapper.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id()));
+        assertEquals(new WidgetPlacement(destination.id(), CHILDREN, 0), accepted(result).command().destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, wrapper, result);
+        assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(document, BUILT_INS, requiredChild.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id())));
+    }
+
+    @Test
     void completedIconThemeMovesWithinTheSameTreeWithRequiredChildAndIdsPreserved() {
         WidgetNode requiredChild = validText(D_ID, "themed icon child");
         WidgetNode iconTheme = new WidgetNode(

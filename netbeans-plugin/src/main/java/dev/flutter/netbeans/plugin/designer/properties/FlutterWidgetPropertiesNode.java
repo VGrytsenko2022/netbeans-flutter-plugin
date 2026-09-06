@@ -36,6 +36,7 @@ import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPrope
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -520,6 +521,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
         } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())) {
             addTextButtonPropertySets(sheet, hasSlotTab);
+        } else if (OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(widget.type())) {
+            addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
@@ -777,10 +780,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
-        if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())) {
+        if (isModernButton(widget)) {
             return slot.name().value().equals("icon")
-                    ? "Optional icon for TextButton.icon only. Select the Icon constructor before adding or moving an icon here. "
-                            + "Move or clear a populated Icon before selecting Standard or setting Semantic button. No child is silently removed."
+                    ? "Optional icon for " + modernButtonName(widget) + ".icon only. Select the Icon constructor before adding or moving an icon here. "
+                            + "Move or clear a populated Icon before selecting Standard"
+                            + (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) ? " or setting Semantic button" : "")
+                            + ". No child is silently removed."
                     : "Required child, emitted as Child for Standard or Label for Icon. Its stable identity and content survive all constructor changes. "
                             + "Replace it atomically; it cannot be removed or cleared. Button foreground style is inherited by text and icon descendants.";
         }
@@ -2275,6 +2280,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addOutlinedButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<OutlinedButtonWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(OutlinedButtonWidgetPropertySchema.Group.class);
+        for (var group : OutlinedButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = OutlinedButtonWidgetPropertySchema.find(property.name()).orElseThrow();
+            String hint = OutlinedButtonWidgetPropertySchema.localStyleProperties().contains(property.name().value())
+                    ? " Setting a local leaf atomically clears Button style. State priority is disabled, error, dragged, pressed, selected, scrolledUnder, hovered, focused, default. Disabled remains isolated from enabled buckets. Unset preserves OutlinedButtonTheme/framework fallback."
+                    : property.name().value().equals("style")
+                            ? " Setting this reference atomically clears all local style leaves; resetting it does not restore discarded leaves. Undo restores the exact prior style."
+                            : " Constructor changes retain Child. A populated Icon must be moved or cleared before selecting Standard; no widget is silently deleted.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint,
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    property.name().value().equals("variant") ? OutlinedButtonWidgetPropertySchema.variants() : elevatedButtonStringPresets(property.name())));
+        }
+    }
+
     private void addElevatedButtonPropertySets(
             Sheet sheet,
             boolean hasSlotTab) {
@@ -3755,8 +3779,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
-        if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(currentWidget.type())) {
-            return textButtonPropertyCommand(currentWidget, propertyName, accepted);
+        if (isModernButton(currentWidget)) {
+            return modernButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(currentWidget.type())) {
             return refreshIndicatorPropertyCommand(currentWidget, propertyName, accepted);
@@ -4061,11 +4085,35 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result.toString();
     }
 
-    private DesignerCommand textButtonPropertyCommand(WidgetNode currentWidget, PropertyName name, FlutterPropertyCellValue accepted) {
+    private static boolean isModernButton(WidgetNode node) {
+        return TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(node.type())
+                || OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type());
+    }
+
+    private static String modernButtonName(WidgetNode node) {
+        return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type()) ? "OutlinedButton" : "TextButton";
+    }
+
+    private static java.util.List<String> modernButtonStatePrefixes(WidgetNode node) {
+        return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
+                ? OutlinedButtonWidgetPropertySchema.statePrefixes() : TextButtonWidgetPropertySchema.statePrefixes();
+    }
+
+    private static java.util.List<String> modernButtonLocalStyleProperties(WidgetNode node) {
+        return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
+                ? OutlinedButtonWidgetPropertySchema.localStyleProperties() : TextButtonWidgetPropertySchema.localStyleProperties();
+    }
+
+    private static boolean modernButtonIsIcon(WidgetNode node) {
+        return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
+                ? OutlinedButtonWidgetPropertySchema.isIcon(node) : TextButtonWidgetPropertySchema.isIcon(node);
+    }
+
+    private DesignerCommand modernButtonPropertyCommand(WidgetNode currentWidget, PropertyName name, FlutterPropertyCellValue accepted) {
         if (accepted.explicitValue().isEmpty()) {
             var resets = new java.util.LinkedHashSet<PropertyName>();
             if (name.value().endsWith("TextInherit") && currentWidget.properties().containsKey(name)) {
-                for (String prefix : TextButtonWidgetPropertySchema.statePrefixes())
+                for (String prefix : modernButtonStatePrefixes(currentWidget))
                     for (String suffix : java.util.List.of("TextInherit", "TextTheme")) {
                         var key = new PropertyName(prefix + suffix);
                         if (currentWidget.properties().containsKey(key)) resets.add(key);
@@ -4083,28 +4131,28 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         var alignment = new PropertyName("iconAlignment"); var style = new PropertyName("style");
         var patches = new java.util.ArrayList<PatchProperties.Patch>();
         if (name.equals(style)) {
-            for (String local : TextButtonWidgetPropertySchema.localStyleProperties()) {
+            for (String local : modernButtonLocalStyleProperties(currentWidget)) {
                 var key = new PropertyName(local);
                 if (currentWidget.properties().containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
             }
-        } else if (TextButtonWidgetPropertySchema.localStyleProperties().contains(name.value()) && currentWidget.properties().containsKey(style)) {
+        } else if (modernButtonLocalStyleProperties(currentWidget).contains(name.value()) && currentWidget.properties().containsKey(style)) {
             patches.add(new PatchProperties.ResetPatch(style));
         }
-        textButtonStyleDependencies(currentWidget, name, value, patches);
+        modernButtonStyleDependencies(currentWidget, name, value, patches);
         boolean selectingIcon = name.equals(variant) && new PropertyValue.StringValue("icon").equals(value);
         boolean selectingStandard = name.equals(variant) && new PropertyValue.StringValue("standard").equals(value);
         if (selectingIcon || name.equals(alignment)) {
             if (currentWidget.properties().containsKey(semantics)) patches.add(new PatchProperties.ResetPatch(semantics));
-            if (name.equals(alignment) && !TextButtonWidgetPropertySchema.isIcon(currentWidget))
+            if (name.equals(alignment) && !modernButtonIsIcon(currentWidget))
                 patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("icon")));
         } else if (selectingStandard || name.equals(semantics)) {
             var icon = currentWidget.slots().get(new SlotName("icon"));
             if (icon instanceof WidgetSlot.SingleSlot single && single.child().isPresent())
                 throw new IllegalArgumentException("Cannot set " + (name.equals(semantics) ? "Semantic button" : "Constructor Standard")
-                        + " on TextButton '" + currentWidget.id() + "': Icon contains widget '" + single.child().orElseThrow().id()
+                        + " on " + modernButtonName(currentWidget) + " '" + currentWidget.id() + "': Icon contains widget '" + single.child().orElseThrow().id()
                         + "'. Move or clear Icon first; the existing icon will not be deleted.");
             if (currentWidget.properties().containsKey(alignment)) patches.add(new PatchProperties.ResetPatch(alignment));
-            if (name.equals(semantics) && TextButtonWidgetPropertySchema.isIcon(currentWidget))
+            if (name.equals(semantics) && modernButtonIsIcon(currentWidget))
                 patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("standard")));
         }
         patches.add(new PatchProperties.SetPatch(name, value));
@@ -4112,10 +4160,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 : new PatchProperties(currentWidget.id(), patches);
     }
 
-    private static void textButtonStyleDependencies(WidgetNode widget, PropertyName name,
+    private static void modernButtonStyleDependencies(WidgetNode widget, PropertyName name,
             PropertyValue value, java.util.List<PatchProperties.Patch> patches) {
         String edited = name.value();
-        for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
+        for (String prefix : modernButtonStatePrefixes(widget)) {
             if (edited.equals(prefix + "TextBackground") || edited.equals(prefix + "TextBackgroundColor")) {
                 var opposite = new PropertyName(prefix + (edited.endsWith("Color") ? "TextBackground" : "TextBackgroundColor"));
                 if (widget.properties().containsKey(opposite)) patches.add(new PatchProperties.ResetPatch(opposite));
@@ -4124,7 +4172,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 var inherit = edited.endsWith("TextInherit") ? value : widget.properties().getOrDefault(
                         new PropertyName("styleTextInherit"), widget.properties().getOrDefault(
                         new PropertyName("styleDisabledTextInherit"), new PropertyValue.BooleanValue(true)));
-                for (String peer : TextButtonWidgetPropertySchema.statePrefixes()) {
+                for (String peer : modernButtonStatePrefixes(widget)) {
                     var key = new PropertyName(peer + "TextInherit");
                     if (!key.equals(name) && (peer.equals("style") || peer.equals("styleDisabled") || peer.equals(prefix)
                             || widget.properties().containsKey(key) || widget.properties().containsKey(new PropertyName(peer + "TextTheme")))
@@ -4192,21 +4240,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if ((CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
                 || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())
                 || RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
-                || TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()))
+                || isModernButton(widget))
                 && "variant".equals(property.name().value())) {
             reset = " This required Designer constructor selector cannot be unset or reset; "
                     + "no variant argument is emitted.";
         } else if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
                 && "onRefresh".equals(property.name().value())) {
             reset = " Restore Default removes the project reference and generates onRefresh: () async {}; the required callback is not null or omitted.";
-        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && "onPressed".equals(property.name().value())) {
+        } else if (isModernButton(widget) && "onPressed".equals(property.name().value())) {
             reset = " Restore Default removes the project callback, not the required Dart argument. Enabled with no activation callbacks generates a no-op; disabled or long-press-only emits onPressed: null.";
-        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && property.name().value().endsWith("TextInherit")) {
+        } else if (isModernButton(widget) && property.name().value().endsWith("TextInherit")) {
             reset = " Editing Text inherit keeps all configured state inherit flags consistent. Restore Default removes every Text inherit and Text theme selection together, preserving other style fields.";
-        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())
+        } else if (isModernButton(widget)
                 && java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(property.name().value())) {
             reset = " Editing seeds missing alignment components (Physical, X 0, Y 0). Restore Default removes the complete style alignment.";
-        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && "enabled".equals(property.name().value())) {
+        } else if (isModernButton(widget) && "enabled".equals(property.name().value())) {
             reset = " Required Designer activation selector; cannot be unset or reset. No enabled argument is emitted.";
         } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";

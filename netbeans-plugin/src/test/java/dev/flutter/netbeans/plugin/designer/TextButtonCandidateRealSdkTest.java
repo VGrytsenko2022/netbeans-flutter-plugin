@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.pair.*;
 import dev.flutter.netbeans.designer.source.*;
 import dev.flutter.netbeans.designer.transition.*;
 import dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest;
+import dev.flutter.netbeans.plugin.designer.properties.OutlinedButtonPropertyContractTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -30,6 +31,16 @@ class TextButtonCandidateRealSdkTest {
 
     @Test
     void validatesDenseStandardAndIconCandidatesWithoutRelaxingThe45SecondAnalyzerBudget() throws Exception {
+        validateDenseCandidates(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE);
+    }
+
+    @Test
+    void validatesDenseOutlinedStandardAndIconCandidatesWithTheirOwnThemeAndDefaults() throws Exception {
+        validateDenseCandidates(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE);
+    }
+
+    private void validateDenseCandidates(WidgetTypeId buttonType) throws Exception {
+        boolean outlined = buttonType.equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE);
         Path executable = configured("dart.executable");
         Path sdk = configured("flutter.sdk");
         Path cache = configured("pub.cache");
@@ -59,7 +70,9 @@ class TextButtonCandidateRealSdkTest {
         assertEquals(45, DartCandidateAnalysisLimits.DEFAULT.totalTimeout().toSeconds());
         long version = 1;
         for (boolean icon : List.of(false, true)) {
-            var properties = TextButtonPropertyContractTest.full(icon, icon, icon);
+            var properties = outlined
+                    ? OutlinedButtonPropertyContractTest.full(icon, icon, icon)
+                    : TextButtonPropertyContractTest.full(icon, icon, icon);
             properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
             // Populate all nine independent lists, retaining repeated stable item IDs
             // across different property paths to exercise scoped occurrence identities.
@@ -74,12 +87,12 @@ class TextButtonCandidateRealSdkTest {
                         new PropertyValue.FontVariationListValue.FontVariation(itemId, "wght", BigDecimal.valueOf(500))));
                 default -> value;
             });
-            assertEquals(icon ? 464 : 491, properties.size());
+            assertEquals(icon ? 464 : outlined ? 490 : 491, properties.size());
             var slots = new LinkedHashMap<SlotName, WidgetSlot>();
             slots.put(new SlotName("child"), WidgetSlot.SingleSlot.of(label));
             slots.put(new SlotName("icon"), icon ? WidgetSlot.SingleSlot.of(new WidgetNode(
                     StableId.random(), label.type(), label.properties(), Map.of())) : WidgetSlot.SingleSlot.empty());
-            var button = new WidgetNode(StableId.random(), TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE, properties, slots);
+            var button = new WidgetNode(StableId.random(), buttonType, properties, slots);
             var generation = generator.generate(document(baselineDescriptor, button), catalog);
             assertTrue(generation.generated().isPresent(), () -> generation.toString());
             var transition = new DartSourceTransitionPlanner(scanner).plan(
@@ -97,6 +110,14 @@ class TextButtonCandidateRealSdkTest {
             assertEquals(8, typed.size());
             assertTrue(typed.stream().allMatch(value -> value.expectedTypeLibraryUri().equals("package:flutter/material.dart")));
             byte[] candidate = prepared.prospectiveDartBytes();
+            if (outlined) {
+                String source = new String(candidate, StandardCharsets.UTF_8);
+                assertTrue(source.contains(icon ? "OutlinedButton.icon(" : "OutlinedButton("));
+                assertTrue(source.contains("OutlinedButtonTheme"), "Resolve inherited outline styles against the correct theme");
+                assertFalse(source.contains("TextButton("));
+                assertFalse(source.contains("TextButtonTheme"));
+                assertFalse(source.contains("isSemanticButton:"));
+            }
             var request = new DartCandidateAnalysisRequest(project, file, new String(candidate, StandardCharsets.UTF_8),
                     version++, HexFormat.of().withUpperCase().formatHex(MessageDigest.getInstance("SHA-256").digest(candidate)),
                     DartCandidateWarningPolicy.ALLOW, probes, generation.generated().orElseThrow().candidateCapacityBudget());

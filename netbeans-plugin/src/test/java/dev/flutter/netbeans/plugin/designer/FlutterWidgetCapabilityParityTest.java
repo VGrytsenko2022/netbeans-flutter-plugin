@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(77, javaTypes.size(),
+        assertEquals(78, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -100,6 +100,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.material.RefreshProgressIndicator"));
         assertTrue(javaTypes.contains("flutter.material.RefreshIndicator"));
         assertTrue(javaTypes.contains("flutter.material.TextButton"));
+        assertTrue(javaTypes.contains("flutter.material.OutlinedButton"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -155,6 +156,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.material.RefreshProgressIndicator\n"));
         assertTrue(dartContract.contains("W|flutter.material.RefreshIndicator\n"));
         assertTrue(dartContract.contains("W|flutter.material.TextButton\n"));
+        assertTrue(dartContract.contains("W|flutter.material.OutlinedButton\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(
@@ -237,6 +239,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(!javaContainers.contains("flutter.widgets.DefaultSelectionStyle"),
                 "DefaultSelectionStyle.child is required replacement-only, not an insertion target");
         assertTrue(javaContainers.contains("flutter.material.TextButton"), "TextButton.icon has an optional Icon destination; Standard excludes it at runtime");
+        assertTrue(javaContainers.contains("flutter.material.OutlinedButton"), "OutlinedButton.icon has an optional Icon destination; Standard excludes it at runtime");
         assertTrue(!javaContainers.contains("flutter.material.RefreshIndicator"),
                 "RefreshIndicator.child is required replacement-only, never an empty insertion target");
         assertTrue(!javaContainers.contains("flutter.widgets.IconTheme"),

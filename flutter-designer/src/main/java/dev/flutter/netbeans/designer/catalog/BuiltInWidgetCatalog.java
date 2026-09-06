@@ -101,6 +101,7 @@ public final class BuiltInWidgetCatalog {
             refreshProgressIndicator(),
             refreshIndicator(),
             textButton(),
+            fullStyleButton(true),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -2396,6 +2397,11 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition textButton() {
+        return fullStyleButton(false);
+    }
+
+    private static WidgetDefinition fullStyleButton(boolean outlined) {
+        String familyName = outlined ? "OutlinedButton" : "TextButton";
         List<PropertyDefinition> properties = new ArrayList<>();
         int order = 0;
         properties.add(namedProperty("enabled", order++, true,
@@ -2415,13 +2421,15 @@ public final class BuiltInWidgetCatalog {
         properties.add(namedProperty("clipBehavior", order++, false, List.copyOf(clip)));
         properties.add(namedProperty("statesController", order++, false,
                 List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStatesController"))));
-        List<PropertyValueConstraint> semantics = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
-        semantics.addAll(any(PropertyValueKind.NULL));
-        properties.add(namedProperty("isSemanticButton", order++, false, List.copyOf(semantics)));
+        if (!outlined) {
+            List<PropertyValueConstraint> semantics = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
+            semantics.addAll(any(PropertyValueKind.NULL));
+            properties.add(namedProperty("isSemanticButton", order++, false, List.copyOf(semantics)));
+        }
         properties.add(namedProperty("iconAlignment", order++, false,
                 materialEnumValues("IconAlignment", "start", "end")));
         properties.add(namedProperty("variant", order++, true,
-                stringPattern("(?:standard|icon)", "TextButton constructor variant"),
+                stringPattern("(?:standard|icon)", familyName + " constructor variant"),
                 new PropertyValue.StringValue("standard")));
         for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
             order = appendElevatedButtonStateProperties(properties, prefix, order);
@@ -2442,12 +2450,13 @@ public final class BuiltInWidgetCatalog {
         }
         properties.add(namedProperty("style", order++, false,
                 List.of(new PropertyValueConstraint.DartObjectReferenceValues("ButtonStyle"))));
-        if (properties.size() != TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
-            throw new ExceptionInInitializerError("TextButton catalog property count: " + properties.size());
+        if (properties.size() != (outlined ? OutlinedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT
+                : TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT)) {
+            throw new ExceptionInInitializerError(familyName + " catalog property count: " + properties.size());
         }
-        return widget("flutter.material.TextButton", "TextButton", true,
+        return widget("flutter.material." + familyName, familyName, true,
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
-                palette("flutter.material", 100, 140, "TextButton"), List.copyOf(properties),
+                palette("flutter.material", 100, outlined ? 150 : 140, familyName), List.copyOf(properties),
                 List.of(singleSlot("child", order++, true, 1, ANY_WIDGET),
                         singleSlot("icon", order, false, 0, ANY_WIDGET)));
     }

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
@@ -161,6 +162,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                             + slot.cardinality().wireName() + ".")
                     : BadgeWidgetPropertySchema.slotUnavailableReason(owner, slot.name())
                             .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
+                            .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .map(reason -> "Cannot edit " + ownerDefinition.palette().displayName() + " slot '" + owner.id() + "." + slot.name().value() + "': " + reason);
             currentChildren = structuralProblem.isPresent()
                     ? List.of() : children(current);

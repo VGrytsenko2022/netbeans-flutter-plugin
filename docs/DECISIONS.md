@@ -6199,3 +6199,82 @@ The ordinary Maven JAR has identical code/resources, including all four TextButt
 SVGs; only the expected NBM Class-Path manifest transformation differs.
 No installed userdir, user IDE, user Flutter application, push or deferred physical
 desktop acceptance was involved.
+
+## ADR-106 — OutlinedButton standard/icon and shared complete style slice
+
+Status: Accepted, 2026-09-06.
+
+OutlinedButton is the next API-reviewed palette addition at Material/order 150.
+The standard and icon constructors use 510 typed fields: 11 direct controls,
+nine 54-leaf state/default style buckets, 12 common fields and one strict project
+ButtonStyle reference. The required stable Child becomes the label in icon mode;
+Icon is optional and available only in that mode. Standard is const-capable;
+the icon constructor is non-const. Unlike TextButton, neither constructor exposes
+isSemanticButton, and both leave omitted clipBehavior null. Explicit null/enum
+remain distinct model values and preserve the SDK layer-builder clipping rules.
+
+The implementation narrowly extends the existing full-style assembly rather than
+forking it. Generated inherited values resolve against OutlinedButtonTheme and
+the actual constructor's defaults. The outline's default side overrides the
+shape's own side; shape and outline are independently configurable. Icon alignment
+resolves constructor, component theme, local style, then start, respecting RTL.
+All nine buckets, custom whole project styles, layer builders, strict callbacks,
+focus/controllers and activation semantics reuse the exact existing proof paths.
+Inactive activation references retain metadata without emitting calls, imports or
+symbol occurrences. Whole/local style and constructor transitions are atomic,
+never delete an occupied icon, and preserve the required child's identity.
+
+Real SDK Canvas renders both constructors with correct M2/M3 defaults and themes,
+retains child state and local interactions across changes, and diagnoses rather
+than executes project callbacks/builders/controllers. A project-defined whole style
+is an explicitly approximate SDK-default preview. The property surface, icon-slot
+admission, palette/tree/Canvas DnD, four SVGs, Save/reopen/further editing and native
+history are part of the same slice. Dense legal families include 490-property
+standard, 491-property rounded-icon and 464-property circle-icon configurations.
+TextButton/ElevatedButton contracts, .fd 13, Catalog API 14, Canvas model 18 and
+existing 512-property/2048-probe/2-MiB/45-second limits are unchanged.
+
+Verified catalog totals are 78 widgets, 72 const definitions, 1964 writable rows
+(1947 outside Scaffold), 75 scalar plus three structural definitions, 214
+Boolean-only fields plus one nullable Boolean union, and fifteen Material items.
+Twelve generic required-child wrappers plus Expanded/Flexible make fourteen
+creation wrappers. There are 63 insertable destinations: 61 ANY and two trait-bound.
+The 4914-cell matrix has exactly 4583 accepted and 331 rejected placements.
+The historical 92-widget planning target leaves 14; no full ordered inventory is
+claimed. Deferred platform work and global physical desktop acceptance stay out
+of this slice.
+
+Verification on 2026-09-06: the final remaining-reactor `mvn install` completed
+successfully at 21:10:35 +03:00 in 7 minutes 27 seconds, with no test filters or
+test-class exclusions. It excluded only the unchanged `dart-analysis` module:
+all 39 analyzer/core-API input hashes and both target/installed analyzer JARs were
+rechecked byte-identical to its successful 62-test gate at 19:24:03 +03:00
+(JAR SHA-256 `20edfe6618f316d2ae607ede2d960c1661d219e38145609a605f864784bd94d3`).
+Every other Maven report is fresh for this final build. The combined 379 reports
+record 4080 Surefire and 15 Failsafe tests, zero failures/errors, and seven allowed
+optional SDK/physical/platform skips: 4088 executed tests, including the retained
+62 analyzer tests. The current 1510-test core suite, all three Java/Dart parity
+checks, the 510-field live Save/reopen/history scenarios, and both real-SDK dense
+TextButton/OutlinedButton methods (four generated candidates) passed.
+
+The final Flutter suite passed all 1251 tests, including 48 dedicated
+OutlinedButton cases and two additional runtime cases; `flutter analyze` was
+clean. All 1562 non-document source/configuration inputs were frozen for the
+full gate. The only subsequent input changes removed trailing blank lines from
+four new SVGs, with their content otherwise verified identical. A fresh packaging
+gate at 21:16:02 +03:00 passed all 46 icon-registry tests and reran all 15 package/
+runtime integration tests (14 passed, one deferred physical test skipped).
+Independent checks verified all 40 source-bundle and 35 Web manifest
+entries; `main.dart.js` is 2,982,192 bytes with SHA-256
+`9c5b623d1a31325b858db762c7828336e42f08bd45b8e6e6f4bb59307fd8b725`.
+
+Both root and module-local `nbm:cluster` commands passed, followed by
+`tools/verify-release.ps1` with freshness checks enabled. The NBM is 7,554,479
+bytes with SHA-256
+`19ca5f3154406e7d8ce6116860ea9879c8a273a064162699b8519fe485704d29`.
+Its embedded module, packaging-stage module, both development clusters and
+assembled runtime module are byte-identical (SHA-256
+`5fcca3b3710ab0d9e849c29f60a941ea1f0a0d11d5fdc88ae7c80164d199cfa7`);
+the ordinary Maven JAR differs only in the expected transformed manifest, and
+all four OutlinedButton SVGs are present. No user IDE/userdir was launched or
+modified, and no global physical desktop acceptance is claimed.

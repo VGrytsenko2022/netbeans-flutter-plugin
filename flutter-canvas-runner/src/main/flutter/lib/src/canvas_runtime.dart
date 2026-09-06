@@ -1423,7 +1423,8 @@ class CanvasRuntimeController extends ChangeNotifier
     if (parent == null) {
       return null;
     }
-    if (parent.type == 'flutter.material.TextButton' &&
+    if ((parent.type == 'flutter.material.TextButton' ||
+            parent.type == 'flutter.material.OutlinedButton') &&
         target.slotName == 'icon' &&
         parent.properties['variant']?.value != 'icon') {
       return null;

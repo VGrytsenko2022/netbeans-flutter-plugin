@@ -193,6 +193,28 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void outlinedButtonKeepsRequiredLabelAndRestrictsOptionalIconToIconConstructor() {
+        var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+        var label = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), D_ID);
+        var icon = new SlotName("icon");
+        var standard = new WidgetNode(B_ID, type("flutter.material.OutlinedButton"), Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")), Map.of(CHILD, WidgetSlot.SingleSlot.of(label), icon, WidgetSlot.SingleSlot.empty()));
+        var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, standard)));
+        var rejected = assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, icon, 0)));
+        assertTrue(rejected.reason().contains("icon"), rejected::reason);
+        var props = new LinkedHashMap<>(standard.properties()); props.put(new PropertyName("variant"), new PropertyValue.StringValue("icon"));
+        var button = new WidgetNode(B_ID, standard.type(), props, standard.slots());
+        var iconDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, button)));
+        assertAcceptedCommandApplies(iconDocument, BUILT_INS, source, planner.plan(iconDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, icon, 0)));
+        assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class, planner.plan(iconDocument, BUILT_INS, D_ID, new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)));
+        var occupied = new WidgetNode(B_ID, button.type(), props, Map.of(CHILD, WidgetSlot.SingleSlot.of(label), icon, WidgetSlot.SingleSlot.of(source)));
+        var stack = listParent(C_ID, STACK, CHILDREN, List.of()); var occupiedDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(occupied, stack)));
+        assertAcceptedCommandApplies(occupiedDocument, BUILT_INS, source, planner.plan(occupiedDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+        assertAcceptedCommandApplies(occupiedDocument, BUILT_INS, occupied, planner.plan(occupiedDocument, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+    }
+
+    @Test
     void textButtonKeepsRequiredLabelAndRestrictsOptionalIconToIconConstructor() {
         var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
         var label = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), D_ID);

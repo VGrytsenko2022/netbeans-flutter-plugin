@@ -76,7 +76,7 @@ final class FlutterNullableChoiceEditorComponent {
             String semantics = property.equals("isSemanticButton")
                     ? "Omission uses true. Explicit null suppresses the button role announcement; true and false remain explicit Boolean values."
                     : property.equals("clipBehavior")
-                            ? "Omission keeps the active constructor default: standard forwards null, icon defaults to Clip.none. Explicit null is retained and uses SDK automatic clipping."
+                            ? "Omission keeps the active widget and constructor default described in the property help. Explicit null is retained and uses SDK automatic clipping; it is not converted to Clip.none."
                             : "Omission preserves the constructor default. Explicit null and each concrete value remain distinct.";
             note.setText(semantics); note.getAccessibleContext().setAccessibleDescription(semantics);
             booleanValue.getAccessibleContext().setAccessibleDescription("Boolean value " + booleanValue.isSelected() + "; centered checkbox.");

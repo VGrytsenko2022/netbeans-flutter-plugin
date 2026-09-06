@@ -12,6 +12,7 @@ import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPrope
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -328,7 +329,7 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
-        return !node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+        return !OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                 || !new PropertyValue.BooleanValue(false).equals(
                         node.properties().get(new PropertyName("enabled")))
                 || !(name.value().equals("onPressed") || name.value().equals("onLongPress"));
@@ -384,14 +385,16 @@ public final class DartRegionGenerator {
                 ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
-        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
-            boolean icon = TextButtonWidgetPropertySchema.isIcon(node);
+        if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
+            boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
             boolean hasIcon = node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
                     && slot.child().isPresent();
-            context.buttonFamilies().put(node.id(), new ButtonFamily("TextButton", "TextButtonTheme", icon, hasIcon));
+            String family = node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
+                    ? "OutlinedButton" : "TextButton";
+            context.buttonFamilies().put(node.id(), new ButtonFamily(family, family + "Theme", icon, hasIcon));
         }
         for (PropertyDefinition property : definition.properties()) {
-            if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+            if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                     && TextButtonWidgetPropertySchema.isCompound(property.name())) continue;
             if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
                     && property.name().value().equals("variant")) continue;
@@ -483,8 +486,8 @@ public final class DartRegionGenerator {
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
-            if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
-                    && slot.name().value().equals("icon") && !TextButtonWidgetPropertySchema.isIcon(node)) continue;
+            if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
+                    && slot.name().value().equals("icon") && !OutlinedButtonWidgetPropertySchema.isIconVariant(node)) continue;
             if (BadgeWidgetPropertySchema.isCountMode(node) && slot.name().value().equals("label")) continue;
             if (value != null) {
                 if ((node.type().value().equals("flutter.widgets.Transform")
@@ -500,7 +503,7 @@ public final class DartRegionGenerator {
                 String slotPath = path + "/slots/" + pointer(slot.name().value());
                 arguments.add(new ConstructorArgument(
                         slot.parameter(),
-                        TextButtonWidgetPropertySchema.isIcon(node) && slot.name().value().equals("child")
+                        OutlinedButtonWidgetPropertySchema.isIconVariant(node) && slot.name().value().equals("child")
                                 ? "label" : slot.name().value(),
                         true,
                     renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
@@ -558,7 +561,7 @@ public final class DartRegionGenerator {
                     context, arguments);
         }
         if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)
-                || node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+                || OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
             appendElevatedButtonCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
@@ -597,7 +600,7 @@ public final class DartRegionGenerator {
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
         boolean iconThemeMerge = node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
-        boolean constant = !TextButtonWidgetPropertySchema.isIcon(node)
+        boolean constant = !OutlinedButtonWidgetPropertySchema.isIconVariant(node)
                 && !BadgeWidgetPropertySchema.isCountMode(node) && !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
@@ -612,8 +615,10 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
-        if (TextButtonWidgetPropertySchema.isIcon(node)) {
-            constructorOccurrences.add(occurrence("widget:" + node.id() + ":textButtonIconConstructor",
+        if (OutlinedButtonWidgetPropertySchema.isIconVariant(node)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id()
+                    + (node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
+                            ? ":outlinedButtonIconConstructor" : ":textButtonIconConstructor"),
                     constructor.length() + 1, "icon", renderedClass.libraryUri(),
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += ".icon";
@@ -935,7 +940,7 @@ public final class DartRegionGenerator {
     }
 
     private static List<ElevatedButtonState> buttonStates(WidgetNode node) {
-        if (!node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+        if (!OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
             return ELEVATED_BUTTON_STATES;
         }
         return TextButtonWidgetPropertySchema.statePriority().stream()
@@ -960,7 +965,7 @@ public final class DartRegionGenerator {
 
         // A project ButtonStyle is emitted by the ordinary direct-property path.
         // It is mutually exclusive with every local style leaf.
-        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+        if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                 && node.properties().containsKey(new PropertyName("style"))) return;
 
         LinkedHashMap<String, Map<String, RenderedValue>> states = new LinkedHashMap<>();
@@ -2522,7 +2527,7 @@ public final class DartRegionGenerator {
                     continue;
                 }
                 ElevatedButtonWidgetPropertySchema.Definition binding =
-                        node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                        OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                                 ? TextButtonWidgetPropertySchema.sharedStyleDefinition(property.name().value())
                                 : ElevatedButtonWidgetPropertySchema.find(property.name()).orElseThrow();
                 String propertyPath = path + "/properties/" + pointer(propertyName);
@@ -3004,7 +3009,7 @@ public final class DartRegionGenerator {
         if (splash != null) {
             style.add(new CompositeMember("splashFactory", 22, splash));
         }
-        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+        if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
             addElevatedCommonDirect(node, definition, "styleIconAlignment", "iconAlignment", 13,
                     path, context, style);
             addElevatedCommonDirect(node, definition, "styleBackgroundBuilder", "backgroundBuilder", 23,

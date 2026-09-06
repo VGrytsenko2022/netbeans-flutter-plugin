@@ -158,6 +158,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
             Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.OutlinedButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -320,7 +321,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", scaffoldProjection()),
             Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
-            Map.entry("flutter.material.TextButton", textButtonProjection()),
+            Map.entry("flutter.material.TextButton", textButtonProjection(false)),
+            Map.entry("flutter.material.OutlinedButton", textButtonProjection(true)),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -1504,7 +1506,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                 BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
     }
 
-    private static CanvasProjection textButtonProjection() {
+    private static CanvasProjection textButtonProjection(boolean outlined) {
         Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
         put(properties, requiredDefaultProperty("enabled", "boolean:true", PropertyValueKind.BOOLEAN));
         for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange")) {
@@ -1524,7 +1526,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(), Map.of(), nullableClip));
         properties.put("statesController", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
                 refreshIndicatorReferenceFingerprint("WidgetStatesController")));
-        put(properties, property("isSemanticButton", PropertyValueKind.BOOLEAN, PropertyValueKind.NULL));
+        if (!outlined) {
+            put(properties, property("isSemanticButton", PropertyValueKind.BOOLEAN, PropertyValueKind.NULL));
+        }
         put(properties, materialEnumProperty("iconAlignment", "IconAlignment", "start", "end"));
         put(properties, requiredDefaultConstrainedProperty("variant", "string:" + base64("standard"),
                 PropertyValueKind.STRING, "pattern:" + base64("(?:standard|icon)")));
@@ -1545,8 +1549,9 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         properties.put("style", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
                 refreshIndicatorReferenceFingerprint("ButtonStyle")));
-        if (properties.size() != TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
-            throw new ExceptionInInitializerError("TextButton projection count: " + properties.size());
+        if (properties.size() != (outlined ? OutlinedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT
+                : TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT)) {
+            throw new ExceptionInInitializerError((outlined ? "OutlinedButton" : "TextButton") + " projection count: " + properties.size());
         }
         return projection(properties, Map.of("child", singleSlotSchema(true, 1),
                 "icon", singleSlotSchema(false, 0)));

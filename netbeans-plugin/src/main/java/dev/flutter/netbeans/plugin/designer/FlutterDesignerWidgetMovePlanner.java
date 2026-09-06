@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -137,6 +138,7 @@ public final class FlutterDesignerWidgetMovePlanner {
         List<SlotDefinition> compatible = parentDefinition.slots().stream()
                 .filter(slot -> BadgeWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> TextButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
+                .filter(slot -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> WidgetPlacementRules.accepts(
                         parentDefinition, slot, sourceDefinition))
                 .toList();
@@ -304,7 +306,8 @@ public final class FlutterDesignerWidgetMovePlanner {
             SlotDefinition slot,
             int destinationIndex) {
         Optional<String> unavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name())
-                .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()));
+                .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()))
+                .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()));
         if (unavailable.isPresent()) {
             return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
                     "Cannot move " + sourceDefinition.palette().displayName() + " '" + source.node().id()

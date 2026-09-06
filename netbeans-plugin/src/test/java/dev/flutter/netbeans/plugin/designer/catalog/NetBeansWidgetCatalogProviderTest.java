@@ -102,6 +102,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.material.RefreshProgressIndicator"));
         assertTrue(typeIds(result).contains("flutter.material.RefreshIndicator"));
         assertTrue(typeIds(result).contains("flutter.material.TextButton"));
+        assertTrue(typeIds(result).contains("flutter.material.OutlinedButton"));
     }
 
     @Test
@@ -189,7 +190,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(77, result.catalog().definitions().size());
+        assertEquals(78, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -222,7 +223,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(77, result.catalog().definitions().size());
+        assertEquals(78, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

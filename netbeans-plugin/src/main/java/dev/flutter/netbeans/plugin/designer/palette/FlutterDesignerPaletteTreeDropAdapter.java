@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -323,6 +324,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
         List<SlotDefinition> compatibleSlots = parentDefinition.slots().stream()
                 .filter(slot -> BadgeWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
                 .filter(slot -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
+                .filter(slot -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
                 .filter(slot -> WidgetPlacementRules.accepts(
                         parentDefinition, slot, source))
                 .toList();

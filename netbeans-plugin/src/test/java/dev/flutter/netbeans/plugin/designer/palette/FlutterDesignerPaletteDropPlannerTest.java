@@ -162,8 +162,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void textButtonCompletes4774CellMatrixAndBothConstructorSlotAdmissions() {
-        var type = new WidgetTypeId("flutter.material.TextButton");
+    void outlinedButtonCompletes4914CellMatrixAndBothConstructorSlotAdmissions() {
+        var type = new WidgetTypeId("flutter.material.OutlinedButton");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
@@ -178,7 +178,42 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(77, BUILT_INS.definitions().size()); assertEquals(62, targets.size()); assertEquals(13, wrappers);
+        assertEquals(78, BUILT_INS.definitions().size()); assertEquals(63, targets.size()); assertEquals(14, wrappers);
+        assertEquals(4914, accepted + rejected); assertEquals(4583, accepted); assertEquals(331, rejected);
+        var iconSlot = new SlotName("icon"); var iconParent = prototype(type);
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(iconParent), BUILT_INS, TEXT, ROOT_ID, iconSlot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        var standard = new WidgetNode(ROOT_ID, type, Map.of(ENABLED, new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")), iconParent.slots());
+        var denied = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(standard), BUILT_INS, TEXT, ROOT_ID, iconSlot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        assertTrue(denied.reason().contains("icon"), denied::reason);
+        var target = occupiedTarget("Column.children", COLUMN, CHILDREN);
+        var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command();
+        assertEquals(Map.of(ENABLED, new PropertyValue.BooleanValue(true), new PropertyName("variant"), new PropertyValue.StringValue("standard")), wrapped.wrapper().properties());
+        assertEquals(FIRST_ID, wrapped.widgetId()); assertEquals(CHILD, wrapped.wrapperSlot());
+        assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty(), iconSlot, WidgetSlot.SingleSlot.empty()), wrapped.wrapper().slots());
+    }
+
+    @Test
+    void textButtonCompletes4774CellMatrixAndBothConstructorSlotAdmissions() {
+        var type = new WidgetTypeId("flutter.material.TextButton");
+        var targets = preOutlinedButtonDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0, wrappers = 0;
+        for (var definition : preOutlinedButtonDefinitions().toList()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            if (wrapper) wrappers++;
+            for (var target : targets) {
+                var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+                var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+                if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+            }
+        }
+        assertEquals(77, preOutlinedButtonDefinitions().count()); assertEquals(62, targets.size()); assertEquals(13, wrappers);
         assertEquals(4774, accepted + rejected); assertEquals(4448, accepted); assertEquals(326, rejected);
         var iconSlot = new SlotName("icon"); var iconParent = prototype(type);
         assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
@@ -5887,7 +5922,11 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preTextButtonDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.TextButton"));
+        return preOutlinedButtonDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.TextButton"));
+    }
+
+    private static Stream<WidgetDefinition> preOutlinedButtonDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.OutlinedButton"));
     }
 
     private static Stream<WidgetDefinition> preCardDefinitions() {
@@ -6080,7 +6119,8 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static WidgetNode prototype(WidgetTypeId type) {
         WidgetNode created = WidgetNodePrototypeFactory.create(definition(type), ROOT_ID);
-        if ("flutter.material.TextButton".equals(type.value())) {
+        if ("flutter.material.TextButton".equals(type.value())
+                || "flutter.material.OutlinedButton".equals(type.value())) {
             return new WidgetNode(created.id(), created.type(), Map.of(ENABLED, new PropertyValue.BooleanValue(true),
                     new PropertyName("variant"), new PropertyValue.StringValue("icon")),
                     Map.of(CHILD, WidgetSlot.SingleSlot.of(text(id("212a3e9a-abf4-4a26-8af4-8fb1192f9d3b"), "required label")),

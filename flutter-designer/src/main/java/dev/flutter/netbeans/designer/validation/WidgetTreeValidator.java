@@ -10,6 +10,7 @@ import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -437,8 +438,8 @@ public final class WidgetTreeValidator {
         }
 
         if (type.equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.value())
-                || type.equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.value())) {
-            if (type.equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.value())) {
+                || OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
+            if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) {
                 validateTextButtonBranches(node, propertiesPath, issues);
             }
             for (String prefix : buttonStatePrefixes(node)) {
@@ -928,42 +929,43 @@ public final class WidgetTreeValidator {
     }
 
     private static void validateTextButtonBranches(WidgetNode node, String path, IssueCollector issues) {
-        boolean icon = TextButtonWidgetPropertySchema.isIcon(node);
+        boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
         if (!icon && node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
                 && slot.child().isPresent()) {
             issues.add(issue(PROPERTY_CONFLICT, path + "/variant", node.id(),
-                    "TextButton Standard has no icon argument. Clear or move the existing Icon before switching to Standard."));
+                    buttonName(node) + " Standard has no icon argument. Clear or move the existing Icon before switching to Standard."));
         }
         String incompatible = icon ? "isSemanticButton" : "iconAlignment";
         if (node.properties().containsKey(new PropertyName(incompatible))) {
             issues.add(issue(PROPERTY_CONFLICT, path + "/" + incompatible, node.id(),
-                    "TextButton " + (icon ? "Icon" : "Standard") + " constructor does not accept "
+                    buttonName(node) + " " + (icon ? "Icon" : "Standard") + " constructor does not accept "
                     + incompatible + ". Reset it or switch constructor."));
         }
         if (node.properties().containsKey(new PropertyName("style"))) {
             for (String name : TextButtonWidgetPropertySchema.localStyleProperties()) {
                 if (node.properties().containsKey(new PropertyName(name))) {
                     issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
-                            "TextButton project ButtonStyle is exclusive with every local style field. Reset the project style or local fields first."));
+                            buttonName(node) + " project ButtonStyle is exclusive with every local style field. Reset the project style or local fields first."));
                 }
             }
         }
     }
 
     private static List<String> buttonStatePrefixes(WidgetNode node) {
-        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+        return OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                 ? TextButtonWidgetPropertySchema.statePrefixes()
                 : List.of("style", "styleDisabled", "stylePressed", "styleHovered", "styleFocused");
     }
 
     private static List<String> enabledButtonStatePriority(WidgetNode node) {
-        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+        return OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                 ? List.of("Error", "Dragged", "Pressed", "Selected", "ScrolledUnder", "Hovered", "Focused")
                 : List.of("Pressed", "Hovered", "Focused");
     }
 
     private static String buttonName(WidgetNode node) {
-        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE) ? "TextButton" : "ElevatedButton";
+        return node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE) ? "OutlinedButton"
+                : node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE) ? "TextButton" : "ElevatedButton";
     }
 
     private static void validateElevatedButtonState(
@@ -1069,9 +1071,9 @@ public final class WidgetTreeValidator {
     }
 
     private static EffectiveNumber elevatedFrameworkMinimum(WidgetNode node, String suffix) {
-        // TextButton preserves context-dependent theme sizing; only two explicit
+        // Full-style button families preserve context-dependent theme sizing; only two explicit
         // local bounds may conflict. Generation resolves and normalizes inherited bounds.
-        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) return null;
+        if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)) return null;
         // Validation has no BuildContext, so the deterministic floor is the
         // pinned generated-project Material 3 default. A runtime-supplied
         // ElevatedButtonTheme may replace this value; Dart generation still

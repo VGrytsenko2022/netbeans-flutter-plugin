@@ -62,6 +62,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -3706,6 +3707,8 @@ public final class FlutterDesignerMultiViewDesign
                 BadgeWidgetPropertySchema.slotUnavailableReason(
                         findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName())
                         .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(
+                                findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName()))
+                        .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(
                                 findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName())).ifPresent(reason -> {
                     throw new IllegalArgumentException("Cannot replace " + slot.ownerDefinition().palette().displayName() + " slot '" + exactSlot + "': " + reason);
                 });

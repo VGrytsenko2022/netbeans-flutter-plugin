@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- OutlinedButton at Material/order 150 with standard/icon constructors, 510 typed
+  fields, all nine state/default style buckets, common style/builders and strict
+  whole project styles. Includes callbacks/focus/controllers, stable Child and
+  optional Icon, atomic constructor/style transitions, correct nullable clipping
+  for both constructors, SDK outline/theme defaults, retained child state, isolated
+  project-code diagnostics, save/reopen/history, DnD and four SVGs. Current totals:
+  78 widgets, 72 const definitions, 1964 writable rows (1947 outside Scaffold),
+  214 Boolean-only fields plus one nullable Boolean union, 63 destinations and
+  4,914 placements (4,583 accepted / 331 rejected), Material 15. The historical
+  92-widget target leaves 14; its full ordered inventory is not preserved.
+  Formats and existing 512-property/2048-probe limits stay unchanged.
+
 - TextButton at Material/order 140 with standard/icon constructors, 511 typed
   rows, required Child and optional Icon, all eight WidgetStates plus default,
   complete local/common style fields and strict project ButtonStyle/Builder,
@@ -18,7 +30,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Same-Dart metadata edits now retain native history without synthetic Source
   changes; clean-source Save writes only `.fd`, mixed Source edits keep their
   chronology, and verified no-write/rollback failures remain retryable.
-  Current totals: 77 widgets, 71 const definitions, 1454 rows (1437 outside Scaffold),
+  At that milestone: 77 widgets, 71 const definitions, 1454 rows (1437 outside Scaffold),
   4,774 placements (4,448 accepted / 326 rejected), 175 Boolean-only fields plus
   one nullable Boolean union, Material 14. Historical target 77/92 leaves 15;
   formats stay 13/14/18. The full ordered 92-item inventory is not preserved.

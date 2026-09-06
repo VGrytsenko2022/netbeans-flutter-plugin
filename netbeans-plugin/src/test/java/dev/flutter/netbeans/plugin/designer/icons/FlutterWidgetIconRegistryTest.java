@@ -86,6 +86,18 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void outlinedButtonFamilyUsesSolidOutlineWithoutFontDependencies() throws Exception {
+        String base = ICON_ROOT + "outlinedbutton.svg";
+        var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32);
+        assertTrue(small.geometry().stream().anyMatch(shape -> shape.startsWith("rect[") && shape.contains("rx=3") && shape.contains("width=13")));
+        assertTrue(small.geometry().stream().anyMatch(shape -> shape.contains("M4.5 6.25h7M4.5 9.75h7")));
+        assertFalse(small.geometry().toString().contains("stroke-dasharray"));
+        assertEquals(small.geometry(), dark.geometry()); assertEquals(small.topology(), large.topology());
+        assertTrue(small.paint().toString().contains("#146FA8")); assertTrue(dark.paint().toString().contains("#9BD6FF"));
+    }
+
+    @Test
     void textButtonFamilyUsesReviewedTextStrokeGeometryWithoutFontDependencies() throws Exception {
         String base = ICON_ROOT + "textbutton.svg";
         var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
@@ -1826,6 +1838,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.RefreshProgressIndicator", ICON_ROOT + "refreshprogressindicator.svg");
         expected.put("flutter.material.RefreshIndicator", ICON_ROOT + "refreshindicator.svg");
         expected.put("flutter.material.TextButton", ICON_ROOT + "textbutton.svg");
+        expected.put("flutter.material.OutlinedButton", ICON_ROOT + "outlinedbutton.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

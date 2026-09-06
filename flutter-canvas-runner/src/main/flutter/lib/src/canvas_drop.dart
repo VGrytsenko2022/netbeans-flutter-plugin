@@ -405,6 +405,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SizedBox' ||
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],
       'flutter.material.TextButton' => const [canvasTextButtonIconDropSlot],
+      'flutter.material.OutlinedButton' => const [canvasTextButtonIconDropSlot],
       _ => const [],
     };
 

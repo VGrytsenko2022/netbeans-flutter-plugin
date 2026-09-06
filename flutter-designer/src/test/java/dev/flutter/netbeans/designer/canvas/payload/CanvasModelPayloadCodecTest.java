@@ -90,6 +90,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.RefreshProgressIndicator",
             "flutter.material.RefreshIndicator",
             "flutter.material.TextButton",
+            "flutter.material.OutlinedButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3522,6 +3523,59 @@ class CanvasModelPayloadCodecTest {
         }
         var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
                 dev.flutter.netbeans.designer.catalog.TextButtonTestValues.definition(), StableId.random());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
+    }
+
+    @Test
+    void outlinedButtonPayloadCarriesDenseLocalStylesBothSlotsAndOnlyPrivateReferencePresence() throws Exception {
+        for (boolean icon : List.of(false, true)) for (boolean paints : List.of(false, true)) {
+            var properties = dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.full(icon, paints, false);
+            var node = dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.node(properties);
+            if (icon) {
+                var slots = new java.util.LinkedHashMap<>(node.slots());
+                slots.put(new SlotName("icon"), new WidgetSlot.SingleSlot(Optional.of(
+                        dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.text("Preserved icon"))));
+                node = new WidgetNode(node.id(), node.type(), node.properties(), slots);
+            }
+            assertEquals(icon ? 491 : 490, node.properties().size());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"onPressed\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"statesController\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"styleBackgroundBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"styleErrorBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleDraggedBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleSelectedBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleScrolledUnderBackgroundColor\":"), json);
+            assertEquals(icon, json.contains("Preserved icon"), json);
+            for (String forbidden : List.of("package:buttons", "buttonValues", "styles.dart", "MaterialIcons", "imageProvider")) assertFalse(json.contains(forbidden), json);
+        }
+    }
+
+    @Test
+    void outlinedButtonPayloadPreservesExplicitNullAndWholeStyleSentinelWithoutExecutingReferences() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.node(Map.of(
+                new PropertyName("clipBehavior"), new PropertyValue.NullValue(),
+                new PropertyName("style"), dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.reference("wholeStyle")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"clipBehavior\":{\"kind\":\"null\"}"), json);
+        assertTrue(json.contains("\"style\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+        assertFalse(json.contains("wholeStyle"), json);
+        assertFalse(json.contains("styleBackgroundColor"), json);
+    }
+
+    @Test
+    void outlinedButtonPayloadRejectsConflictingConstructorsStylesAndMissingRequiredChild() {
+        var cases = List.of(
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("icon"), new PropertyName("isSemanticButton"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("style"), dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.reference("style"), new PropertyName("styleIconColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(new PropertyName("enabled"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onPressed"), new PropertyValue.CallbackValue("legacyCallback")));
+        for (Map<PropertyName, ? extends PropertyValue> properties : cases) {
+            var node = dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.node(new java.util.LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.definition(), StableId.random());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
     }
 

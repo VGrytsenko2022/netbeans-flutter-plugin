@@ -37,6 +37,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.RefreshProgressIndicator",
             "flutter.material.RefreshIndicator",
             "flutter.material.TextButton",
+            "flutter.material.OutlinedButton",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -116,6 +117,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.RefreshProgressIndicator",
             "flutter.material.RefreshIndicator",
             "flutter.material.TextButton",
+            "flutter.material.OutlinedButton",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -209,9 +211,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(77, sources.size());
-        assertEquals(62, destinations.size());
-        assertEquals(60, destinations.stream()
+        assertEquals(78, sources.size());
+        assertEquals(63, destinations.size());
+        assertEquals(61, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -219,9 +221,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(4774, candidates);
-        assertEquals(4448, accepted);
-        assertEquals(326, candidates - accepted);
+        assertEquals(4914, candidates);
+        assertEquals(4583, accepted);
+        assertEquals(331, candidates - accepted);
     }
 
     @Test

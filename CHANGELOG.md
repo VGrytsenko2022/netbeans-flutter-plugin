@@ -1349,10 +1349,11 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Fixed
 
-- Remove the extra leading paragraph margin in Plugin Description. NetBeans
-  already supplies the section heading and spacing; developer/contact/support
-  sections and links retain their existing layout. A Swing rendering regression
-  checks both themes, narrow/wide panes and standard/enlarged text.
+- Remove the remaining 10-unit gap below the Plugin Manager's own Description
+  heading with a fragment-local Swing margin compensation. Packaged-description
+  tests now require zero gap (not the equally spaced plain-text baseline) and
+  check that the first text line remains fully painted at both font sizes,
+  panel widths and light/dark backgrounds; contact and donation links are unchanged.
 
 - Transform insertion and Matrix4 property edits no longer fail pair-save with
   `UNTRUSTED_NAVIGATION_TARGET`. Generated symbol evidence now records

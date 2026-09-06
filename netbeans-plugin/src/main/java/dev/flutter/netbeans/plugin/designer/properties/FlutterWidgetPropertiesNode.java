@@ -37,6 +37,7 @@ import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -523,6 +524,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addTextButtonPropertySets(sheet, hasSlotTab);
         } else if (OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(widget.type())) {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
+        } else if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
+            addFilledButtonPropertySets(sheet, hasSlotTab);
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
@@ -780,6 +783,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
+            return slot.name().value().equals("icon")
+                    ? "Optional icon for Icon or Tonal icon. Switching between those constructors retains Icon and icon alignment. "
+                            + "Move or clear a populated Icon before selecting Standard or Tonal; no widget is silently removed."
+                    : "Child is optional for Standard and Tonal (an empty Child emits child: null), but required as Label for Icon and Tonal icon. "
+                            + "Replace a required Label atomically; it cannot be removed, cleared or moved out. Constructor changes retain its stable identity.";
+        }
         if (isModernButton(widget)) {
             return slot.name().value().equals("icon")
                     ? "Optional icon for " + modernButtonName(widget) + ".icon only. Select the Icon constructor before adding or moving an icon here. "
@@ -2296,6 +2306,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint,
                     schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
                     property.name().value().equals("variant") ? OutlinedButtonWidgetPropertySchema.variants() : elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addFilledButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<FilledButtonWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(FilledButtonWidgetPropertySchema.Group.class);
+        for (var group : FilledButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = FilledButtonWidgetPropertySchema.find(property.name()).orElseThrow();
+            String hint = FilledButtonWidgetPropertySchema.localStyleProperties().contains(property.name().value())
+                    ? " Setting a local leaf atomically clears Button style. State priority is disabled, error, dragged, pressed, selected, scrolledUnder, hovered, focused, default. Disabled remains isolated from enabled buckets. Unset preserves FilledButtonTheme/framework fallback."
+                    : property.name().value().equals("style")
+                            ? " Setting this reference atomically clears all local style leaves; resetting it does not restore discarded leaves. Undo restores the exact prior style."
+                            : " Constructor changes retain Child. Standard and Tonal allow an empty Child; Icon and Tonal icon require a Label. A populated Icon must be moved or cleared before selecting Standard or Tonal; no widget is silently deleted.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint,
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    property.name().value().equals("variant") ? FilledButtonWidgetPropertySchema.variants() : elevatedButtonStringPresets(property.name())));
         }
     }
 
@@ -4087,24 +4116,29 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
     private static boolean isModernButton(WidgetNode node) {
         return TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(node.type())
-                || OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type());
+                || OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
+                || FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type());
     }
 
     private static String modernButtonName(WidgetNode node) {
-        return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type()) ? "OutlinedButton" : "TextButton";
+        return FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type()) ? "FilledButton"
+                : OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type()) ? "OutlinedButton" : "TextButton";
     }
 
     private static java.util.List<String> modernButtonStatePrefixes(WidgetNode node) {
+        if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.statePrefixes();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
                 ? OutlinedButtonWidgetPropertySchema.statePrefixes() : TextButtonWidgetPropertySchema.statePrefixes();
     }
 
     private static java.util.List<String> modernButtonLocalStyleProperties(WidgetNode node) {
+        if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.localStyleProperties();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
                 ? OutlinedButtonWidgetPropertySchema.localStyleProperties() : TextButtonWidgetPropertySchema.localStyleProperties();
     }
 
     private static boolean modernButtonIsIcon(WidgetNode node) {
+        if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.isIcon(node);
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
                 ? OutlinedButtonWidgetPropertySchema.isIcon(node) : TextButtonWidgetPropertySchema.isIcon(node);
     }
@@ -4139,16 +4173,23 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             patches.add(new PatchProperties.ResetPatch(style));
         }
         modernButtonStyleDependencies(currentWidget, name, value, patches);
-        boolean selectingIcon = name.equals(variant) && new PropertyValue.StringValue("icon").equals(value);
-        boolean selectingStandard = name.equals(variant) && new PropertyValue.StringValue("standard").equals(value);
+        boolean filled = FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(currentWidget.type());
+        boolean selectingIcon = name.equals(variant) && (new PropertyValue.StringValue("icon").equals(value)
+                || filled && new PropertyValue.StringValue("tonalIcon").equals(value));
+        boolean selectingStandard = name.equals(variant) && (new PropertyValue.StringValue("standard").equals(value)
+                || filled && new PropertyValue.StringValue("tonal").equals(value));
         if (selectingIcon || name.equals(alignment)) {
+            if (filled && (!(currentWidget.slots().get(CHILD_SLOT) instanceof WidgetSlot.SingleSlot child) || child.child().isEmpty()))
+                throw new IllegalArgumentException("Cannot select an icon constructor on FilledButton '" + currentWidget.id()
+                        + "': Child is empty. Add a Child first; Icon and Tonal icon require a Label.");
             if (currentWidget.properties().containsKey(semantics)) patches.add(new PatchProperties.ResetPatch(semantics));
             if (name.equals(alignment) && !modernButtonIsIcon(currentWidget))
-                patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("icon")));
+                patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue(
+                        filled && FilledButtonWidgetPropertySchema.isTonal(currentWidget) ? "tonalIcon" : "icon")));
         } else if (selectingStandard || name.equals(semantics)) {
             var icon = currentWidget.slots().get(new SlotName("icon"));
             if (icon instanceof WidgetSlot.SingleSlot single && single.child().isPresent())
-                throw new IllegalArgumentException("Cannot set " + (name.equals(semantics) ? "Semantic button" : "Constructor Standard")
+                throw new IllegalArgumentException("Cannot set " + (name.equals(semantics) ? "Semantic button" : "Constructor " + ((PropertyValue.StringValue) value).value())
                         + " on " + modernButtonName(currentWidget) + " '" + currentWidget.id() + "': Icon contains widget '" + single.child().orElseThrow().id()
                         + "'. Move or clear Icon first; the existing icon will not be deleted.");
             if (currentWidget.properties().containsKey(alignment)) patches.add(new PatchProperties.ResetPatch(alignment));

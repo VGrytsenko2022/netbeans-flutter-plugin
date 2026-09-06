@@ -63,6 +63,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -3686,6 +3687,10 @@ public final class FlutterDesignerMultiViewDesign
                             + "' is no longer a direct child of slot '"
                             + exactSlot + "'.");
                 }
+                if (remove.slotName().value().equals("child") && FilledButtonWidgetPropertySchema.requiresChild(owner)) {
+                    throw new IllegalArgumentException("Cannot remove FilledButton Label from '" + exactSlot
+                            + "': Icon and Tonal icon require a Child. Replace the Label, or select a non-icon constructor first.");
+                }
                 int remaining = directSlotChildren(value).size() - 1;
                 if (remaining < slotDefinition.minChildren()) {
                     throw new IllegalArgumentException(
@@ -3709,6 +3714,8 @@ public final class FlutterDesignerMultiViewDesign
                         .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(
                                 findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName()))
                         .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(
+                                findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName()))
+                        .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(
                                 findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName())).ifPresent(reason -> {
                     throw new IllegalArgumentException("Cannot replace " + slot.ownerDefinition().palette().displayName() + " slot '" + exactSlot + "': " + reason);
                 });

@@ -159,6 +159,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextButton", STATIC_EDITABLE),
             Map.entry("flutter.material.OutlinedButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.FilledButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -321,8 +322,9 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", scaffoldProjection()),
             Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
-            Map.entry("flutter.material.TextButton", textButtonProjection(false)),
-            Map.entry("flutter.material.OutlinedButton", textButtonProjection(true)),
+            Map.entry("flutter.material.TextButton", fullStyleButtonProjection("TextButton")),
+            Map.entry("flutter.material.OutlinedButton", fullStyleButtonProjection("OutlinedButton")),
+            Map.entry("flutter.material.FilledButton", fullStyleButtonProjection("FilledButton")),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -1506,7 +1508,8 @@ public final class BuiltInWidgetCapabilityCatalog {
                 BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
     }
 
-    private static CanvasProjection textButtonProjection(boolean outlined) {
+    private static CanvasProjection fullStyleButtonProjection(String familyName) {
+        boolean outlined = !familyName.equals("TextButton");
         Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
         put(properties, requiredDefaultProperty("enabled", "boolean:true", PropertyValueKind.BOOLEAN));
         for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange")) {
@@ -1531,7 +1534,8 @@ public final class BuiltInWidgetCapabilityCatalog {
         }
         put(properties, materialEnumProperty("iconAlignment", "IconAlignment", "start", "end"));
         put(properties, requiredDefaultConstrainedProperty("variant", "string:" + base64("standard"),
-                PropertyValueKind.STRING, "pattern:" + base64("(?:standard|icon)")));
+                PropertyValueKind.STRING, "pattern:" + base64(familyName.equals("FilledButton")
+                        ? "(?:standard|icon|tonal|tonalIcon)" : "(?:standard|icon)")));
         for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
             appendElevatedButtonStateProjection(properties, prefix);
             appendElevatedButtonTextProjection(properties, prefix);
@@ -1551,9 +1555,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                 refreshIndicatorReferenceFingerprint("ButtonStyle")));
         if (properties.size() != (outlined ? OutlinedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT
                 : TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT)) {
-            throw new ExceptionInInitializerError((outlined ? "OutlinedButton" : "TextButton") + " projection count: " + properties.size());
+            throw new ExceptionInInitializerError(familyName + " projection count: " + properties.size());
         }
-        return projection(properties, Map.of("child", singleSlotSchema(true, 1),
+        return projection(properties, Map.of("child", singleSlotSchema(true, familyName.equals("FilledButton") ? 0 : 1),
                 "icon", singleSlotSchema(false, 0)));
     }
 

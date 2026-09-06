@@ -88,7 +88,8 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BoxConstraints? constraints,
 }) {
   if (node.type == 'flutter.material.TextButton' ||
-      node.type == 'flutter.material.OutlinedButton') {
+      node.type == 'flutter.material.OutlinedButton' ||
+      node.type == 'flutter.material.FilledButton') {
     return _textButtonReferenceMessage(node);
   }
   if (node.type == 'flutter.material.RefreshIndicator') {
@@ -1064,6 +1065,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.RefreshIndicator' ||
         node.type == 'flutter.material.TextButton' ||
         node.type == 'flutter.material.OutlinedButton' ||
+        node.type == 'flutter.material.FilledButton' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1921,9 +1923,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
 
   bool _isInteractiveSlot(CanvasNode node, String slotName) {
     if ((node.type == 'flutter.material.TextButton' ||
-            node.type == 'flutter.material.OutlinedButton') &&
+            node.type == 'flutter.material.OutlinedButton' ||
+            node.type == 'flutter.material.FilledButton') &&
         slotName == 'icon') {
-      return node.properties['variant']?.value == 'icon';
+      return {'icon', 'tonalIcon'}.contains(node.properties['variant']?.value);
     }
     if (node.type == 'flutter.material.Badge' && slotName == 'label') {
       return !node.properties.containsKey('count') &&
@@ -3009,6 +3012,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.material.TextButton' => _textButton(context),
       'flutter.material.OutlinedButton' => _textButton(context),
+      'flutter.material.FilledButton' => _textButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Wrap' => _wrap(),
@@ -3377,8 +3381,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   bool get _isOutlinedButton => node.type == 'flutter.material.OutlinedButton';
+  bool get _isFilledButton => node.type == 'flutter.material.FilledButton';
+  bool get _buttonIconVariant =>
+      {'icon', 'tonalIcon'}.contains(_string('variant'));
   bool get _usesExtendedButtonStyle =>
-      node.type == 'flutter.material.TextButton' || _isOutlinedButton;
+      node.type == 'flutter.material.TextButton' ||
+      _isOutlinedButton ||
+      _isFilledButton;
 
   bool _buttonReferencePresent(String name) =>
       node.properties[name]?.kind == 'dartObjectReferencePresence';
@@ -3397,14 +3406,34 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final onPressed = enabled && (pressed || !longPressed) ? () {} : null;
     final onLongPress = enabled && longPressed ? () {} : null;
     final style = _elevatedButtonStyle(context);
-    final child = _single('child')!;
-    final iconVariant = _string('variant') == 'icon';
+    final child = _single('child');
+    final iconVariant = _buttonIconVariant;
     final clip = node.properties['clipBehavior'];
     final clipBehavior = clip == null
-        ? (iconVariant && !_isOutlinedButton ? Clip.none : null)
+        ? (_isFilledButton || (iconVariant && !_isOutlinedButton)
+              ? Clip.none
+              : null)
         : clip.kind == 'null'
         ? null
         : _clipBehavior();
+    if (_isFilledButton) {
+      return _textButtonPreview(
+        _filledButton(
+          onPressed: onPressed,
+          onLongPress: onLongPress,
+          onHover: _buttonReferencePresent('onHover') ? (_) {} : null,
+          onFocusChange: _buttonReferencePresent('onFocusChange')
+              ? (_) {}
+              : null,
+          autofocus: _boolean('autofocus') ?? false,
+          clipBehavior: clipBehavior,
+          style: style,
+          icon: _single('icon'),
+          child: child,
+          iconAlignment: _buttonIconAlignment('iconAlignment'),
+        ),
+      );
+    }
     if (_isOutlinedButton) {
       return _textButtonPreview(
         iconVariant
@@ -3420,7 +3449,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
                 style: style,
                 iconAlignment: _buttonIconAlignment('iconAlignment'),
                 icon: _single('icon'),
-                label: child,
+                label: child!,
               )
             : OutlinedButton(
                 onPressed: onPressed,
@@ -3432,7 +3461,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
                 autofocus: _boolean('autofocus') ?? false,
                 clipBehavior: clipBehavior,
                 style: style,
-                child: child,
+                child: child!,
               ),
       );
     }
@@ -3450,7 +3479,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           style: style,
           iconAlignment: _buttonIconAlignment('iconAlignment'),
           icon: _single('icon'),
-          label: child,
+          label: child!,
         ),
       );
     }
@@ -3466,7 +3495,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
             ? _boolean('isSemanticButton')
             : true,
         style: style,
-        child: child,
+        child: child!,
       ),
     );
   }
@@ -3475,6 +3504,64 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final message = _textButtonReferenceMessage(node) ?? '';
     return _TextButtonPreview(message: message, child: button);
   }
+
+  FilledButton _filledButton({
+    required VoidCallback? onPressed,
+    VoidCallback? onLongPress,
+    ValueChanged<bool>? onHover,
+    ValueChanged<bool>? onFocusChange,
+    bool autofocus = false,
+    Clip? clipBehavior = Clip.none,
+    ButtonStyle? style,
+    Widget? icon,
+    required Widget? child,
+    IconAlignment? iconAlignment,
+  }) => switch (_string('variant')) {
+    'icon' => FilledButton.icon(
+      onPressed: onPressed,
+      onLongPress: onLongPress,
+      onHover: onHover,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      clipBehavior: clipBehavior,
+      style: style,
+      icon: icon,
+      label: child!,
+      iconAlignment: iconAlignment,
+    ),
+    'tonalIcon' => FilledButton.tonalIcon(
+      onPressed: onPressed,
+      onLongPress: onLongPress,
+      onHover: onHover,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      clipBehavior: clipBehavior,
+      style: style,
+      icon: icon,
+      label: child!,
+      iconAlignment: iconAlignment,
+    ),
+    'tonal' => FilledButton.tonal(
+      onPressed: onPressed,
+      onLongPress: onLongPress,
+      onHover: onHover,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      clipBehavior: clipBehavior,
+      style: style,
+      child: child,
+    ),
+    _ => FilledButton(
+      onPressed: onPressed,
+      onLongPress: onLongPress,
+      onHover: onHover,
+      onFocusChange: onFocusChange,
+      autofocus: autofocus,
+      clipBehavior: clipBehavior,
+      style: style,
+      child: child,
+    ),
+  };
 
   ButtonStyle? _elevatedButtonStyle(BuildContext context) {
     // Project ButtonStyle code is never evaluated in the isolated runner.
@@ -3485,12 +3572,22 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     if (!node.properties.keys.any((name) => name.startsWith('style'))) {
       return null;
     }
-    final themeStyle = _isOutlinedButton
+    final themeStyle = _isFilledButton
+        ? FilledButtonTheme.of(context).style
+        : _isOutlinedButton
         ? OutlinedButtonTheme.of(context).style
         : _usesExtendedButtonStyle
         ? TextButtonTheme.of(context).style
         : ElevatedButtonTheme.of(context).style;
-    final ButtonStyleButton defaultButton = _isOutlinedButton
+    final ButtonStyleButton defaultButton = _isFilledButton
+        ? _filledButton(
+            onPressed: () {},
+            child: const SizedBox.shrink(),
+            icon: (node.slot('icon')?.children.isNotEmpty ?? false)
+                ? const SizedBox.shrink()
+                : null,
+          )
+        : _isOutlinedButton
         ? _string('variant') == 'icon'
               ? OutlinedButton.icon(
                   onPressed: () {},
@@ -3512,6 +3609,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           )
         : TextButton(onPressed: () {}, child: const SizedBox.shrink());
     final defaultStyle = switch (defaultButton) {
+      FilledButton button => button.defaultStyleOf(context),
       OutlinedButton button => button.defaultStyleOf(context),
       TextButton button => button.defaultStyleOf(context),
       _ => (defaultButton as ElevatedButton).defaultStyleOf(context),

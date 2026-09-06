@@ -13,15 +13,16 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 
 /**
- * Flutter 3.44.8 OutlinedButton and OutlinedButton.icon. Both share the reviewed
+ * Flutter 3.44.8 FilledButton standard/icon/tonal/tonalIcon share the reviewed
  * nine-state local ButtonStyle projection with TextButton; neither constructor
- * accepts isSemanticButton, and both preserve null when clipBehavior is omitted.
+ * accepts isSemanticButton, and all use Clip.none when clipBehavior is omitted.
  */
-public final class OutlinedButtonWidgetPropertySchema {
-    public static final WidgetTypeId OUTLINED_BUTTON_TYPE =
-            new WidgetTypeId("flutter.material.OutlinedButton");
+public final class FilledButtonWidgetPropertySchema {
+    public static final WidgetTypeId FILLED_BUTTON_TYPE =
+            new WidgetTypeId("flutter.material.FilledButton");
     public static final int DIRECT_PROPERTY_COUNT = 11;
     public static final int STATE_COUNT = TextButtonWidgetPropertySchema.STATE_COUNT;
     public static final int STATE_PROPERTY_COUNT = TextButtonWidgetPropertySchema.STATE_PROPERTY_COUNT;
@@ -40,7 +41,7 @@ public final class OutlinedButtonWidgetPropertySchema {
         }
 
         public String setName() {
-            return shared().setName().replace("textButton", "outlinedButton");
+            return shared().setName().replace("textButton", "filledButton");
         }
 
         public String displayName() {
@@ -48,7 +49,7 @@ public final class OutlinedButtonWidgetPropertySchema {
         }
 
         public String description() {
-            return shared().description().replace("TextButton", "OutlinedButton");
+            return shared().description().replace("TextButton", "FilledButton");
         }
     }
 
@@ -62,14 +63,14 @@ public final class OutlinedButtonWidgetPropertySchema {
             Objects.requireNonNull(dartName, "dartName");
             Objects.requireNonNull(encoding, "encoding");
             if (dartOrder < 0) {
-                throw new IllegalArgumentException("Negative OutlinedButton property order");
+                throw new IllegalArgumentException("Negative FilledButton property order");
             }
         }
     }
 
     private static final Map<String, Definition> DEFINITIONS = createDefinitions();
 
-    private OutlinedButtonWidgetPropertySchema() {
+    private FilledButtonWidgetPropertySchema() {
     }
 
     public static Map<String, Definition> definitions() {
@@ -85,7 +86,7 @@ public final class OutlinedButtonWidgetPropertySchema {
     }
 
     public static List<String> variants() {
-        return TextButtonWidgetPropertySchema.variants();
+        return List.of("standard", "icon", "tonal", "tonalIcon");
     }
 
     public static List<String> statePrefixes() {
@@ -109,31 +110,39 @@ public final class OutlinedButtonWidgetPropertySchema {
     }
 
     public static boolean isIcon(WidgetNode node) {
-        return node.type().equals(OUTLINED_BUTTON_TYPE) && isIconVariant(node);
+        return node.type().equals(FILLED_BUTTON_TYPE)
+                && Set.of("icon", "tonalIcon").contains(variant(node));
     }
 
     public static boolean acceptsIcon(WidgetNode node) {
         return isIcon(node);
     }
 
-    /** The reviewed full-style families use exactly the same assembly. */
-    public static boolean isFullStyleButton(WidgetNode node) {
-        return node.type().equals(OUTLINED_BUTTON_TYPE)
-                || node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
-                || node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE);
+    /** Icon constructors require a non-null label; standard/tonal admit child:null. */
+    public static boolean requiresChild(WidgetNode node) {
+        return isIcon(node);
     }
 
-    public static boolean isIconVariant(WidgetNode node) {
-        return FilledButtonWidgetPropertySchema.isIcon(node)
-                || isFullStyleButton(node) && new PropertyValue.StringValue("icon").equals(
-                node.properties().get(new PropertyName("variant")));
+    public static String variant(WidgetNode node) {
+        var value = node.properties().get(new PropertyName("variant"));
+        return value instanceof PropertyValue.StringValue text ? text.value() : "standard";
+    }
+
+    public static boolean isTonal(WidgetNode node) {
+        return node.type().equals(FILLED_BUTTON_TYPE)
+                && Set.of("tonal", "tonalIcon").contains(variant(node));
+    }
+
+    public static String constructorName(WidgetNode node) {
+        return node.type().equals(FILLED_BUTTON_TYPE) && !variant(node).equals("standard")
+                ? variant(node) : "";
     }
 
     public static Optional<String> slotUnavailableReason(WidgetNode node, SlotName slot) {
         Objects.requireNonNull(node, "node");
         Objects.requireNonNull(slot, "slot");
-        return node.type().equals(OUTLINED_BUTTON_TYPE) && slot.value().equals("icon") && !isIcon(node)
-                ? Optional.of("OutlinedButton icon slot requires the Icon constructor; switch Constructor to Icon first.")
+        return node.type().equals(FILLED_BUTTON_TYPE) && slot.value().equals("icon") && !isIcon(node)
+                ? Optional.of("FilledButton icon slot requires Icon or Tonal icon; switch to an icon constructor first.")
                 : Optional.empty();
     }
 
@@ -143,10 +152,15 @@ public final class OutlinedButtonWidgetPropertySchema {
             if (name.equals("isSemanticButton")) {
                 return;
             }
-            String description = shared.description().replace("TextButton", "OutlinedButton");
+            String description = shared.description().replace("TextButton", "FilledButton");
             if (name.equals("clipBehavior")) {
-                description = "Clip enum or explicit null. Both Standard and Icon omission preserve null, "
-                        + "enabling SDK automatic antiAlias when layer builders are present.";
+                description = "Clip enum or explicit null. All four constructors omit as Clip.none. "
+                        + "Explicit null instead enables SDK automatic antiAlias when layer builders are present.";
+            }
+            if (name.equals("variant")) {
+                description = "Required Standard, Icon, Tonal or Tonal icon constructor. Standard and Tonal permit an empty Child (child:null). "
+                        + "Icon modes require a non-null Child, emitted as label with its stable identity. Add Child before selecting an icon mode. "
+                        + "Move or clear a populated Icon before selecting Standard or Tonal. Cannot be reset; never emitted as an argument.";
             }
             int order = shared.dartOrder();
             if ((shared.target() == Target.DIRECT || shared.target() == Target.ACTIVATION) && order > 9) {
@@ -156,7 +170,7 @@ public final class OutlinedButtonWidgetPropertySchema {
                     description, shared.target(), shared.dartName(), order, shared.encoding()));
         });
         if (values.size() != FLATTENED_PROPERTY_COUNT) {
-            throw new ExceptionInInitializerError("OutlinedButton property count: " + values.size());
+            throw new ExceptionInInitializerError("FilledButton property count: " + values.size());
         }
         return Collections.unmodifiableMap(values);
     }

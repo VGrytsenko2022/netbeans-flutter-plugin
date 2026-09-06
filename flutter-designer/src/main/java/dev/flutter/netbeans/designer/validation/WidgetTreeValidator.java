@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -930,6 +931,12 @@ public final class WidgetTreeValidator {
 
     private static void validateTextButtonBranches(WidgetNode node, String path, IssueCollector issues) {
         boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
+        if (FilledButtonWidgetPropertySchema.requiresChild(node)
+                && (!(node.slots().get(new SlotName("child")) instanceof WidgetSlot.SingleSlot child)
+                || child.child().isEmpty())) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/variant", node.id(),
+                    "FilledButton Icon and Tonal icon require a non-null Child label. Add Child before selecting an icon constructor."));
+        }
         if (!icon && node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
                 && slot.child().isPresent()) {
             issues.add(issue(PROPERTY_CONFLICT, path + "/variant", node.id(),
@@ -964,7 +971,8 @@ public final class WidgetTreeValidator {
     }
 
     private static String buttonName(WidgetNode node) {
-        return node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE) ? "OutlinedButton"
+        return node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE) ? "FilledButton"
+                : node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE) ? "OutlinedButton"
                 : node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE) ? "TextButton" : "ElevatedButton";
     }
 

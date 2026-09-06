@@ -762,6 +762,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.RefreshIndicator",
                     "flutter.material.TextButton",
                     "flutter.material.OutlinedButton",
+                    "flutter.material.FilledButton",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -1041,6 +1042,19 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void filledButtonReplacementPrototypeAllowsEmptyChildAndRequiredIconLabelAndOptionalConstructorBoundIcon() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.FilledButton")).orElseThrow();
+        var expectedId = StableId.parse("23655e27-aa73-430f-9967-5344076c4fa3"); var allocations = new AtomicInteger();
+        var prototype = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(),
+                () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, prototype.id()); assertEquals(definition.typeId(), prototype.type());
+        assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), prototype.properties());
+        assertEquals(Map.of(new dev.flutter.netbeans.designer.model.SlotName("child"), dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot.empty(),
+                new dev.flutter.netbeans.designer.model.SlotName("icon"), dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot.empty()), prototype.slots());
+        assertEquals(1, allocations.get()); assertEquals(0, definition.slots().getFirst().minChildren()); assertEquals(0, definition.slots().getLast().minChildren());
     }
 
     @Test

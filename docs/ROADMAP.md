@@ -1855,7 +1855,7 @@ accepted architecture is documented in
   atomic constructor/style transitions, child state, Save/reopen/further editing,
   Undo/Redo, DnD and four SVGs. Resolve the outline and shape against the correct
   OutlinedButton theme/defaults, with null Clip behavior in both constructors and
-  no unsupported semantic-button constructor parameter. Current totals: 78 widgets,
+  no unsupported semantic-button constructor parameter. At that milestone: 78 widgets,
   72 const definitions, 1964 rows (1947 outside Scaffold), 75 scalar plus three
   structural definitions, 214 Boolean-only fields plus one nullable Boolean union,
   twelve generic wrappers, 63 destinations (61 ANY plus two traits), 4,914 placements
@@ -1863,6 +1863,18 @@ accepted architecture is documented in
   leaves 14; formats 13/14/18 and bounded 512-property/2048-probe limits are unchanged.
   The full ordered 92-item inventory is not preserved; isolated Canvas does not
   execute application code.
+- [x] Add FilledButton at Material/order 160 with all four constructors, all
+  510 typed properties/style fields, strict references, correct filled/tonal
+  SDK defaults and Clip.none omission versus explicit null. Standard/tonal support
+  empty Child; icon/tonalIcon require a Label and admit an optional Icon. Preserve
+  subtrees across variants and guard required labels in all slot/tree operations.
+  Includes normal palette creation, Canvas state, Save/reopen/history and SVGs.
+  Current totals: 79 widgets, 73 const definitions, 2474 rows (2457 outside Scaffold),
+  76 scalar plus three structural definitions, 253 Boolean-only fields plus one
+  nullable Boolean union, 65 destinations (63 ANY plus two traits), 5,135 placements
+  (4,796 accepted / 339 rejected), twelve generic/fourteen total creation wrappers
+  and sixteen Material items. Historical target 79/92 leaves 13; no fixed ordered
+  inventory is claimed. Formats 13/14/18 and existing budgets are unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1880,8 +1892,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-eight admitted built-ins.
-  The 75 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-nine admitted built-ins.
+  The 76 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

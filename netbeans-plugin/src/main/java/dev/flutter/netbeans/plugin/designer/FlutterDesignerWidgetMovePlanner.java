@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -139,6 +140,7 @@ public final class FlutterDesignerWidgetMovePlanner {
                 .filter(slot -> BadgeWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> TextButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
+                .filter(slot -> FilledButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> WidgetPlacementRules.accepts(
                         parentDefinition, slot, sourceDefinition))
                 .toList();
@@ -307,7 +309,8 @@ public final class FlutterDesignerWidgetMovePlanner {
             int destinationIndex) {
         Optional<String> unavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name())
                 .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()))
-                .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()));
+                .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()))
+                .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()));
         if (unavailable.isPresent()) {
             return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
                     "Cannot move " + sourceDefinition.palette().displayName() + " '" + source.node().id()
@@ -439,13 +442,15 @@ public final class FlutterDesignerWidgetMovePlanner {
                     + "' disagrees with its catalog cardinality.");
         }
         int remaining = childCount(modelSlot) - 1;
-        if (remaining < sourceSlot.minChildren()) {
+        int minimum = sourceSlot.name().value().equals("child") && FilledButtonWidgetPropertySchema.requiresChild(sourceParent.node())
+                ? 1 : sourceSlot.minChildren();
+        if (remaining < minimum) {
             return rejected(
                     RejectionCode.SOURCE_SLOT_REQUIRED,
                     "Moving widget '" + source.node().id() + "' would leave source slot '"
                     + sourceParent.node().id() + '.' + source.slotName().value()
                     + "' with " + remaining + " children; its minimum is "
-                    + sourceSlot.minChildren() + ".");
+                    + minimum + ".");
         }
         return null;
     }

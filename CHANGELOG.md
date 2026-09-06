@@ -6,12 +6,25 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- FilledButton at Material/order 160 with standard, icon, tonal and tonalIcon
+  constructors and all 510 typed fields: direct controls, nine state/default
+  style buckets, common style/builders and strict whole project styles. Includes
+  correct filled/tonal defaults, nullable clipping with Clip.none omission,
+  callbacks/focus/controllers and preserved child state. Standard/tonal support
+  child:null; icon modes require a label and optionally accept an icon. Conditional
+  child removal/move/replace guards, atomic transitions, save/reopen/history, DnD
+  and four SVGs complete the slice. Current totals: 79 widgets, 73 const
+  definitions, 2474 rows (2457 outside Scaffold), 253 Boolean-only fields plus
+  one nullable Boolean union, 65 destinations and 5,135 placements
+  (4,796 accepted / 339 rejected), Material 16. The historical 92-widget target
+  leaves 13; no fixed ordered inventory is claimed. Formats/budgets are unchanged.
+
 - OutlinedButton at Material/order 150 with standard/icon constructors, 510 typed
   fields, all nine state/default style buckets, common style/builders and strict
   whole project styles. Includes callbacks/focus/controllers, stable Child and
   optional Icon, atomic constructor/style transitions, correct nullable clipping
   for both constructors, SDK outline/theme defaults, retained child state, isolated
-  project-code diagnostics, save/reopen/history, DnD and four SVGs. Current totals:
+  project-code diagnostics, save/reopen/history, DnD and four SVGs. At that milestone:
   78 widgets, 72 const definitions, 1964 writable rows (1947 outside Scaffold),
   214 Boolean-only fields plus one nullable Boolean union, 63 destinations and
   4,914 placements (4,583 accepted / 331 rejected), Material 15. The historical

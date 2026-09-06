@@ -13,6 +13,7 @@ import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -389,9 +390,12 @@ public final class DartRegionGenerator {
             boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
             boolean hasIcon = node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
                     && slot.child().isPresent();
-            String family = node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
+            String family = node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE) ? "FilledButton"
+                    : node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
                     ? "OutlinedButton" : "TextButton";
-            context.buttonFamilies().put(node.id(), new ButtonFamily(family, family + "Theme", icon, hasIcon));
+            context.buttonFamilies().put(node.id(), new ButtonFamily(family, family + "Theme", icon, hasIcon,
+                    node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
+                            ? FilledButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : ""));
         }
         for (PropertyDefinition property : definition.properties()) {
             if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
@@ -615,7 +619,14 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
-        if (OutlinedButtonWidgetPropertySchema.isIconVariant(node)) {
+        if (node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
+                && !FilledButtonWidgetPropertySchema.constructorName(node).isEmpty()) {
+            String member = FilledButtonWidgetPropertySchema.constructorName(node);
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":filledButtonConstructor",
+                    constructor.length() + 1, member, renderedClass.libraryUri(),
+                    path + "/properties/variant", Optional.of(node.id())));
+            constructor += "." + member;
+        } else if (OutlinedButtonWidgetPropertySchema.isIconVariant(node)) {
             constructorOccurrences.add(occurrence("widget:" + node.id()
                     + (node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
                             ? ":outlinedButtonIconConstructor" : ":textButtonIconConstructor"),
@@ -1907,12 +1918,12 @@ public final class DartRegionGenerator {
         if (family.className().equals("ElevatedButton")) {
             rendered.append("(onPressed: null, child: null)).defaultStyleOf(context);\n");
         } else {
-            if (family.iconConstructor()) {
+            if (!family.constructorName().isEmpty()) {
                 rendered.append('.');
                 int offset = rendered.length();
-                rendered.append("icon");
+                rendered.append(family.constructorName());
                 occurrences.add(occurrence("widget:" + widgetId + ":button-style:default-icon:"
-                        + scope + ':' + path, offset, "icon", MATERIAL_IMPORT, path, Optional.of(widgetId)));
+                        + scope + ':' + path, offset, family.constructorName(), MATERIAL_IMPORT, path, Optional.of(widgetId)));
             }
             rendered.append("(onPressed: null, ")
                     .append(family.iconConstructor() ? "label: " : "child: ");
@@ -6295,12 +6306,12 @@ public final class DartRegionGenerator {
 
         ButtonFamily buttonFamily(StableId widgetId) {
             return buttonFamilies.getOrDefault(widgetId,
-                    new ButtonFamily("ElevatedButton", "ElevatedButtonTheme", false, false));
+                    new ButtonFamily("ElevatedButton", "ElevatedButtonTheme", false, false, ""));
         }
     }
 
     private record ButtonFamily(String className, String themeName,
-            boolean iconConstructor, boolean iconPresent) { }
+            boolean iconConstructor, boolean iconPresent, String constructorName) { }
 
     private record WidgetAtPath(WidgetNode node, String path) {
     }

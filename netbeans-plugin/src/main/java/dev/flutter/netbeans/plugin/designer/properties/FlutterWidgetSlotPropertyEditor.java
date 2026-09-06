@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
@@ -163,6 +164,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                     : BadgeWidgetPropertySchema.slotUnavailableReason(owner, slot.name())
                             .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
+                            .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .map(reason -> "Cannot edit " + ownerDefinition.palette().displayName() + " slot '" + owner.id() + "." + slot.name().value() + "': " + reason);
             currentChildren = structuralProblem.isPresent()
                     ? List.of() : children(current);
@@ -198,7 +200,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             String maximum = Integer.toString(slot.maxChildren());
             return slot.cardinality().wireName() + " slot · "
                     + currentChildren.size() + "/" + maximum
-                    + " · minimum " + slot.minChildren();
+                    + " · minimum " + effectiveMinimum(owner, slot);
         }
 
         Optional<String> structuralProblem() {
@@ -241,14 +243,14 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
 
         boolean canRemove() {
             return structuralProblem.isEmpty()
-                    && currentChildren.size() > slot.minChildren();
+                    && currentChildren.size() > effectiveMinimum(owner, slot);
         }
 
         boolean canClearAll() {
             return structuralProblem.isEmpty()
                     && slot.cardinality() == SlotCardinality.LIST
                     && !currentChildren.isEmpty()
-                    && slot.minChildren() == 0;
+                    && effectiveMinimum(owner, slot) == 0;
         }
 
         int appendIndex() {
@@ -261,7 +263,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 return structuralProblem.orElseThrow();
             }
             if (slot.cardinality() == SlotCardinality.SINGLE
-                    && slot.minChildren() == 1
+                    && effectiveMinimum(owner, slot) == 1
                     && occupiedSingle()) {
                 return ownerDefinition.palette().displayName() + "."
                         + slot.name().value()
@@ -433,6 +435,11 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
             return List.copyOf(choices);
         }
 
+        private static int effectiveMinimum(WidgetNode owner, SlotDefinition slot) {
+            return slot.name().value().equals("child") && FilledButtonWidgetPropertySchema.requiresChild(owner)
+                    ? 1 : slot.minChildren();
+        }
+
         private boolean canDetach(StableId candidateId) {
             Optional<ParentRef> parent = findParent(
                     context.document().root(), candidateId);
@@ -448,7 +455,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                 return false;
             }
             return children(source.value()).size() - 1
-                    >= sourceSlot.orElseThrow().minChildren();
+                    >= effectiveMinimum(source.owner(), sourceSlot.orElseThrow());
         }
 
         private WidgetDefinition definition(WidgetNode node) {

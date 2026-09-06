@@ -101,7 +101,8 @@ public final class BuiltInWidgetCatalog {
             refreshProgressIndicator(),
             refreshIndicator(),
             textButton(),
-            fullStyleButton(true),
+            fullStyleButton("OutlinedButton"),
+            fullStyleButton("FilledButton"),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -2397,11 +2398,12 @@ public final class BuiltInWidgetCatalog {
     }
 
     private static WidgetDefinition textButton() {
-        return fullStyleButton(false);
+        return fullStyleButton("TextButton");
     }
 
-    private static WidgetDefinition fullStyleButton(boolean outlined) {
-        String familyName = outlined ? "OutlinedButton" : "TextButton";
+    private static WidgetDefinition fullStyleButton(String familyName) {
+        boolean outlined = !familyName.equals("TextButton");
+        boolean filled = familyName.equals("FilledButton");
         List<PropertyDefinition> properties = new ArrayList<>();
         int order = 0;
         properties.add(namedProperty("enabled", order++, true,
@@ -2429,7 +2431,8 @@ public final class BuiltInWidgetCatalog {
         properties.add(namedProperty("iconAlignment", order++, false,
                 materialEnumValues("IconAlignment", "start", "end")));
         properties.add(namedProperty("variant", order++, true,
-                stringPattern("(?:standard|icon)", familyName + " constructor variant"),
+                stringPattern(filled ? "(?:standard|icon|tonal|tonalIcon)" : "(?:standard|icon)",
+                        familyName + " constructor variant"),
                 new PropertyValue.StringValue("standard")));
         for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
             order = appendElevatedButtonStateProperties(properties, prefix, order);
@@ -2456,8 +2459,8 @@ public final class BuiltInWidgetCatalog {
         }
         return widget("flutter.material." + familyName, familyName, true,
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
-                palette("flutter.material", 100, outlined ? 150 : 140, familyName), List.copyOf(properties),
-                List.of(singleSlot("child", order++, true, 1, ANY_WIDGET),
+                palette("flutter.material", 100, filled ? 160 : outlined ? 150 : 140, familyName), List.copyOf(properties),
+                List.of(singleSlot("child", order++, true, filled ? 0 : 1, ANY_WIDGET),
                         singleSlot("icon", order, false, 0, ANY_WIDGET)));
     }
 

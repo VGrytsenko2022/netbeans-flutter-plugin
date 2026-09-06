@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton` and `OutlinedButton`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton` and `FilledButton`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-78 reviewed Canvas widgets. Palette insertion evaluates 4,914 exact
-source/destination cells across 78 draggable sources and 63 insertable reviewed
-slots; 4,583 are accepted and 331 cells are rejected. Expanded and Flexible are
+79 reviewed Canvas widgets. Palette insertion evaluates 5,135 exact
+source/destination cells across 79 draggable sources and 65 insertable reviewed
+slots; 4,796 are accepted and 339 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1238,6 +1238,23 @@ not ignored Apple/noSpinner parameters. All three constructors, SDK notification
 status/async cycles, child preservation, themes, semantics, profiles and wrapping
 have dedicated coverage without stored synthetic progress or application code.
 
+FilledButton adds Material/order 160 with all four standard/icon/tonal/tonalIcon
+constructors and 510 typed fields: 11 direct controls, nine 54-leaf style buckets,
+12 common fields and one strict whole ButtonStyle reference. It creates normally
+without requiring an existing wrap target. Standard/tonal allow empty Child and
+emit child:null; icon modes require a stable Label and accept an optional Icon.
+Conditional label guards apply to remove, move and replacement-source operations.
+Icon-to-tonalIcon transitions preserve subtrees/alignment; non-icon transitions
+never delete an occupied Icon. All constructors omit Clip as Clip.none, distinguish
+explicit null, and expose no isSemanticButton. Standard/tonal are const-capable.
+Shared style assembly uses FilledButtonTheme and actual filled/tonal defaults.
+All state/common styles, typed callbacks/controllers/builders, atomic edits,
+Save/reopen/history, DnD and four SVGs belong to the same slice. Canvas preserves
+local child state across modes, never executes project code and explicitly marks
+whole-reference styles as an approximate SDK-default preview. Dense legal families
+contain 490 standard/tonal, 491 rounded-icon or 464 circle-icon fields. Existing
+button contracts, formats 13/14/18 and 512-property/2048-probe limits are unchanged.
+
 OutlinedButton adds Material/order 150 with standard and icon constructors,
 510 fields (11 direct, nine 54-leaf state buckets, 12 common style fields and a
 whole ButtonStyle reference), required stable Child and optional Icon. It reuses
@@ -1295,11 +1312,11 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 78 widgets and 72 reviewed const definitions,
-with 1964 writable rows (1947 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, fifteen Material and six Accessibility items; the
-backlog is 78/92 complete with 14 remaining. The 78 sources across 63
-insertable destinations form 4,914 cells, with 4,583 accepted and 331 rejected.
+The aggregate catalog now has 79 widgets and 73 reviewed const definitions,
+with 2474 writable rows (2457 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, sixteen Material and six Accessibility items; the
+backlog is 79/92 complete with 13 remaining. The 79 sources across 65
+insertable destinations form 5,135 cells, with 4,796 accepted and 339 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.

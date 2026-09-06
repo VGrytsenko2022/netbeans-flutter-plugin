@@ -1531,6 +1531,9 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")));
         requiredValues.put("flutter.material.CircularProgressIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
+        requiredValues.put("flutter.material.FilledButton", Map.of(
+                new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.OutlinedButton", Map.of(
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
@@ -1555,6 +1558,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.RefreshIndicator",
                 "flutter.material.TextButton",
                 "flutter.material.OutlinedButton",
+                "flutter.material.FilledButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1652,7 +1656,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(1964, writableCount,
+        assertEquals(2474, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1665,7 +1669,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(1947, nonScaffoldWritableCount,
+        assertEquals(2457, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6468,6 +6472,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.RefreshIndicator",
                 "flutter.material.TextButton",
                 "flutter.material.OutlinedButton",
+                "flutter.material.FilledButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6560,7 +6565,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(78, iconPaths.size(),
+        assertEquals(79, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

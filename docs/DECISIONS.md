@@ -479,7 +479,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -6278,3 +6278,99 @@ assembled runtime module are byte-identical (SHA-256
 the ordinary Maven JAR differs only in the expected transformed manifest, and
 all four OutlinedButton SVGs are present. No user IDE/userdir was launched or
 modified, and no global physical desktop acceptance is claimed.
+
+## ADR-107 — FilledButton four-constructor slice and conditional nullable child
+
+Accepted 2026-09-06.
+
+FilledButton is the next API-reviewed palette addition at Material/order 160.
+Its standard, icon, tonal and tonalIcon constructors share 510 typed fields:
+11 direct controls, nine 54-leaf state/default style buckets, 12 common style
+fields and one strict project ButtonStyle reference. All local state fields and
+both layer builders remain editable; whole styles use typed references rather
+than arbitrary expressions. Whole/local-style transitions remain atomic, with
+strict proof for callbacks/focus/controllers/builders and metadata-only history
+for inactive activation references.
+
+The pinned SDK permits a nullable child in standard and tonal, but requires a
+non-null label in icon and tonalIcon. Support that distinction rather than impose
+the older buttons' required-child wrapper restriction: Child is a single min-zero
+slot and empty standard/tonal nodes emit the required child:null argument. The
+icon modes retain the same Child identity as their required Label. The optional
+Icon is available only in icon modes. Validation rejects missing labels, and
+Properties rejects selecting an icon constructor before a Child exists. Clear,
+remove, move-out and replacement-source guards apply consistently to the tree
+and every slot editor. Icon-to-tonalIcon changes preserve both subtrees and
+constructor alignment; returning to a non-icon variant rejects an occupied Icon
+and clears only inapplicable constructor alignment. Existing TextButton and
+OutlinedButton child/wrapper policies are unchanged.
+
+FilledButton uses ordinary empty-allowed palette creation, not the required-child
+wrapper path. Standard and tonal are const-capable; both icon constructors are
+non-const. All four constructors default clipBehavior to Clip.none; explicit null
+is distinct and retains the SDK's layer-builder automatic clipping. None exposes
+isSemanticButton. Local generated styles and actual Canvas resolve against
+FilledButtonTheme and the selected filled/tonal defaultStyleOf, never the outline
+or text-button defaults. Icon alignment follows constructor, component theme,
+local style and start, with RTL and the actual icon-presence-dependent padding.
+All eight WidgetStates plus default retain their established priority and isolated
+disabled fallback.
+
+Canvas renders the real four SDK constructors and nullable non-icon child,
+preserves local button/child interaction across modes, and never executes project
+callbacks/builders or adopts project focus/controllers. Whole project styles are
+explicitly an approximate SDK-default preview. The complete slice includes stable
+510-field Properties, SVGs, palette/tree/Canvas DnD, Save/reopen/further editing,
+rollback and native history. Dense legal standard/tonal families contain 490
+properties, rounded icon families 491 and circle/paint icon families 464; mutually
+exclusive style branches are not claimed to coexist. Formats .fd 13, Catalog API
+14 and Canvas model 18, 512 properties, 2048 symbol probes, 2 MiB and the 45-second
+candidate-analysis budget remain unchanged.
+
+Verified core totals are 79 widgets, 73 const definitions, 2474 writable rows
+(2457 outside Scaffold), 76 scalar plus three structural definitions, and 253
+Boolean-only fields plus one nullable Boolean union. The 65 insertable slots
+comprise 63 ANY and two trait-bound destinations. The 5135-cell matrix has exactly
+4796 accepted and 339 rejected placements. Twelve generic required-child wrappers
+and Expanded/Flexible still make fourteen creation wrappers. Palette categories
+are Material 16, Layout 31, Scrolling 3, Basic 23 and Accessibility 6. The historical
+92-widget target leaves 13; no complete fixed ordered inventory is claimed.
+Deferred platform work and global physical desktop acceptance are out of scope.
+
+Verification on 2026-09-06: 1539 core tests passed, together with all 1315
+Flutter tests (56 dedicated Filled cases plus eight new runtime cases) and clean
+Flutter analysis. The final full remaining-reactor run started at 21:37:52 +03:00
+and ended at 21:45:55 with one error only: the unchanged
+FlutterDesignerMoveDependencyGuardTest.exclusiveProofPreventsARelevantFolderFromBeingRenamed
+timed out at line 483 waiting for the rename after the admission lock had already
+been released. Its in-admission exclusion assertion passed. This repeats the
+previous baseline timing/liveness issue, not a changed Filled path; its exact
+runtime blocker was not proven. The entire 38-test class then passed unchanged
+at 21:46:42 and passed again in the successful packaging/runtime install ending
+at 21:47:52. No timeout, assertion, production lock or test was weakened, and
+the intermittent baseline issue is not claimed fixed.
+
+The final 382 XML reports record 4134 Surefire plus 15 Failsafe tests, zero
+failures/errors and seven allowed optional SDK/physical/filesystem skips: 4142
+executed tests. This includes the retained 62-test dart-analysis gate from
+19:24:03: all 39 analyzer/core-API input hashes and both analyzer JARs were
+reverified unchanged (SHA-256
+`20edfe6618f316d2ae607ede2d960c1661d219e38145609a605f864784bd94d3`).
+Every other report is fresh for the final full run or its unchanged retry/package
+gate. All 114 live mutation/persistence scenarios, three Java/Dart parity tests
+and four real-SDK test methods (ten generated TextButton/OutlinedButton/FilledButton
+candidates, including both empty Filled children) passed. All 1572 non-document
+inputs remained byte-identical from the full-gate snapshot through packaging.
+
+Independent verification checked all 40 source-bundle and 35 Web manifest entries.
+The final main.dart.js is 2,990,346 bytes, SHA-256
+`500e7cda6d11a6c6013c22ba21356781d283c2f36abf4ab9c890f3b3980d7e09`.
+Both root and module-local nbm:cluster commands and tools/verify-release.ps1 passed
+with freshness checks enabled. The NBM is 7,568,502 bytes, SHA-256
+`60aff78af5b04d27cbee2d0688d347cf5128525fa4a66fc91a9ca8ec0559f0c8`.
+Its embedded module, packaging-stage module, both development clusters and
+assembled runtime module are byte-identical, SHA-256
+`1ef9c56d25a7e4858bc927e5b0f29a45a52758b876151b2cce17cd6192aaab6b`.
+The ordinary Maven JAR differs only in the expected transformed manifest, and
+all four FilledButton SVGs are present. No user IDE/userdir was launched or
+modified; global physical desktop acceptance was not run.

@@ -12,6 +12,7 @@ import dev.flutter.netbeans.designer.source.*;
 import dev.flutter.netbeans.designer.transition.*;
 import dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest;
 import dev.flutter.netbeans.plugin.designer.properties.OutlinedButtonPropertyContractTest;
+import dev.flutter.netbeans.plugin.designer.properties.FilledButtonPropertyContractTest;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -39,8 +40,23 @@ class TextButtonCandidateRealSdkTest {
         validateDenseCandidates(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE);
     }
 
+    @Test
+    void validatesAllFourDenseFilledConstructorsWithCorrectFilledAndTonalDefaults() throws Exception {
+        validateDenseCandidates(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE);
+    }
+
+    @Test
+    void validatesEmptyStandardAndTonalChildrenIncludingExplicitNullClip() throws Exception {
+        validateCandidates(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE, true);
+    }
+
     private void validateDenseCandidates(WidgetTypeId buttonType) throws Exception {
+        validateCandidates(buttonType, false);
+    }
+
+    private void validateCandidates(WidgetTypeId buttonType, boolean emptyChild) throws Exception {
         boolean outlined = buttonType.equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE);
+        boolean filled = buttonType.equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE);
         Path executable = configured("dart.executable");
         Path sdk = configured("flutter.sdk");
         Path cache = configured("pub.cache");
@@ -69,11 +85,19 @@ class TextButtonCandidateRealSdkTest {
         var analyzer = new DartCandidateAnalyzer(executable, ignored -> { });
         assertEquals(45, DartCandidateAnalysisLimits.DEFAULT.totalTimeout().toSeconds());
         long version = 1;
-        for (boolean icon : List.of(false, true)) {
-            var properties = outlined
+        var variants = emptyChild ? List.of("standard", "tonal")
+                : filled ? List.of("standard", "icon", "tonal", "tonalIcon") : List.of("standard", "icon");
+        for (String variant : variants) {
+            boolean icon = variant.equals("icon") || variant.equals("tonalIcon");
+            var properties = emptyChild ? new LinkedHashMap<PropertyName, PropertyValue>()
+                    : filled ? FilledButtonPropertyContractTest.full(icon, icon, icon) : outlined
                     ? OutlinedButtonPropertyContractTest.full(icon, icon, icon)
                     : TextButtonPropertyContractTest.full(icon, icon, icon);
-            properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+            properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(!emptyChild));
+            if (emptyChild && variant.equals("tonal")) {
+                properties.put(new PropertyName("clipBehavior"), new PropertyValue.NullValue());
+            }
             // Populate all nine independent lists, retaining repeated stable item IDs
             // across different property paths to exercise scoped occurrence identities.
             var itemId = StableId.parse("73000000-0000-4000-8000-000000000002");
@@ -87,9 +111,10 @@ class TextButtonCandidateRealSdkTest {
                         new PropertyValue.FontVariationListValue.FontVariation(itemId, "wght", BigDecimal.valueOf(500))));
                 default -> value;
             });
-            assertEquals(icon ? 464 : outlined ? 490 : 491, properties.size());
+            assertEquals(emptyChild ? variant.equals("tonal") ? 3 : 2
+                    : icon ? 464 : outlined || filled ? 490 : 491, properties.size());
             var slots = new LinkedHashMap<SlotName, WidgetSlot>();
-            slots.put(new SlotName("child"), WidgetSlot.SingleSlot.of(label));
+            slots.put(new SlotName("child"), emptyChild ? WidgetSlot.SingleSlot.empty() : WidgetSlot.SingleSlot.of(label));
             slots.put(new SlotName("icon"), icon ? WidgetSlot.SingleSlot.of(new WidgetNode(
                     StableId.random(), label.type(), label.properties(), Map.of())) : WidgetSlot.SingleSlot.empty());
             var button = new WidgetNode(StableId.random(), buttonType, properties, slots);
@@ -102,14 +127,29 @@ class TextButtonCandidateRealSdkTest {
             var probes = GeneratedDartSymbolProbePlanner.plan(prepared, sdk, project);
             // The icon fixture uses directional branches; the standard fixture
             // includes the larger physical-border/text-style constructor family.
-            assertTrue(probes.size() > (icon ? 750 : 1000),
-                    "Dense styles must retain every generated occurrence: icon=" + icon + ", probes=" + probes.size());
+            assertTrue(probes.size() > (emptyChild ? 0 : icon ? 750 : 1000),
+                    "Retain every generated occurrence: variant=" + variant + ", probes=" + probes.size());
             assertTrue(probes.size() <= 2048);
             assertEquals(probes.size(), probes.stream().map(DartSymbolProbe::id).distinct().count());
             var typed = probes.stream().flatMap(value -> value.staticTypeProbe().stream()).toList();
-            assertEquals(8, typed.size());
+            assertEquals(emptyChild ? 0 : 8, typed.size());
             assertTrue(typed.stream().allMatch(value -> value.expectedTypeLibraryUri().equals("package:flutter/material.dart")));
             byte[] candidate = prepared.prospectiveDartBytes();
+            if (filled) {
+                String source = new String(candidate, StandardCharsets.UTF_8);
+                String constructor = "FilledButton" + (variant.equals("standard") ? "" : "." + variant);
+                assertTrue(source.contains(constructor + "("), source);
+                if (emptyChild) {
+                    assertTrue(source.contains("child: null"), source);
+                    assertFalse(source.contains("label:"), source);
+                    if (variant.equals("tonal")) assertTrue(source.contains("clipBehavior: null"), source);
+                } else {
+                    assertTrue(source.contains("FilledButtonTheme"), "Use the filled component theme");
+                }
+                assertFalse(source.contains("OutlinedButton"), source);
+                assertFalse(source.contains("TextButton"), source);
+                assertFalse(source.contains("isSemanticButton:"), source);
+            }
             if (outlined) {
                 String source = new String(candidate, StandardCharsets.UTF_8);
                 assertTrue(source.contains(icon ? "OutlinedButton.icon(" : "OutlinedButton("));
@@ -122,7 +162,7 @@ class TextButtonCandidateRealSdkTest {
                     version++, HexFormat.of().withUpperCase().formatHex(MessageDigest.getInstance("SHA-256").digest(candidate)),
                     DartCandidateWarningPolicy.ALLOW, probes, generation.generated().orElseThrow().candidateCapacityBudget());
             var result = analyzer.analyze(request).result().toCompletableFuture().get(60, TimeUnit.SECONDS);
-            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status(), () -> "icon=" + icon
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status(), () -> "variant=" + variant + ", emptyChild=" + emptyChild
                     + " diagnostics=" + result.diagnostics() + " issue=" + result.issue()
                     + " rejected=" + result.symbolEvidence().stream().filter(value -> !value.accepted())
                             .limit(8).map(value -> value.probe().id() + ": " + value.rejectionReason()).toList());
@@ -130,6 +170,7 @@ class TextButtonCandidateRealSdkTest {
             assertTrue(result.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
             var reopened = (FdDecodeResult.Current) codec.decode(prepared.prospectiveFdBytes());
             assertEquals(button.properties(), reopened.document().root().properties());
+            assertEquals(button.slots(), reopened.document().root().slots());
             assertArrayEquals(baselineBytes, Files.readAllBytes(file));
             assertArrayEquals(pubspec, Files.readAllBytes(project.resolve("pubspec.yaml")));
             assertArrayEquals(packageConfig, Files.readAllBytes(project.resolve(".dart_tool/package_config.json")));

@@ -201,6 +201,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Card", STATIC_EDITABLE),
             Map.entry("flutter.material.Badge", STATIC_EDITABLE),
             Map.entry("flutter.material.CircleAvatar", STATIC_EDITABLE),
+            Map.entry("flutter.material.LinearProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -596,6 +597,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Card", cardProjection()),
             Map.entry("flutter.material.Badge", badgeProjection()),
             Map.entry("flutter.material.CircleAvatar", circleAvatarProjection()),
+            Map.entry("flutter.material.LinearProgressIndicator", linearProgressIndicatorProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1939,6 +1941,38 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection linearProgressIndicatorProjection() {
+        CanvasPropertyContract signed = cardNumberSchema(null, null);
+        CanvasPropertyContract positive = numericSchema(Map.of(
+                PropertyValueKind.INTEGER, bounds(BigDecimal.ONE, true, new BigDecimal(DartNumericLiterals.MAX_PORTABLE_INTEGER), true),
+                PropertyValueKind.DOUBLE, bounds(BigDecimal.ZERO, false, null, true)),
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE);
+        Map<PropertyValueKind, String> valueColorConstraints = new java.util.EnumMap<>(PropertyValueKind.class);
+        valueColorConstraints.putAll(colorOrThemeProperty("valueColor").getValue().constraintFingerprints());
+        valueColorConstraints.put(PropertyValueKind.NULL, "any");
+        valueColorConstraints.put(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                + "Animation<Color?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+        CanvasPropertyContract valueColor = new CanvasPropertyContract(valueColorConstraints.keySet(), false,
+                Optional.empty(), Map.of(), valueColorConstraints);
+        return projection(Map.ofEntries(
+                Map.entry("value", signed), colorOrThemeProperty("backgroundColor"), colorOrThemeProperty("color"),
+                Map.entry("valueColor", valueColor), Map.entry("minHeight", withPositiveInfinity(positive)),
+                property("semanticsLabel", PropertyValueKind.STRING), property("semanticsValue", PropertyValueKind.STRING),
+                Map.entry("borderRadius", constrainedSchema(PropertyValueKind.BORDER_RADIUS, BORDER_RADIUS_CONTRACT_FINGERPRINT)),
+                colorOrThemeProperty("stopIndicatorColor"), Map.entry("stopIndicatorRadius", withPositiveInfinity(signed)),
+                Map.entry("trackGap", withPositiveInfinity(signed)), property("year2023", PropertyValueKind.BOOLEAN),
+                Map.entry("controller", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                        DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                        + "AnimationController:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)"))), Map.of());
+    }
+
+    private static CanvasPropertyContract withPositiveInfinity(CanvasPropertyContract numeric) {
+        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+        constraints.putAll(numeric.constraintFingerprints());
+        constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity");
+        return new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), numeric.numericBounds(), constraints);
     }
 
     private static CanvasProjection circleAvatarProjection() {

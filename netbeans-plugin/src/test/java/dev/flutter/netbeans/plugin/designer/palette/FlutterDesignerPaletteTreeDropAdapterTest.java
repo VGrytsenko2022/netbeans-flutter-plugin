@@ -753,6 +753,19 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void linearProgressTreeDropAllocatesExactlyOnceWithoutAssetsOrChildSlots() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.LinearProgressIndicator"));
+        var transfer = new StringSelection(fixture.token()); var document = document(column(List.of()));
+        var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document, CATALOG, ROOT_ID, FlutterImageAssetChoices.empty()));
+        var allocations = new AtomicInteger();
+        var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document, CATALOG, FlutterImageAssetChoices.empty(),
+                        () -> { allocations.incrementAndGet(); return NEW_ID; })).command().widget();
+        assertEquals(1, allocations.get()); assertTrue(added.properties().isEmpty()); assertTrue(added.slots().isEmpty());
+    }
+
+    @Test
     void cardTreeDropCreatesLeafWithoutInventedDefaults() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.material.Card"));
         StringSelection transfer = new StringSelection(fixture.token());

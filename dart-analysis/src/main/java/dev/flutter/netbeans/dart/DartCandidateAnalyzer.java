@@ -51,7 +51,7 @@ public final class DartCandidateAnalyzer {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final ProtocolVersion MINIMUM_PROTOCOL = new ProtocolVersion(1, 40, 0);
     private static final Pattern CLOSED_EXPECTED_TYPE = Pattern.compile(
-            "([A-Za-z][A-Za-z0-9_]*)(?:<([A-Za-z][A-Za-z0-9_]*)>)?");
+            "([A-Za-z][A-Za-z0-9_]*)(?:<([A-Za-z][A-Za-z0-9_]*\\??)>)?");
     private static final ScheduledExecutorService WATCHDOG =
             Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
 
@@ -408,7 +408,7 @@ public final class DartCandidateAnalyzer {
      * context owns strict-casts options and adds an exact non-null typed local
      * initializer for every expression. The initializer preserves downward
      * inference for generic zero-argument constructors and factories while
-     * rejecting dynamic, nullable, null, and wrong generic instantiations.
+     * rejecting dynamic, nullable outer types, null, and wrong generic instantiations.
      * Neither analyzer context is accepted in isolation.
      */
     private List<DartSymbolEvidence> analyzeStaticTypes(

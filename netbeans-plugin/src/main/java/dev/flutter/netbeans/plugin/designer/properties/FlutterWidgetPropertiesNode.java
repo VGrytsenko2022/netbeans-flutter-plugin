@@ -30,6 +30,7 @@ import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -568,6 +569,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addBadgePropertySets(sheet, hasSlotTab);
         } else if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(widget.type())) {
             addCircleAvatarPropertySets(sheet, hasSlotTab);
+        } else if (LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
+            addLinearProgressIndicatorPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -2565,6 +2568,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addLinearProgressIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<LinearProgressIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(LinearProgressIndicatorWidgetPropertySchema.Group.class);
+        for (var group : LinearProgressIndicatorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = LinearProgressIndicatorWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + (property.name().value().equals("semanticsValue")
+                            ? " For determinate progress with semantics enabled, Flutter expects a number or percentage in 0..100, such as '45' or '45%'; arbitrary text is valid for indeterminate progress. " : "")
+                    + " Restore Default omits this optional field; no SDK defaults are stored. "
+                    + "Setting Value or Controller atomically clears the other in one undoable edit. "
+                    + "Value color supports stopped literal/theme colors, explicit stopped null and a typed project Animation<Color?>. "
+                    + "Project animation/controller references are emitted to Dart but cannot execute in isolated Canvas. "
+                    + "Explicit Year 2023 values use a centered checkbox; unset remains distinct."));
+        }
+    }
+
     private void addCircleAvatarPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<CircleAvatarWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(CircleAvatarWidgetPropertySchema.Group.class);
@@ -3594,6 +3617,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type())
+                && accepted.explicitValue().isPresent()
+                && java.util.List.of("value", "controller").contains(propertyName.value())) {
+            PropertyName opposite = new PropertyName(propertyName.value().equals("value") ? "controller" : "value");
+            if (currentWidget.properties().containsKey(opposite)) {
+                return new PatchProperties(currentWidget.id(), java.util.List.of(
+                        new PatchProperties.ResetPatch(opposite),
+                        new PatchProperties.SetPatch(propertyName, accepted.explicitValue().orElseThrow())));
+            }
+        }
         if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(currentWidget.type())) {
             return circleAvatarPropertyCommand(currentWidget, propertyName, accepted);
         }

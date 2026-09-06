@@ -100,7 +100,7 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER,
                     EDGE_INSETS, COLOR,
-                    THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    THEME_COLOR, COLOR_ANIMATION, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
                     BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
@@ -118,6 +118,7 @@ final class FlutterPropertyEditorComponents {
                 : PropertyEnv.create(new FeatureDescriptor());
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
+            case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
                     editor, binding, environment);
@@ -678,7 +679,7 @@ final class FlutterPropertyEditorComponents {
         /** Reads a nested local draft without publishing it or consuming its dialog. */
         final FlutterPropertyCellValue validatedDraftValue() {
             if (!prepareCommit()) {
-                throw new IllegalArgumentException("Correct the active clipper settings before applying.");
+                throw new IllegalArgumentException("Correct the active " + binding.definition().name().value() + " settings before applying.");
             }
             return stagedDraftValue();
         }
@@ -686,7 +687,7 @@ final class FlutterPropertyEditorComponents {
         /** Live validation must not stop a nested table's active cell editor. */
         final FlutterPropertyCellValue stagedDraftValue() {
             if (!draftValid) {
-                throw new IllegalArgumentException("Correct the active clipper settings before applying.");
+                throw new IllegalArgumentException("Correct the active " + binding.definition().name().value() + " settings before applying.");
             }
             return binding.validate(draft);
         }

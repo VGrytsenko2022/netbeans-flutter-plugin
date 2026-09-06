@@ -932,6 +932,124 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteLinearProgressAllThirteenFieldsSaveReopenAnimationBranchesHistoryAndRollback() throws Exception {
+        StableId progressId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9a");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.LinearProgressIndicator");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("linear_progress_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, FlutterImageAssetChoices.empty(), () -> progressId));
+            var added = applyLinearProgressMutation(fixture, ready, plan.command(), progressId);
+            var widget = findModelWidget(added.document().orElseThrow().root(), progressId);
+            assertTrue(widget.properties().isEmpty()); assertTrue(widget.slots().isEmpty());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("const LinearProgressIndicator("));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("linear_progress_reopened_thirteen", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), progressId);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var states = new ArrayList<WidgetNode>(); states.add(initial);
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var value = dev.flutter.netbeans.plugin.designer.properties.LinearProgressIndicatorPropertyContractTest.value(name);
+                var cell = cellProperty(properties, name); commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size());
+                if (name.equals("controller")) assertInstanceOf(PatchProperties.class, commands.getFirst());
+                current = applyLinearProgressMutation(fixture, current, commands.getFirst(), progressId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), progressId);
+                assertEquals(value, edited.properties().get(field.name()));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, name)); assertEquals(List.of(sets), List.of(properties.getPropertySets())); states.add(edited);
+            }
+            assertEquals(14, states.size()); var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), progressId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), progressId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            var complete = states.getLast(); configured = complete.properties(); String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new SetProperty(progressId, new PropertyName("value"), new PropertyValue.DoubleValue(java.math.BigDecimal.ONE)),
+                    new SetProperty(progressId, new PropertyName("minHeight"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "LinearProgressIndicator invalid edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), progressId));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertEquals(undoName, history.getUndoPresentationName());
+            }
+            properties.refreshPresentation(complete, definition, commands::add, null, null, FlutterImageAssetChoices.empty()); commands.clear();
+            cellProperty(properties, "value").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-2))));
+            assertEquals(2, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches().size());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "linear_progress_refused", "LinearProgressIndicator candidate rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "LinearProgressIndicator controller/value switch").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), progressId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("linear_progress_configured_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var restored = findModelWidget(current.document().orElseThrow().root(), progressId); assertEquals(configured, restored.properties());
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            var valueCell = cellProperty(properties, "value"); valueCell.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-2))));
+            current = applyLinearProgressMutation(fixture, current, commands.getFirst(), progressId);
+            var determined = findModelWidget(current.document().orElseThrow().root(), progressId);
+            assertFalse(determined.properties().containsKey(new PropertyName("controller")));
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+            assertEquals(restored, findModelWidget(current.document().orElseThrow().root(), progressId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+            assertEquals(determined, findModelWidget(current.document().orElseThrow().root(), progressId));
+            for (PropertyValue value : List.of(new PropertyValue.ColorValue(0x80112233L),
+                    new PropertyValue.ThemeTokenValue(new dev.flutter.netbeans.designer.model.ThemeToken("material.colorScheme.tertiary")),
+                    dev.flutter.netbeans.plugin.designer.properties.LinearProgressIndicatorPropertyContractTest.reference("_animatedColor"), new PropertyValue.NullValue())) {
+                current = applyLinearProgressMutation(fixture, current, new SetProperty(progressId, new PropertyName("valueColor"), value), progressId);
+                assertEquals(value, findModelWidget(current.document().orElseThrow().root(), progressId).properties().get(new PropertyName("valueColor")));
+            }
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), progressId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            for (var field : definition.properties().reversed()) {
+                var cell = cellProperty(properties, field.name().value()); if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(1, commands.size()); current = applyLinearProgressMutation(fixture, current, commands.getFirst(), progressId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), progressId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+            }
+            assertTrue(findModelWidget(current.document().orElseThrow().root(), progressId).properties().isEmpty()); assertSame(valueCell, cellProperty(properties, "value")); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("linear_progress_reset_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyLinearProgressMutation(fixture, fixture.ready(), new SetProperty(progressId, new PropertyName("trackGap"), new PropertyValue.EnumValue("double", "infinity")), progressId);
+            current = applyLinearProgressMutation(fixture, current, new SetProperty(progressId, new PropertyName("valueColor"), new PropertyValue.NullValue()), progressId);
+            current = applyLinearProgressMutation(fixture, current, new SetProperty(progressId, new PropertyName("year2023"), new PropertyValue.BooleanValue(true)), progressId);
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("trackGap: (1.0 / 0.0)"));
+            assertEquals(new PropertyValue.NullValue(), findModelWidget(current.document().orElseThrow().root(), progressId).properties().get(new PropertyName("valueColor")));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyLinearProgressMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId progressId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "LinearProgressIndicator property editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, progressId));
+    }
+
+    @Test
     void paletteCardAll31FieldsSaveReopenModesShapesChildHistoryAndRollback() throws Exception {
         StableId cardId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e92");
         StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e93");

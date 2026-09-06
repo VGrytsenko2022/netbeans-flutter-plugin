@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -436,9 +437,12 @@ public final class DartRegionGenerator {
                         property.parameter(),
                         property.name().value(),
                         false,
-                        renderProperty(
-                                value, property, propertyPath, node.id(), context,
-                                constructorBaseIndent + 2)));
+                        node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
+                                && property.name().value().equals("valueColor")
+                                && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                ? renderProgressValueColor(value, property, propertyPath, node.id(), context)
+                                : renderProperty(value, property, propertyPath, node.id(), context,
+                                        constructorBaseIndent + 2)));
             }
         }
         for (SlotDefinition slot : definition.slots()) {
@@ -798,6 +802,25 @@ public final class DartRegionGenerator {
         lines.add(spaces(baseIndent + 2) + "),");
         lines.add(spaces(baseIndent) + ')');
         return lines.build(false);
+    }
+
+    private RenderedValue renderProgressValueColor(
+            PropertyValue value, PropertyDefinition property, String path, StableId widgetId,
+            GenerationContext context) {
+        RenderedValue color = renderProperty(value, property, path, widgetId, context);
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol colorType = context.planner().renderedSymbol(WIDGETS_IMPORT, "Color");
+        String constant = color.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + colorType.text()
+                + (value instanceof PropertyValue.NullValue ? "?" : "") + ">(";
+        List<GeneratedDartSymbolOccurrence> symbols = new ArrayList<>();
+        symbols.add(occurrence("widget:" + widgetId + ":progress-value-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":progress-value-color-type",
+                constant.length() + animation.text().length() + 1 + colorType.nameOffset(),
+                colorType.name(), colorType.libraryUri(), path, Optional.of(widgetId)));
+        color.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        return scalar(prefix + color.joined() + ")", color.constant(), path, widgetId, context, symbols);
     }
 
     private void appendScaffoldStaticPresetArguments(
@@ -6384,7 +6407,8 @@ public final class DartRegionGenerator {
             }
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
-                    if (definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
+                    if ((definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
+                            || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

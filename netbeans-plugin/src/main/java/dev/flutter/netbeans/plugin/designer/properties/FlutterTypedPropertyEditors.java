@@ -99,6 +99,12 @@ final class FlutterTypedPropertyEditors {
             editorKind = EditorKind.EDGE_INSETS;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR))) {
             editorKind = EditorKind.COLOR;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN,
+                PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value
+                        instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Animation<Color?>"))) {
+            editorKind = EditorKind.COLOR_ANIMATION;
         } else if (kinds.equals(EnumSet.of(
                 PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN))
                 && definition.constraints().stream().anyMatch(
@@ -194,6 +200,7 @@ final class FlutterTypedPropertyEditors {
         EDGE_INSETS,
         COLOR,
         THEME_COLOR,
+        COLOR_ANIMATION,
         THEME_TOKEN,
         CALLBACK,
         PAINT,
@@ -329,7 +336,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER ->
+                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION ->
                     new StructuredEditor(this);
             };
         }
@@ -416,13 +423,23 @@ final class FlutterTypedPropertyEditors {
             return binding.editorKind() == EditorKind.BOOLEAN
                     || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
+                    || binding.editorKind() == EditorKind.COLOR_ANIMATION
                     || FlutterPropertyValuePreview.isPaintable(
                             binding.editorKind());
         }
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.BOOLEAN) {
+            if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
+                if (explicitValue().orElse(null) instanceof PropertyValue.ColorValue
+                        || explicitValue().orElse(null) instanceof PropertyValue.ThemeTokenValue) {
+                    FlutterPropertyEditorComponents.paintColorValue(graphics, box, cellValue());
+                } else {
+                    var metrics = graphics.getFontMetrics();
+                    graphics.drawString(getAsText(), box.x + 2,
+                            box.y + (box.height + metrics.getAscent() - metrics.getDescent()) / 2);
+                }
+            } else if (binding.editorKind() == EditorKind.BOOLEAN) {
                 FlutterPropertyEditorComponents.paintBooleanValue(
                         graphics, box, cellValue());
             } else if (binding.editorKind() == EditorKind.COLOR
@@ -977,6 +994,14 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
+            if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue
+                        ? "AlwaysStoppedAnimation<Color?>(null)"
+                        : value instanceof PropertyValue.DartObjectReferenceValue
+                                ? PropertyValueFormatter.format(value)
+                                : "AlwaysStoppedAnimation(" + PropertyValueFormatter.format(value) + ")")
+                        .orElseGet(this::unsetText);
+            }
             if (binding.editorKind() == EditorKind.NULLABLE_IMAGE_PROVIDER
                     && explicitValue().orElse(null) instanceof PropertyValue.NullValue) {
                 return "None (empty image icon)";

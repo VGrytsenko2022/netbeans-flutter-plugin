@@ -324,6 +324,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.CircleAvatar".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.CircleAvatar.Name"));
                 setShortDescription(message("Widget.CircleAvatar.Description"));
+            } else if ("flutter.material.LinearProgressIndicator".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.LinearProgressIndicator.Name"));
+                setShortDescription(message("Widget.LinearProgressIndicator.Description"));
             } else if ("flutter.material.Card".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Card.Name"));
                 setShortDescription(message("Widget.Card.Description"));

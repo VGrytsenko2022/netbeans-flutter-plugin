@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -451,6 +452,11 @@ public final class WidgetTreeValidator {
         }
         if (type.equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.value())) {
             validateCircleAvatar(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.value())) {
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues,
+                    "value", "controller", "LinearProgressIndicator progress mode");
             return;
         }
         if (type.equals(BadgeWidgetPropertySchema.BADGE_TYPE.value())) {

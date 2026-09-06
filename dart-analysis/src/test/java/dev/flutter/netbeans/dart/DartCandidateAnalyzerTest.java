@@ -209,6 +209,37 @@ class DartCandidateAnalyzerTest {
     }
 
     @Test
+    void qualifiesNullableGenericArgumentsWithoutMakingOuterTypesNullable() throws Exception {
+        String candidate = "void build() {\n  print('candidate');\n}\n";
+        int expressionOffset = candidate.indexOf("print");
+        Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+        for (String type : List.of("Animation<Color?>", "AnimationController")) {
+            Fixture fixture = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+            Files.writeString(fixture.dartFile, "void build() {}\n", StandardCharsets.UTF_8);
+            DartSymbolProbe probe = new DartSymbolProbe("typed.print", expressionOffset,
+                    "print".length(), "print", "dart:core", sdkRoot, Optional.of("FUNCTION"),
+                    Optional.of(new DartStaticTypeProbe(expressionOffset, "print".length(),
+                            0, candidate.indexOf("  print"), type, "package:flutter/widgets.dart")));
+            DartCandidateAnalysisResult result = await(fixture.analyzer.analyze(request(
+                    fixture, candidate, 43, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+            assertTrue(result.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+            String witness = fixture.factory.processes().get(1).requests().stream()
+                    .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                    .map(value -> value.path("params").path("files").path(fixture.dartFile.toString()))
+                    .filter(value -> "add".equals(value.path("type").asText()))
+                    .findFirst().orElseThrow().path("content").asText();
+            String expected = type.equals("Animation<Color?>")
+                    ? "_nbfdStaticTypeProof0.Animation<_nbfdStaticTypeProof0.Color?>"
+                    : "_nbfdStaticTypeProof0.AnimationController";
+            assertTrue(witness.contains("final " + expected + " _nbfdStaticTypeProof0Value0 = print;"), witness);
+            assertTrue(fixture.factory.processes().get(1)
+                    .requests().getFirst().toString().contains("strict-casts: true"));
+            assertEquals("void build() {}\n", Files.readString(fixture.dartFile, StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
     void rejectsTypedEvidenceWhenEitherProofDiagnosticIsSuppressedOrDemoted()
             throws Exception {
         String candidate = "void build() {\n  print('candidate');\n}\n";

@@ -162,10 +162,10 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void circleAvatarCompletes4392CellMatrixAndCreatesWithoutAssetsOrDefaults() {
-        var avatar = new WidgetTypeId("flutter.material.CircleAvatar");
-        var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream()
-                .filter(slot -> slot.minChildren() == 0).map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+    void linearProgressCompletes4453CellMatrixAndCreatesWithoutAssetsOrDefaults() {
+        var type = new WidgetTypeId("flutter.material.LinearProgressIndicator");
+        var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
         int accepted = 0, rejected = 0;
         for (var definition : BUILT_INS.definitions()) for (var target : targets) {
@@ -173,10 +173,33 @@ class FlutterDesignerPaletteDropPlannerTest {
                     == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
             var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+            if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+        }
+        assertEquals(73, BUILT_INS.definitions().size()); assertEquals(61, targets.size());
+        assertEquals(4453, accepted + rejected); assertEquals(4138, accepted); assertEquals(315, rejected);
+        for (var target : targets) {
+            var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
+            if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
+            else { var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class, result).command().widget(); assertTrue(created.properties().isEmpty()); assertTrue(created.slots().isEmpty()); }
+        }
+    }
+
+    @Test
+    void circleAvatarCompletes4392CellMatrixAndCreatesWithoutAssetsOrDefaults() {
+        var avatar = new WidgetTypeId("flutter.material.CircleAvatar");
+        var targets = preLinearProgressIndicatorDefinitions().flatMap(definition -> definition.slots().stream()
+                .filter(slot -> slot.minChildren() == 0).map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0;
+        for (var definition : preLinearProgressIndicatorDefinitions().toList()) for (var target : targets) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+            var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++;
             else { accepted++; assertTrue(result instanceof FlutterDesignerPaletteDropPlanner.Accepted || result instanceof FlutterDesignerPaletteDropPlanner.Wrapped); }
         }
-        assertEquals(72, BUILT_INS.definitions().size()); assertEquals(61, targets.size());
+        assertEquals(72, preLinearProgressIndicatorDefinitions().count()); assertEquals(61, targets.size());
         assertEquals(4392, accepted + rejected); assertEquals(4079, accepted); assertEquals(313, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, avatar, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
@@ -5721,8 +5744,13 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preCircleAvatarDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition ->
+        return preLinearProgressIndicatorDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.CircleAvatar"));
+    }
+
+    private static Stream<WidgetDefinition> preLinearProgressIndicatorDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.LinearProgressIndicator"));
     }
 
     private static Stream<WidgetDefinition> preCardDefinitions() {

@@ -18,7 +18,7 @@ public record GeneratedDartStaticTypeRequirement(
         String expectedDartType) {
 
     private static final Pattern EXPECTED_TYPE = Pattern.compile(
-            "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*>)?");
+            "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?");
 
     public GeneratedDartStaticTypeRequirement {
         if (expressionOffset < 0 || expressionLength <= 0) {

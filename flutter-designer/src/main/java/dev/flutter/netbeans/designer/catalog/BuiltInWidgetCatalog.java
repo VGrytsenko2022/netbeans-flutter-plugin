@@ -96,6 +96,7 @@ public final class BuiltInWidgetCatalog {
             card(),
             badge(),
             circleAvatar(),
+            linearProgressIndicator(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -603,6 +604,36 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition linearProgressIndicator() {
+        var infinity = new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference("dart:core", "double"), List.of("infinity"));
+        List<PropertyValueConstraint> signedInfinite = new ArrayList<>(cardNumbers(null, null));
+        signedInfinite.add(infinity);
+        List<PropertyValueConstraint> positiveInfinite = List.of(
+                new PropertyValueConstraint.IntegerRange(BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, false, null, true), infinity);
+        List<PropertyValueConstraint> valueColor = new ArrayList<>(colorOrTheme());
+        valueColor.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        valueColor.add(new PropertyValueConstraint.DartObjectReferenceValues("Animation<Color?>"));
+        return widget(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.value(),
+                "LinearProgressIndicator", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 100, "LinearProgressIndicator"),
+                List.of(namedProperty("value", 0, false, cardNumbers(null, null)),
+                        namedProperty("backgroundColor", 1, false, colorOrTheme()),
+                        namedProperty("color", 2, false, colorOrTheme()),
+                        namedProperty("valueColor", 3, false, valueColor),
+                        namedProperty("minHeight", 4, false, positiveInfinite),
+                        namedProperty("semanticsLabel", 5, false, any(PropertyValueKind.STRING)),
+                        namedProperty("semanticsValue", 6, false, any(PropertyValueKind.STRING)),
+                        namedProperty("borderRadius", 7, false, List.of(new PropertyValueConstraint.BorderRadiusValues())),
+                        namedProperty("stopIndicatorColor", 8, false, colorOrTheme()),
+                        namedProperty("stopIndicatorRadius", 9, false, signedInfinite),
+                        namedProperty("trackGap", 10, false, signedInfinite),
+                        namedProperty("year2023", 11, false, any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("controller", 12, false,
+                                List.of(new PropertyValueConstraint.DartObjectReferenceValues("AnimationController")))), List.of());
     }
 
     private static WidgetDefinition circleAvatar() {

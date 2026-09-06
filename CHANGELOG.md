@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `LinearProgressIndicator` at Material/order 100 with all 13 optional constructor
+  fields, no slots and no stored defaults. Includes determinate/indeterminate modes,
+  literal/theme/nullable-stopped/project-animation valueColor, typed controller
+  references, all track/stop/corner/semantics fields and the optional year2023 flag.
+  Value/controller switches are atomic; SDK clamping preserves stored finite values.
+  Height/stop radius/track gap accept reviewed Infinity. Real SDK Canvas honors
+  theme/RTL/animation/semantics, with explicit isolated-code and layout diagnostics.
+  Stable editors, save/reopen, further editing, Undo/Redo, DnD and four SVGs apply.
+  Current totals: 73 widgets, 67 const definitions, 903 rows (886 outside Scaffold),
+  4,453 placements (4,138 accepted / 315 rejected), 135 Boolean fields and Material 10.
+  Historical target 73/92 with 19 remaining; formats stay 13/14/18.
+
 - `CircleAvatar` at Material/order 90 with every constructor field: nine optional
   scalar properties and one Child slot. Supports both asset-backed image layers,
   per-image error callbacks, literal/theme colors and exclusive fixed/bounded
@@ -13,7 +25,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   no-text-scaling and foreground/background/Child fallback order. Atomic dependent
   resets, generation/provenance, ordinary DnD, stable Properties, save/reopen,
   further edits, Undo/Redo, rollback and four SVGs use the existing formats.
-  Current totals: 72 widgets, 66 const definitions, 890 rows (873 outside Scaffold),
+  At that milestone: 72 widgets, 66 const definitions, 890 rows (873 outside Scaffold),
   4,392 placements (4,079 accepted / 313 rejected), Material 9/Basic 23; historical
   target 72/92 with 20 remaining. Formats stay 13/14/18.
 

@@ -1778,11 +1778,25 @@ accepted architecture is documented in
   M2/M3, unscaled child text, image circle cropping without clipping Child, layer
   fallback and finite size/color animation. Cover resource diagnostics, child
   identity through finite/infinite transitions, ordinary DnD/moves, stable cells,
-  save/reopen/further edits, Undo/Redo, rollback and four SVGs. Current totals:
+  save/reopen/further edits, Undo/Redo, rollback and four SVGs. At that milestone:
   72 widgets, 66 const definitions, 890 rows (873 outside Scaffold), 69 scalar plus
   three structural definitions, 134 Boolean fields, nine wrappers/61 destinations,
   4,392 placements (4,079 accepted / 313 rejected), Material 9/Basic 23. Historical
   target 72/92 with 20 remaining; formats stay 13/14/18. Physical acceptance deferred.
+- [x] Add LinearProgressIndicator at Material/order 100 with all 13 optional
+  constructor fields, no slots/defaults/traits and normal const propagation.
+  Support determinate values, indeterminate SDK animation, full color/track/stop/
+  corner/semantics/year2023 settings, typed AnimationController references and
+  valueColor as stopped literal/theme/null color or project Animation<Color?>.
+  Enforce non-null outer reference types, atomic value/controller exclusivity and
+  exact numeric domains including height/stop/gap Infinity. Preserve SDK clamping,
+  theme precedence, RTL and semantics; report isolated project-code, unbounded
+  layout and pinned M2 stop-color limitations explicitly. Include stable Properties,
+  save/reopen/further edits, Undo/Redo, rollback, DnD and four SVGs. Current totals:
+  73 widgets, 67 const definitions, 903 rows (886 outside Scaffold), 70 scalar plus
+  three structural definitions, 135 Boolean fields, nine wrappers/61 destinations,
+  4,453 placements (4,138 accepted / 315 rejected), Material 10/Basic 23. Historical
+  target 73/92 with 19 remaining; formats stay 13/14/18. Physical acceptance deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1800,8 +1814,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-two admitted built-ins.
-  The 69 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-three admitted built-ins.
+  The 70 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

@@ -27,7 +27,18 @@ String _customClipperPreviewUnavailableMessage({
     'configured $expectedType; isolated Canvas does not execute project '
     'or dependency Dart.';
 
-String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
+String? _customClipperPreviewUnavailableMessageForNode(
+  CanvasNode node, {
+  BuildContext? context,
+  BoxConstraints? constraints,
+}) {
+  if (node.type == 'flutter.material.LinearProgressIndicator') {
+    return _linearProgressUnavailableMessage(
+      node,
+      context: context,
+      constraints: constraints,
+    );
+  }
   if (node.type == 'flutter.material.Card') {
     return _cardShapePreviewUnavailableMessage(node);
   }
@@ -60,6 +71,82 @@ String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
 
 // This is an isolated-preview complexity budget, not an SDK/source domain limit.
 const _maximumCanvasCardShapePoints = 4096;
+String? _linearProgressUnavailableMessage(
+  CanvasNode node, {
+  BuildContext? context,
+  BoxConstraints? constraints,
+}) {
+  final unresolved = [
+    for (final entry in const {
+      'controller': 'AnimationController',
+      'valueColor': 'Animation<Color?>',
+    }.entries)
+      if (node.properties[entry.key]?.kind == 'dartObjectReferencePresence')
+        '${entry.key} (${entry.value})',
+  ];
+  if (unresolved.isNotEmpty) {
+    return 'LinearProgressIndicator preview unavailable for ${unresolved.join(' and ')}. '
+        'Generated Dart uses the configured project references; isolated Canvas does not execute project '
+        'or dependency Dart or substitute an unrelated animation. Properties remain editable.';
+  }
+  final semanticValue = node.properties['semanticsValue']?.value as String?;
+  // Mirror Flutter 3.44.8 SemanticsRole.progressBar validation: the SDK fixes
+  // min/max to 0/100, accepts a parsed number or a trailing-% parsed number,
+  // and tests only < / > (including its acceptance of the parsed NaN token).
+  // LoadingSpinner has no corresponding validation. Never rewrite the string.
+  if (node.properties.containsKey('value') && semanticValue != null) {
+    final numeric = double.tryParse(semanticValue);
+    final percent = semanticValue.endsWith('%')
+        ? double.tryParse(semanticValue.substring(0, semanticValue.length - 1))
+        : null;
+    final parsed = numeric ?? percent;
+    if (semanticValue.isEmpty || parsed == null || parsed < 0 || parsed > 100) {
+      return 'LinearProgressIndicator.semanticsValue preview unavailable: the pinned SDK progressBar '
+          'role requires a numeric value from 0 to 100, or a percentage from 0% to 100%. '
+          'This explicit string fails SDK semantics validation. Indeterminate loadingSpinner accepts free text. '
+          'The stored properties and generated Dart remain unchanged.';
+    }
+  }
+  if (context == null) return null;
+  final theme = ProgressIndicatorTheme.of(context);
+  double? number(String name) {
+    final value = node.properties[name]?.value;
+    return value is CanvasEnumValue
+        ? double.infinity
+        : (value as num?)?.toDouble();
+  }
+
+  final year2023 =
+      // ignore: deprecated_member_use
+      node.properties['year2023']?.value as bool? ?? theme.year2023 ?? true;
+  if (!Theme.of(context).useMaterial3 &&
+      !year2023 &&
+      node.properties.containsKey('value') &&
+      (number('stopIndicatorRadius') ?? theme.stopIndicatorRadius ?? 0) > 0 &&
+      !node.properties.containsKey('stopIndicatorColor') &&
+      theme.stopIndicatorColor == null) {
+    return 'LinearProgressIndicator.stopIndicatorColor preview unavailable: '
+        'Material 2 with year2023 false and a positive stopIndicatorRadius has no '
+        'local or themed stop color. The pinned SDK requires that color when painting '
+        'a determinate stop indicator. Set stopIndicatorColor or its theme value; '
+        'the stored properties and generated Dart remain unchanged.';
+  }
+  if (constraints != null && !constraints.hasBoundedWidth) {
+    return 'LinearProgressIndicator preview unavailable: the parent provides '
+        'unbounded width, but the SDK progress track requires a bounded width. '
+        'Set a width constraint on the parent or place the indicator in a bounded slot. '
+        'The stored properties and generated Dart remain unchanged.';
+  }
+  if (constraints != null &&
+      (number('minHeight') ?? theme.linearMinHeight ?? 4).isInfinite &&
+      !constraints.hasBoundedHeight) {
+    return 'LinearProgressIndicator.minHeight preview unavailable: infinite '
+        'minimum height requires a bounded parent height. Set a height constraint or '
+        'a finite minHeight. The stored properties and generated Dart remain unchanged.';
+  }
+  return null;
+}
+
 String? _cardShapePreviewUnavailableMessage(CanvasNode node) {
   if (node.properties['shape']?.kind == 'dartObjectReferencePresence') {
     return _customClipperPreviewUnavailableMessage(
@@ -574,7 +661,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             ]),
             previewUnavailableMessages: List.unmodifiable([
               for (final node in target.value)
-                _customClipperPreviewUnavailableMessageForNode(node),
+                _customClipperPreviewUnavailableMessageForNode(
+                  node,
+                  context: _nodeKeys[node.id]?.currentContext,
+                  constraints: _renderBox(_nodeKeys[node.id])?.constraints,
+                ),
             ]),
           ),
       ];
@@ -656,6 +747,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Card' ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
+        node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2557,6 +2649,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Card' => _card(context),
       'flutter.material.Badge' => _badge(context),
       'flutter.material.CircleAvatar' => _circleAvatar(context),
+      'flutter.material.LinearProgressIndicator' => _linearProgressIndicator(
+        context,
+      ),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4622,6 +4717,61 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return ClipPath(
       clipBehavior: _clipBehavior() ?? Clip.antiAlias,
       child: _single('child'),
+    );
+  }
+
+  Widget _linearProgressIndicator(BuildContext context) {
+    Widget unavailable(String message) => _customClipperPreviewUnavailable(
+      widgetName: 'LinearProgressIndicator',
+      expectedType: 'Animation',
+      previewLabel: 'Progress preview\nunavailable',
+      messageOverride: message,
+    );
+    double? number(String name) {
+      final value = node.properties[name]?.value;
+      return value is CanvasEnumValue
+          ? double.infinity
+          : (value as num?)?.toDouble();
+    }
+
+    final failure = _linearProgressUnavailableMessage(node, context: context);
+    if (failure != null) return unavailable(failure);
+    final valueColor = node.properties['valueColor'];
+    final Animation<Color?>? animation = valueColor == null
+        ? null
+        : AlwaysStoppedAnimation<Color?>(
+            valueColor.kind == 'null'
+                ? null
+                : _resolvedColor(context, 'valueColor'),
+          );
+    final radius = node.properties['borderRadius']?.value;
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final failure = _linearProgressUnavailableMessage(
+          node,
+          context: context,
+          constraints: constraints,
+        );
+        if (failure != null) return unavailable(failure);
+        final minHeight = number('minHeight');
+        return LinearProgressIndicator(
+          value: _number('value'),
+          backgroundColor: _resolvedColor(context, 'backgroundColor'),
+          color: _resolvedColor(context, 'color'),
+          valueColor: animation,
+          minHeight: minHeight,
+          semanticsLabel: _string('semanticsLabel'),
+          semanticsValue: _string('semanticsValue'),
+          borderRadius: radius is CanvasBorderRadiusGeometryValue
+              ? _borderRadius(radius)
+              : null,
+          stopIndicatorColor: _resolvedColor(context, 'stopIndicatorColor'),
+          stopIndicatorRadius: number('stopIndicatorRadius'),
+          trackGap: number('trackGap'),
+          // ignore: deprecated_member_use
+          year2023: _boolean('year2023'),
+        );
+      },
     );
   }
 

@@ -8138,7 +8138,10 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.material.ElevatedButton\n');
-      final end = contract.indexOf('W|flutter.material.Scaffold\n', start);
+      final end = contract.indexOf(
+        'W|flutter.material.LinearProgressIndicator\n',
+        start,
+      );
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       final section = contract.substring(start, end);

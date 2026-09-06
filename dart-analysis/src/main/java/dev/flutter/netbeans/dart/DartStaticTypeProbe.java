@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
  * proof-owned strict-casts options and assigns the exact expression to the
  * exact non-null expected type. The typed initializer preserves downward
  * inference for generic constructor and factory invocations. In conjunction
- * with original call-site analysis, it rejects {@code dynamic}, nullable,
+ * with original call-site analysis, it rejects {@code dynamic}, nullable outer types,
  * {@code null}, and wrong generic instantiations. Neither result is accepted
  * in isolation.</p>
  */
@@ -23,7 +23,7 @@ public record DartStaticTypeProbe(
         String expectedTypeLibraryUri) {
 
     private static final Pattern EXPECTED_TYPE = Pattern.compile(
-            "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*>)?");
+            "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?");
     private static final Pattern LIBRARY_URI = Pattern.compile(
             "(?:dart:[a-z][a-z0-9_.]*|package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"

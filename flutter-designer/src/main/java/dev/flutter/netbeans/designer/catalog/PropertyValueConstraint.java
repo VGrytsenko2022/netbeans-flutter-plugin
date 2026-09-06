@@ -387,7 +387,7 @@ public sealed interface PropertyValueConstraint permits
     record DartObjectReferenceValues(String expectedDartType)
             implements PropertyValueConstraint {
         private static final Pattern EXPECTED_TYPE = Pattern.compile(
-                "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*>)?");
+                "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?");
 
         public DartObjectReferenceValues {
             Objects.requireNonNull(expectedDartType, "expectedDartType");

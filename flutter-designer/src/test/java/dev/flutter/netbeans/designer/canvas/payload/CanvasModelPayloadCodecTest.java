@@ -85,6 +85,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.Card",
                 "flutter.material.Badge",
                 "flutter.material.CircleAvatar",
+                "flutter.material.LinearProgressIndicator",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3191,6 +3192,74 @@ class CanvasModelPayloadCodecTest {
         for (var properties : invalid) {
             var avatar = new WidgetNode(StableId.random(), type("flutter.material.CircleAvatar"), new java.util.LinkedHashMap<PropertyName, PropertyValue>(properties), Map.of());
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), avatar))));
+        }
+    }
+
+
+
+    @Test
+    void linearProgressPayloadKeepsScalarAnimationAlternativesResourceFreeAndDoesNotLeakReferences() throws Exception {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_progress/values.dart"),
+                "secretAnimation", Optional.of("secretMember"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.ColorValue(0x80123456L),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")), reference)) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("valueColor"), value);
+            properties.put(new PropertyName("controller"), reference);
+            properties.put(new PropertyName("backgroundColor"), new PropertyValue.ColorValue(0xff000000L));
+            properties.put(new PropertyName("color"), new PropertyValue.ColorValue(0xffffffffL));
+            properties.put(new PropertyName("stopIndicatorColor"), new PropertyValue.ColorValue(0xff112233L));
+            properties.put(new PropertyName("minHeight"), new PropertyValue.EnumValue("double", "infinity"));
+            properties.put(new PropertyName("stopIndicatorRadius"), new PropertyValue.DoubleValue(new BigDecimal("-2")));
+            properties.put(new PropertyName("trackGap"), new PropertyValue.EnumValue("double", "infinity"));
+            properties.put(new PropertyName("year2023"), new PropertyValue.BooleanValue(false));
+            properties.put(new PropertyName("semanticsLabel"), new PropertyValue.StringValue("Loading"));
+            properties.put(new PropertyName("semanticsValue"), new PropertyValue.StringValue("Working"));
+            var radius = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.TEN);
+            properties.put(new PropertyName("borderRadius"), new PropertyValue.BorderRadiusValue(new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(radius, radius, radius, radius)));
+            var node = new WidgetNode(StableId.random(), type("flutter.material.LinearProgressIndicator"), properties, Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"controller\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertEquals(value instanceof PropertyValue.NullValue, json.contains("\"valueColor\":{\"kind\":\"null\"}"), json);
+            assertTrue(json.contains("\"minHeight\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"), json);
+            assertTrue(json.contains("\"year2023\":{\"kind\":\"boolean\",\"value\":false}"), json);
+            assertFalse(json.contains("secretAnimation"), json);
+            assertFalse(json.contains("secretMember"), json);
+            assertFalse(json.contains("private_progress"), json);
+            assertFalse(json.contains("MaterialIcons"), json);
+            assertFalse(json.contains("imageProvider"), json);
+        }
+    }
+
+    @Test
+    void linearProgressPayloadPreservesOutOfRangeProgressAndEmptyIndeterminateDefaults() throws Exception {
+        var empty = new WidgetNode(StableId.random(), type("flutter.material.LinearProgressIndicator"), Map.of(), Map.of());
+        String initial = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertFalse(initial.contains("\"valueColor\":"), initial);
+        assertFalse(initial.contains("\"controller\":"), initial);
+        for (String number : List.of("-10", "0", "0.5", "2", "1e308")) {
+            var node = new WidgetNode(empty.id(), empty.type(), Map.of(new PropertyName("value"), new PropertyValue.DoubleValue(new BigDecimal(number))), Map.of());
+            String encoded = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(encoded.contains("\"value\":{\"kind\":\"double\""), encoded);
+            assertFalse(encoded.contains("\"controller\":"), encoded);
+        }
+    }
+
+    @Test
+    void linearProgressPayloadRejectsWrongGrammarValuesAndConflictingProgressModes() {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "animation", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        var invalid = List.of(
+                Map.of(new PropertyName("value"), new PropertyValue.DoubleValue(BigDecimal.ONE), new PropertyName("controller"), reference),
+                Map.of(new PropertyName("minHeight"), new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                Map.of(new PropertyName("value"), new PropertyValue.EnumValue("double", "infinity")),
+                Map.of(new PropertyName("trackGap"), new PropertyValue.EnumValue("double", "negativeInfinity")),
+                Map.of(new PropertyName("controller"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("valueColor"), new PropertyValue.DartExpressionValue("Animation<Color?>()")));
+        for (var properties : invalid) {
+            var node = new WidgetNode(StableId.random(), type("flutter.material.LinearProgressIndicator"),
+                    new java.util.LinkedHashMap<PropertyName, PropertyValue>(properties), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }
 

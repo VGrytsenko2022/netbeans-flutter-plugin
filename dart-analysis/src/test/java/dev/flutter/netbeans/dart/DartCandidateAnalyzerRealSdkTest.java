@@ -2534,6 +2534,165 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesLinearProgressAllFieldsNullableColorAnimationAndControllerProofs() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("linear_progress_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLibrary = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedFile = dependencyLibrary.resolve("progress.dart");
+        String importedSource = """
+                import 'package:flutter/widgets.dart';
+                const Animation<Color?> importedColor = AlwaysStoppedAnimation<Color?>(null);
+                late AnimationController importedController;
+                """;
+        Files.writeString(importedFile, importedSource, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String prelude = """
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/progress.dart' as project_progress;
+                String unchangedCoreScope(String value, Object object) => value;
+                const Animation<Color?> localColor = AlwaysStoppedAnimation<Color?>(null);
+                Animation<Color?> colorFactory() => localColor;
+                late AnimationController localController;
+                AnimationController controllerFactory() => localController;
+                dynamic dynamicColor = localColor;
+                Animation<Color?>? nullableColor = localColor;
+                Object objectColor = localColor;
+                const Animation<Object?> wideColor = AlwaysStoppedAnimation<Object?>(null);
+                dynamic dynamicController = null;
+                AnimationController? nullableController;
+                Object objectController = Object();
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        String candidate = prelude + """
+                Widget complete() => const LinearProgressIndicator(
+                  value: 0.45, backgroundColor: Color(0xFF123456), color: Color(0xFF234567),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFABCDEF)), minHeight: 6,
+                  semanticsLabel: 'Upload', semanticsValue: '45%',
+                  borderRadius: BorderRadiusDirectional.only(topStart: Radius.elliptical(2, 3)),
+                  stopIndicatorColor: Color(0xFF987654), stopIndicatorRadius: 2, trackGap: 4,
+                  year2023: false);
+                Widget currentColor() => LinearProgressIndicator(valueColor: localColor);
+                Widget factoryColor() => LinearProgressIndicator(valueColor: colorFactory());
+                Widget currentController() => LinearProgressIndicator(controller: localController);
+                Widget factoryController() => LinearProgressIndicator(controller: controllerFactory());
+                Widget importedColor() => LinearProgressIndicator(valueColor: project_progress.importedColor);
+                Widget importedController() => LinearProgressIndicator(controller: project_progress.importedController);
+                Widget themeColors(BuildContext context) => LinearProgressIndicator(
+                  color: Theme.of(context).colorScheme.primary,
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.secondary),
+                  stopIndicatorColor: Theme.of(context).colorScheme.tertiary);
+                List<Widget> boundaries() => <Widget>[
+                  const LinearProgressIndicator(), const LinearProgressIndicator(value: 0),
+                  const LinearProgressIndicator(value: 1), const LinearProgressIndicator(value: -1),
+                  const LinearProgressIndicator(value: 2),
+                  const LinearProgressIndicator(valueColor: AlwaysStoppedAnimation<Color?>(null)),
+                  const LinearProgressIndicator(minHeight: (1.0 / 0.0)),
+                  const LinearProgressIndicator(stopIndicatorRadius: (1.0 / 0.0), trackGap: (1.0 / 0.0)),
+                  const LinearProgressIndicator(stopIndicatorRadius: -1, trackGap: -2),
+                  const LinearProgressIndicator(borderRadius: BorderRadius.all(Radius.circular(9))),
+                  const LinearProgressIndicator(value: null, backgroundColor: null, color: null,
+                    valueColor: null, minHeight: null, semanticsLabel: null, semanticsValue: null,
+                    borderRadius: null, stopIndicatorColor: null, stopIndicatorRadius: null,
+                    trackGap: null, year2023: null, controller: null),
+                  Theme(data: ThemeData(useMaterial3: false), child: const LinearProgressIndicator()),
+                  Theme(data: ThemeData(useMaterial3: true), child: const LinearProgressIndicator(year2023: false)),
+                ];
+                """;
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("LinearProgressIndicator", "AlwaysStoppedAnimation", "Animation",
+                "AnimationController", "Color", "BorderRadiusDirectional", "BorderRadius", "Radius",
+                "Theme", "ThemeData")) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("linear-progress-" + symbol, occurrence.start(), symbol,
+                    "package:flutter/material.dart", flutterSdk));
+        }
+        for (String[] spec : List.of(
+                new String[]{"localColor", "localColor", "valueColor", "Animation<Color?>"},
+                new String[]{"colorFactory()", "colorFactory", "valueColor", "Animation<Color?>"},
+                new String[]{"localController", "localController", "controller", "AnimationController"},
+                new String[]{"controllerFactory()", "controllerFactory", "controller", "AnimationController"},
+                new String[]{"project_progress.importedColor", "importedColor", "valueColor", "Animation<Color?>"},
+                new String[]{"project_progress.importedController", "importedController", "controller", "AnimationController"})) {
+            String expression = spec[0];
+            int offset = candidate.indexOf(spec[2] + ": " + expression) + spec[2].length() + 2;
+            boolean imported = expression.startsWith("project_progress.");
+            probes.add(typedProbe("linear-reference-" + spec[1], offset + (imported ? "project_progress.".length() : 0),
+                    spec[1], imported ? "package:clipper_dependency/progress.dart" : "project:current",
+                    imported ? dependencyLibrary : lib, offset, expression.length(), candidate, spec[3]));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2400, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(16, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(6, passed.symbolEvidence().stream().filter(e -> e.staticTypeEvidence().isPresent()).count());
+        long version = 2401;
+        for (String[] spec : List.of(
+                new String[]{"dynamicColor", "valueColor", "Animation<Color?>"},
+                new String[]{"nullableColor", "valueColor", "Animation<Color?>"},
+                new String[]{"objectColor", "valueColor", "Animation<Color?>"},
+                new String[]{"wideColor", "valueColor", "Animation<Color?>"},
+                new String[]{"dynamicController", "controller", "AnimationController"},
+                new String[]{"nullableController", "controller", "AnimationController"},
+                new String[]{"objectController", "controller", "AnimationController"})) {
+            String invalid = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n" + prelude
+                    + "Widget invalid() => LinearProgressIndicator(" + spec[1] + ": " + spec[0] + ");\n";
+            int offset = invalid.indexOf(spec[0], invalid.indexOf("Widget invalid()"));
+            DartSymbolProbe typeProbe = typedProbe("linear-invalid-" + spec[0], offset, spec[0],
+                    "project:current", lib, offset, spec[0].length(), invalid, spec[2]);
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, invalid, version++, List.of(typeProbe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> spec[0] + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        for (String invalid : List.of(
+                "const LinearProgressIndicator(minHeight: 0)", "const LinearProgressIndicator(minHeight: -1)",
+                "const LinearProgressIndicator(minHeight: double.nan)", "const LinearProgressIndicator(value: true)",
+                "const LinearProgressIndicator(backgroundColor: 'red')", "const LinearProgressIndicator(color: true)",
+                "const LinearProgressIndicator(valueColor: Color(0xFF000000))",
+                "const LinearProgressIndicator(semanticsLabel: 1)", "const LinearProgressIndicator(semanticsValue: false)",
+                "const LinearProgressIndicator(borderRadius: Radius.circular(2))",
+                "const LinearProgressIndicator(stopIndicatorColor: 0)", "const LinearProgressIndicator(stopIndicatorRadius: '2')",
+                "const LinearProgressIndicator(trackGap: false)", "const LinearProgressIndicator(year2023: 2023)",
+                "const LinearProgressIndicator(controller: AlwaysStoppedAnimation<double>(0))",
+                "const LinearProgressIndicator(child: Text('No child'))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+        }
+        // Non-const assertions and context-dependent painter errors require the
+        // model/Canvas guards, not a false claim that analysis proves layout.
+        String runtimeOnly = prelude + """
+                Widget conflicting() => LinearProgressIndicator(value: 0.5, controller: localController);
+                Widget invalidSemanticsText() => const LinearProgressIndicator(value: 0.5, semanticsValue: 'Half done');
+                Widget missingM2StopColor() => Theme(data: ThemeData(useMaterial3: false),
+                  child: const LinearProgressIndicator(value: 0.5, year2023: false, stopIndicatorRadius: 2));
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(
+                projectRoot, file, runtimeOnly, version, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(importedSource, Files.readString(importedFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

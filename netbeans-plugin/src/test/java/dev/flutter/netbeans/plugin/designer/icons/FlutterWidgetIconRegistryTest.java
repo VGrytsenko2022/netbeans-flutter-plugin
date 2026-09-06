@@ -1808,6 +1808,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Card", ICON_ROOT + "card.svg");
         expected.put("flutter.material.Badge", ICON_ROOT + "badge.svg");
         expected.put("flutter.material.CircleAvatar", ICON_ROOT + "circleavatar.svg");
+        expected.put("flutter.material.LinearProgressIndicator", ICON_ROOT + "linearprogressindicator.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

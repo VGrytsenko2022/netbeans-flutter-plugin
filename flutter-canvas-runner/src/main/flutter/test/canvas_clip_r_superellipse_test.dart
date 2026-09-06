@@ -359,7 +359,12 @@ void main() {
           await tester.pump(const Duration(milliseconds: 500));
           expect(find.text(message), findsOneWidget);
           await tester.tapAt(tester.getCenter(warning));
-          expect(selections.last, _clipId);
+          expect(
+            selections.last,
+            _childId,
+            reason:
+                'The diagnostic and its tooltip must pass clicks to the child underneath.',
+          );
           expect(tester.takeException(), isNull);
           await mouse.removePointer();
           await tester.pumpAndSettle();

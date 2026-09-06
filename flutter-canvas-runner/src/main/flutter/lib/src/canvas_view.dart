@@ -28,6 +28,9 @@ String _customClipperPreviewUnavailableMessage({
     'or dependency Dart.';
 
 String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
+  if (node.type == 'flutter.material.Card') {
+    return _cardShapePreviewUnavailableMessage(node);
+  }
   if (node.type == 'flutter.widgets.ClipPath' &&
       node.properties['shape']?.kind == 'dartObjectReferencePresence') {
     return _customClipperPreviewUnavailableMessage(
@@ -53,6 +56,24 @@ String? _customClipperPreviewUnavailableMessageForNode(CanvasNode node) {
           widgetName: _displayType(node.type),
           expectedType: expectedType,
         );
+}
+
+// This is an isolated-preview complexity budget, not an SDK/source domain limit.
+const _maximumCanvasCardShapePoints = 4096;
+String? _cardShapePreviewUnavailableMessage(CanvasNode node) {
+  if (node.properties['shape']?.kind == 'dartObjectReferencePresence') {
+    return _customClipperPreviewUnavailableMessage(
+      widgetName: 'Card.shape',
+      expectedType: 'ShapeBorder',
+    );
+  }
+  final kind = node.properties['shapeKind']?.value;
+  final points = node.properties['shapePoints']?.value as num? ?? 5;
+  if ((kind == 'star' || kind == 'polygon') &&
+      points > _maximumCanvasCardShapePoints) {
+    return 'Card.shape $kind preview unavailable: requested $points points exceeds the isolated Canvas budget of $_maximumCanvasCardShapePoints. Generated Dart preserves the configured ShapeBorder; child and properties remain editable.';
+  }
+  return null;
 }
 
 final Uint8List _unavailableImageBytes = base64Decode(
@@ -632,6 +653,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
+        node.type == 'flutter.material.Card' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2503,6 +2525,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final child = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
+      'flutter.material.Card' => _card(context),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4560,24 +4583,157 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _card(BuildContext context) {
+    final unavailable = _cardShapePreviewUnavailableMessage(node);
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'Card.shape',
+        expectedType: 'ShapeBorder',
+        previewLabel: 'Card shape\npreview unavailable',
+        messageOverride: unavailable,
+      );
+    }
+    final color = _resolvedColor(context, 'color');
+    final shadowColor = _resolvedColor(context, 'shadowColor');
+    final surfaceTintColor = _resolvedColor(context, 'surfaceTintColor');
+    final elevation = _number('elevation');
+    final shape = _cardShape(context);
+    final borderOnForeground = _boolean('borderOnForeground') ?? true;
+    final margin = _edgeInsetsGeometry('margin');
+    final clipBehavior = _clipBehavior();
+    final semanticContainer = _boolean('semanticContainer') ?? true;
+    final child = _single('child');
+    return switch (_string('variant')) {
+      'elevated' => Card(
+        color: color,
+        shadowColor: shadowColor,
+        surfaceTintColor: surfaceTintColor,
+        elevation: elevation,
+        shape: shape,
+        borderOnForeground: borderOnForeground,
+        margin: margin,
+        clipBehavior: clipBehavior,
+        semanticContainer: semanticContainer,
+        child: child,
+      ),
+      'filled' => Card.filled(
+        color: color,
+        shadowColor: shadowColor,
+        surfaceTintColor: surfaceTintColor,
+        elevation: elevation,
+        shape: shape,
+        borderOnForeground: borderOnForeground,
+        margin: margin,
+        clipBehavior: clipBehavior,
+        semanticContainer: semanticContainer,
+        child: child,
+      ),
+      'outlined' => Card.outlined(
+        color: color,
+        shadowColor: shadowColor,
+        surfaceTintColor: surfaceTintColor,
+        elevation: elevation,
+        shape: shape,
+        borderOnForeground: borderOnForeground,
+        margin: margin,
+        clipBehavior: clipBehavior,
+        semanticContainer: semanticContainer,
+        child: child,
+      ),
+      _ => throw StateError('Unreviewed Canvas Card variant.'),
+    };
+  }
+
+  ShapeBorder? _cardShape(BuildContext context) {
+    final kind = _string('shapeKind');
+    if (kind == null) return null;
+    final side = _appBarBorderSide(context);
+    final value = node.properties['shapeRadius']?.value;
+    final radius = value is CanvasBorderRadiusGeometryValue
+        ? _borderRadius(value)
+        : BorderRadius.zero;
+    LinearBorderEdge? edge(String name) {
+      final size = _number('shape${name}Size');
+      final alignment = _number('shape${name}Alignment');
+      return size == null && alignment == null
+          ? null
+          : LinearBorderEdge(size: size ?? 1, alignment: alignment ?? 0);
+    }
+
+    return switch (kind) {
+      'roundedRectangle' => RoundedRectangleBorder(
+        side: side,
+        borderRadius: radius,
+      ),
+      'beveledRectangle' => BeveledRectangleBorder(
+        side: side,
+        borderRadius: radius,
+      ),
+      'continuousRectangle' => ContinuousRectangleBorder(
+        side: side,
+        borderRadius: radius,
+      ),
+      'roundedSuperellipse' => RoundedSuperellipseBorder(
+        side: side,
+        borderRadius: radius,
+      ),
+      'circle' => CircleBorder(
+        side: side,
+        eccentricity: _number('shapeCircleEccentricity') ?? 0,
+      ),
+      'oval' => OvalBorder(
+        side: side,
+        eccentricity: _number('shapeCircleEccentricity') ?? 1,
+      ),
+      'stadium' => StadiumBorder(side: side),
+      'linear' => LinearBorder(
+        side: side,
+        start: edge('Start'),
+        end: edge('End'),
+        top: edge('Top'),
+        bottom: edge('Bottom'),
+      ),
+      'star' => StarBorder(
+        side: side,
+        points: _number('shapePoints') ?? 5,
+        innerRadiusRatio: _number('shapeInnerRadiusRatio') ?? .4,
+        pointRounding: _number('shapePointRounding') ?? 0,
+        valleyRounding: _number('shapeValleyRounding') ?? 0,
+        rotation: _number('shapeRotation') ?? 0,
+        squash: _number('shapeSquash') ?? 0,
+      ),
+      'polygon' => StarBorder.polygon(
+        side: side,
+        sides: _number('shapePoints') ?? 5,
+        pointRounding: _number('shapePointRounding') ?? 0,
+        rotation: _number('shapeRotation') ?? 0,
+        squash: _number('shapeSquash') ?? 0,
+      ),
+      _ => throw StateError('Unreviewed Canvas Card shape kind: $kind'),
+    };
+  }
+
   Widget _customClipperPreviewUnavailable({
     required String widgetName,
     required String expectedType,
     String previewLabel = 'Custom clipper\npreview unavailable',
+    String? messageOverride,
   }) {
-    final message = _customClipperPreviewUnavailableMessage(
-      widgetName: widgetName,
-      expectedType: expectedType,
-    );
-    return Stack(
-      fit: StackFit.passthrough,
-      clipBehavior: Clip.none,
-      children: [
-        _single('child') ?? const SizedBox.shrink(),
-        Positioned.fill(
-          child: Tooltip(
-            message: message,
-            excludeFromSemantics: true,
+    final message =
+        messageOverride ??
+        _customClipperPreviewUnavailableMessage(
+          widgetName: widgetName,
+          expectedType: expectedType,
+        );
+    return Tooltip(
+      message: message,
+      excludeFromSemantics: true,
+      child: Stack(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          _single('child') ?? const SizedBox.shrink(),
+          Positioned.fill(
             child: IgnorePointer(
               child: Semantics(
                 key: ValueKey('canvas-custom-clipper-preview-${node.id}'),
@@ -4620,8 +4776,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
               ),
             ),
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.generation;
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -368,6 +369,11 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
+                    && (property.name().value().equals("variant")
+                    || CardWidgetPropertySchema.builtInShapePropertyNames().contains(property.name().value()))) {
+                continue;
+            }
             if (node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)) {
                 // The nine leaves form required data; merge chooses a static helper.
                 continue;
@@ -456,6 +462,9 @@ public final class DartRegionGenerator {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
+        }
+        if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
+            appendCardShape(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)) {
             ArrayList<CompositeMember> members = new ArrayList<>();
@@ -563,6 +572,13 @@ public final class DartRegionGenerator {
                     "widget:" + node.id() + (iconThemeMerge ? ":iconThemeMergeFactory" : ":selectionMergeFactory"), constructor.length() + 1,
                     "merge", renderedClass.libraryUri(), path + "/properties/merge", Optional.of(node.id())));
             constructor += ".merge";
+        } else if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
+            String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
+            if (!variant.equals("elevated")) {
+                constructorOccurrences.add(occurrence("widget:" + node.id() + ":cardVariant", constructor.length() + 1,
+                        variant, renderedClass.libraryUri(), path + "/properties/variant", Optional.of(node.id())));
+                constructor += "." + variant;
+            }
         } else if (definition.namedConstructor().isPresent()) {
             constructor += "." + definition.namedConstructor().orElseThrow();
         }
@@ -3132,6 +3148,71 @@ public final class DartRegionGenerator {
         };
         arguments.add(new ConstructorArgument(
                 member.property().parameter(), "notificationPredicate", false, rendered));
+    }
+
+    private void appendCardShape(WidgetNode node, WidgetDefinition definition, String path, int indent,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
+        if (!(kindValue instanceof PropertyValue.StringValue kind)) return;
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        ArrayList<CompositeMember> side = new ArrayList<>();
+        for (String suffix : List.of("Color", "Width", "Style", "StrokeAlign")) {
+            addCardMember(side, node, definition, path, "shapeSide" + suffix,
+                    Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1), side.size(), indent + 2, context);
+        }
+        if (!side.isEmpty()) members.add(new CompositeMember("side", 0,
+                renderNamedCompositeMembers("BorderSide", Optional.empty(), side, indent + 2,
+                        path + "/properties/shape/side", node.id(), context)));
+        addCardMember(members, node, definition, path, "shapeRadius", "borderRadius", 1, indent + 2, context);
+        addCardMember(members, node, definition, path, "shapeCircleEccentricity", "eccentricity", 1, indent + 2, context);
+        addCardMember(members, node, definition, path, "shapePoints", kind.value().equals("polygon") ? "sides" : "points", 1, indent + 2, context);
+        for (String suffix : List.of("InnerRadiusRatio", "PointRounding", "ValleyRounding", "Rotation", "Squash")) {
+            addCardMember(members, node, definition, path, "shape" + suffix,
+                    Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1), members.size() + 2, indent + 2, context);
+        }
+        for (String edge : List.of("Start", "End", "Top", "Bottom")) {
+            ArrayList<CompositeMember> fields = new ArrayList<>();
+            addCardMember(fields, node, definition, path, "shape" + edge + "Size", "size", 0, indent + 4, context);
+            addCardMember(fields, node, definition, path, "shape" + edge + "Alignment", "alignment", 1, indent + 4, context);
+            if (!fields.isEmpty()) {
+                String name = Character.toLowerCase(edge.charAt(0)) + edge.substring(1);
+                members.add(new CompositeMember(name, members.size() + 2,
+                        renderNamedCompositeMembers("LinearBorderEdge", Optional.empty(), fields, indent + 2,
+                                path + "/properties/shape/" + name, node.id(), context)));
+            }
+        }
+        String dartClass = switch (kind.value()) {
+            case "roundedRectangle" -> "RoundedRectangleBorder";
+            case "beveledRectangle" -> "BeveledRectangleBorder";
+            case "continuousRectangle" -> "ContinuousRectangleBorder";
+            case "roundedSuperellipse" -> "RoundedSuperellipseBorder";
+            case "circle" -> "CircleBorder";
+            case "oval" -> "OvalBorder";
+            case "stadium" -> "StadiumBorder";
+            case "linear" -> "LinearBorder";
+            case "star", "polygon" -> "StarBorder";
+            default -> throw catalogInconsistency(path + "/properties/shapeKind", node.id(), "Unknown Card shape");
+        };
+        RenderedValue rendered = renderNamedCompositeMembers(dartClass,
+                kind.value().equals("polygon") ? Optional.of("polygon") : Optional.empty(),
+                members, indent, path + "/properties/shape", node.id(), context);
+        if (kind.value().equals("polygon")) {
+            var symbol = rendered.symbolOccurrences().getFirst();
+            var occurrences = new ArrayList<>(rendered.symbolOccurrences());
+            occurrences.add(1, occurrence("widget:" + node.id() + ":cardPolygonConstructor", symbol.endOffset() + 1,
+                    "polygon", symbol.libraryUri(), path + "/properties/shapeKind", Optional.of(node.id())));
+            rendered = new RenderedValue(rendered.lines(), rendered.constant(), rendered.utf8Size(), occurrences);
+        }
+        arguments.add(new ConstructorArgument(DartParameter.named(10, false), "shape", false, rendered));
+    }
+
+    private void addCardMember(List<CompositeMember> members, WidgetNode node, WidgetDefinition definition, String path,
+            String propertyName, String dartName, int order, int indent, GenerationContext context) {
+        PropertyName name = new PropertyName(propertyName);
+        PropertyValue value = node.properties().get(name);
+        if (value != null) members.add(new CompositeMember(dartName, order,
+                renderProperty(value, definition.property(name).orElseThrow(), path + "/properties/" + propertyName,
+                        node.id(), context, indent)));
     }
 
     private void appendAppBarShape(

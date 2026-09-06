@@ -677,6 +677,40 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void cardTreeDropCreatesLeafWithoutInventedDefaults() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.Card"));
+        StringSelection transfer = new StringSelection(fixture.token());
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(), Optional.of("the current pubspec declares no safe image asset."));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        ROOT_ID,
+                        unavailable));
+        AtomicInteger allocations = new AtomicInteger();
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        unavailable,
+                        () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        })).command();
+        assertEquals(Map.of(new dev.flutter.netbeans.designer.model.PropertyName("variant"), new dev.flutter.netbeans.designer.model.PropertyValue.StringValue("elevated")), command.widget().properties());
+        assertEquals(1, allocations.get());
+    }
+
+    @Test
     void verticalDividerTreeDropCreatesLeafWithoutInventedDefaults() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.material.VerticalDivider"));
         StringSelection transfer = new StringSelection(fixture.token());

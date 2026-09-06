@@ -137,6 +137,24 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void cardMovesWithItsConfiguredShapeAndExactDescendantThenAllowsChildMoveOut() {
+        WidgetNode child = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), StableId.parse("fea038da-cb8e-497c-9f35-0efc8b273c64"));
+        WidgetNode card = new WidgetNode(A_ID, type("flutter.material.Card"),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("filled"),
+                        new PropertyName("shapeKind"), new PropertyValue.StringValue("star"),
+                        new PropertyName("shapePoints"), new PropertyValue.DoubleValue(new BigDecimal("6.5")),
+                        new PropertyName("shapeSideColor"), new PropertyValue.ColorValue(0xFF123456L)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(child)));
+        WidgetNode stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        DesignerDocument document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(card, stack)));
+        var moved = planner.plan(document, BUILT_INS, card.id(), new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        assertEquals(new WidgetPlacement(stack.id(), CHILDREN, 0), accepted(moved).command().destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, card, moved);
+        var movedChild = planner.plan(document, BUILT_INS, child.id(), new FlutterDesignerWidgetMovePlanner.On(stack.id()));
+        assertAcceptedCommandApplies(document, BUILT_INS, child, movedChild);
+    }
+
+    @Test
     void verticalDividerMovesAsLeafWithoutLosingAnyConfiguredProperty() {
         var ellipse = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.valueOf(2));
         WidgetNode verticalDivider = new WidgetNode(A_ID, new WidgetTypeId("flutter.material.VerticalDivider"),

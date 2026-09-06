@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `Card` in Material at order 70 with all three const constructors (elevated,
+  filled and outlined), all SDK fields, optional child and 31 typed property rows.
+  Ten built-in shapes include complete border-side/radius, circle/oval,
+  linear-edge and star/polygon parameters; typed ShapeBorder references support
+  other/compound/custom shapes with explicit isolated-preview unavailability.
+  Shape transitions prune incompatible fields atomically, preserving one Undo.
+  Includes unset/reset, centered optional Booleans, stable property cells,
+  DnD/moves/slots, generation/provenance, save/reopen/further editing and rollback.
+  Actual Canvas preserves CardTheme/M2/M3, margin, clipping, border order and
+  semantics. Its explicit 4096-point preview budget does not restrict Dart values.
+  Current totals: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
+  4,060 placements (3,760 accepted / 300 rejected), Material 7/Basic 23; historical
+  target 70/92 with 22 remaining. Formats stay 13/14/18.
+
 - `VerticalDivider` in Material at order 60 with all six optional Flutter 3.44.8
   properties: width, thickness, indent, endIndent, color and radius. Reuses numeric,
   literal/semantic color and physical/directional elliptical-radius editors with
@@ -14,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   DnD/moves, zero-width selection, generation/provenance, stable Properties,
   save/reopen/further editing, Undo/Redo, rollback and four SVGs. Rounded hairlines
   retain the documented SDK debug assertion/release radius omission.
-  Current totals: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
+  At that milestone: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
   3,933 placements (3,638 accepted / 295 rejected), Material 6/Basic 23; historical
   target 69/92 with 23 remaining. Formats stay 13/14/18.
 

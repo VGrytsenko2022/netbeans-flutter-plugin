@@ -723,8 +723,9 @@ void main() {
     );
   });
 
-  test('closes the 69-source by 57-destination compatibility matrix', () {
+  test('closes the 70-source by 58-destination compatibility matrix', () {
     const sourceTypes = {
+      'flutter.material.Card',
       'flutter.material.Divider',
       'flutter.material.VerticalDivider',
       'flutter.material.Scaffold',
@@ -803,8 +804,8 @@ void main() {
           (parentType: type, slot: slot),
       ]);
     }
-    expect(sourceTypes, hasLength(69));
-    expect(destinations, hasLength(57));
+    expect(sourceTypes, hasLength(70));
+    expect(destinations, hasLength(58));
 
     var accepted = 0;
     var rejected = 0;
@@ -830,9 +831,9 @@ void main() {
         }
       }
     }
-    expect(accepted, 3638);
-    expect(rejected, 295);
-    expect(accepted + rejected, 3933);
+    expect(accepted, 3760);
+    expect(rejected, 300);
+    expect(accepted + rejected, 4060);
   });
 
   testWidgets('applies every exact adaptive target to the Flutter theme', (
@@ -3725,8 +3726,9 @@ void main() {
         await tester.pump();
         expect(
           selections.last,
-          clipRRectId,
-          reason: 'the warning visual must not consume Canvas selection taps',
+          childId,
+          reason:
+              'the warning visual and tooltip must pass selection taps to the underlying child',
         );
         await mouse.removePointer();
         expect(

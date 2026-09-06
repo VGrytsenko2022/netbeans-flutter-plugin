@@ -27,6 +27,7 @@ import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ImageIconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -559,6 +560,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addDividerPropertySets(sheet, hasSlotTab);
         } else if (VerticalDividerWidgetPropertySchema.VERTICAL_DIVIDER_TYPE.equals(widget.type())) {
             addVerticalDividerPropertySets(sheet, hasSlotTab);
+        } else if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())) {
+            addCardPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -753,6 +756,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type()) && CHILD_SLOT.equals(slot.name())) {
+            return "Optional child inside the Card's Material surface. Shape alone does not clip the child; "
+                    + "Clip behavior controls clipping, Border on foreground controls border painting, and "
+                    + "Semantic container groups or exposes child semantics. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, replace, or remove the child widget.";
+        }
         if (IconThemeWidgetPropertySchema.ICON_THEME_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Required child receiving inherited IconThemeData. Merge true inherits unset fields from the outer IconTheme; "
@@ -2532,6 +2542,37 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addCardPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<CardWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(CardWidgetPropertySchema.Group.class);
+        for (CardWidgetPropertySchema.Group group : CardWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = CardWidgetPropertySchema.find(property.name()).orElseThrow();
+            java.util.List<String> presets = switch (property.name().value()) {
+                case "variant" -> java.util.List.of("elevated", "filled", "outlined");
+                case "shapeKind" -> CardWidgetPropertySchema.shapeKinds();
+                default -> java.util.List.of();
+            };
+            String hint = property.name().value().equals("variant")
+                    ? " Required Designer constructor selector: elevated uses Card(), filled uses Card.filled(), "
+                            + "outlined uses Card.outlined(); cannot be unset or reset. Material 2 treats all three alike."
+                    : " Restore Default omits this optional field; no SDK defaults are stored."
+                            + " Custom Shape and built-in shape details are mutually exclusive. Changing shape kind "
+                            + "atomically removes incompatible details while preserving compatible border-side values. "
+                            + "Editing a shape detail selects a compatible kind when necessary; resetting Shape kind "
+                            + "clears its built-in details. Star point and valley rounding must sum to at most one. "
+                            + "Custom Dart shapes cannot execute in the isolated Canvas; very complex stars above "
+                            + "4096 points retain their data with an explicit preview-unavailable state.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + hint, false, presets));
+        }
+    }
+
     private void addVerticalDividerPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<VerticalDividerWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(VerticalDividerWidgetPropertySchema.Group.class);
@@ -3488,6 +3529,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())) {
+            return cardPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(currentWidget.type())) {
             return visibilityPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -3543,6 +3587,50 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
         return patches.size() == 1
                 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand cardPropertyCommand(
+            WidgetNode currentWidget,
+            PropertyName propertyName,
+            FlutterPropertyCellValue accepted) {
+        String edited = propertyName.value();
+        boolean setting = accepted.explicitValue().isPresent();
+        java.util.LinkedHashSet<PropertyName> resets = new java.util.LinkedHashSet<>();
+        java.util.ArrayList<PatchProperties.Patch> patches = new java.util.ArrayList<>();
+        if (edited.equals("shape") && setting) {
+            CardWidgetPropertySchema.builtInShapePropertyNames().forEach(name ->
+                    resets.add(new PropertyName(name)));
+        } else if (edited.equals("shapeKind") || CardWidgetPropertySchema.isShapeDetailProperty(edited)) {
+            PropertyName kindName = new PropertyName("shapeKind");
+            if (setting) {
+                resets.add(new PropertyName("shape"));
+                String kind = edited.equals("shapeKind")
+                        ? ((PropertyValue.StringValue) accepted.explicitValue().orElseThrow()).value()
+                        : currentWidget.properties().get(kindName) instanceof PropertyValue.StringValue current
+                                && CardWidgetPropertySchema.shapePropertyAppliesToKind(edited, current.value())
+                                        ? current.value() : CardWidgetPropertySchema.preferredShapeKindForProperty(edited);
+                for (String name : CardWidgetPropertySchema.builtInShapePropertyNames()) {
+                    if (!name.equals("shapeKind") && !CardWidgetPropertySchema.shapePropertyAppliesToKind(name, kind)) {
+                        resets.add(new PropertyName(name));
+                    }
+                }
+                if (!edited.equals("shapeKind")
+                        && !new PropertyValue.StringValue(kind).equals(currentWidget.properties().get(kindName))) {
+                    patches.add(new PatchProperties.SetPatch(kindName, new PropertyValue.StringValue(kind)));
+                }
+            } else if (edited.equals("shapeKind")) {
+                CardWidgetPropertySchema.builtInShapePropertyNames().forEach(name ->
+                        resets.add(new PropertyName(name)));
+            }
+        }
+        resets.remove(propertyName);
+        resets.stream().filter(currentWidget.properties()::containsKey)
+                .forEach(name -> patches.add(new PatchProperties.ResetPatch(name)));
+        patches.add(accepted.explicitValue().<PatchProperties.Patch>map(value ->
+                new PatchProperties.SetPatch(propertyName, value))
+                .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
     }
 
@@ -3683,6 +3771,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && "merge".equals(property.name().value())) {
             reset = " This required Designer-only selector cannot be unset or reset; "
                     + "no merge argument is emitted.";
+        } else if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
+                && "variant".equals(property.name().value())) {
+            reset = " This required Designer constructor selector cannot be unset or reset; "
+                    + "no variant argument is emitted.";
         } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {

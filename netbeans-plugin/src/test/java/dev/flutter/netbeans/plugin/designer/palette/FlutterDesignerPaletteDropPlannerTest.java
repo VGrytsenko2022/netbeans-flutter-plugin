@@ -162,8 +162,53 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void verticalDividerCompletesExact3933CellModelWithoutInventedDefaults() {
+    void cardCompletes4060CellMatrixIncludingOptionalChildAndExistingWrapperRoutes() {
+        WidgetTypeId card = new WidgetTypeId("flutter.material.Card");
         List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+                .flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                        .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        FlutterImageAssetChoices choices = new FlutterImageAssetChoices(List.of(
+                new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int sourceAccepted = 0, sourceRejected = 0, destinationAccepted = 0, destinationRejected = 0;
+        for (var target : targets) {
+            var result = planner.plan(target.document(), BUILT_INS, card, ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+            if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result); sourceRejected++;
+            } else {
+                var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class, result);
+                assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")), added.command().widget().properties());
+                assertTrue(((WidgetSlot.SingleSlot) added.command().widget().slots().get(CHILD)).child().isEmpty());
+                sourceAccepted++;
+            }
+        }
+        var empty = target("Card.child", card, CHILD);
+        var occupied = occupiedTarget("Card.child", card, CHILD);
+        for (var definition : BUILT_INS.definitions()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            var destination = wrapper ? occupied : empty;
+            var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, CHILD, 0, choices, () -> NEW_ID);
+            if (List.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(definition.typeId().value())) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result); destinationRejected++;
+            } else {
+                if (wrapper) {
+                    var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result);
+                    assertEquals(FIRST_ID, wrapped.command().widgetId());
+                } else assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class, result);
+                destinationAccepted++;
+            }
+        }
+        assertEquals(70, BUILT_INS.definitions().size()); assertEquals(58, targets.size());
+        assertEquals(56, sourceAccepted); assertEquals(2, sourceRejected);
+        assertEquals(67, destinationAccepted); assertEquals(3, destinationRejected);
+        assertEquals(4060, 70 * targets.size());
+        assertEquals(3760, 3638 + sourceAccepted + destinationAccepted - 1);
+        assertEquals(300, 295 + sourceRejected + destinationRejected);
+    }
+
+    @Test
+    void verticalDividerCompletesExact3933CellModelWithoutInventedDefaults() {
+        List<MatrixTargetCase> targets = preCardDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(),
@@ -206,7 +251,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(69, BUILT_INS.definitions().size()),
+                () -> assertEquals(69, Math.toIntExact(preCardDefinitions().count())),
                 () -> assertEquals(57, targets.size()),
                 () -> assertEquals(55, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
@@ -271,7 +316,7 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     @Test
     void imageIconCompletesExact3819CellModelWithExplicitNone() {
-        List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> targets = preCardDefinitions()
                 .flatMap(definition -> definition.slots().stream()
                         .filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(),
@@ -5607,8 +5652,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preVerticalDividerDefinitions() {
+    private static Stream<WidgetDefinition> preCardDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.Card"));
+    }
+
+    private static Stream<WidgetDefinition> preVerticalDividerDefinitions() {
+        return preCardDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.VerticalDivider"));
     }
 

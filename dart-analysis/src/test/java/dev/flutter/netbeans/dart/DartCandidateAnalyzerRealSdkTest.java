@@ -2136,6 +2136,148 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesCardAllVariantsCompleteFieldsShapesAndTypedReferences() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("card_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLib = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Files.writeString(dependencyLib.resolve("shapes.dart"), """
+                import 'package:flutter/painting.dart';
+                class Shapes {
+                  static ShapeBorder get outline => const BorderDirectional(
+                    start: BorderSide(width: 3), end: BorderSide(width: 1));
+                }
+                """, StandardCharsets.UTF_8);
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        StringBuilder valid = new StringBuilder("""
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/shapes.dart' as project_shapes;
+                const currentCardShape = RoundedRectangleBorder();
+                ShapeBorder makeCardShape() => const CircleBorder() + const StadiumBorder();
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                Widget localReference() => const Card(shape: currentCardShape);
+                Widget localFactory() => Card.filled(shape: makeCardShape());
+                Widget importedReference() => Card.outlined(shape: project_shapes.Shapes.outline);
+                Widget inherited() => const CardTheme(data: CardThemeData(
+                  color: Color(0xFF123456), shadowColor: Color(0x80123456),
+                  surfaceTintColor: Color(0x20123456), elevation: 3,
+                  shape: CircleBorder(eccentricity: 0.5),
+                  margin: EdgeInsetsDirectional.only(start: 2, end: 8),
+                  clipBehavior: Clip.antiAlias), child: Card.outlined(child: Text('Inherited')));
+                Widget localOverride() => const CardTheme(data: CardThemeData(elevation: 9,
+                  color: Color(0xFF123456)), child: Card.filled(elevation: 0,
+                    color: Color(0x00000000), margin: EdgeInsets.zero, shape: StadiumBorder()));
+                Widget semanticColors(BuildContext context) => Card.outlined(
+                  color: Theme.of(context).colorScheme.surface,
+                  shadowColor: Theme.of(context).colorScheme.shadow,
+                  surfaceTintColor: Theme.of(context).colorScheme.surfaceTint,
+                  shape: RoundedRectangleBorder(side: BorderSide(
+                    color: Theme.of(context).colorScheme.outlineVariant, width: 2)));
+                Widget material2() => Theme(data: ThemeData(useMaterial3: false),
+                  child: const Row(children: [Card(), Card.filled(), Card.outlined()]));
+                Widget material3() => Theme(data: ThemeData(useMaterial3: true),
+                  child: const Column(children: [Card(), Card.filled(), Card.outlined()]));
+                List<Widget> fieldAndShapeMatrix() => <Widget>[
+                """);
+        List<String> shapes = List.of(
+                "RoundedRectangleBorder(borderRadius: BorderRadius.only(topLeft: Radius.elliptical(2, 3)))",
+                "BeveledRectangleBorder(borderRadius: BorderRadiusDirectional.only(bottomEnd: Radius.elliptical(4, 5)))",
+                "ContinuousRectangleBorder(borderRadius: BorderRadius.all(Radius.elliptical(2, 3)))",
+                "RoundedSuperellipseBorder(borderRadius: BorderRadiusDirectional.all(Radius.elliptical(2, 3)))",
+                "CircleBorder(eccentricity: 0.25)", "OvalBorder(eccentricity: 0.75)", "StadiumBorder()",
+                "LinearBorder(start: LinearBorderEdge(size: 0.25, alignment: -3), end: LinearBorderEdge(size: 1, alignment: 4), top: LinearBorderEdge(size: 0), bottom: LinearBorderEdge(alignment: 0.5))",
+                "StarBorder(points: 5.5, innerRadiusRatio: 0.4, pointRounding: 0.2, valleyRounding: 0.3, rotation: -45, squash: 0.5)",
+                "StarBorder.polygon(sides: 6.5, pointRounding: 0.5, rotation: 450, squash: 0.25)");
+        int combinations = 0;
+        for (String constructor : List.of("Card", "Card.filled", "Card.outlined")) {
+            valid.append("const ").append(constructor).append("(),\n");
+            valid.append("const ").append(constructor).append("(color: null, shadowColor: null, surfaceTintColor: null, elevation: null, shape: null, margin: null, clipBehavior: null, child: null),\n");
+            for (String shape : shapes) {
+                combinations++;
+                // Every OutlinedBorder family accepts the same complete BorderSide.
+                String completeShape = shape.replaceFirst("\\(", "(side: BorderSide(color: Color(0x80123456), width: 2.5, style: BorderStyle.solid, strokeAlign: 2), ");
+                valid.append("const ").append(constructor).append("(color: Color(0xFF123456), shadowColor: Color(0x80123456), surfaceTintColor: Color(0x20123456), elevation: 3.5, borderOnForeground: false, margin: EdgeInsetsDirectional.only(start: 2, top: 3, end: 4, bottom: 5), clipBehavior: Clip.antiAliasWithSaveLayer, semanticContainer: false, child: Text('Card'), shape: ")
+                        .append(completeShape).append("),\n");
+            }
+            for (String value : List.of("0", "0.5", "24")) {
+                valid.append("const ").append(constructor).append("(elevation: ").append(value).append("),\n");
+            }
+        }
+        // These are valid Dart; Canvas applies its separate explicit path-complexity budget.
+        valid.append("const Card(shape: StarBorder(points: 4097)),\nconst Card(shape: StarBorder.polygon(sides: 1e100)),\n];\n");
+        assertEquals(30, combinations);
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("Card", "CardTheme", "CardThemeData", "Color", "BorderSide", "BorderStyle",
+                "BorderRadius", "BorderRadiusDirectional", "Radius", "EdgeInsetsDirectional", "RoundedRectangleBorder",
+                "BeveledRectangleBorder", "ContinuousRectangleBorder", "RoundedSuperellipseBorder", "CircleBorder",
+                "OvalBorder", "StadiumBorder", "LinearBorder", "LinearBorderEdge", "StarBorder")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("card-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        for (String factory : List.of("Card.filled", "Card.outlined", "StarBorder.polygon", "Radius.elliptical")) {
+            String member = factory.substring(factory.indexOf('.') + 1);
+            probes.add(probe("card-" + factory, candidate.indexOf(factory) + factory.indexOf('.') + 1,
+                    member, "package:flutter/material.dart", flutterSdk));
+        }
+        for (String expression : List.of("currentCardShape", "makeCardShape()")) {
+            int offset = candidate.indexOf("shape: " + expression) + "shape: ".length();
+            String symbol = rootSymbol(expression);
+            probes.add(typedProbe("card-local-" + symbol, offset, symbol, "project:current", lib,
+                    offset, expression.length(), candidate, "ShapeBorder"));
+        }
+        String imported = "project_shapes.Shapes.outline";
+        int importedOffset = candidate.indexOf("shape: " + imported) + "shape: ".length();
+        probes.add(typedProbe("card-imported-outline", importedOffset + imported.lastIndexOf('.') + 1,
+                "outline", "package:clipper_dependency/shapes.dart", dependencyLib,
+                importedOffset, imported.length(), candidate, "ShapeBorder"));
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2100, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(27, probes.size());
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        long version = 2101;
+        for (String invalid : List.of("const Card(elevation: -1)", "const Card(color: true)",
+                "const Card(shadowColor: 3)", "const Card(surfaceTintColor: 'red')", "const Card(elevation: '3')",
+                "const Card(borderOnForeground: null)", "const Card(semanticContainer: null)",
+                "const Card(clipBehavior: true)", "const Card(child: 'text')", "const Card(shape: Radius.circular(2))",
+                "const Card(width: 20)", "const Card(variant: 'filled')", "const Card.elevated()",
+                "const Card(shapeRadius: BorderRadius.zero)", "const Card(shape: CircleBorder(eccentricity: 2))",
+                "const Card(shape: OvalBorder(eccentricity: -1))", "const Card(shape: StarBorder(points: 1.5))",
+                "const Card(shape: StarBorder(innerRadiusRatio: 1.1))", "const Card(shape: StarBorder(pointRounding: -0.1))",
+                "const Card(shape: StarBorder(valleyRounding: 1.1))", "const Card(shape: StarBorder(squash: 1.1))",
+                "const Card(shape: StarBorder(pointRounding: 0.6, valleyRounding: 0.5))",
+                "const Card(shape: StarBorder.polygon(sides: 1.5))", "const Card(shape: StarBorder.polygon(valleyRounding: 0.1))",
+                "const Card(shape: StarBorder.polygon(innerRadiusRatio: 0.4))",
+                "const Card(shape: LinearBorder(top: LinearBorderEdge(size: -0.1)))",
+                "const Card(shape: LinearBorder(top: LinearBorderEdge(size: 1.1)))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

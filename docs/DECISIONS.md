@@ -38,10 +38,10 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, and ADR-097 establishes the current `VerticalDivider`
-surface: 809 typed rows across sixty-nine widgets, sixty-three const-constructor
-definitions and 3,933 Palette/DnD candidates, including 3,638 accepted and 295
-rejected cells. The 792-field
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, and ADR-098 establishes the current `Card`
+surface: 840 typed rows across seventy widgets, sixty-four const-constructor
+definitions and 4,060 Palette/DnD candidates, including 3,760 accepted and 300
+rejected cells. The 823-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-097 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-098 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-097 make 792 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-098 make 823 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -353,7 +353,9 @@ ImageIcon adds required nullable positional image and three optional named
 size/color/semanticLabel rows, without a child slot.
 Divider adds six optional geometry/appearance rows without child slots.
 VerticalDivider adds six optional width/appearance rows without child slots.
-Scaffold separately contributes 17 rows, giving 809 overall.
+Card adds 31 typed rows, all three constructor variants, ten built-in shapes,
+an analyzed ShapeBorder reference alternative and an optional child slot.
+Scaffold separately contributes 17 rows, giving 840 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -437,8 +439,10 @@ ADR-095 establishes the historical sixty-seven-source, 3,819-candidate matrix
 (3,528 accepted / 291 rejected).
 ADR-096 establishes the historical sixty-eight-source, 3,876-candidate matrix
 (3,583 accepted / 293 rejected).
-ADR-097 establishes the current sixty-nine-source, 3,933-candidate matrix
+ADR-097 establishes the historical sixty-nine-source, 3,933-candidate matrix
 (3,638 accepted / 295 rejected).
+ADR-098 establishes the current seventy-source, 4,060-candidate matrix
+(3,760 accepted / 300 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -449,7 +453,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -463,12 +467,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated sixty-nine-widget model for Mobile, Tablet,
+Canvas now renders the validated seventy-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those sixty-nine Create-capable definitions, and the DnD-capable set uses the
-reviewed 3,933-cell candidate matrix across fifty-five insertable any-widget and two
-trait-bound destination slots; 3,638 cells are accepted and 295 rejected.
+those seventy Create-capable definitions, and the DnD-capable set uses the
+reviewed 4,060-cell candidate matrix across fifty-six insertable any-widget and two
+trait-bound destination slots; 3,760 cells are accepted and 300 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -5011,7 +5015,7 @@ semantic label, Boolean property or persistence authority is introduced. FD 13,
 contributor API 14, Canvas model 18 and NBFC1 remain unchanged. Platform/IME work
 and full physical desktop acceptance stay outside this palette slice.
 
-Current totals: 69 widgets, 63 const-capable definitions, 809 writable rows
+At that milestone: 69 widgets, 63 const-capable definitions, 809 writable rows
 (792 outside Scaffold), 66 scalar plus three structural definitions. Nine generic
 wrappers and 55 any-widget plus two trait destinations remain unchanged.
 69x57 = 3,933 candidates: 3,638 accepted and 295 rejected. Categories: Layout 31,
@@ -5072,3 +5076,139 @@ Metadata, licensing, complete package resources, source freshness and all report
 coverage pass verification. No installed-userdir verification, interactive IDE
 launch, physical desktop acceptance, CJK IME work or Linux/macOS provider work
 was performed as part of this palette slice.
+
+## ADR-098 — Card admits all variants and fully editable standard outlined shapes
+
+Implement `flutter.material.Card` as Material/order 70 with 31 typed rows and one
+optional any-widget child, using pinned Flutter 3.44.8 `material/card.dart` and
+painting shape constructors. This is the next API-reviewed palette slice, not a
+claim that the missing ordered historical 92-item inventory has been recovered.
+
+The eight direct optional fields are color, shadowColor, surfaceTintColor,
+elevation, borderOnForeground, margin, clipBehavior and semanticContainer. Reuse
+literal/reviewed ColorScheme colors, finite non-negative elevation, non-negative
+physical/directional insets, all four Clip values and centered optional Booleans.
+Negative margin is a Padding/layout restriction, not a Card constructor assertion.
+Creation stores only required Designer `variant=elevated`; this is never a Dart
+argument. Elevated emits Card, filled Card.filled and outlined Card.outlined.
+All three are const-capable; runtime references/semantic colors propagate non-const
+as usual. The child can be created, replaced, moved or cleared independently.
+
+The 22 shape rows comprise typed `shape` reference plus 21 built-in fields:
+shapeKind, shapeRadius, four side leaves (Color/Width/Style/StrokeAlign),
+shapeCircleEccentricity, six star leaves (Points/InnerRadiusRatio/PointRounding/
+ValleyRounding/Rotation/Squash), and eight linear leaves (Start/End/Top/Bottom,
+each Size/Alignment). Ten kinds map exactly to RoundedRectangleBorder,
+BeveledRectangleBorder, ContinuousRectangleBorder, RoundedSuperellipseBorder,
+CircleBorder, OvalBorder, StadiumBorder, LinearBorder, StarBorder and
+StarBorder.polygon. Four rectangle kinds accept all eight physical/directional
+elliptical radius axes. Circle/oval eccentricity is in [0,1], with omitted SDK
+defaults 0/1 respectively. Any explicit side leaf builds BorderSide; absence of
+all side fields preserves the shape constructor's BorderSide.none default.
+
+Star points/polygon sides are finite doubles >=2, including fractional values;
+rotation is finite clockwise degrees. Ratios, rounding and squash are in [0,1];
+the star point/valley rounding sum must not exceed one. Polygon does not admit
+inner radius or valley rounding. Linear edge size is [0,1]; alignment is any
+finite number, with the conventional documented -1..1 interval explained rather
+than imposed as a fabricated SDK assertion. Either edge leaf creates one edge,
+using SDK defaults for its missing sibling; both omitted means no edge.
+
+The model rejects mixed shape-reference/built-in branches, shape details without
+a kind, and inapplicable detail fields. UI edits use one atomic PatchProperties:
+references clear the built-in branch, built-ins clear the reference, kind changes
+retain compatible values and remove incompatible ones, and a detail-first edit
+selects an appropriate kind. Resetting kind removes its entire branch. Invalid
+rounding is rejected, not clamped. Preserve unrelated fields, property identity,
+exact Undo/Redo, revision fencing and all existing persistence authority.
+
+CardTheme overrides every themeable local omission. M2 variants share cardColor,
+Theme.shadowColor, elevation 1 and radius 4. M3 elevated uses surfaceContainerLow
+and elevation 1; filled uses surfaceContainerHighest and 0; outlined uses surface
+and 0 with outlineVariant side width 1. M3 radius is 12, shadow is ColorScheme.shadow
+and default tint transparent. Explicit custom shape replaces the complete theme
+shape; it does not silently inherit an outlined border side. Margin defaults to
+four, clip to none, borderOnForeground and semanticContainer to true.
+
+The isolated Canvas renders actual SDK Card variants and all ten built-in shape
+branches, including directional geometry, border painting, clipping and semantics.
+Other BoxBorder/InputBorder/compound/custom ShapeBorders are expressible through
+the established typed project/package reference or zero-argument factory branch.
+Their code cannot execute in this isolated runner: show explicit unavailability,
+preserving child/tree, selection and property editing. Before path allocation,
+star/polygon counts above 4096 use the same explicit unavailable presentation,
+naming the requested count and budget. This is an operational Canvas limit only;
+model and generated Dart retain every finite SDK-accepted count without a clamp.
+
+Current totals: 70 widgets, 64 const-capable definitions, 840 writable rows
+(823 outside Scaffold), 67 scalar plus three structural definitions. There are
+129 Boolean catalog fields, nine generic required-child wrappers, 56 any-widget
+and two trait-bound insertable destinations. 70x58 = 4,060 candidates: 3,760
+accepted and 300 rejected. Categories: Layout 31, Scrolling 3, Basic 23,
+Material 7, Accessibility 6. Historical target 70/92, 22 remaining. FD 13,
+contributor API 14, Canvas model 18 and NBFC1 remain unchanged. Full physical
+desktop acceptance and platform/IME work remain outside this palette slice.
+
+The focused real-SDK test passes in 43.36 seconds after correcting its proof-scope
+fixture. It checks all three constructors across ten complete shape forms (30
+combinations), optional nulls, themes, all direct fields, large source-valid point
+counts and 27 accepted symbol probes including current-library/factory/imported
+typed references. Twenty-seven invalid API/type/const-assert variants are rejected;
+project source/pubspec bytes remain unchanged.
+
+Card pointer tests exposed a shared unavailable-preview overlay issue: the outer
+Tooltip mouse region intercepted events before the underlying child. Move Tooltip
+around the complete preview Stack and make the overlay entirely pointer-transparent.
+Regression coverage includes existing ClipPath/PhysicalShape references as well as
+Card custom/complexity states. Preserve the raw SDK nuance that RenderPhysicalShape
+hit testing uses its shape even with Clip.none; clipping controls paint rather than
+expanding the hit region. No synthetic hit-test behavior is introduced.
+
+The full core suite passes 1,333 tests (1,310 baseline plus 23), zero failures,
+errors or skips. Thirteen Card contract tests cover all three variants, all ten
+shapes, finite/domain/cross-field validation, exact generation/codec/provenance,
+capability drift and aliased Card/StarBorder factory offsets. Seven command tests
+cover atomic shape transitions, optional child/history, save/reopen/further edits
+and rejection rollback; three payload tests cover complete admission and strict
+reference-presence projection, malformed branches and uncapped large counts.
+
+Flutter passes all 972 tests (925 baseline plus 47 Card cases), including the
+focused 47-test run, with clean analyze/format and all processes closed. Coverage
+includes 31-field decoding/relations, three variants, ten shapes, raw-SDK/theme
+precedence, geometry, clipping versus hit testing, border order, semantics, optional
+child insertion/movement and exact 70x58 matrix. Ten pointer/F2/CtrlEnter regressions
+cover existing ClipPath/PhysicalShape and Card unavailable states in both profiles.
+Seven earlier warning-center selection expectations now correctly select the
+underlying child rather than the tooltip-intercepting wrapper; existing hover,
+accessibility, host-selected wrapper outlines and zero-size affordances still pass.
+
+The Web release rebuild completes in 15.4 seconds with the pinned SDK/engine
+defines and reviewed offline/no-icon-tree-shaking flags. All 75 source/Web manifest
+entries were rehashed; three runner source entries and main.dart.js changed.
+The final Web entry is 2,901,950 bytes with SHA-256
+`ecba5da54fce8d8bf54c080135480126e11c1403607302d7e5ab0f41b8c15664`.
+Both manifests and the packaged Web artifact contract test match these bytes.
+
+The focused NetBeans suite passes all 770 tests (756 baseline plus 14), zero
+failures/errors/skips, in 41.587 seconds after correcting two new-test fixture
+expectations. It includes all 31 stable property rows, 100 shape-kind transitions,
+all 21 built-in shape fields versus custom-reference transitions, neutral reference/
+radius dialogs, required variant and 129 centered optional Boolean contracts.
+Optional-child create/replace/clear/move, 4,060 placements, tree/a11y/four SVGs and
+the live 31-step save/reopen/further-edit/history/rollback sequence all pass.
+Core, UI and Flutter source/test work is now frozen for the final clean build.
+
+Final clean `mvn clean install` with pinned Dart/Flutter and Web artifact inputs
+passes in 09:57 minutes (2026-09-06 12:00:12 +03:00). Surefire records 3,745 tests
+across 345 reports and Failsafe 13 tests across seven reports: zero failures or
+errors, with six plus one documented optional environment-dependent skips. All
+23 real-SDK candidate-analysis cases execute, none skipped (391.214 seconds).
+The 90-case live mutation-controller suite also passes. Independent final
+read-only cross-layer audit finds no actionable schema/UI/generation/Canvas drift.
+
+`mvn nbm:cluster` succeeds in 1.584 seconds and `tools/verify-release.ps1` passes
+test freshness, package metadata, license and artifact checks. The resulting
+`netbeans-plugin/target/netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,387,350 bytes;
+SHA-256 `68BDDBA6588915EE404091249B72F303C994F71D16C50FAD5160688A27F41051`.
+No installed userdir or interactive desktop acceptance is claimed; no unrelated
+platform work, user Flutter project changes or IDE launch was performed.

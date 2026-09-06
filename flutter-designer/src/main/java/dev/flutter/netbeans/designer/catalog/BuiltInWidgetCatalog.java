@@ -93,6 +93,7 @@ public final class BuiltInWidgetCatalog {
             elevatedButton(),
             divider(),
             verticalDivider(),
+            card(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -600,6 +601,43 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition card() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (var entry : CardWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints = switch (name) {
+                case "color", "shadowColor", "surfaceTintColor", "shapeSideColor" -> colorOrTheme();
+                case "borderOnForeground", "semanticContainer" -> any(PropertyValueKind.BOOLEAN);
+                case "margin" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                case "clipBehavior" -> enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                case "shapeSideStyle" -> enumValues("BorderStyle", "none", "solid");
+                case "variant" -> stringPattern("(?:elevated|filled|outlined)", "Card constructor variant");
+                case "shapeKind" -> stringPattern("(?:" + String.join("|", CardWidgetPropertySchema.shapeKinds()) + ")", "Card ShapeBorder constructor");
+                case "shape" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"));
+                case "shapeRadius" -> List.of(new PropertyValueConstraint.BorderRadiusValues());
+                case "elevation", "shapeSideWidth" -> nonNegativeNumbers();
+                case "shapePoints" -> cardNumbers(BigDecimal.valueOf(2), null);
+                case "shapeCircleEccentricity", "shapeInnerRadiusRatio", "shapePointRounding", "shapeValleyRounding", "shapeSquash",
+                        "shapeStartSize", "shapeEndSize", "shapeTopSize", "shapeBottomSize" -> cardNumbers(BigDecimal.ZERO, BigDecimal.ONE);
+                default -> cardNumbers(null, null);
+            };
+            properties.add(name.equals("variant")
+                    ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.StringValue("elevated"))
+                    : namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(CardWidgetPropertySchema.CARD_TYPE.value(), "Card", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 70, "Card"), properties,
+                List.of(singleSlot("child", 8, false, 0, ANY_WIDGET)));
+    }
+
+    private static List<PropertyValueConstraint> cardNumbers(BigDecimal minimum, BigDecimal maximum) {
+        return List.of(new PropertyValueConstraint.IntegerRange(
+                minimum == null ? DartNumericLiterals.MIN_PORTABLE_INTEGER : minimum.toBigIntegerExact(),
+                maximum == null ? DartNumericLiterals.MAX_PORTABLE_INTEGER : maximum.toBigIntegerExact()),
+                new PropertyValueConstraint.DoubleRange(minimum, true, maximum, true));
     }
 
     private static WidgetDefinition divider() {

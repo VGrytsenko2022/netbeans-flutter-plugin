@@ -50,6 +50,7 @@ import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
@@ -80,6 +81,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.TextField",
                 "flutter.material.Divider",
                 "flutter.material.VerticalDivider",
+                "flutter.material.Card",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -2689,6 +2691,73 @@ class CanvasModelPayloadCodecTest {
                 IllegalArgumentException.class, () -> request(invalid));
         assertTrue(failure.getMessage().contains("designer.property.constraint"),
                 failure::getMessage);
+    }
+
+    @Test
+    void cardAllVariantsAndApplicableShapeLeavesRetainTypedValuesWithoutSynthesizedDefaults() throws Exception {
+        int count = 0;
+        for (String variant : List.of("elevated", "filled", "outlined")) {
+            var kinds = new ArrayList<String>(); kinds.add(null); kinds.addAll(dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema.shapeKinds());
+            for (String kind : kinds) {
+                count++;
+                var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+                properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+                if (kind != null) {
+                    properties.put(new PropertyName("shapeKind"), new PropertyValue.StringValue(kind));
+                    for (String name : dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema.builtInShapePropertyNames()) {
+                        if (!dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema.isShapeDetailProperty(name)
+                                || !dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema.shapePropertyAppliesToKind(name, kind)) continue;
+                        PropertyValue value = switch (name) {
+                            case "shapeRadius" -> {
+                                var r = new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ONE, BigDecimal.TWO);
+                                yield new PropertyValue.BorderRadiusValue(new PropertyValue.BoxDecorationValue.DirectionalBorderRadius(r,r,r,r));
+                            }
+                            case "shapeSideColor" -> new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.outlineVariant"));
+                            case "shapeSideStyle" -> new PropertyValue.EnumValue("BorderStyle", "solid");
+                            case "shapePoints" -> new PropertyValue.DoubleValue(new BigDecimal("4097.5"));
+                            default -> new PropertyValue.DoubleValue(new BigDecimal("0.25"));
+                        };
+                        properties.put(new PropertyName(name), value);
+                    }
+                }
+                var node = new WidgetNode(StableId.random(), type("flutter.material.Card"), properties, Map.of());
+                var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+                var codec = new CanvasModelPayloadCodec();
+                String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+                assertArrayEquals(codec.encode(request), codec.encode(request));
+                assertTrue(json.contains("\"type\":\"flutter.material.Card\""), json);
+                for (String name : dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema.definitions().keySet())
+                    assertEquals(properties.containsKey(new PropertyName(name)), json.contains("\"" + name + "\":"), name + json);
+                if (kind != null && List.of("star", "polygon").contains(kind)) assertTrue(json.contains("4097.5"), json);
+                assertFalse(json.contains("CardThemeData"), json);
+                assertFalse(json.contains("\"resolution\":"), json);
+            }
+        }
+        assertEquals(33, count);
+    }
+
+    @Test
+    void cardTypedShapeReferenceAndOptionalChildStayExplicitWithoutCanvasEvaluation() throws Exception {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:app/shapes.dart"), "makeShape", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+        var child = text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Card child");
+        var node = new WidgetNode(StableId.random(), type("flutter.material.Card"), Map.of(new PropertyName("variant"), new PropertyValue.StringValue("outlined"), new PropertyName("shape"), reference), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"shape\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+        assertFalse(json.contains("makeShape"), json); assertFalse(json.contains("package:app/shapes.dart"), json); assertTrue(json.contains("Card child"), json);
+        assertFalse(json.contains("shapeKind"), json); assertFalse(json.contains("\"resolution\":"), json);
+    }
+
+    @Test
+    void cardPayloadRejectsMissingModeShapeConflictsInactiveFieldsAndRoundingOverflow() {
+        var bad = new ArrayList<Map<PropertyName, PropertyValue>>();
+        bad.add(Map.of()); bad.add(Map.of(new PropertyName("variant"), new PropertyValue.NullValue()));
+        bad.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated"), new PropertyName("shapePoints"), new PropertyValue.DoubleValue(BigDecimal.TEN)));
+        bad.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("filled"), new PropertyName("shapeKind"), new PropertyValue.StringValue("polygon"), new PropertyName("shapeValleyRounding"), new PropertyValue.DoubleValue(BigDecimal.ZERO)));
+        bad.add(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("outlined"), new PropertyName("shapeKind"), new PropertyValue.StringValue("star"), new PropertyName("shapePointRounding"), new PropertyValue.DoubleValue(BigDecimal.ONE), new PropertyName("shapeValleyRounding"), new PropertyValue.DoubleValue(BigDecimal.ONE)));
+        for (var properties : bad) {
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Card"), properties, Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     private static CanvasRenderRequest request(DesignerDocument document) {

@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.designer.validation;
 
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -442,6 +443,10 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(CardWidgetPropertySchema.CARD_TYPE.value())) {
+            validateCardShape(node, propertiesPath, issues);
+            return;
+        }
         if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())) {
             validateFontPackageDependency(
                     node, propertiesPath, issues,
@@ -1256,6 +1261,31 @@ public final class WidgetTreeValidator {
                     node.id(),
                     "ElevatedButton ButtonStyle alignment requires "
                     + "styleAlignmentKind, styleAlignmentX, and styleAlignmentY together."));
+        }
+    }
+
+    private static void validateCardShape(WidgetNode node, String path, IssueCollector issues) {
+        PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
+        String kind = kindValue instanceof PropertyValue.StringValue value ? value.value() : null;
+        boolean reference = node.properties().containsKey(new PropertyName("shape"));
+        for (String name : CardWidgetPropertySchema.builtInShapePropertyNames()) {
+            if (!node.properties().containsKey(new PropertyName(name))) continue;
+            if (reference) issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                    "Card ShapeBorder reference and built-in shape fields are mutually exclusive."));
+            if (CardWidgetPropertySchema.isShapeDetailProperty(name)
+                    && (kind == null || !CardWidgetPropertySchema.shapePropertyAppliesToKind(name, kind))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + name, node.id(),
+                        "Card " + name + " requires a compatible explicit shapeKind."));
+            }
+        }
+        if ("star".equals(kind)) {
+            BigDecimal point = numericValue(node, "shapePointRounding");
+            BigDecimal valley = numericValue(node, "shapeValleyRounding");
+            if ((point == null ? BigDecimal.ZERO : point).add(valley == null ? BigDecimal.ZERO : valley)
+                    .compareTo(BigDecimal.ONE) > 0) {
+                issues.add(issue(PROPERTY_CONSTRAINT, path + "/shapeValleyRounding", node.id(),
+                        "Card StarBorder pointRounding plus valleyRounding must not exceed one."));
+            }
         }
     }
 

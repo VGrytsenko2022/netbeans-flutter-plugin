@@ -347,6 +347,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.Visibility' => const [
         canvasVisibilityReplacementDropSlot,
       ],
+      'flutter.material.Card' ||
       'flutter.widgets.Align' ||
       'flutter.widgets.AspectRatio' ||
       'flutter.widgets.Baseline' ||

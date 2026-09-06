@@ -1739,10 +1739,24 @@ accepted architecture is documented in
   Cover zero-width selection, ordinary DnD/moves, stable Properties, save/reopen/
   further edits, reset, Undo/Redo, rollback and four SVGs. Preserve the SDK
   rounded-hairline limitation without a forced thickness, height or wrapper.
-  Current totals: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
+  At that milestone: 69 widgets, 63 const definitions, 809 rows (792 outside Scaffold),
   66 scalar plus three structural, 9 wrappers/57 destinations, 3,933 cells
   (3,638 accepted / 295 rejected), Material 6/Basic 23. Historical target 69/92,
   23 remaining; formats stay 13/14/18.
+- [x] Add Card at Material/order 70 as all three const variants with optional child
+  and 31 typed rows. Cover every direct constructor field plus ten built-in shape
+  constructors, complete sides/radii/eccentricity/linear/star/polygon parameters
+  and typed ShapeBorder references for other/custom/compound shapes. Preserve
+  inherited defaults, exact variant/factory provenance and non-const propagation.
+  Normalize shape transitions atomically, retain compatible/unrelated values and
+  reject invalid rounding without clamping. Cover real CardTheme/M2/M3, clipping,
+  border order, semantics, empty-child DnD/moves, stable Properties, save/reopen/
+  further edits, reset, Undo/Redo, rollback and four SVGs. Isolated custom-code and
+  >4096-point path previews report explicit unavailability without altering Dart.
+  Current totals: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
+  67 scalar plus three structural, 129 Boolean fields, nine wrappers/58 destinations,
+  4,060 placements (3,760 accepted / 300 rejected), Material 7/Basic 23. Historical
+  target 70/92 with 22 remaining; formats stay 13/14/18. Physical acceptance deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1760,8 +1774,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all sixty-nine admitted built-ins.
-  The 66 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy admitted built-ins.
+  The 67 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

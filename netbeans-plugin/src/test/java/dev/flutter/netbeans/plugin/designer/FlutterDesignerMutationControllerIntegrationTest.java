@@ -563,6 +563,138 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
+    void paletteCardAll31FieldsSaveReopenModesShapesChildHistoryAndRollback() throws Exception {
+        StableId cardId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e92");
+        StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e93");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.Card");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("card_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> cardId));
+            var added = applyCardMutation(fixture, ready, plan.command(), cardId);
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")),
+                    findModelWidget(added.document().orElseThrow().root(), cardId).properties());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("Card("));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("card_reopened_all31", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready();
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), cardId);
+            List<DesignerCommand> commands = new ArrayList<>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets();
+            List<WidgetNode> states = new ArrayList<>(); states.add(initial);
+            for (var field : definition.properties()) {
+                var value = dev.flutter.netbeans.plugin.designer.properties.CardPropertyContractTest.value(field.name().value());
+                commands.clear(); var cell = cellProperty(properties, field.name().value());
+                cell.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(1, commands.size(), field.name().value());
+                current = applyCardMutation(fixture, current, commands.getFirst(), cardId);
+                WidgetNode edited = findModelWidget(current.document().orElseThrow().root(), cardId);
+                assertEquals(value, edited.properties().get(field.name()), field.name().value());
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+                assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                states.add(edited);
+            }
+            assertEquals(32, states.size());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, cardId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), cardId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, cardId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), cardId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            configured = findModelWidget(current.document().orElseThrow().root(), cardId).properties();
+            String undoName = history.getUndoPresentationName();
+            var variantCell = cellProperty(properties, "variant");
+            for (DesignerCommand invalid : List.of(new ResetProperty(cardId, new PropertyName("variant")),
+                    new SetProperty(cardId, new PropertyName("elevation"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))),
+                    new PatchProperties(cardId, List.of(new PatchProperties.SetPatch(new PropertyName("shapeKind"), new PropertyValue.StringValue("star")),
+                            new PatchProperties.SetPatch(new PropertyName("shapePointRounding"), new PropertyValue.DoubleValue(new java.math.BigDecimal("0.8"))),
+                            new PatchProperties.SetPatch(new PropertyName("shapeValleyRounding"), new PropertyValue.DoubleValue(new java.math.BigDecimal("0.8"))))))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Card rejected edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+                current = awaitReady(fixture.mutations());
+                assertEquals(configured, findModelWidget(current.document().orElseThrow().root(), cardId).properties());
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertEquals(undoName, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "card_refused", "Card candidate refused")));
+            var refused = fixture.mutations().submit(current.token().orElseThrow(), new ResetProperty(cardId, new PropertyName("color")), "Card color reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, refused.outcome());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName());
+            assertSame(variantCell, cellProperty(properties, "variant"));
+            assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("card_configured_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), cardId);
+            assertEquals(configured, restored.properties());
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            // Every surviving SDK/shape leaf remains resettable after durable reopen.
+            for (var field : definition.properties()) {
+                if (field.name().value().equals("variant")) continue;
+                var cell = cellProperty(properties, field.name().value());
+                if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(1, commands.size());
+                current = applyCardMutation(fixture, current, commands.getFirst(), cardId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), cardId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+            }
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("outlined")), findModelWidget(current.document().orElseThrow().root(), cardId).properties());
+            for (String variant : List.of("filled", "elevated", "outlined")) {
+                commands.clear(); cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(variant)));
+                current = applyCardMutation(fixture, current, commands.getFirst(), cardId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), cardId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                String source = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+                assertTrue(source.contains(variant.equals("elevated") ? "Card(" : "Card." + variant + "("), source);
+            }
+            WidgetNode text = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), childId);
+            current = applyCardMutation(fixture, current, new AddWidget(new WidgetPlacement(cardId, CHILD, 0), text), cardId);
+            current = applyCardMutation(fixture, current, new SetProperty(childId, DATA, new PropertyValue.StringValue("Card descendant after reopen")), cardId);
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("Card descendant after reopen"));
+            current = applyCardMutation(fixture, current, new RemoveWidget(childId), cardId);
+            WidgetSlot childSlot = findModelWidget(current.document().orElseThrow().root(), cardId).slots().get(CHILD);
+            assertTrue(childSlot == null || ((WidgetSlot.SingleSlot) childSlot).child().isEmpty());
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("card_reset_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyCardMutation(fixture, fixture.ready(), new SetProperty(cardId, new PropertyName("borderOnForeground"), new PropertyValue.BooleanValue(true)), cardId);
+            assertEquals(new PropertyValue.BooleanValue(true), findModelWidget(current.document().orElseThrow().root(), cardId).properties().get(new PropertyName("borderOnForeground")));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyCardMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId cardId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "Card property/child editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, cardId));
+    }
+
+    @Test
     void paletteVerticalDividerSaveReopenAllFieldsHistoryResetAndRollback() throws Exception {
         StableId verticalDividerId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e91");
         WidgetTypeId type = new WidgetTypeId("flutter.material.VerticalDivider");

@@ -146,9 +146,7 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + argumentName.substring(1);
             shapeBranch = "shape".equals(argumentName)
                     && "ShapeBorder".equals(expectedDartType);
-            useDefault = new JCheckBox(shapeBranch
-                    ? "Use default rectangular ClipPath (omit shape)"
-                    : "Use Flutter default (omit " + argumentName + ")");
+            useDefault = new JCheckBox("Use Flutter default (omit " + argumentName + ")");
 
             setLayout(new BorderLayout(0, 8));
             setName(PANEL_NAME);
@@ -160,9 +158,7 @@ final class FlutterDartObjectReferenceEditorComponent {
 
             useDefault.setName(DEFAULT_NAME);
             useDefault.getAccessibleContext().setAccessibleName(
-                    shapeBranch
-                            ? "Use default rectangular ClipPath without Shape"
-                            : "Use Flutter default without " + argumentDisplayName);
+                    "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
                     "When selected, removes the optional " + argumentName
                     + " Dart object reference.");
@@ -342,8 +338,7 @@ final class FlutterDartObjectReferenceEditorComponent {
         private void updatePreview(boolean unset, boolean imported, boolean invocation) {
             String rendered;
             if (unset) {
-                rendered = shapeBranch
-                        ? "ClipPath: <default rectangular clip; shape omitted>"
+                rendered = shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
                         : argumentName + ": <Flutter default null>";
             } else {
                 String symbol = rootSymbol.getText().strip();
@@ -393,8 +388,8 @@ final class FlutterDartObjectReferenceEditorComponent {
                 base += "Setting Clipper first clears Shape and selects the unnamed "
                         + "ClipPath constructor. ";
             } else if ("ShapeBorder".equals(expectedDartType)) {
-                base += "Setting Shape first clears Clipper and selects the non-const "
-                        + "ClipPath.shape helper. ";
+                base += "A project-defined shape replaces any mutually exclusive shape configuration "
+                        + "atomically. Omission restores the widget's Flutter/theme default. ";
             }
             return base
                     + "The isolated Canvas cannot execute project or dependency Dart and displays an "

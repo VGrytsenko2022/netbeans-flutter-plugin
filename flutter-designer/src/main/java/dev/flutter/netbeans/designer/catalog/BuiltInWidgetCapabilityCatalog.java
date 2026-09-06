@@ -198,6 +198,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ImageIcon", STATIC_EDITABLE),
             Map.entry("flutter.material.Divider", STATIC_EDITABLE),
             Map.entry("flutter.material.VerticalDivider", STATIC_EDITABLE),
+            Map.entry("flutter.material.Card", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -590,6 +591,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.SingleChildScrollView",
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
+            Map.entry("flutter.material.Card", cardProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1933,6 +1935,40 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection cardProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        for (String name : CardWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value = switch (name) {
+                case "color", "shadowColor", "surfaceTintColor", "shapeSideColor" -> colorOrThemeProperty(name).getValue();
+                case "borderOnForeground", "semanticContainer" -> propertySchema(PropertyValueKind.BOOLEAN);
+                case "margin" -> edgeInsetsProperty(name, true).getValue();
+                case "clipBehavior" -> enumProperty(name, "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer").getValue();
+                case "shapeSideStyle" -> enumProperty(name, "BorderStyle", "none", "solid").getValue();
+                case "variant" -> new CanvasPropertyContract(Set.of(PropertyValueKind.STRING), true,
+                        Optional.of("string:" + base64("elevated")), Map.of(),
+                        Map.of(PropertyValueKind.STRING, "pattern:" + base64("(?:elevated|filled|outlined)")));
+                case "shapeKind" -> stringPatternProperty(name, "(?:" + String.join("|", CardWidgetPropertySchema.shapeKinds()) + ")").getValue();
+                case "shape" -> constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                        DART_OBJECT_REFERENCE_CONTRACT_PREFIX + "ShapeBorder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                case "shapeRadius" -> constrainedSchema(PropertyValueKind.BORDER_RADIUS, BORDER_RADIUS_CONTRACT_FINGERPRINT);
+                case "elevation", "shapeSideWidth" -> numericSchema(NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE);
+                case "shapePoints" -> cardNumberSchema(BigDecimal.valueOf(2), null);
+                case "shapeCircleEccentricity", "shapeInnerRadiusRatio", "shapePointRounding", "shapeValleyRounding", "shapeSquash",
+                        "shapeStartSize", "shapeEndSize", "shapeTopSize", "shapeBottomSize" -> cardNumberSchema(BigDecimal.ZERO, BigDecimal.ONE);
+                default -> cardNumberSchema(null, null);
+            };
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of("child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasPropertyContract cardNumberSchema(BigDecimal minimum, BigDecimal maximum) {
+        return numericSchema(Map.of(
+                PropertyValueKind.INTEGER, bounds(minimum == null ? new BigDecimal(DartNumericLiterals.MIN_PORTABLE_INTEGER) : minimum, true,
+                        maximum == null ? new BigDecimal(DartNumericLiterals.MAX_PORTABLE_INTEGER) : maximum, true),
+                PropertyValueKind.DOUBLE, bounds(minimum, true, maximum, true)), PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE);
     }
 
     private static CanvasPropertyContract numericSchema(

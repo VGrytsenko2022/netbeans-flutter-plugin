@@ -410,6 +410,10 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         canvasTextButtonIconDropSlot,
         canvasEmptyChildDropSlot,
       ],
+      'flutter.material.FloatingActionButton' => const [
+        canvasTextButtonIconDropSlot,
+        canvasEmptyChildDropSlot,
+      ],
       _ => const [],
     };
 

@@ -38,7 +38,7 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, ADR-100 adds `CircleAvatar`, ADR-101 adds `LinearProgressIndicator`, ADR-102 adds `CircularProgressIndicator`, ADR-103 adds `RefreshProgressIndicator`, ADR-104 adds `RefreshIndicator`, and ADR-105 establishes the current `TextButton`
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, ADR-100 adds `CircleAvatar`, ADR-101 adds `LinearProgressIndicator`, ADR-102 adds `CircularProgressIndicator`, ADR-103 adds `RefreshProgressIndicator`, ADR-104 adds `RefreshIndicator`, and ADR-105 establishes the historical `TextButton`
 surface: 1454 typed rows across seventy-seven widgets, seventy-one const-constructor
 definitions and 4,774 Palette/DnD candidates, including 4,448 accepted and 326
 rejected cells. The 1437-field
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-104 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-108 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -467,8 +467,12 @@ ADR-103 establishes the historical seventy-five-source, 4,575-candidate matrix
 (4,256 accepted / 319 rejected).
 ADR-104 establishes the historical seventy-six-source, 4,636-candidate matrix
 (4,315 accepted / 321 rejected).
-ADR-105 establishes the current seventy-seven-source, 4,774-candidate matrix
+ADR-105 establishes the historical seventy-seven-source, 4,774-candidate matrix
 (4,448 accepted / 326 rejected).
+ADR-106 records the historical 78-source, 4,914-candidate matrix (4,583 accepted /
+331 rejected), and ADR-107 records 79 sources and 5,135 candidates (4,796 accepted /
+339 rejected). ADR-108 establishes the current 80-source, 5,360-candidate matrix
+(5,013 accepted / 347 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -479,7 +483,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -6374,3 +6378,135 @@ assembled runtime module are byte-identical, SHA-256
 The ordinary Maven JAR differs only in the expected transformed manifest, and
 all four FilledButton SVGs are present. No user IDE/userdir was launched or
 modified; global physical desktop acceptance was not run.
+
+## ADR-108 — FloatingActionButton four constructors and typed Hero tags
+
+Date: 2026-09-06
+
+Admit `flutter.material.FloatingActionButton` at Material/order 170 from the
+pinned Flutter 3.44.8 SDK and its [official constructor contract](https://api.flutter.dev/flutter/material/FloatingActionButton-class.html).
+All four const constructors are covered: standard, small, large and extended.
+Normal/small/large have nullable Child. Extended maps Child to required Label,
+admits optional Icon, and retains Label even when Extended state is false.
+A new standard FAB can be inserted into an empty destination; it is not a
+required-child creation wrapper. All tree moves, slot mutations, source
+detachment and replacement operations enforce the conditional required Label.
+
+The 78 typed rows project all 25 distinct non-widget SDK argument names:
+27 direct/selector rows, with Shape replaced by its complete 22-row projection
+and extendedTextStyle replaced by its 31-row projection. Constructor-only
+arguments are admitted only in their corresponding variants: mini in standard,
+isExtended in standard/extended, and extended spacing/padding/TextStyle only
+in extended. Constructor changes remove incompatible scalar arguments in one
+undoable patch. Empty-Label and occupied-Icon transitions are rejected with the
+operation, widget and actionable reason; no child is silently deleted.
+All five elevations accept nonnegative finite values and positive Infinity,
+matching the SDK constructor. Signed finite or positive-infinite icon/label
+spacing is retained; Canvas diagnoses invalid spacing only when actually mounted.
+Insets retain the existing nonnegative physical/directional typed contract.
+The real SDK can tween mixed finite/infinite elevation states through NaN.
+Canvas reports that configuration as preview-unavailable without clamping source
+values. Uniformly infinite state sets render with a scoped SDK-component key
+change across finite/infinite history, preserving the editable model child State,
+text and selection; all four constructor transitions have executable coverage.
+
+The ten built-in ShapeBorder families include all existing Card shape details;
+a strict ShapeBorder reference remains a mutually exclusive alternative.
+The full TextStyle projection covers colors/paints, font metadata and fallback,
+locale, leading, decoration, shadows, font features and variations. Alternative
+paint/color and built-in/custom shape edits remain atomic. Booleans retain
+centered checkboxes, and optional values keep unset/default semantics. Stable
+Properties identity, native focus behavior, Save/reopen and subsequent editing,
+Undo/Redo, four SVGs and capability-gated palette admission remain required.
+
+Hero tag is one closed union: unset (the SDK's default tag), explicit null
+(no Hero), string/integer/double/Boolean literal, or analyzed non-null Object
+reference/factory. It has a dedicated cancel-safe typed editor, not a raw Dart
+expression field. Integer literals use the existing portable exact range
+[-9007199254740991, 9007199254740991]; double literals are signed finite values.
+Other application identities remain available through typed Object references.
+Object qualification uses the witness-owned
+dart:core alias; all other expected types retain their existing library aliases.
+The expected-type witness still excludes dynamic and nullable values and
+preserves the user's implicit, explicit, hidden and prefixed core scope.
+Activation, FocusNode, MouseCursor and ShapeBorder references use the same
+strict static evidence. Disabled onPressed metadata remains stored but does not
+generate calls, imports or symbol evidence until enabled again.
+
+Canvas uses the actual SDK FAB constructors and component theme in both M2/M3,
+including default sizes, RTL padding, collapsed extended mode, empty children
+and child state. It never invokes application callbacks, adopts application
+FocusNodes or evaluates custom tag equality. Default and literal tags remain
+exact; known duplicate tags produce a diagnostic, not invented unique IDs.
+Only an unresolved custom Hero wrapper is disabled while the real button and
+child remain present. Unresolved custom shapes/cursors retain explicit isolated
+preview diagnostics and SDK fallback, without altering generated application
+source. Project-specific Hero transitions are not claimed to be executable in
+the isolated preview.
+
+The current target is 80/92, leaving 12 relative to the historical practical
+target; the full ordered inventory is not preserved. The catalog has 80 widgets,
+74 const-capable definitions, 2552 writable rows (2535 outside Scaffold),
+77 scalar plus three structural definitions, and 262 Boolean-only fields.
+The existing nullable-Boolean union remains, alongside the heterogeneous
+Object-tag union. There are 67 insertable destinations (65 ANY plus two traits),
+giving 5360 placements: 5013 accepted and 347 rejected. Twelve generic wrappers
+plus Expanded/Flexible remain fourteen creation wrappers. Categories are
+Material 17, Layout 31, Scrolling 3, Basic 23 and Accessibility 6.
+Formats .fd 13 / Catalog API 14 / Canvas model 18, NBFC 1, 512 stored properties,
+2048 symbol probes, 2 MiB and the 45-second candidate-analysis budget do not change.
+Deferred platform work and global physical desktop acceptance are out of scope.
+
+Verification on 2026-09-06: 1560 core tests pass. The full analyzer install
+passes 63 tests (zero failures/errors/skips), finished at 22:13:42 +03:00.
+Its 39 source/config input hashes remain unchanged through final packaging;
+target and installed analyzer JARs are byte-identical, SHA-256
+`6dce65a3ec1b43733c67290db090b65a390d55fe347d80c788ee91a3c7ad8c5f`.
+This same-turn complete analyzer gate is retained for the final remaining-reactor
+install, rather than rerunning its unchanged 14-minute protocol suite.
+
+The final full remaining-reactor install starts at 22:31:55 +03:00 and finishes
+with BUILD SUCCESS at 22:42:04 (10:07 Maven elapsed). Every non-analyzer report is
+fresh for that run; no test filters are applied to the remaining modules.
+All 386 reports contain 4196 registered cases: 4189 executed, zero failures,
+zero errors and seven existing optional SDK/physical/platform skips.
+Surefire has 4181 cases across 379 reports (six skips); Failsafe has 15 cases
+across seven reports (one skip). The 117 mutation-controller integration cases,
+three Java/Dart parity tests, and unchanged 38-case move dependency guard pass
+inside this full run, without a retry. All 1585 non-Markdown source/config
+inputs remain byte-identical from final source freeze through packaging.
+
+The FAB real-SDK gate exercises eight generated/analyzed candidates: all four
+dense constructors, a default/literal/null/empty-child matrix, concrete typed
+Object/Shape/Cursor/Focus/callback references, and two deliberately rejected
+dynamic/nullable Object cases. The other four typed witnesses remain accepted
+in both negative controls. It uses the production generator, source-transition
+and pair preparation, symbol probe planner and 45-second analyzer budget.
+Source, pubspec and package_config bytes remain unchanged and every candidate's
+FD data reopens exactly. The existing ten Text/Outlined/Filled generated SDK
+candidates also pass. Targeted UI/editor regression passes 128 cases; the final
+full run includes those methods and the rest of the plugin tests. An independent
+review found JTextField would alter multiline string tags; STRING now uses
+JTextArea, with exact LF/CRLF/CR/TAB unchanged-open/commit and cancel tests.
+
+Flutter passes all 1367 tests twice, with the final exact source bytes and clean
+static analysis. Raw SDK controls cover M2/M3, geometry/pixels, theme/RTL, empty
+and collapsed variants, hero equality/numeric boundaries and elevation history.
+All 2646 pre-existing reviewed records remain unchanged after CRLF normalization;
+the new widget adds 81 records. The offline release Web build and all 40 source
+plus 35 Web manifest entries are independently checked. Source manifest SHA-256:
+`af591ec984c9eb7996e1e25b1b5d184a80b6af7cdf22648a6f3995d640483d6b`;
+Web manifest SHA-256:
+`f67bd202feabb6790c8baba71a772b5ee383dc2a08fd5602b39d77c0a593a886`.
+main.dart.js is 3,017,112 bytes, SHA-256
+`4680fc3299d6b6f3ccaa4ea54b558b0bc4023c11f91cc8849d164c95d01bfc66`.
+
+Both root and module nbm:cluster targets and tools/verify-release.ps1 pass with
+freshness checks enabled. NBM size: 7,595,874 bytes; SHA-256
+`df8febb5f1fe8e36e6f0c4e55a69f995f2a121312d486c1a3a09052a7867022c`.
+Its embedded module, packaging-stage module, both development clusters and
+assembled runtime module are byte-identical (3,411,513 bytes), SHA-256
+`a58bd1902331031ae7ac3813369eadfef8c366ee68afb2d7087a6a3e4c8e4f55`.
+The ordinary Maven JAR differs only in the expected transformed manifest, and
+all four FloatingActionButton SVGs are present. No user IDE/userdir was launched
+or changed, and no global physical desktop acceptance was run.

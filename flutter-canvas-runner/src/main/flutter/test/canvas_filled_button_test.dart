@@ -143,7 +143,7 @@ Future<void> _pump(
 
 String _section(String contract) => contract.substring(
   contract.indexOf('W|$_type\n'),
-  contract.indexOf('W|flutter.material.LinearProgressIndicator\n'),
+  contract.indexOf('\nW|', contract.indexOf('W|$_type\n') + 1) + 1,
 );
 Map<String, Object?> _allLocalStyles() {
   final elevated = fixture.elevatedButtonPropertiesForViewTest();

@@ -72,6 +72,11 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
                 && !presets.isEmpty() && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
             editorKind = EditorKind.PRESET_DART_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.NULL, PropertyValueKind.STRING, PropertyValueKind.INTEGER,
+                PropertyValueKind.DOUBLE, PropertyValueKind.BOOLEAN, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Object"))) {
+            editorKind = EditorKind.OBJECT_TAG;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN))) {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))) {
@@ -201,6 +206,7 @@ final class FlutterTypedPropertyEditors {
         STRING,
         STRING_PRESET,
         PRESET_DART_REFERENCE,
+        OBJECT_TAG,
         NEWLINE_STRING_LIST,
         BOOLEAN,
         NULLABLE_BOOLEAN,
@@ -351,7 +357,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, PRESET_DART_REFERENCE ->
+                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, PRESET_DART_REFERENCE, OBJECT_TAG ->
                     new StructuredEditor(this);
             };
         }
@@ -1023,6 +1029,16 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
+            if (binding.editorKind() == EditorKind.OBJECT_TAG) {
+                return explicitValue().map(value -> switch (value) {
+                    case PropertyValue.NullValue ignored -> "None (disable Hero)";
+                    case PropertyValue.StringValue text -> "String: \"" + text.value().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t") + "\"";
+                    case PropertyValue.IntegerValue integer -> "Integer: " + integer.value();
+                    case PropertyValue.DoubleValue number -> "Double: " + number.value().toPlainString();
+                    case PropertyValue.BooleanValue bool -> "Boolean: " + bool.value();
+                    default -> PropertyValueFormatter.format(value);
+                }).orElseGet(this::unsetText);
+            }
             if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
                 return explicitValue().map(value -> value instanceof PropertyValue.StringValue preset
                         ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);

@@ -6,6 +6,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- FloatingActionButton at Material/order 170 with standard/small/large/extended
+  constructors and all 78 typed rows, including the full ShapeBorder/TextStyle
+  projections, strict callbacks/focus/cursors and unset/null/literal/Object Hero tags.
+  All four actual SDK constructors, theme defaults, RTL, collapsed extended mode,
+  empty children, conditional label/icon guards, atomic edits, save/reopen/history
+  and four SVGs are covered. Object witnesses now use the existing dart:core alias;
+  dynamic and nullable references remain rejected. Canvas reports duplicate tags
+  and unresolved project objects without executing application code. Current totals:
+  80 widgets, 74 const definitions, 2552 rows (2535 outside Scaffold), 262 Boolean-only
+  rows plus the existing nullable-Boolean and new Object-tag unions, 67 destinations,
+  5,360 placements (5,013 accepted / 347 rejected), Material 17. Historical target
+  80/92 leaves 12; formats and resource budgets remain unchanged.
+
 - FilledButton at Material/order 160 with standard, icon, tonal and tonalIcon
   constructors and all 510 typed fields: direct controls, nine state/default
   style buckets, common style/builders and strict whole project styles. Includes
@@ -13,7 +26,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   callbacks/focus/controllers and preserved child state. Standard/tonal support
   child:null; icon modes require a label and optionally accept an icon. Conditional
   child removal/move/replace guards, atomic transitions, save/reopen/history, DnD
-  and four SVGs complete the slice. Current totals: 79 widgets, 73 const
+  and four SVGs complete the slice. At that milestone: 79 widgets, 73 const
   definitions, 2474 rows (2457 outside Scaffold), 253 Boolean-only fields plus
   one nullable Boolean union, 65 destinations and 5,135 placements
   (4,796 accepted / 339 rejected), Material 16. The historical 92-widget target

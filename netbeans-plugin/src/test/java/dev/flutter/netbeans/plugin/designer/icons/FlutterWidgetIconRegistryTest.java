@@ -86,6 +86,17 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void floatingActionButtonFamilyUsesReviewedCircularActionGeometryWithoutFonts() throws Exception {
+        String base = ICON_ROOT + "floatingactionbutton.svg";
+        var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32);
+        assertTrue(small.geometry().stream().anyMatch(shape -> shape.startsWith("circle[") && shape.contains("r=6.5")));
+        assertTrue(small.geometry().stream().anyMatch(shape -> shape.contains("M8 4.5v7M4.5 8h7")));
+        assertEquals(small.geometry(), dark.geometry()); assertEquals(small.topology(), large.topology());
+        assertTrue(small.paint().toString().contains("#146FA8")); assertTrue(dark.paint().toString().contains("#9BD6FF"));
+    }
+
+    @Test
     void filledButtonFamilyUsesSolidFillWithoutFontDependencies() throws Exception {
         String base = ICON_ROOT + "filledbutton.svg";
         var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
@@ -1853,6 +1864,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.TextButton", ICON_ROOT + "textbutton.svg");
         expected.put("flutter.material.OutlinedButton", ICON_ROOT + "outlinedbutton.svg");
         expected.put("flutter.material.FilledButton", ICON_ROOT + "filledbutton.svg");
+        expected.put("flutter.material.FloatingActionButton", ICON_ROOT + "floatingactionbutton.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

@@ -2,6 +2,7 @@ package dev.flutter.netbeans.designer.validation;
 
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
@@ -453,6 +454,30 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.value())) {
+            String variant = FloatingActionButtonWidgetPropertySchema.variant(node);
+            for (PropertyName property : node.properties().keySet()) {
+                if (!FloatingActionButtonWidgetPropertySchema.propertyAvailableInVariant(property.value(), variant)) {
+                    issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/" + property.value(), node.id(),
+                            "FloatingActionButton " + variant + " has no " + property.value() + " argument; select its applicable constructor or reset this field."));
+                }
+            }
+            if (FloatingActionButtonWidgetPropertySchema.requiresChild(node)
+                    && (!(node.slots().get(new SlotName("child")) instanceof WidgetSlot.SingleSlot child) || child.child().isEmpty())) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/variant", node.id(),
+                        "FloatingActionButton.extended requires a non-null Label in Child, even when Extended state is false. Add or replace Child first."));
+            }
+            if (!FloatingActionButtonWidgetPropertySchema.isExtendedConstructor(node)
+                    && node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot icon && icon.child().isPresent()) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/variant", node.id(),
+                        "FloatingActionButton Icon is available only in Extended. Move or clear the existing Icon before changing constructors."));
+            }
+            validateCardShape(node, propertiesPath, issues);
+            validateFontPackageDependency(node, propertiesPath, issues, "extendedTextStylePackage", "extendedTextStyleFontFamily", "extendedTextStyleFontFamilyFallback", "FloatingActionButton extendedTextStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "extendedTextStyleColor", "extendedTextStyleForeground", "FloatingActionButton extendedTextStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "extendedTextStyleBackgroundColor", "extendedTextStyleBackground", "FloatingActionButton extendedTextStyle");
+            return;
+        }
         if (type.equals(CardWidgetPropertySchema.CARD_TYPE.value())) {
             validateCardShape(node, propertiesPath, issues);
             return;
@@ -1369,17 +1394,19 @@ public final class WidgetTreeValidator {
     }
 
     private static void validateCardShape(WidgetNode node, String path, IssueCollector issues) {
+        String family = node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
+                ? "FloatingActionButton" : "Card";
         PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
         String kind = kindValue instanceof PropertyValue.StringValue value ? value.value() : null;
         boolean reference = node.properties().containsKey(new PropertyName("shape"));
         for (String name : CardWidgetPropertySchema.builtInShapePropertyNames()) {
             if (!node.properties().containsKey(new PropertyName(name))) continue;
             if (reference) issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
-                    "Card ShapeBorder reference and built-in shape fields are mutually exclusive."));
+                    family + " ShapeBorder reference and built-in shape fields are mutually exclusive."));
             if (CardWidgetPropertySchema.isShapeDetailProperty(name)
                     && (kind == null || !CardWidgetPropertySchema.shapePropertyAppliesToKind(name, kind))) {
                 issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + name, node.id(),
-                        "Card " + name + " requires a compatible explicit shapeKind."));
+                        family + " " + name + " requires a compatible explicit shapeKind."));
             }
         }
         if ("star".equals(kind)) {
@@ -1388,7 +1415,7 @@ public final class WidgetTreeValidator {
             if ((point == null ? BigDecimal.ZERO : point).add(valley == null ? BigDecimal.ZERO : valley)
                     .compareTo(BigDecimal.ONE) > 0) {
                 issues.add(issue(PROPERTY_CONSTRAINT, path + "/shapeValleyRounding", node.id(),
-                        "Card StarBorder pointRounding plus valleyRounding must not exceed one."));
+                        family + " StarBorder pointRounding plus valleyRounding must not exceed one."));
             }
         }
     }

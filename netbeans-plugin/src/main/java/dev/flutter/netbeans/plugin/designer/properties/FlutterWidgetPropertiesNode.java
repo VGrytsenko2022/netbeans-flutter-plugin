@@ -38,6 +38,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -526,6 +527,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
             addFilledButtonPropertySets(sheet, hasSlotTab);
+        } else if (FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.equals(widget.type())) {
+            addFloatingActionButtonPropertySets(sheet, hasSlotTab);
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
@@ -783,6 +786,12 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.equals(widget.type())) {
+            return slot.name().value().equals("icon")
+                    ? "Optional Icon for the Extended constructor only. Move or clear an occupied Icon before selecting Standard, Small or Large; it is never silently removed."
+                    : "Optional Child for Standard, Small and Large. Extended requires the same stable child as Label; add Child before selecting Extended. "
+                            + "A required Label may be replaced atomically, but cannot be removed, cleared or moved out.";
+        }
         if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
             return slot.name().value().equals("icon")
                     ? "Optional icon for Icon or Tonal icon. Switching between those constructors retains Icon and icon alignment. "
@@ -2309,6 +2318,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addFloatingActionButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<FloatingActionButtonWidgetPropertySchema.Group, Sheet.Set>(FloatingActionButtonWidgetPropertySchema.Group.class);
+        for (var group : FloatingActionButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = FloatingActionButtonWidgetPropertySchema.find(property.name()).orElseThrow();
+            java.util.List<String> presets = switch (property.name().value()) {
+                case "variant" -> FloatingActionButtonWidgetPropertySchema.variants();
+                case "shapeKind" -> FloatingActionButtonWidgetPropertySchema.shapeKinds();
+                case "mouseCursor" -> FloatingActionButtonWidgetPropertySchema.mouseCursorPresets();
+                default -> java.util.List.of();
+            };
+            groups.get(schema.group()).put(projectProperty(property,
+                    FloatingActionButtonWidgetPropertySchema.textStyleBinding(property.name()),
+                    schema.displayName(), schema.description()
+                            + " Selecting Standard resets Extended-only fields; Small/Large also reset Mini and Extended state; Extended resets Mini. One Undo restores those scalar values. No Child or Icon is silently removed. "
+                            + "Extended requires a Child as Label. Optional fields may be reset; Constructor and Enabled cannot be unset. "
+                            + "Built-in/custom shapes and text Paint/color alternatives switch atomically. Project references are analyzed but never executed in isolated Canvas.",
+                    false, presets));
+        }
+    }
+
     private void addFilledButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<FilledButtonWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(FilledButtonWidgetPropertySchema.Group.class);
         for (var group : FilledButtonWidgetPropertySchema.Group.values()) {
@@ -3823,6 +3856,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())) {
             return cardPropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.equals(currentWidget.type())) {
+            return floatingActionButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (VisibilityWidgetPropertySchema.VISIBILITY_TYPE.equals(currentWidget.type())) {
             return visibilityPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -3912,6 +3948,43 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
         return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand floatingActionButtonPropertyCommand(
+            WidgetNode currentWidget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        if (edited.equals("shape") || edited.equals("shapeKind") || CardWidgetPropertySchema.isShapeDetailProperty(edited))
+            return cardPropertyCommand(currentWidget, name, accepted);
+        if (accepted.explicitValue().isEmpty()) return ordinaryPropertyCommand(currentWidget, name, accepted);
+        var value = accepted.explicitValue().orElseThrow();
+        String target = FloatingActionButtonWidgetPropertySchema.variant(currentWidget);
+        if (edited.equals("variant")) target = ((PropertyValue.StringValue) value).value();
+        else if (edited.equals("mini") || edited.equals("isExtended")
+                && !FloatingActionButtonWidgetPropertySchema.propertyAvailableInVariant(edited, target)) target = "standard";
+        else if (FloatingActionButtonWidgetPropertySchema.extendedOnlyProperties().contains(edited)) target = "extended";
+        if (target.equals("extended") && (!(currentWidget.slots().get(CHILD_SLOT) instanceof WidgetSlot.SingleSlot child) || child.child().isEmpty()))
+            throw new IllegalArgumentException("Cannot select Extended on FloatingActionButton '" + currentWidget.id()
+                    + "': Child is empty. Add a Child first; Extended requires a Label.");
+        if (!target.equals("extended") && currentWidget.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot icon && icon.child().isPresent())
+            throw new IllegalArgumentException("Cannot select " + target + " on FloatingActionButton '" + currentWidget.id()
+                    + "': Icon contains widget '" + icon.child().orElseThrow().id() + "'. Move or clear Icon first; no widget will be deleted.");
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        for (var key : currentWidget.properties().keySet())
+            if (!FloatingActionButtonWidgetPropertySchema.propertyAvailableInVariant(key.value(), target)) resets.add(key);
+        String opposite = switch (edited) {
+            case "extendedTextStyleForeground" -> "extendedTextStyleColor";
+            case "extendedTextStyleColor" -> "extendedTextStyleForeground";
+            case "extendedTextStyleBackground" -> "extendedTextStyleBackgroundColor";
+            case "extendedTextStyleBackgroundColor" -> "extendedTextStyleBackground";
+            default -> null;
+        };
+        if (opposite != null) resets.add(new PropertyName(opposite));
+        resets.remove(name); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(currentWidget.properties()::containsKey).forEach(key -> patches.add(new PatchProperties.ResetPatch(key)));
+        if (!edited.equals("variant") && !target.equals(FloatingActionButtonWidgetPropertySchema.variant(currentWidget)))
+            patches.add(new PatchProperties.SetPatch(new PropertyName("variant"), new PropertyValue.StringValue(target)));
+        patches.add(new PatchProperties.SetPatch(name, value));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, name, accepted) : new PatchProperties(currentWidget.id(), patches);
     }
 
     private DesignerCommand badgePropertyCommand(

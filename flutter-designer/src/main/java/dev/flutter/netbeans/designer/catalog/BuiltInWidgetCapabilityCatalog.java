@@ -160,6 +160,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.TextButton", STATIC_EDITABLE),
             Map.entry("flutter.material.OutlinedButton", STATIC_EDITABLE),
             Map.entry("flutter.material.FilledButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.FloatingActionButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -325,6 +326,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.TextButton", fullStyleButtonProjection("TextButton")),
             Map.entry("flutter.material.OutlinedButton", fullStyleButtonProjection("OutlinedButton")),
             Map.entry("flutter.material.FilledButton", fullStyleButtonProjection("FilledButton")),
+            Map.entry("flutter.material.FloatingActionButton", floatingActionButtonProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2144,6 +2146,57 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection floatingActionButtonProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection shapes = cardProjection();
+        for (String name : FloatingActionButtonWidgetPropertySchema.definitions().keySet()) {
+            if (FloatingActionButtonWidgetPropertySchema.isTextStyleProperty(new PropertyName(name))) {
+                continue;
+            }
+            CanvasPropertyContract value;
+            if (name.equals("shape") || CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                value = shapes.propertyContracts().get(new PropertyName(name));
+            } else {
+                value = switch (name) {
+                    case "foregroundColor", "backgroundColor", "focusColor", "hoverColor", "splashColor" -> colorOrThemeProperty(name).getValue();
+                    case "enabled" -> new CanvasPropertyContract(Set.of(PropertyValueKind.BOOLEAN), true,
+                            Optional.of("boolean:true"), Map.of(), Map.of(PropertyValueKind.BOOLEAN, "any"));
+                    case "mini", "autofocus", "isExtended", "enableFeedback" -> propertySchema(PropertyValueKind.BOOLEAN);
+                    case "variant" -> new CanvasPropertyContract(Set.of(PropertyValueKind.STRING), true,
+                            Optional.of("string:" + base64("standard")), Map.of(),
+                            Map.of(PropertyValueKind.STRING, "pattern:" + base64("(?:standard|small|large|extended)")));
+                    case "tooltip" -> propertySchema(PropertyValueKind.STRING);
+                    case "heroTag" -> {
+                        CanvasPropertyContract number = cardNumberSchema(null, null);
+                        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                        constraints.putAll(number.constraintFingerprints());
+                        constraints.put(PropertyValueKind.NULL, "any");
+                        constraints.put(PropertyValueKind.STRING, "any");
+                        constraints.put(PropertyValueKind.BOOLEAN, "any");
+                        constraints.put(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                + "Object:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                        yield new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+                    }
+                    case "onPressed", "focusNode" -> constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                            DART_OBJECT_REFERENCE_CONTRACT_PREFIX + (name.equals("onPressed") ? "VoidCallback" : "FocusNode")
+                            + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                    case "mouseCursor" -> new CanvasPropertyContract(Set.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE),
+                            false, Optional.empty(), Map.of(), Map.of(
+                                    PropertyValueKind.STRING, "pattern:" + base64(DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern()),
+                                    PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                            + "MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)"));
+                    case "clipBehavior" -> enumProperty(name, "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer").getValue();
+                    case "materialTapTargetSize" -> materialEnumProperty(name, "MaterialTapTargetSize", "padded", "shrinkWrap").getValue();
+                    case "extendedPadding" -> edgeInsetsProperty(name, true).getValue();
+                    default -> withPositiveInfinity(cardNumberSchema(name.equals("extendedIconLabelSpacing") ? null : BigDecimal.ZERO, null));
+                };
+            }
+            properties.put(name, value);
+        }
+        appendTextStyleProjection(properties, "extendedTextStyle");
+        return projection(properties, Map.of("child", singleSlotSchema(true, 0), "icon", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection cardProjection() {

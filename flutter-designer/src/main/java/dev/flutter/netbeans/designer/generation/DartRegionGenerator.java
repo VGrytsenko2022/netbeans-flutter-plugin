@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -330,7 +331,8 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
-        return !OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
+        return !(OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
+                || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE))
                 || !new PropertyValue.BooleanValue(false).equals(
                         node.properties().get(new PropertyName("enabled")))
                 || !(name.value().equals("onPressed") || name.value().equals("onLongPress"));
@@ -398,6 +400,12 @@ public final class DartRegionGenerator {
                             ? FilledButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : ""));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
+                    && (Set.of("variant", "enabled", "onPressed").contains(property.name().value())
+                    || FloatingActionButtonWidgetPropertySchema.isTextStyleProperty(property.name())
+                    || FloatingActionButtonWidgetPropertySchema.builtInShapePropertyNames().contains(property.name().value())
+                    || (property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue))) continue;
             if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                     && TextButtonWidgetPropertySchema.isCompound(property.name())) continue;
             if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
@@ -490,6 +498,9 @@ public final class DartRegionGenerator {
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
+            if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
+                    && slot.name().value().equals("icon")
+                    && !FloatingActionButtonWidgetPropertySchema.isExtendedConstructor(node)) continue;
             if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                     && slot.name().value().equals("icon") && !OutlinedButtonWidgetPropertySchema.isIconVariant(node)) continue;
             if (BadgeWidgetPropertySchema.isCountMode(node) && slot.name().value().equals("label")) continue;
@@ -507,19 +518,36 @@ public final class DartRegionGenerator {
                 String slotPath = path + "/slots/" + pointer(slot.name().value());
                 arguments.add(new ConstructorArgument(
                         slot.parameter(),
-                        OutlinedButtonWidgetPropertySchema.isIconVariant(node) && slot.name().value().equals("child")
+                        (OutlinedButtonWidgetPropertySchema.isIconVariant(node)
+                                || FloatingActionButtonWidgetPropertySchema.isExtendedConstructor(node))
+                                && slot.name().value().equals("child")
                                 ? "label" : slot.name().value(),
                         true,
                     renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
             }
         }
-        if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE) || node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)) {
+        if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE) || node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)
+                || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
         }
-        if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
+        if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
+                || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             appendCardShape(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
+            PropertyDefinition pressed = definition.property(new PropertyName("onPressed")).orElseThrow();
+            PropertyValue reference = node.properties().get(pressed.name());
+            boolean enabled = !new PropertyValue.BooleanValue(false).equals(node.properties().get(new PropertyName("enabled")));
+            RenderedValue callback = !enabled
+                    ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                    : reference == null ? scalar("() {}", false, path + "/properties/onPressed", node.id(), context)
+                    : renderProperty(reference, pressed, path + "/properties/onPressed", node.id(), context);
+            arguments.add(new ConstructorArgument(pressed.parameter(), "onPressed", false, callback));
+            if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+                appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+            }
         }
         if (node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)) {
             ArrayList<CompositeMember> members = new ArrayList<>();
@@ -668,6 +696,14 @@ public final class DartRegionGenerator {
             if (!variant.equals("elevated")) {
                 constructorOccurrences.add(occurrence("widget:" + node.id() + ":cardVariant", constructor.length() + 1,
                         variant, renderedClass.libraryUri(), path + "/properties/variant", Optional.of(node.id())));
+                constructor += "." + variant;
+            }
+        } else if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
+            String variant = FloatingActionButtonWidgetPropertySchema.variant(node);
+            if (!variant.equals("standard")) {
+                constructorOccurrences.add(occurrence("widget:" + node.id() + ":floatingActionButtonConstructor",
+                        constructor.length() + 1, variant, renderedClass.libraryUri(),
+                        path + "/properties/variant", Optional.of(node.id())));
                 constructor += "." + variant;
             }
         } else if (definition.namedConstructor().isPresent()) {
@@ -3377,7 +3413,8 @@ public final class DartRegionGenerator {
                     "polygon", symbol.libraryUri(), path + "/properties/shapeKind", Optional.of(node.id())));
             rendered = new RenderedValue(rendered.lines(), rendered.constant(), rendered.utf8Size(), occurrences);
         }
-        arguments.add(new ConstructorArgument(DartParameter.named(10, false), "shape", false, rendered));
+        arguments.add(new ConstructorArgument(definition.property(new PropertyName("shape")).orElseThrow().parameter(),
+                "shape", false, rendered));
     }
 
     private void addCardMember(List<CompositeMember> members, WidgetNode node, WidgetDefinition definition, String path,
@@ -3666,11 +3703,13 @@ public final class DartRegionGenerator {
             GenerationContext context,
             List<ConstructorArgument> arguments) {
         boolean badge = node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE);
-        String styleArgument = badge ? "textStyle" : "style";
-        int styleOrder = badge ? 12 : 0;
+        boolean floating = node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE);
+        String styleArgument = floating ? "extendedTextStyle" : badge ? "textStyle" : "style";
+        int styleOrder = floating ? 25 : badge ? 12 : 0;
         Map<TextWidgetPropertySchema.Target, List<TextMember>> grouped = new HashMap<>();
         for (PropertyDefinition property : definition.properties()) {
-            TextWidgetPropertySchema.Definition binding = (badge
+            TextWidgetPropertySchema.Definition binding = (floating
+                    ? FloatingActionButtonWidgetPropertySchema.textStyleBinding(property.name()) : badge
                     ? BadgeWidgetPropertySchema.textStyleBinding(property.name())
                     : TextWidgetPropertySchema.find(property.name())).orElse(null);
             if (binding == null || binding.target() == TextWidgetPropertySchema.Target.DIRECT) {
@@ -6564,7 +6603,8 @@ public final class DartRegionGenerator {
                 for (String uri : definition.importUris()) {
                     if ((definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
                             || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
-                            || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE))
+                            || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
+                            || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

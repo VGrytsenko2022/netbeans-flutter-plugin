@@ -92,6 +92,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.TextButton",
             "flutter.material.OutlinedButton",
             "flutter.material.FilledButton",
+            "flutter.material.FloatingActionButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3577,6 +3578,54 @@ class CanvasModelPayloadCodecTest {
         }
         var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
                 dev.flutter.netbeans.designer.catalog.OutlinedButtonTestValues.definition(), StableId.random());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
+    }
+
+    @Test
+    void floatingActionButtonPayloadPreservesAllFourConstructorsAndPrivateObjectReferencePresence() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.variants()) for (boolean paints : List.of(false, true)) {
+            var values = dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.full(variant, "linear", paints);
+            for (String name : List.of("onPressed", "heroTag", "mouseCursor", "focusNode")) {
+                values.put(new PropertyName(name), dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.reference(name));
+            }
+            var node = dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.node(values);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            for (String name : List.of("onPressed", "heroTag", "mouseCursor", "focusNode")) {
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            }
+            assertTrue(json.contains("\"shapeKind\":"));
+            assertEquals(variant.equals("extended"), json.contains("\"extendedTextStyleFontFeatures\":"));
+            for (String forbidden : List.of("package:app", "fabValues", "fab_values.dart", "MaterialIcons", "imageProvider")) assertFalse(json.contains(forbidden), json);
+        }
+    }
+
+    @Test
+    void floatingActionButtonPayloadRetainsExactHeroNullAndLiteralKindsPlusCanonicalInfinity() throws Exception {
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("quote'\\\n$tag"),
+                new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(-42)), new PropertyValue.DoubleValue(new java.math.BigDecimal("2.5")),
+                new PropertyValue.BooleanValue(false))) {
+            var node = dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.node(Map.of(new PropertyName("heroTag"), value,
+                    new PropertyName("elevation"), new PropertyValue.EnumValue("double", "infinity")));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"heroTag\":{\"kind\":\"" + value.kind().wireName() + "\""), json);
+            assertTrue(json.contains("infinity"));
+            assertFalse(json.contains("imageProvider"));
+            assertFalse(json.contains("MaterialIcons"));
+        }
+    }
+
+    @Test
+    void floatingActionButtonPayloadRejectsWrongConstructorsMissingLabelAndConflictingShapes() {
+        for (var properties : List.of(
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("small"), new PropertyName("mini"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("large"), new PropertyName("extendedIconLabelSpacing"), new PropertyValue.DoubleValue(java.math.BigDecimal.ONE)),
+                Map.of(new PropertyName("shape"), dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.reference("shape"), new PropertyName("shapeKind"), new PropertyValue.StringValue("circle")))) {
+            var node = dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.node(new java.util.LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                dev.flutter.netbeans.designer.catalog.FloatingActionButtonTestValues.definition(), StableId.random(),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("extended")));
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
     }
 

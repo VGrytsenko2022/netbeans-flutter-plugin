@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -250,7 +251,8 @@ public final class FlutterDesignerPaletteDropPlanner {
         Optional<String> slotUnavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent, slotName)
                 .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName))
                 .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName))
-                .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName));
+                .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName))
+                .or(() -> FloatingActionButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName));
         if (slotUnavailable.isPresent()) {
             return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
                     "Cannot add " + sourceDefinition.palette().displayName() + " to " + parentDefinition.palette().displayName() + " '"

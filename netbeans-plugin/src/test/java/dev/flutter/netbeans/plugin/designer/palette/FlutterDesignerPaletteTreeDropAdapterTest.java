@@ -152,6 +152,27 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             id("cce2050f-8846-4378-843e-58371d52d1c5");
 
     @Test
+    void floatingActionButtonTreeDropCreatesOneEmptyStandardButtonWithoutWrappingOrInventingChildren() {
+        for (var root : List.of(column(List.of()), withSlot(prototype(CENTER), CHILD, WidgetSlot.SingleSlot.empty()))) {
+            var fixture = fixture(new WidgetTypeId("flutter.material.FloatingActionButton"));
+            var transfer = new StringSelection(fixture.token());
+            var document = document(root);
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            AtomicInteger allocations = new AtomicInteger();
+            var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document, CATALOG,
+                            () -> { allocations.incrementAndGet(); return NEW_ID; })).command().widget();
+            assertEquals(1, allocations.get());
+            assertEquals(new WidgetTypeId("flutter.material.FloatingActionButton"), added.type());
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), added.properties());
+            assertEquals(Map.of(CHILD, WidgetSlot.SingleSlot.empty(), new SlotName("icon"), WidgetSlot.SingleSlot.empty()), added.slots());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
     void filledButtonTreeDropCreatesOneEmptyStandardButtonWithoutWrappingOrInventingChildren() {
         for (var root : List.of(column(List.of()), withSlot(prototype(CENTER), CHILD, WidgetSlot.SingleSlot.empty()))) {
             var fixture = fixture(new WidgetTypeId("flutter.material.FilledButton"));

@@ -964,6 +964,261 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteFloatingActionButtonEmptyThreeModesAndRequiredExtendedLabelRetainIconsAcrossSaveReopen() throws Exception {
+        var type = new WidgetTypeId("flutter.material.FloatingActionButton"); var variant = new PropertyName("variant");
+        StableId id = StableId.parse("de8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0"), labelId = StableId.parse("ee8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0"),
+                iconId = StableId.parse("fe8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0"); ExactPair pair = null;
+        for (String constructor : List.of("standard", "small", "large")) {
+            try (var fixture = fixture("fab_empty_" + constructor, columnExactPair())) {
+                fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+                var ready = fixture.ready(); var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> id));
+                var current = applyFloatingActionButtonMutation(fixture, ready, plan.command(), id);
+                if (!constructor.equals("standard")) current = applyFloatingActionButtonMutation(fixture, current,
+                        new SetProperty(id, variant, new PropertyValue.StringValue(constructor)), id);
+                pair = savePhysicalModelPair(fixture);
+            }
+            try (var reopened = fixture("fab_empty_" + constructor + "_reopened", pair)) {
+                var widget = findModelWidget(reopened.ready().document().orElseThrow().root(), id);
+                assertEquals(new PropertyValue.StringValue(constructor), widget.properties().get(variant));
+                assertTrue(((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().isEmpty());
+                assertTrue(new String(reopened.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("child: null"));
+            }
+        }
+        try (var fixture = fixture("fab_empty_to_extended", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id); var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            for (String name : List.of("variant", "extendedPadding", "extendedTextStyleFontSize")) {
+                var error = assertThrows(IllegalArgumentException.class, () -> cellProperty(properties, name)
+                        .setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.value(name))));
+                assertTrue(error.getMessage().contains("Child is empty")); assertTrue(commands.isEmpty());
+            }
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new SetProperty(id, variant, new PropertyValue.StringValue("extended")), "FAB missing Label").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome()); current = awaitReady(fixture.mutations());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            var label = new WidgetNode(labelId, new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("Label")), Map.of());
+            current = applyFloatingActionButtonMutation(fixture, current, new AddWidget(new WidgetPlacement(id, CHILD, 0), label), id);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), id), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            cellProperty(properties, "extendedPadding").setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.value("extendedPadding")));
+            current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+            var icon = new WidgetNode(iconId, new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("+")), Map.of());
+            current = applyFloatingActionButtonMutation(fixture, current, new AddWidget(new WidgetPlacement(id, new SlotName("icon"), 0), icon), id);
+            assertEquals(new PropertyValue.StringValue("extended"), findModelWidget(current.document().orElseThrow().root(), id).properties().get(variant));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("fab_extended_label_and_icon_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id); var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            for (String constructor : List.of("standard", "small", "large")) {
+                var error = assertThrows(IllegalArgumentException.class, () -> cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(constructor))));
+                assertTrue(error.getMessage().contains("Move or clear Icon first")); assertTrue(commands.isEmpty());
+            }
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new RemoveWidget(labelId), "Preserve Extended Label").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome()); current = awaitReady(fixture.mutations());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            var replacementId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0");
+            var replacement = new WidgetNode(replacementId, new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("Replacement")), Map.of());
+            current = applyFloatingActionButtonMutation(fixture, current, new ReplaceSlotChild(id, CHILD, labelId, new ReplaceSlotChild.NewSubtree(replacement)), id);
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id)); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            current = applyFloatingActionButtonMutation(fixture, current, new RemoveWidget(iconId), id);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), id), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("small")));
+            current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+            assertFalse(findModelWidget(current.document().orElseThrow().root(), id).properties().containsKey(new PropertyName("extendedPadding")));
+            current = applyFloatingActionButtonMutation(fixture, current, new RemoveWidget(replacementId), id); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("fab_empty_again_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            applyFloatingActionButtonMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("tooltip"), new PropertyValue.StringValue("Further edit")), id);
+        }
+    }
+
+    @Test
+    void paletteFloatingActionButtonAll78FieldsFourConstructorsSaveReopenHistoryAndRollback() throws Exception {
+        var type = new WidgetTypeId("flutter.material.FloatingActionButton"); var variant = new PropertyName("variant");
+        var id = StableId.parse("9e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0");
+        var labelId = StableId.parse("ae8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0"); ExactPair pair;
+        try (var fixture = fixture("fab_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyFloatingActionButtonMutation(fixture, ready, plan.command(), id);
+            assertEquals(Map.of(variant, new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)),
+                    findModelWidget(current.document().orElseThrow().root(), id).properties());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("child: null"));
+            var label = new WidgetNode(labelId, new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("Action label")), Map.of());
+            applyFloatingActionButtonMutation(fixture, current, new AddWidget(new WidgetPlacement(id, CHILD, 0), label), id); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("fab_all78_stable_live_cells", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), id); var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var visited = new java.util.HashSet<String>(); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                byte[] initialDart = fixture.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(fixture);
+                var prerequisites = dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.sparsePrerequisites(name);
+                for (var seed : prerequisites.entrySet()) {
+                    properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), id), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    commands.clear(); cellProperty(properties, seed.getKey().value()).setValue(FlutterPropertyCellValue.explicit(seed.getValue()));
+                    current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                }
+                var before = findModelWidget(current.document().orElseThrow().root(), id);
+                properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                var cell = cellProperty(properties, name); var editorClass = cell.getPropertyEditor().getClass();
+                byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+                var value = dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.value(name);
+                commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                var edited = findModelWidget(current.document().orElseThrow().root(), id); assertEquals(value, edited.properties().get(field.name())); assertEquals(initial.slots(), edited.slots());
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(beforeFd, refreshProgressFdBytes(fixture));
+                for (int seed = 0; seed < prerequisites.size(); seed++) {
+                    token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                }
+                assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(initialDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(initialFd, refreshProgressFdBytes(fixture));
+                assertSame(cell, cellProperty(properties, name)); assertEquals(editorClass, cell.getPropertyEditor().getClass()); assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                assertTrue(visited.add(name));
+            }
+            assertEquals(78, visited.size());
+            // Full branch snapshots prove constructor switches restore all discarded fields in one native Undo.
+            for (String constructor : List.of("extended", "small", "large", "standard")) {
+                var before = findModelWidget(current.document().orElseThrow().root(), id);
+                properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                commands.clear(); cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(constructor)));
+                if (!commands.isEmpty()) {
+                    byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+                    current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                    var switched = findModelWidget(current.document().orElseThrow().root(), id); var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                    assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(beforeFd, refreshProgressFdBytes(fixture));
+                    token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(switched, findModelWidget(current.document().orElseThrow().root(), id));
+                }
+                var target = dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.full(constructor);
+                var patches = new ArrayList<PatchProperties.Patch>(); var now = findModelWidget(current.document().orElseThrow().root(), id);
+                for (var key : now.properties().keySet()) if (!target.containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
+                target.forEach((key, value) -> patches.add(new PatchProperties.SetPatch(key, value)));
+                // A constructor switch may already produce this exact legal family (notably Small/Large).
+                // Its native Undo/Redo was verified above; do not submit a redundant no-change command.
+                if (!now.properties().equals(target)) current = applyFloatingActionButtonMutation(fixture, current, new PatchProperties(id, patches), id);
+                assertEquals(target, findModelWidget(current.document().orElseThrow().root(), id).properties());
+                pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                try (var reopened = fixture("fab_full_" + constructor + "_reopened", pair)) {
+                    var widget = findModelWidget(reopened.ready().document().orElseThrow().root(), id);
+                    assertEquals(target, widget.properties()); assertEquals(initial.slots(), widget.slots());
+                    String source = new String(reopened.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+                    assertTrue(source.contains("FloatingActionButton" + (constructor.equals("standard") ? "" : "." + constructor) + "("));
+                    assertTrue(source.contains(constructor.equals("extended") ? "label:" : "child:"));
+                }
+            }
+        }
+        // Complementary shape/paint families persist every scalar branch that cannot coexist in one SDK constructor value.
+        for (String kind : dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.shapeKinds()) {
+            try (var fixture = fixture("fab_shape_family_" + kind, pair)) {
+                fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+                var current = fixture.ready(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+                var target = dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.full("extended");
+                for (String key : dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.builtInShapePropertyNames()) target.remove(new PropertyName(key));
+                target.put(new PropertyName("shapeKind"), new PropertyValue.StringValue(kind));
+                for (String key : dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.builtInShapePropertyNames())
+                    if (!key.equals("shapeKind") && dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.shapePropertyAppliesToKind(key, kind))
+                        target.put(new PropertyName(key), dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.value(key));
+                if (kind.equals("star")) {
+                    target.remove(new PropertyName("extendedTextStyleColor")); target.remove(new PropertyName("extendedTextStyleBackgroundColor"));
+                    for (String key : List.of("extendedTextStyleForeground", "extendedTextStyleBackground"))
+                        target.put(new PropertyName(key), dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.value(key));
+                }
+                var patches = new ArrayList<PatchProperties.Patch>();
+                for (var key : widget.properties().keySet()) if (!target.containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
+                target.forEach((key, value) -> patches.add(new PatchProperties.SetPatch(key, value)));
+                current = applyFloatingActionButtonMutation(fixture, current, new PatchProperties(id, patches), id);
+                pair = savePhysicalModelPair(fixture);
+            }
+            try (var reopened = fixture("fab_shape_family_" + kind + "_reopened", pair)) {
+                var widget = findModelWidget(reopened.ready().document().orElseThrow().root(), id);
+                assertEquals(new PropertyValue.StringValue(kind), widget.properties().get(new PropertyName("shapeKind")));
+                assertEquals(labelId, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+                assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+            }
+        }
+        try (var fixture = fixture("fab_reopened_references_infinity_and_reset", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id); var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("onPressed", "focusNode", "heroTag", "shape", "mouseCursor")) {
+                var value = new PropertyValue.DartObjectReferenceValue(Optional.of("package:mutation_controller_fixture/fab_values.dart"), "FabValues", Optional.of(name),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(value));
+                current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id); assertEquals(value, widget.properties().get(new PropertyName(name)));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            for (String name : List.of("elevation", "focusElevation", "hoverElevation", "highlightElevation", "disabledElevation", "extendedIconLabelSpacing")) {
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "infinity")));
+                current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id); properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains(name + ": (1.0 / 0.0)"));
+                commands.clear(); cellProperty(properties, name).restoreDefaultValue(); current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id); properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertFalse(widget.properties().containsKey(new PropertyName(name)));
+            }
+            for (PropertyValue tag : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue(""), new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
+                    new PropertyValue.DoubleValue(new java.math.BigDecimal("1.0")), new PropertyValue.BooleanValue(false))) {
+                var before = widget; byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+                commands.clear(); cellProperty(properties, "heroTag").setValue(FlutterPropertyCellValue.explicit(tag)); current = applyFloatingActionButtonMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id); assertEquals(tag, widget.properties().get(new PropertyName("heroTag")));
+                var token = current.token().orElseThrow(); onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id)); assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(beforeFd, refreshProgressFdBytes(fixture));
+                token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, variant), new ResetProperty(id, new PropertyName("enabled")),
+                    new SetProperty(id, new PropertyName("elevation"), new PropertyValue.DoubleValue(new java.math.BigDecimal("-1"))),
+                    new SetProperty(id, new PropertyName("clipBehavior"), new PropertyValue.NullValue()),
+                    new SetProperty(id, new PropertyName("heroTag"), new PropertyValue.DoubleValue(new java.math.BigDecimal("1e400"))))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "FloatingActionButton invalid value").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id)); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, refreshProgressFdBytes(fixture)); assertEquals(undo, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "fab_callback_rejected", "FloatingActionButton callback rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new SetProperty(id, new PropertyName("onPressed"),
+                    dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.reference("_rejected")), "FAB callback analysis rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome()); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("fab_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            applyFloatingActionButtonMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), id);
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyFloatingActionButtonMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "FloatingActionButton full property and slot contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
+    }
+
+    @Test
     void paletteFilledButtonEmptyChildNormalAndTonalSaveReopenAndConditionalLabelProtection() throws Exception {
         var type = new WidgetTypeId("flutter.material.FilledButton");
         var id = StableId.parse("de8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9f");
@@ -1299,6 +1554,45 @@ class FlutterDesignerMutationControllerIntegrationTest {
             fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
             var current = applyFilledButtonMutation(fixture, fixture.ready(), new ResetProperty(buttonId, clip), buttonId);
             assertFalse(findModelWidget(current.document().orElseThrow().root(), buttonId).properties().containsKey(clip));
+        }
+    }
+
+    @Test
+    void paletteFloatingActionButtonInactiveCallbackEditWhilePairedChangesAreUnsavedKeepsHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("ce8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8ea0");
+        var type = new WidgetTypeId("flutter.material.FloatingActionButton"); var callback = new PropertyName("onPressed");
+        ExactPair pair;
+        try (var fixture = fixture("fab_inactive_unsaved", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> buttonId)).command();
+            var current = applyFloatingActionButtonMutation(fixture, ready, wrapped, buttonId);
+            current = applyFloatingActionButtonMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            current = applyFloatingActionButtonMutation(fixture, current, new SetProperty(buttonId, callback,
+                    dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.reference("_disabledCallback")), buttonId);
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8(), "Inactive callback changes only FD while paired source remains unsaved");
+            assertFalse(Arrays.equals(beforeFd, refreshProgressFdBytes(fixture)));
+            var after = findModelWidget(current.document().orElseThrow().root(), buttonId); var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(after, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+            // Saving must retain the same-source predecessor as an exact undoable FD-only endpoint.
+            token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId));
+            if (fixture.coordinator().stagedEvidence() != null) pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("fab_inactive_saved_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertEquals(dev.flutter.netbeans.plugin.designer.properties.FloatingActionButtonPropertyContractTest.reference("_disabledCallback"),
+                    findModelWidget(fixture.ready().document().orElseThrow().root(), buttonId).properties().get(callback));
+            var current = applyFloatingActionButtonMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), buttonId);
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_disabledCallback"));
         }
     }
 

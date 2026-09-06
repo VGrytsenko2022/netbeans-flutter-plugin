@@ -154,6 +154,128 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void floatingActionButtonHeroTagAllModesKeepCancelIsolationAndExactTypedValues() throws Exception {
+        var definition = property("flutter.material.FloatingActionButton", "heroTag");
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_heroTag", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        var initialValues = List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("")), FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(java.math.BigInteger.ONE)),
+                FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new java.math.BigDecimal("1.0"))),
+                FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), FlutterPropertyCellValue.explicit(reference));
+        for (var initial : initialValues) for (String target : List.of(FlutterObjectTagEditorComponent.OMIT, FlutterObjectTagEditorComponent.NONE,
+                FlutterObjectTagEditorComponent.STRING, FlutterObjectTagEditorComponent.INTEGER, FlutterObjectTagEditorComponent.DOUBLE,
+                FlutterObjectTagEditorComponent.BOOLEAN, FlutterObjectTagEditorComponent.PROJECT)) {
+            var editor = binding(definition).createEditor(); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor("heroTag", "Strict nullable Object identity."));
+            ((ExPropertyEditor) editor).attachEnv(environment); var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "hero", "tag");
+                findNamed(panel, JComboBox.class, FlutterObjectTagEditorComponent.MODE_NAME).setSelectedItem(target);
+                findNamed(panel, javax.swing.JTextArea.class, FlutterObjectTagEditorComponent.STRING_NAME).setText(" tag with spaces ");
+                findNamed(panel, JTextField.class, FlutterObjectTagEditorComponent.INTEGER_NAME).setText("-17");
+                findNamed(panel, JTextField.class, FlutterObjectTagEditorComponent.DOUBLE_NAME).setText("1.25");
+                var checkbox = findNamed(panel, JCheckBox.class, FlutterObjectTagEditorComponent.BOOLEAN_NAME);
+                assertEquals(SwingConstants.CENTER, checkbox.getHorizontalAlignment()); checkbox.setSelected(true);
+                findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("_heroTag");
+                assertEquals(initial, editor.getValue(), "Cancel retains exact typed identity"); assertEquals(0, commits.get());
+                environment.setState(PropertyEnv.STATE_VALID);
+                var expected = switch (target) {
+                    case FlutterObjectTagEditorComponent.OMIT -> FlutterPropertyCellValue.unset();
+                    case FlutterObjectTagEditorComponent.NONE -> FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
+                    case FlutterObjectTagEditorComponent.STRING -> FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(" tag with spaces "));
+                    case FlutterObjectTagEditorComponent.INTEGER -> FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(-17)));
+                    case FlutterObjectTagEditorComponent.DOUBLE -> FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new java.math.BigDecimal("1.25")));
+                    case FlutterObjectTagEditorComponent.BOOLEAN -> FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true));
+                    default -> FlutterPropertyCellValue.explicit(reference);
+                };
+                assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                var reopenedEnvironment = PropertyEnv.create(descriptor("heroTag", "Reopened identity")); ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment);
+                assertEquals(target, findNamed(editor.getCustomEditor(), JComboBox.class, FlutterObjectTagEditorComponent.MODE_NAME).getSelectedItem());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void floatingActionButtonHeroStringPreservesExactLfCrLfAndUntouchedOrCancelledMultilineDrafts() throws Exception {
+        for (String literal : List.of("", "one\ntwo", "one\r\ntwo\r\n", "one\rtwo\tthree", "quote'\\\"\nline")) {
+            var editor = binding(property("flutter.material.FloatingActionButton", "heroTag")).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(literal)); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor("heroTag", "Exact multiline string")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var text = findNamed(panel, javax.swing.JTextArea.class, FlutterObjectTagEditorComponent.STRING_NAME);
+                assertEquals(literal, text.getText(), "Opening must not normalize CR/LF");
+                assertEquals(FlutterObjectTagEditorComponent.STRING, findNamed(panel, JComboBox.class, FlutterObjectTagEditorComponent.MODE_NAME).getSelectedItem());
+                environment.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue(), "Untouched OK preserves exact typed string");
+                assertFalse(editor.getAsText().contains("\n")); assertFalse(editor.getAsText().contains("\r")); assertFalse(editor.getAsText().contains("\t"));
+                var reopenedEnvironment = PropertyEnv.create(descriptor("heroTag", "Cancel multiline draft")); ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment);
+                var reopenedText = findNamed(editor.getCustomEditor(), javax.swing.JTextArea.class, FlutterObjectTagEditorComponent.STRING_NAME);
+                assertEquals(literal, reopenedText.getText()); reopenedText.setText("changed\r\nmultiline\n");
+                assertEquals(initial, editor.getValue(), "Cancel does not publish any multiline draft");
+                reopenedEnvironment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("changed\r\nmultiline\n")), editor.getValue());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void floatingActionButtonHeroTagRejectsNumericExpressionsButIgnoresInactiveInvalidDrafts() throws Exception {
+        for (String invalid : List.of("NaN", "Infinity", "-Infinity", "1e400", "1 + 2", "")) {
+            var editor = binding(property("flutter.material.FloatingActionButton", "heroTag")).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("original")); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor("heroTag", "Closed tag union")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterObjectTagEditorComponent.MODE_NAME);
+                mode.setSelectedItem(FlutterObjectTagEditorComponent.DOUBLE);
+                findNamed(panel, JTextField.class, FlutterObjectTagEditorComponent.DOUBLE_NAME).setText(invalid);
+                environment.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, environment.getState()); assertEquals(initial, editor.getValue());
+                mode.setSelectedItem(FlutterObjectTagEditorComponent.NONE); environment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void floatingActionButtonMouseCursorAll41PresetsAndProjectFactoriesStayClosedAndCancelSafe() throws Exception {
+        var definition = property("flutter.material.FloatingActionButton", "mouseCursor");
+        var presets = dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema.mouseCursorPresets();
+        var binding = FlutterTypedPropertyEditors.binding(definition, Optional.empty(), false, presets).orElseThrow();
+        assertEquals(41, presets.size()); assertEquals(FlutterTypedPropertyEditors.EditorKind.PRESET_DART_REFERENCE, binding.editorKind());
+        for (String preset : presets) {
+            var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var environment = PropertyEnv.create(descriptor("mouseCursor", "Typed MouseCursor")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor();
+                findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET);
+                findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME).setSelectedItem(preset);
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(preset)), editor.getValue());
+                return null;
+            });
+        }
+        var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("click")));
+        var environment = PropertyEnv.create(descriptor("mouseCursor", "Typed MouseCursor")); ((ExPropertyEditor) editor).attachEnv(environment);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor();
+            findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).setSelectedItem(FlutterPresetDartReferenceEditorComponent.PROJECT);
+            findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:fab/cursors.dart");
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("Cursors");
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("primary");
+            findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("click")), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:fab/cursors.dart"), "Cursors",
+                    Optional.of("primary"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false))), editor.getValue());
+            return null;
+        });
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("MouseCursor.defer"));
+        var legacy = property("flutter.widgets.DefaultSelectionStyle", "mouseCursor");
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.STRING_PRESET,
+                FlutterTypedPropertyEditors.binding(legacy, Optional.empty(), false, presets).orElseThrow().editorKind());
+    }
+
+    @Test
     void filledButtonAllNineStrictReferenceEditorsPreserveDraftsAndSupportPackageFactories() throws Exception {
         for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange", "focusNode", "statesController", "style", "styleBackgroundBuilder", "styleForegroundBuilder")) {
             var editor = binding(property("flutter.material.FilledButton", name)).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
@@ -163,7 +285,7 @@ class FlutterPropertyEditorComponentsTest {
                 var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
                 if (name.equals("onPressed")) {
                     assertEquals("Use Designer activation default", clear.getText());
-                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and On long press"));
+                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and activation policy"));
                 }
                 clear.doClick(); var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
                 root.setText("() => raw()"); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(0, commits.get());
@@ -193,7 +315,7 @@ class FlutterPropertyEditorComponentsTest {
                 var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
                 if (name.equals("onPressed")) {
                     assertEquals("Use Designer activation default", clear.getText());
-                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and On long press"));
+                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and activation policy"));
                 }
                 clear.doClick(); var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
                 root.setText("() => raw()"); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(0, commits.get());
@@ -303,7 +425,7 @@ class FlutterPropertyEditorComponentsTest {
                 var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
                 if (name.equals("onPressed")) {
                     assertEquals("Use Designer activation default", clear.getText());
-                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and On long press"));
+                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and activation policy"));
                 }
                 clear.doClick(); var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
                 root.setText("() => raw()"); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(0, commits.get());
@@ -3497,7 +3619,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(253, booleanProperties.size(),
+        assertEquals(262, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

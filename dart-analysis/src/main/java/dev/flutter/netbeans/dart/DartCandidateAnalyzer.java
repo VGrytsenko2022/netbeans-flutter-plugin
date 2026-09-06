@@ -768,7 +768,10 @@ public final class DartCandidateAnalyzer {
         if (!matcher.matches()) {
             throw malformed("Static-type probe contains an invalid expected type.");
         }
-        String result = alias + '.' + matcher.group(1);
+        String outerType = matcher.group(1);
+        // Object is a core type, not an export of the selected Flutter proof
+        // library. Keep the witness-owned core import and the user's scope intact.
+        String result = (outerType.equals("Object") ? coreAlias : alias) + '.' + outerType;
         if (matcher.group(2) != null) {
             String argument = matcher.group(2);
             String argumentAlias = argument.equals("bool") || argument.equals("bool?") ? coreAlias : alias;

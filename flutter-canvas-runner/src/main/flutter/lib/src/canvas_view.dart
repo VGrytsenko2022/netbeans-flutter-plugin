@@ -30,6 +30,111 @@ const _textButtonStateLayers = <WidgetState, String>{
   WidgetState.focused: 'styleFocused',
 };
 
+final Object _defaultFabHeroTag = const FloatingActionButton(
+  onPressed: null,
+).heroTag!;
+
+Object? _fabHeroTag(CanvasNode node) {
+  final value = node.properties['heroTag'];
+  if (value == null) return _defaultFabHeroTag;
+  return value.kind == 'dartObjectReferencePresence' || value.kind == 'null'
+      ? null
+      : value.value;
+}
+
+List<double> _fabElevations(CanvasNode node, BuildContext? context) {
+  final theme = context == null ? null : FloatingActionButtonTheme.of(context);
+  double? local(String name) {
+    final value = node.properties[name];
+    return value?.kind == 'enum'
+        ? double.infinity
+        : (value?.value as num?)?.toDouble();
+  }
+
+  final base = local('elevation') ?? theme?.elevation ?? 6;
+  return [
+    base,
+    local('focusElevation') ?? theme?.focusElevation ?? 6,
+    local('hoverElevation') ?? theme?.hoverElevation ?? 8,
+    local('highlightElevation') ??
+        theme?.highlightElevation ??
+        (context == null || Theme.of(context).useMaterial3 ? 6 : 12),
+    local('disabledElevation') ?? theme?.disabledElevation ?? base,
+  ];
+}
+
+String? _fabLayoutMessage(CanvasNode node, BuildContext? context) {
+  final elevations = _fabElevations(node, context);
+  if (elevations.any((value) => value.isInfinite) &&
+      !elevations.every((value) => value.isInfinite)) {
+    return 'FloatingActionButton.elevation/focusElevation/hoverElevation/highlightElevation/disabledElevation preview unavailable: resolved interaction states mix finite and infinite elevations. Flutter Material interpolates infinity back to finite as NaN and fails its physical-shape assertion. Stored properties and generated Dart remain exact; use finite elevations for interactive preview.';
+  }
+  if (node.properties['variant']?.value != 'extended') return null;
+  final theme = context == null ? null : FloatingActionButtonTheme.of(context);
+  final active =
+      node.properties['isExtended']?.value != false &&
+      node.slot('icon')?.child != null;
+  final prop = node.properties['extendedIconLabelSpacing'];
+  final spacing = prop?.kind == 'enum'
+      ? double.infinity
+      : (prop?.value as num?)?.toDouble() ??
+            theme?.extendedIconLabelSpacing ??
+            8;
+  if (active && (spacing < 0 || !spacing.isFinite)) {
+    return 'FloatingActionButton.extendedIconLabelSpacing preview unavailable: resolved spacing $spacing produces invalid SDK SizedBox constraints while both icon and label are visible. Stored values and generated Dart are unchanged.';
+  }
+  final value = node.properties['extendedPadding']?.value;
+  final padding = switch (value) {
+    CanvasEdgeInsets p => EdgeInsets.fromLTRB(p.left, p.top, p.right, p.bottom),
+    CanvasEdgeInsetsDirectional p => EdgeInsets.fromLTRB(
+      p.start,
+      p.top,
+      p.end,
+      p.bottom,
+    ),
+    _ => theme?.extendedPadding?.resolve(TextDirection.ltr),
+  };
+  if (padding != null &&
+      (!padding.isNonNegative ||
+          !padding.vertical.isFinite ||
+          !(padding.horizontal + (active ? spacing : 0)).isFinite)) {
+    return 'FloatingActionButton.extendedPadding preview unavailable: resolved padding and mounted spacing produce invalid or overflowing SDK layout dimensions. Stored values and generated Dart are unchanged.';
+  }
+  return null;
+}
+
+String? _fabPreviewMessage(CanvasNode node, BuildContext? context) {
+  final refs = [
+    for (final e in node.properties.entries)
+      if (e.value.kind == 'dartObjectReferencePresence') e.key,
+  ];
+  final parts = <String>[?_fabLayoutMessage(node, context)];
+  if (refs.isNotEmpty) {
+    parts.add(
+      'FloatingActionButton.${refs.join('/')} preview limitation: isolated Canvas never executes project Dart. '
+      '${refs.contains('heroTag') ? 'Only the unresolved project Hero is disabled; its Object equality and flights are unavailable. ' : ''}'
+      '${refs.contains('shape') ? 'Project shape appearance is unavailable; this is an explicit SDK default/theme approximation. ' : ''}'
+      '${refs.contains('onPressed') ? 'Project callback is not invoked; local press uses a benign no-op. ' : ''}'
+      '${refs.contains('focusNode') || refs.contains('mouseCursor') ? 'Project focus/cursor is unavailable; SDK isolated local state/default cursor is used. ' : ''}'
+      'The real button and stored values are preserved.',
+    );
+  }
+  final shape = _cardShapePreviewUnavailableMessage(
+    node,
+    widgetName: 'FloatingActionButton',
+  );
+  if (shape != null && !refs.contains('shape')) {
+    parts.add('$shape SDK default/theme shape approximation is shown.');
+  }
+  if (context != null) {
+    final duplicates = context
+        .findAncestorStateOfType<_CanvasDocumentViewState>()
+        ?._fabDuplicateHeroMessage(node);
+    if (duplicates != null) parts.add(duplicates);
+  }
+  return parts.isEmpty ? null : parts.join(' ');
+}
+
 String? _textButtonReferenceMessage(CanvasNode node) {
   final refs = [
     for (final entry in node.properties.entries)
@@ -87,6 +192,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.FloatingActionButton') {
+    return _fabPreviewMessage(node, context);
+  }
   if (node.type == 'flutter.material.TextButton' ||
       node.type == 'flutter.material.OutlinedButton' ||
       node.type == 'flutter.material.FilledButton') {
@@ -459,10 +567,13 @@ String? _linearProgressUnavailableMessage(
   return null;
 }
 
-String? _cardShapePreviewUnavailableMessage(CanvasNode node) {
+String? _cardShapePreviewUnavailableMessage(
+  CanvasNode node, {
+  String widgetName = 'Card',
+}) {
   if (node.properties['shape']?.kind == 'dartObjectReferencePresence') {
     return _customClipperPreviewUnavailableMessage(
-      widgetName: 'Card.shape',
+      widgetName: '$widgetName.shape',
       expectedType: 'ShapeBorder',
     );
   }
@@ -470,7 +581,7 @@ String? _cardShapePreviewUnavailableMessage(CanvasNode node) {
   final points = node.properties['shapePoints']?.value as num? ?? 5;
   if ((kind == 'star' || kind == 'polygon') &&
       points > _maximumCanvasCardShapePoints) {
-    return 'Card.shape $kind preview unavailable: requested $points points exceeds the isolated Canvas budget of $_maximumCanvasCardShapePoints. Generated Dart preserves the configured ShapeBorder; child and properties remain editable.';
+    return '$widgetName.shape $kind preview unavailable: requested $points points exceeds the isolated Canvas budget of $_maximumCanvasCardShapePoints. Generated Dart preserves the configured ShapeBorder; child and properties remain editable.';
   }
   return null;
 }
@@ -684,6 +795,37 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   final GlobalKey _surfaceKey = GlobalKey();
   final Map<String, GlobalKey> _nodeKeys = <String, GlobalKey>{};
   final FocusNode _focusNode = FocusNode(debugLabel: 'native-canvas');
+  final Map<Object, List<String>> _fabHeroOwners = {};
+  void _refreshFabHeroOwners() {
+    _fabHeroOwners.clear();
+    Iterable<CanvasNode> descendants(CanvasNode current) sync* {
+      yield current;
+      for (final slot in current.slots.values) {
+        for (final child in slot.children) {
+          yield* descendants(child);
+        }
+      }
+    }
+
+    for (final node in descendants(widget.model.root)) {
+      if (node.type == 'flutter.material.FloatingActionButton') {
+        final tag = _fabHeroTag(node);
+        if (tag != null) {
+          _fabHeroOwners.putIfAbsent(tag, () => []).add(node.id);
+        }
+      }
+    }
+  }
+
+  String? _fabDuplicateHeroMessage(CanvasNode node) {
+    final tag = _fabHeroTag(node);
+    final matches = _fabHeroOwners[tag] ?? const <String>[];
+    return matches.length < 2
+        ? null
+        : 'FloatingActionButton.heroTag warning: stored widgets ${matches.join(', ')} share ${identical(tag, _defaultFabHeroTag) ? 'the SDK default Hero tag' : 'an equal literal Hero tag'}. '
+              'Mounted Heroes on one route must have unique tags for flights. Canvas preserves the SDK tags and does not run route transitions.';
+  }
+
   _ViewportGeometry? _viewportGeometry;
   CanvasViewportMetrics? _lastReportedViewportMetrics;
   List<_ZeroSizedWidgetTargetGroup> _zeroSizedWidgetTargets = const [];
@@ -693,6 +835,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   @override
   void initState() {
     super.initState();
+    _refreshFabHeroOwners();
     widget.onDropResolverChanged?.call(_resolveDrop);
     widget.onMovePreviewResolverChanged?.call(_resolveMovePreview);
   }
@@ -700,6 +843,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   @override
   void didUpdateWidget(CanvasDocumentView oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.model != widget.model) {
+      _refreshFabHeroOwners();
+    }
     _nodeKeys.removeWhere((id, _) => !widget.model.widgetIds.contains(id));
     if (_inlineTextEditSession case final session?
         when !_inlineTextEditStillCurrent(session)) {
@@ -1066,6 +1212,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.TextButton' ||
         node.type == 'flutter.material.OutlinedButton' ||
         node.type == 'flutter.material.FilledButton' ||
+        node.type == 'flutter.material.FloatingActionButton' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1922,6 +2069,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   bool _isInteractiveSlot(CanvasNode node, String slotName) {
+    if (node.type == 'flutter.material.FloatingActionButton' &&
+        slotName == 'icon') {
+      return node.properties['variant']?.value == 'extended';
+    }
     if ((node.type == 'flutter.material.TextButton' ||
             node.type == 'flutter.material.OutlinedButton' ||
             node.type == 'flutter.material.FilledButton') &&
@@ -3013,6 +3164,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.TextButton' => _textButton(context),
       'flutter.material.OutlinedButton' => _textButton(context),
       'flutter.material.FilledButton' => _textButton(context),
+      'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Wrap' => _wrap(),
@@ -5573,6 +5725,167 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         return false;
       },
       child: SizeChangedLayoutNotifier(child: avatar),
+    );
+  }
+
+  Widget _floatingActionButton(BuildContext context) {
+    final variant = _string('variant');
+    final extended = variant == 'extended';
+    final isExtended = _boolean('isExtended') ?? extended;
+    double? number(String name) =>
+        node.properties[name]?.kind == 'enum' ? double.infinity : _number(name);
+    final spacing = number('extendedIconLabelSpacing');
+    final unavailable = _fabLayoutMessage(node, context);
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'FloatingActionButton',
+        expectedType: 'safe resolved SDK layout and elevation',
+        previewLabel: 'FAB\npreview unavailable',
+        messageOverride: unavailable,
+      );
+    }
+    final onPressed = (_boolean('enabled') ?? true) ? () {} : null;
+    final tooltip = _string('tooltip');
+    final foreground = _resolvedColor(context, 'foregroundColor');
+    final background = _resolvedColor(context, 'backgroundColor');
+    final focus = _resolvedColor(context, 'focusColor');
+    final hover = _resolvedColor(context, 'hoverColor');
+    final splash = _resolvedColor(context, 'splashColor');
+    final hero = _fabHeroTag(node);
+    final elevation = number('elevation');
+    final focusElevation = number('focusElevation');
+    final hoverElevation = number('hoverElevation');
+    final highlightElevation = number('highlightElevation');
+    final disabledElevation = number('disabledElevation');
+    final mouse = _mouseCursor('mouseCursor');
+    final shape =
+        _cardShapePreviewUnavailableMessage(
+              node,
+              widgetName: 'FloatingActionButton',
+            ) ==
+            null
+        ? _cardShape(context)
+        : null;
+    final clip = _clipBehavior() ?? Clip.none;
+    final autofocus = _boolean('autofocus') ?? false;
+    final tapSize = switch (_enumOrString('materialTapTargetSize')) {
+      'padded' => MaterialTapTargetSize.padded,
+      'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+      _ => null,
+    };
+    final feedback = _boolean('enableFeedback');
+    final child = _single('child');
+    // SDK Material cannot interpolate infinity back to finite. All-infinite
+    // states are safe; restart only that SDK subtree when crossing the boundary.
+    // Model child GlobalKeys retain actual editing state across this reparent.
+    final sdkKey = ValueKey((
+      'fab-elevation-kind',
+      _fabElevations(node, context).every((value) => value.isInfinite),
+    ));
+    final button = switch (variant) {
+      'small' => FloatingActionButton.small(
+        key: sdkKey,
+        onPressed: onPressed,
+        tooltip: tooltip,
+        foregroundColor: foreground,
+        backgroundColor: background,
+        focusColor: focus,
+        hoverColor: hover,
+        splashColor: splash,
+        heroTag: hero,
+        elevation: elevation,
+        focusElevation: focusElevation,
+        hoverElevation: hoverElevation,
+        highlightElevation: highlightElevation,
+        disabledElevation: disabledElevation,
+        mouseCursor: mouse,
+        shape: shape,
+        clipBehavior: clip,
+        autofocus: autofocus,
+        materialTapTargetSize: tapSize,
+        enableFeedback: feedback,
+        child: child,
+      ),
+      'large' => FloatingActionButton.large(
+        key: sdkKey,
+        onPressed: onPressed,
+        tooltip: tooltip,
+        foregroundColor: foreground,
+        backgroundColor: background,
+        focusColor: focus,
+        hoverColor: hover,
+        splashColor: splash,
+        heroTag: hero,
+        elevation: elevation,
+        focusElevation: focusElevation,
+        hoverElevation: hoverElevation,
+        highlightElevation: highlightElevation,
+        disabledElevation: disabledElevation,
+        mouseCursor: mouse,
+        shape: shape,
+        clipBehavior: clip,
+        autofocus: autofocus,
+        materialTapTargetSize: tapSize,
+        enableFeedback: feedback,
+        child: child,
+      ),
+      'extended' => FloatingActionButton.extended(
+        key: sdkKey,
+        onPressed: onPressed,
+        tooltip: tooltip,
+        foregroundColor: foreground,
+        backgroundColor: background,
+        focusColor: focus,
+        hoverColor: hover,
+        splashColor: splash,
+        heroTag: hero,
+        elevation: elevation,
+        focusElevation: focusElevation,
+        hoverElevation: hoverElevation,
+        highlightElevation: highlightElevation,
+        disabledElevation: disabledElevation,
+        mouseCursor: mouse,
+        shape: shape,
+        clipBehavior: clip,
+        autofocus: autofocus,
+        materialTapTargetSize: tapSize,
+        enableFeedback: feedback,
+        isExtended: isExtended,
+        extendedIconLabelSpacing: spacing,
+        extendedPadding: _edgeInsetsGeometry('extendedPadding'),
+        extendedTextStyle: _textStyle(context, 'extendedTextStyle'),
+        icon: _single('icon'),
+        label: child!,
+      ),
+      _ => FloatingActionButton(
+        key: sdkKey,
+        onPressed: onPressed,
+        tooltip: tooltip,
+        foregroundColor: foreground,
+        backgroundColor: background,
+        focusColor: focus,
+        hoverColor: hover,
+        splashColor: splash,
+        heroTag: hero,
+        elevation: elevation,
+        focusElevation: focusElevation,
+        hoverElevation: hoverElevation,
+        highlightElevation: highlightElevation,
+        disabledElevation: disabledElevation,
+        mouseCursor: mouse,
+        shape: shape,
+        clipBehavior: clip,
+        autofocus: autofocus,
+        materialTapTargetSize: tapSize,
+        enableFeedback: feedback,
+        mini: _boolean('mini') ?? false,
+        isExtended: isExtended,
+        child: child,
+      ),
+    };
+    return _TextButtonPreview(
+      message: _fabPreviewMessage(node, context) ?? '',
+      child: button,
     );
   }
 

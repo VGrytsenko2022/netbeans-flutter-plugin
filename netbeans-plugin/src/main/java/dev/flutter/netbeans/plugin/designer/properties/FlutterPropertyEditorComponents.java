@@ -104,7 +104,7 @@ final class FlutterPropertyEditorComponents {
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
                     BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
-                    SHAPE_BORDER_CLIPPER, PRESET_DART_REFERENCE -> true;
+                    SHAPE_BORDER_CLIPPER, PRESET_DART_REFERENCE, OBJECT_TAG -> true;
             default -> false;
         };
     }
@@ -120,6 +120,7 @@ final class FlutterPropertyEditorComponents {
             case STRING -> new StringCustomEditor(editor, binding, environment);
             case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
             case PRESET_DART_REFERENCE -> FlutterPresetDartReferenceEditorComponent.customEditor(editor, binding, environment);
+            case OBJECT_TAG -> FlutterObjectTagEditorComponent.customEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
                     editor, binding, environment);

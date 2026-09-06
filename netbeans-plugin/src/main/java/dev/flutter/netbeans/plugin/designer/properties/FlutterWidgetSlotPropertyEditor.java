@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
@@ -165,6 +166,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                             .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .or(() -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .or(() -> FilledButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
+                            .or(() -> FloatingActionButtonWidgetPropertySchema.slotUnavailableReason(owner, slot.name()))
                             .map(reason -> "Cannot edit " + ownerDefinition.palette().displayName() + " slot '" + owner.id() + "." + slot.name().value() + "': " + reason);
             currentChildren = structuralProblem.isPresent()
                     ? List.of() : children(current);
@@ -436,7 +438,8 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         }
 
         private static int effectiveMinimum(WidgetNode owner, SlotDefinition slot) {
-            return slot.name().value().equals("child") && FilledButtonWidgetPropertySchema.requiresChild(owner)
+            return slot.name().value().equals("child") && (FilledButtonWidgetPropertySchema.requiresChild(owner)
+                    || FloatingActionButtonWidgetPropertySchema.requiresChild(owner))
                     ? 1 : slot.minChildren();
         }
 

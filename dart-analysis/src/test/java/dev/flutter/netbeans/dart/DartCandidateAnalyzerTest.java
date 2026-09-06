@@ -153,6 +153,38 @@ class DartCandidateAnalyzerTest {
     }
 
     @Test
+    void objectReferenceProofUsesCoreAliasWithoutBroadeningUserImports() throws Exception {
+        for (String header : List.of("", "import 'dart:core' as sourceCore;\n",
+                "import 'dart:core' show String;\n", "import 'dart:core' hide Object;\n")) {
+            String candidate = header + "void build() {\n  print('candidate');\n}\n";
+            Fixture accepted = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+            String original = "void build() {}\n";
+            Files.writeString(accepted.dartFile, original, StandardCharsets.UTF_8);
+            Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+            int offset = candidate.indexOf("print");
+            var type = new DartStaticTypeProbe(offset, 5, 0, candidate.indexOf("  print"),
+                    "Object", "package:flutter/material.dart");
+            var probe = new DartSymbolProbe("typed.object", offset, 5, "print", "dart:core",
+                    sdkRoot, Optional.of("FUNCTION"), Optional.of(type));
+            var result = await(accepted.analyzer.analyze(request(
+                    accepted, candidate, 41, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+            String witness = accepted.factory.processes().stream().flatMap(process -> process.requests().stream())
+                    .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                    .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
+                    .filter(value -> "add".equals(value.path("type").asText()))
+                    .map(value -> value.path("content").asText()).reduce((first, last) -> last).orElseThrow();
+            assertTrue(witness.contains("final _nbfdStaticTypeProof0Core.Object _nbfdStaticTypeProof0Control"), witness);
+            assertFalse(witness.contains("_nbfdStaticTypeProof0.Object"), witness);
+            assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
+            assertEquals(header.isEmpty(), witness.startsWith(
+                    "import 'package:flutter/material.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
+            assertTrue(witness.contains(header + "void build()"), witness);
+            assertEquals(original, Files.readString(accepted.dartFile, StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
     void requiresAnalyzerOnlyNonNullStaticTypeProofForTypedSymbols()
             throws Exception {
         String candidate = """

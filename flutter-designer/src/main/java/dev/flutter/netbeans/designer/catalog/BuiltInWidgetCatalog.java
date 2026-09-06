@@ -103,6 +103,7 @@ public final class BuiltInWidgetCatalog {
             textButton(),
             fullStyleButton("OutlinedButton"),
             fullStyleButton("FilledButton"),
+            floatingActionButton(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -767,6 +768,63 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition floatingActionButton() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition shapes = card();
+        for (var entry : FloatingActionButtonWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            if (FloatingActionButtonWidgetPropertySchema.isTextStyleProperty(new PropertyName(name))) {
+                continue;
+            }
+            List<PropertyValueConstraint> constraints;
+            if (name.equals("shape") || CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                constraints = shapes.property(new PropertyName(name)).orElseThrow().constraints();
+            } else {
+                constraints = switch (name) {
+                    case "foregroundColor", "backgroundColor", "focusColor", "hoverColor", "splashColor" -> colorOrTheme();
+                    case "enabled", "mini", "autofocus", "isExtended", "enableFeedback" -> any(PropertyValueKind.BOOLEAN);
+                    case "variant" -> stringPattern("(?:standard|small|large|extended)", "FloatingActionButton constructor");
+                    case "tooltip" -> any(PropertyValueKind.STRING);
+                    case "heroTag" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(cardNumbers(null, null));
+                        values.addAll(any(PropertyValueKind.NULL));
+                        values.addAll(any(PropertyValueKind.STRING));
+                        values.addAll(any(PropertyValueKind.BOOLEAN));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("Object"));
+                        yield List.copyOf(values);
+                    }
+                    case "onPressed" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VoidCallback"));
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "mouseCursor" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(stringPattern(
+                                DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset"));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"));
+                        yield List.copyOf(values);
+                    }
+                    case "clipBehavior" -> enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                    case "materialTapTargetSize" -> materialEnumValues("MaterialTapTargetSize", "padded", "shrinkWrap");
+                    case "extendedPadding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                    default -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(cardNumbers(
+                                name.equals("extendedIconLabelSpacing") ? null : BigDecimal.ZERO, null));
+                        values.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity")));
+                        yield List.copyOf(values);
+                    }
+                };
+            }
+            properties.add(name.equals("variant")
+                    ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.StringValue("standard"))
+                    : name.equals("enabled")
+                            ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.BooleanValue(true))
+                            : namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        appendTextStyleProperties(properties, "extendedTextStyle", 25);
+        return widget(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.value(), "FloatingActionButton", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 170, "FloatingActionButton"), properties,
+                List.of(singleSlot("child", 0, true, 0, ANY_WIDGET), singleSlot("icon", 56, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition card() {

@@ -5,6 +5,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -327,6 +328,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
                 .filter(slot -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
                 .filter(slot -> OutlinedButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
                 .filter(slot -> FilledButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
+                .filter(slot -> FloatingActionButtonWidgetPropertySchema.slotUnavailableReason(parent, slot.name()).isEmpty())
                 .filter(slot -> WidgetPlacementRules.accepts(
                         parentDefinition, slot, source))
                 .toList();

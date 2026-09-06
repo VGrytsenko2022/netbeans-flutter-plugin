@@ -83,6 +83,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.TextButton", ICON_ROOT + "textbutton.svg"),
             Map.entry("flutter.material.OutlinedButton", ICON_ROOT + "outlinedbutton.svg"),
             Map.entry("flutter.material.FilledButton", ICON_ROOT + "filledbutton.svg"),
+            Map.entry("flutter.material.FloatingActionButton", ICON_ROOT + "floatingactionbutton.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

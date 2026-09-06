@@ -339,6 +339,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.FilledButton".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.FilledButton.Name"));
                 setShortDescription(message("Widget.FilledButton.Description"));
+            } else if ("flutter.material.FloatingActionButton".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.FloatingActionButton.Name"));
+                setShortDescription(message("Widget.FloatingActionButton.Description"));
             } else if ("flutter.material.RefreshIndicator".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.RefreshIndicator.Name"));
                 setShortDescription(message("Widget.RefreshIndicator.Description"));

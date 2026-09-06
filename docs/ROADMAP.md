@@ -1869,12 +1869,26 @@ accepted architecture is documented in
   empty Child; icon/tonalIcon require a Label and admit an optional Icon. Preserve
   subtrees across variants and guard required labels in all slot/tree operations.
   Includes normal palette creation, Canvas state, Save/reopen/history and SVGs.
-  Current totals: 79 widgets, 73 const definitions, 2474 rows (2457 outside Scaffold),
+  At that milestone: 79 widgets, 73 const definitions, 2474 rows (2457 outside Scaffold),
   76 scalar plus three structural definitions, 253 Boolean-only fields plus one
   nullable Boolean union, 65 destinations (63 ANY plus two traits), 5,135 placements
   (4,796 accepted / 339 rejected), twelve generic/fourteen total creation wrappers
   and sixteen Material items. Historical target 79/92 leaves 13; no fixed ordered
   inventory is claimed. Formats 13/14/18 and existing budgets are unchanged.
+- [x] Add FloatingActionButton at Material/order 170 with all four constructors
+  and all 78 typed properties, complete ShapeBorder/TextStyle fields, and typed
+  Hero tag union with strict non-null Object proof. Preserve standard/small/large
+  empty Child, extended required Label/optional Icon, dynamic slot guards, local
+  Canvas state, Save/reopen/further editing, native history and SVGs. Constructor
+  changes reset incompatible scalar branches atomically, never silently deleting
+  a child. Use actual SDK component defaults, report duplicate/unresolved Hero
+  tags, and isolate project callbacks/objects. Current totals: 80 widgets, 74 const
+  definitions, 2552 rows (2535 outside Scaffold), 77 scalar plus three structural
+  definitions, 262 Boolean-only rows plus the nullable-Boolean and Object-tag
+  unions, 67 destinations (65 ANY plus two traits), 5,360 placements (5,013 accepted /
+  347 rejected), twelve generic/fourteen total wrappers and seventeen Material
+  items. Historical target 80/92 leaves 12; no fixed ordered inventory is claimed.
+  Formats 13/14/18 and existing budgets are unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1892,8 +1906,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-nine admitted built-ins.
-  The 76 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty admitted built-ins.
+  The 77 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

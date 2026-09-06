@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider` and `Card`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card` and `Badge`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-70 reviewed Canvas widgets. Palette insertion evaluates 4,060 exact
-source/destination cells across 70 draggable sources and 58 insertable reviewed
-slots; 3,760 are accepted and 300 cells are rejected. Expanded and Flexible are
+71 reviewed Canvas widgets. Palette insertion evaluates 4,260 exact
+source/destination cells across 71 draggable sources and 60 insertable reviewed
+slots; 3,952 are accepted and 308 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1153,10 +1153,27 @@ budget. This is not an SDK, generation or persisted-value restriction and no
 synthetic simpler shape is presented as the requested one. Ordinary empty-child
 and zero-size targets remain selectable/insertable; F2 is not text editing for Card.
 
-The aggregate catalog now has 70 widgets and 64 reviewed const definitions,
-with 840 writable rows (823 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, seven Material and six Accessibility items; the
-backlog is 70/92 complete with 22 remaining. The 70 sources across 58
-insertable destinations form 4,060 cells, with 3,760 accepted and 300 rejected.
+Badge renders actual Badge or Badge.count from optional Count presence, preserving
+all 41 fields and separate optional Label/Child slots. Count mode rejects a stored
+Label; Max count requires Count. BadgeTheme falls back to M3 defaults in both M2
+and M3 applications. Local textColor overrides style color, while foreground Paint
+retains actual TextStyle.copyWith precedence. Physical/directional padding and
+alignment, label offset plus the SDK's `(0, 8)` compatibility adjustment, small-dot
+offset omission, intrinsic stadium sizing and count truncation remain SDK behavior.
+Hidden label/dot leaves Child mounted; hidden Label subtrees remain in the model
+but publish no mounted geometry or inline editor target. Both slots have usable
+empty targets for tiny or hidden normal badges; count mode explicitly rejects Label
+drop/move targets. No version or wire-value additions are required.
+The pinned SDK stadium render object lacks updateRenderObject for minSize. Keying
+only the actual Badge by its active effective largeSize refreshes that SDK render
+object, while model GlobalKeys retain Child/Label Element, State, input and focus.
+Raw SDK reproduction plus local/theme changes, both constructors and active F2
+tests cover this preview-only workaround; no SDK file or generated Dart is patched.
+
+The aggregate catalog now has 71 widgets and 65 reviewed const definitions,
+with 881 writable rows (864 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, eight Material and six Accessibility items; the
+backlog is 71/92 complete with 21 remaining. The 71 sources across 60
+insertable destinations form 4,260 cells, with 3,952 accepted and 308 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

@@ -60,6 +60,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -3701,6 +3702,10 @@ public final class FlutterDesignerMultiViewDesign
             case FlutterWidgetSlotMutation.Replace replace -> {
                 RevisionSlot slot = revisionSlot(
                         document, catalog, replace.ownerId(), replace.slotName());
+                BadgeWidgetPropertySchema.slotUnavailableReason(
+                        findWidget(document.root(), replace.ownerId()).orElseThrow(), replace.slotName()).ifPresent(reason -> {
+                    throw new IllegalArgumentException("Cannot replace Badge slot '" + exactSlot + "': " + reason);
+                });
                 WidgetNode current = exactSingleChild(
                         slot, replace.expectedChildId(), exactSlot);
                 ReplaceSlotChild.Replacement replacement;

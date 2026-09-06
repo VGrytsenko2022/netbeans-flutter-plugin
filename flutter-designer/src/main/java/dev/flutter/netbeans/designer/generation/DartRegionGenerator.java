@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.DartSymbolReference;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -369,6 +370,8 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)
+                    && BadgeWidgetPropertySchema.isTextStyleProperty(property.name())) continue;
             if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
                     && (property.name().value().equals("variant")
                     || CardWidgetPropertySchema.builtInShapePropertyNames().contains(property.name().value()))) {
@@ -439,6 +442,7 @@ public final class DartRegionGenerator {
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
+            if (BadgeWidgetPropertySchema.isCountMode(node) && slot.name().value().equals("label")) continue;
             if (value != null) {
                 if ((node.type().value().equals("flutter.widgets.Transform")
                         || (node.type().value().equals("flutter.widgets.Visibility")
@@ -458,7 +462,7 @@ public final class DartRegionGenerator {
                     renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
             }
         }
-        if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)) {
+        if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE) || node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)) {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
@@ -548,7 +552,7 @@ public final class DartRegionGenerator {
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
         boolean iconThemeMerge = node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
-        boolean constant = !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
+        boolean constant = !BadgeWidgetPropertySchema.isCountMode(node) && !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
                 definition.dartLibraryUri(), definition.dartClassName());
@@ -572,6 +576,10 @@ public final class DartRegionGenerator {
                     "widget:" + node.id() + (iconThemeMerge ? ":iconThemeMergeFactory" : ":selectionMergeFactory"), constructor.length() + 1,
                     "merge", renderedClass.libraryUri(), path + "/properties/merge", Optional.of(node.id())));
             constructor += ".merge";
+        } else if (BadgeWidgetPropertySchema.isCountMode(node)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":badgeCountConstructor", constructor.length() + 1,
+                    "count", renderedClass.libraryUri(), path + "/properties/count", Optional.of(node.id())));
+            constructor += ".count";
         } else if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
             String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
             if (!variant.equals("elevated")) {
@@ -3491,10 +3499,14 @@ public final class DartRegionGenerator {
             int valueIndent,
             GenerationContext context,
             List<ConstructorArgument> arguments) {
+        boolean badge = node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE);
+        String styleArgument = badge ? "textStyle" : "style";
+        int styleOrder = badge ? 12 : 0;
         Map<TextWidgetPropertySchema.Target, List<TextMember>> grouped = new HashMap<>();
         for (PropertyDefinition property : definition.properties()) {
-            TextWidgetPropertySchema.Definition binding = TextWidgetPropertySchema
-                    .find(property.name()).orElse(null);
+            TextWidgetPropertySchema.Definition binding = (badge
+                    ? BadgeWidgetPropertySchema.textStyleBinding(property.name())
+                    : TextWidgetPropertySchema.find(property.name())).orElse(null);
             if (binding == null || binding.target() == TextWidgetPropertySchema.Target.DIRECT) {
                 continue;
             }
@@ -3546,13 +3558,13 @@ public final class DartRegionGenerator {
                 grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE));
         RenderedValue styleLocale = renderLocale(
                 grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE_LOCALE),
-                valueIndent + 2, path + "/properties/styleLocale", node.id(), context);
+                valueIndent + 2, path + "/properties/" + styleArgument + "Locale", node.id(), context);
         if (styleLocale != null) {
             styleMembers.add(new CompositeMember("locale", 11, styleLocale));
         }
         RenderedValue decoration = renderTextDecoration(
                 grouped.get(TextWidgetPropertySchema.Target.TEXT_STYLE_DECORATION),
-                path + "/properties/styleDecoration", node.id(), context);
+                path + "/properties/" + styleArgument + "Decoration", node.id(), context);
         if (decoration != null) {
             styleMembers.add(new CompositeMember("decoration", 17, decoration));
         }
@@ -3562,25 +3574,25 @@ public final class DartRegionGenerator {
                 ? null : themeStyles.getFirst().rendered();
         if (themeStyle != null && styleMembers.isEmpty()) {
             arguments.add(new ConstructorArgument(
-                    DartParameter.named(0, false), "style", false, themeStyle));
+                    DartParameter.named(styleOrder, false), styleArgument, false, themeStyle));
         } else if (themeStyle != null) {
             styleMembers.sort(COMPOSITE_MEMBER_ORDER);
             arguments.add(new ConstructorArgument(
-                    DartParameter.named(0, false),
-                    "style",
+                    DartParameter.named(styleOrder, false),
+                    styleArgument,
                     false,
                     renderTextStyleCopyWith(
-                            themeStyle, styleMembers, path + "/properties/style",
+                            themeStyle, styleMembers, path + "/properties/" + styleArgument,
                             node.id(), context)));
         } else if (!styleMembers.isEmpty()) {
             styleMembers.sort(COMPOSITE_MEMBER_ORDER);
             arguments.add(new ConstructorArgument(
-                    DartParameter.named(0, false),
-                    "style",
+                    DartParameter.named(styleOrder, false),
+                    styleArgument,
                     false,
                     renderNamedCompositeMembers(
                             "TextStyle", Optional.empty(), styleMembers,
-                            valueIndent, path + "/properties/style", node.id(), context)));
+                            valueIndent, path + "/properties/" + styleArgument, node.id(), context)));
         }
 
         List<TextMember> strut = grouped.get(TextWidgetPropertySchema.Target.STRUT_STYLE);

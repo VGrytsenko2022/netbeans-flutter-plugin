@@ -6,6 +6,18 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `Badge` at Material/order 80 covers const Badge and non-const Badge.count in
+  one type, all 41 fields (ten direct plus 31 complete TextStyle leaves) and two
+  optional widget slots. Count presence chooses the constructor; Max count requires
+  Count, resetting Count also resets Max count atomically. Existing Label content
+  must be moved/cleared before count mode; no branch transition deletes it.
+  Includes state-aware label/child DnD, actual BadgeTheme/RTL/offset/text-Paint
+  precedence, dot/count/hidden states, stable rich editors, centered Booleans,
+  generation/provenance, save/reopen/further editing, Undo/Redo and four SVGs.
+  Current totals: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
+  4,260 placements (3,952 accepted / 308 rejected), Material 8/Basic 23; historical
+  target 71/92 with 21 remaining. Formats stay 13/14/18.
+
 - `Card` in Material at order 70 with all three const constructors (elevated,
   filled and outlined), all SDK fields, optional child and 31 typed property rows.
   Ten built-in shapes include complete border-side/radius, circle/oval,
@@ -16,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   DnD/moves/slots, generation/provenance, save/reopen/further editing and rollback.
   Actual Canvas preserves CardTheme/M2/M3, margin, clipping, border order and
   semantics. Its explicit 4096-point preview budget does not restrict Dart values.
-  Current totals: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
+  At that milestone: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
   4,060 placements (3,760 accepted / 300 rejected), Material 7/Basic 23; historical
   target 70/92 with 22 remaining. Formats stay 13/14/18.
 

@@ -2,12 +2,50 @@
 
 Starter architecture for first-class Dart + Flutter support in Apache NetBeans 31.
 
-Current palette milestone: **70 widgets / the historical 92-widget practical target**
-(22 remaining), now including `Card`. The repository does not preserve
+Current palette milestone: **71 widgets / the historical 92-widget practical target**
+(21 remaining), now including `Badge`. The repository does not preserve
 the full ordered 92-item inventory; widgets are being admitted from the pinned
 Flutter API rather than claiming a recovered fixed-order plan.
-The current catalog has 840 writable rows (823 outside `Scaffold`), 64 const-capable
-definitions, and 4,060 DnD candidates (3,760 accepted / 300 rejected).
+The current catalog has 881 writable rows (864 outside `Scaffold`), 65 const-capable
+definitions, and 4,260 DnD candidates (3,952 accepted / 308 rejected).
+
+### Badge: labels, dots and numeric counters
+
+Material → **Badge** covers both pinned Flutter 3.44.8
+[Badge and Badge.count](https://api.flutter.dev/flutter/material/Badge-class.html)
+constructors in one palette item. All 41 typed fields are available: ten direct
+settings and all 31 existing TextStyle leaves, including theme roles, locale,
+font families/package, Paint, shadows, OpenType features, variations and decorations.
+The optional **Label** and **Child** are separate widget slots. Creation stores no
+scalar defaults and generates the equivalent of `const Badge()`, a small dot
+(empty optional slots may be emitted as null). A label produces a large badge.
+
+Set **Count** (zero or greater) to use non-const `Badge.count`. **Max count** must
+be positive and requires Count; when omitted its SDK value is 999. Counts above
+that maximum display `maximum+`; zero is not an unset value. Count mode owns its
+generated label, so first move or clear an existing Label slot before setting Count.
+Count-mode label insertion is unavailable with a concrete explanation, not silent
+data loss. Reset Count atomically resets Max count and restores the ordinary mode;
+shared appearance, Child and one-step Undo are preserved.
+
+Canvas uses the actual SDK, including BadgeTheme precedence and M3 badge defaults
+even in an M2 application. Text color overrides style color, but foreground Paint
+still takes precedence as in TextStyle.copyWith. Alignment supports physical/RTL
+coordinates. The SDK adds its compatibility `(0, 8)` offset for labels and ignores
+offset for small dots. Hidden labels leave Child visible; the stored Label remains
+editable in the tree. Both empty slots have insertion targets, including tiny or
+hidden badges. Properties retain unset/reset, centered Boolean checkboxes and
+stable cells through save/reopen/further editing and Undo/Redo. Formats stay 13/14/18.
+Canvas also compensates for the pinned SDK's stale large-size render update while
+preserving child input/focus and active label editing. Generated Dart remains the
+standard Badge API; the workaround is local to Designer preview.
+
+Existing shared save limitation: an extra explicit false decoration flag can change
+Designer data without changing generated Dart. If another Dart/Designer revision
+is still unsaved, save or undo that revision before retrying this edit. The failed
+attempt preserves both files, the draft and history; after Save the same value is
+supported through the existing Designer-only persistence path.
+After Undo/Redo, a decoration reset can meet the same save-first requirement.
 
 ### Card: all three Material variants and editable shapes
 
@@ -512,13 +550,13 @@ The current usable workflow is:
     of other NetBeans trees. A project
     with `web/` also receives a browser-sized Web layout preview on the native
     engine; browser-only runtime behavior is not emulated. The Windows Canvas
-    accepts the seventy capability-authorized Palette widgets (`Scaffold`,
+    accepts the seventy-one capability-authorized Palette widgets (`Scaffold`,
     `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
     `SizedBox`, `AspectRatio`, `Container`, `Opacity`, `Align`,
     `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
     `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`,
-    `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider` and `Card`) through a
-    fail-closed 4,060-cell catalog matrix with 3,760 accepted and 300 rejected
+    `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card` and `Badge`) through a
+    fail-closed 4,260-cell catalog matrix with 3,952 accepted and 308 rejected
     combinations, with paired generation,
     analysis, Save and Undo/Redo.
     The same Palette token may be dropped on an exact widget-tree row when that
@@ -769,7 +807,7 @@ bounded validated protocol-v18 model restricted by the exact built-in capability
 gate to `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
-`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Container`
+`IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `Container`
 and `Opacity`.
 The toolbar now preserves exact Android Phone,
 Android Tablet, iPhone, iPad, Windows Desktop, macOS Desktop and Linux Desktop
@@ -778,7 +816,7 @@ bound Windows engine. These are appearance previews, not device runtimes. Web
 uses the same native engine with an exact browser-sized responsive viewport;
 it does not claim `kIsWeb`, browser fonts, DOM or plugin behavior. Stable widget
 IDs synchronize selection between the Canvas, the revision-bound Explorer widget
-tree and standard Properties. The sixty-nine non-`Scaffold` widgets expose 823 typed
+tree and standard Properties. The seventy non-`Scaffold` widgets expose 864 typed
 read/write property rows. `AppBar` contributes 120 independently resettable
 leaves across behavior, layout, colors/elevation, shape, icon themes, text
 styles and system-UI overlay groups, plus exact `leading`, `title`, `actions`,
@@ -805,7 +843,7 @@ so those glyphs are available at runtime. `Icon` is a leaf; its omitted
 theme-backed fields inherit from `IconTheme`, while `blendMode` and `fontWeight`
 remain direct local arguments. Generated Dart and the native Canvas have exact
 argument parity. The active Design lookup supplies the standard NetBeans Palette
-with the exact seventy widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
+with the exact seventy-one widgets listed above. `ElevatedButton` adds 286 typed leaves: seven direct
 behavior/callback fields, five 54-leaf state groups for default, disabled,
 pressed, hovered and focused values, and nine common layout/feedback fields.
 Its callbacks store strict Dart identifiers only—never arbitrary expressions.
@@ -886,9 +924,9 @@ logical identity, code and reason. Selection/layout frames, guides and drop zone
 the decorated/transformed `Container`. The Image tab exposes typed accessible
 controls and inventory status, and one accepted structured/dependent edit is
 one Undo/Redo unit. The optional `child` remains a named single any-widget slot
-rather than a property row. The current catalog therefore exposes exactly 840
-writable rows across seventy widgets, including 823 across the sixty-nine
-non-`Scaffold` definitions; sixty-four definitions use reviewed const constructors.
+rather than a property row. The current catalog therefore exposes exactly 881
+writable rows across seventy-one widgets, including 864 across the seventy
+non-`Scaffold` definitions; sixty-five definitions use reviewed const constructors.
 `.fd` is v13 and the Canvas model protocol is 18. SafeArea's physical-insets
 constraint adds the exported `EdgeInsetsValues.directionalAllowed` component,
 and `IndexedStack.index` adds the exact payload-free null value; the top-level
@@ -1520,9 +1558,9 @@ routes construct the real widget. Designer selection and empty drop affordances
 remain outside clipping. With an omitted child, the zero-size real node uses
 the same external 36x36 Designer target for the warning and complete reason.
 The practical
-backlog is now 70/92 complete with 22 remaining; Layout contains 31 items,
-Scrolling 3, Basic 23, Material 7 and Accessibility 6. The surface has 64
-reviewed const definitions and 840 writable rows, including 823 outside
+backlog is now 71/92 complete with 21 remaining; Layout contains 31 items,
+Scrolling 3, Basic 23, Material 8 and Accessibility 6. The surface has 65
+reviewed const definitions and 881 writable rows, including 864 outside
 `Scaffold`. PhysicalShape adds five rows, six structured shape presets and a typed
 project clipper branch. Its closed value sets `.fd` v13, Catalog API 14 and Canvas
 model v18. The later RepaintBoundary adds a structural child slot without changing
@@ -1542,8 +1580,8 @@ Visibility adds seven optional boolean rows, a required child and an optional
 replacement slot whose empty value omits the non-nullable Dart argument.
 NBFC framing/control/wire remains v1.
 
-Fifty-six any-widget slots provide the reusable destination contract, including
-the optional `Visibility.replacement` and `Card.child` slots:
+Fifty-eight any-widget slots provide the reusable destination contract, including
+the optional `Visibility.replacement`, `Card.child`, `Badge.label` and `Badge.child` slots:
 `Scaffold.body`, `Scaffold.floatingActionButton`, `Column.children`,
 `Row.children`, `ListView.children`, `GridView.count.children`, `ListBody.children`, `OverflowBar.children`,
 `Wrap.children`, `Center.child`, `Align.child`,
@@ -1553,16 +1591,16 @@ the optional `Visibility.replacement` and `Card.child` slots:
 `Opacity.child`, `ColoredBox.child`, `Placeholder.child`, `DecoratedBox.child`, `ClipRect.child`, `ClipOval.child`, `ClipRRect.child`, `ClipPath.child`, `ClipRSuperellipse.child`, `PhysicalModel.child`, `PhysicalShape.child`, `RepaintBoundary.child`, `IgnorePointer.child`, `AbsorbPointer.child`, `ExcludeSemantics.child`, `BlockSemantics.child`, `MergeSemantics.child`, `IndexedSemantics.child`, `Baseline.child`, `IntrinsicHeight.child`, `IntrinsicWidth.child`, `Offstage.child`, `SizedOverflowBox.child`, `Transform.child`, `RotatedBox.child`, `SingleChildScrollView.child`, `Stack.children`, `IndexedStack.children`,
 `ElevatedButton.child`, and AppBar's `leading`, `title`, `actions` and
 `flexibleSpace`. `Scaffold.appBar` and `AppBar.bottom` accept only
-`PreferredSizeWidget`, currently the reviewed AppBar. The 58 insertable
-destinations and 70 sources form 4,060 candidate cells: 3,760 accepted and 300
+`PreferredSizeWidget`, currently the reviewed AppBar. The 60 insertable
+destinations and 71 sources form 4,260 candidate cells: 3,952 accepted and 308
 rejected. Expanded and Flexible each wrap only an existing direct
 `Row.children`/`Column.children` child; Spacer inserts only into those same two
-list slots. The other 67 sources enter all 56 any-widget slots, and only AppBar
+list slots. The other 68 sources enter all 58 any-widget slots, and only AppBar
 enters the two trait-bound slots. Expanded and Flexible's required `child` slots
 are replacement-only and are therefore not insertable matrix destinations.
 SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle and IconTheme use the generic required-child wrapper mode without
 a Row/Column-only outer placement restriction. Their required children are
-likewise excluded from the insertable matrix; all nine sources enter all 56
+likewise excluded from the insertable matrix; all nine sources enter all 58
 any-widget destinations, and none can wrap Expanded, Flexible or Spacer because
 their ParentData must remain directly under Row/Column.
 `ElevatedButton.child` is an optional-single, required-named-but-nullable slot;

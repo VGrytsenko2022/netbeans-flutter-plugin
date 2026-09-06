@@ -28,6 +28,7 @@ import dev.flutter.netbeans.designer.catalog.ImageIconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -562,6 +563,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addVerticalDividerPropertySets(sheet, hasSlotTab);
         } else if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())) {
             addCardPropertySets(sheet, hasSlotTab);
+        } else if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(widget.type())) {
+            addBadgePropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -756,6 +759,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(widget.type())) {
+            return slot.name().value().equals("label")
+                    ? "Optional label for Badge(). An empty Label shows a small dot. Badge.count owns its generated "
+                            + "numeric label: clear Count before adding, moving or replacing Label. To set Count, "
+                            + "first clear or move the existing Label; Designer never removes it automatically."
+                    : "Optional widget below the Badge overlay. With no Child, the badge is standalone; "
+                            + "alignment and offset cannot position it relative to a child. Child is retained "
+                            + "when switching Count and remains visible when Label visible is false.";
+        }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type()) && CHILD_SLOT.equals(slot.name())) {
             return "Optional child inside the Card's Material surface. Shape alone does not clip the child; "
                     + "Clip behavior controls clipping, Border on foreground controls border painting, and "
@@ -2542,6 +2554,27 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addBadgePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<BadgeWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(BadgeWidgetPropertySchema.Group.class);
+        for (BadgeWidgetPropertySchema.Group group : BadgeWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = BadgeWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property,
+                    BadgeWidgetPropertySchema.textStyleBinding(property.name()),
+                    schema.displayName(), schema.description()
+                            + " Restore Default returns this optional field to <not set>; no SDK defaults "
+                            + "are stored on creation. Resetting Count also resets Max count in one undoable edit. "
+                            + "Explicit boolean values use a centered checkbox. Foreground/background Paint "
+                            + "and the corresponding style color are mutually exclusive and switch atomically."));
+        }
+    }
+
     private void addCardPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<CardWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(CardWidgetPropertySchema.Group.class);
@@ -3529,6 +3562,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
+            return badgePropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())) {
             return cardPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -3588,6 +3624,38 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return patches.size() == 1
                 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand badgePropertyCommand(
+            WidgetNode currentWidget, PropertyName propertyName, FlutterPropertyCellValue accepted) {
+        String edited = propertyName.value();
+        boolean setting = accepted.explicitValue().isPresent();
+        if (setting && edited.equals("count")) {
+            WidgetSlot label = currentWidget.slots().get(new SlotName("label"));
+            if (label instanceof WidgetSlot.SingleSlot single && single.child().isPresent()) {
+                throw new IllegalArgumentException("Cannot set Count on Badge '" + currentWidget.id()
+                        + "': Label is occupied. Clear or move Label first; it will not be deleted automatically.");
+            }
+        }
+        if (setting && edited.equals("maxCount") && !BadgeWidgetPropertySchema.isCountMode(currentWidget)) {
+            throw new IllegalArgumentException("Cannot set Max count on Badge '" + currentWidget.id()
+                    + "': set Count first.");
+        }
+        String reset = !setting && edited.equals("count") ? "maxCount" : setting ? switch (edited) {
+            case "textStyleForeground" -> "textStyleColor";
+            case "textStyleColor" -> "textStyleForeground";
+            case "textStyleBackground" -> "textStyleBackgroundColor";
+            case "textStyleBackgroundColor" -> "textStyleBackground";
+            default -> null;
+        } : null;
+        if (reset == null || !currentWidget.properties().containsKey(new PropertyName(reset))) {
+            return ordinaryPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        return new PatchProperties(currentWidget.id(), java.util.List.of(
+                new PatchProperties.ResetPatch(new PropertyName(reset)),
+                accepted.explicitValue().<PatchProperties.Patch>map(value ->
+                        new PatchProperties.SetPatch(propertyName, value))
+                        .orElseGet(() -> new PatchProperties.ResetPatch(propertyName))));
     }
 
     private DesignerCommand cardPropertyCommand(

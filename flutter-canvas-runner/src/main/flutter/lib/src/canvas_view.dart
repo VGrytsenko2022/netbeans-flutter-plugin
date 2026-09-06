@@ -654,6 +654,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
+        node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1023,7 +1024,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       return null;
     }
     if (!_isInteractiveDescendant(widget.model.root, parentWidgetId) ||
-        !_isInteractiveSlot(parentNode, slotName)) {
+        !_isEligibleDropSlot(parentNode, slotName)) {
       return null;
     }
     final modelSlot = parentNode.slot(slotName);
@@ -1061,6 +1062,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         return null;
       }
       zone = switch (reviewedSlot?.zonePlacement) {
+        CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(parentRect),
         CanvasDropZonePlacement.fullNode || null => parentRect,
         CanvasDropZonePlacement.terminalList => _terminalZone(
           parentNode,
@@ -1394,7 +1396,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     } else {
       for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
         if (!dropSlot.acceptsSource(source) ||
-            !_isInteractiveSlot(node, dropSlot.slotName)) {
+            !_isEligibleDropSlot(node, dropSlot.slotName)) {
           continue;
         }
         final modelSlot = node.slot(dropSlot.slotName);
@@ -1410,6 +1412,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           }
           final localParent = Offset.zero & box.size;
           final localZone = switch (dropSlot.zonePlacement) {
+            CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(localParent),
             CanvasDropZonePlacement.fullNode => localParent,
             CanvasDropZonePlacement.terminalList => _terminalZone(
               node,
@@ -1448,6 +1451,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             localZone,
             point,
             surfaceRect,
+            placement: dropSlot.zonePlacement,
           );
           if (zone != null) {
             result.add(
@@ -1507,6 +1511,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   bool _isInteractiveSlot(CanvasNode node, String slotName) {
+    if (node.type == 'flutter.material.Badge' && slotName == 'label') {
+      return !node.properties.containsKey('count') &&
+          node.properties['isLabelVisible']?.value != false;
+    }
     if (node.type != 'flutter.widgets.Visibility') return true;
     final visible = node.properties['visible']?.value != false;
     return slotName == 'child'
@@ -1605,6 +1613,22 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       parent.right,
       parent.bottom,
     );
+  }
+
+  Rect _badgeLabelZone(Rect parent) => Rect.fromLTRB(
+    parent.center.dx,
+    parent.top,
+    parent.right,
+    parent.center.dy,
+  );
+
+  bool _isEligibleDropSlot(CanvasNode node, String slotName) {
+    if (node.type == 'flutter.material.Badge' && slotName == 'label') {
+      // Visibility affects mounted descendants, not structural editing. Count
+      // owns its generated label and must never advertise a label destination.
+      return !node.properties.containsKey('count');
+    }
+    return _isInteractiveSlot(node, slotName);
   }
 
   Rect _terminalZone(
@@ -1937,14 +1961,18 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     RenderBox box,
     Rect localZone,
     Offset globalPoint,
-    Rect surfaceRect,
-  ) {
+    Rect surfaceRect, {
+    CanvasDropZonePlacement? placement,
+  }) {
     final renderedBox = _finiteGlobalRect(box);
     if (renderedBox == null || !_hasFiniteGlobalInverse(box)) {
       return null;
     }
     if (box.size.isEmpty) {
-      final synthetic = _boundedDesignerHitRect(renderedBox, surfaceRect);
+      final bounded = _boundedDesignerHitRect(renderedBox, surfaceRect);
+      final synthetic = placement == CanvasDropZonePlacement.badgeLabel
+          ? _badgeLabelZone(bounded)
+          : bounded;
       return !synthetic.isEmpty && synthetic.contains(globalPoint)
           ? synthetic
           : null;
@@ -2526,6 +2554,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
       'flutter.material.Card' => _card(context),
+      'flutter.material.Badge' => _badge(context),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4580,6 +4609,62 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return ClipPath(
       clipBehavior: _clipBehavior() ?? Clip.antiAlias,
       child: _single('child'),
+    );
+  }
+
+  Widget _badge(BuildContext context) {
+    final backgroundColor = _resolvedColor(context, 'backgroundColor');
+    final textColor = _resolvedColor(context, 'textColor');
+    final smallSize = _number('smallSize');
+    final largeSize = _number('largeSize');
+    final textStyle = _textStyle(context, 'textStyle');
+    final padding = _edgeInsetsGeometry('padding');
+    final alignment = _alignmentGeometry('alignment');
+    final offset = _offset('offset');
+    final isLabelVisible = _boolean('isLabelVisible') ?? true;
+    final child = _single('child');
+    final count = _integer('count');
+    // Flutter 3.44.8's _IntrinsicHorizontalStadium has no updateRenderObject:
+    // its minSize otherwise remains stale after a local or BadgeTheme edit.
+    // Recreate only the SDK Badge for a changed effective minimum. Existing
+    // global node keys reparent actual child/label state, including edit focus.
+    final hasLabel = count != null || node.slot('label')?.child != null;
+    final sdkKey = ValueKey((
+      'badge-stadium-minimum',
+      isLabelVisible && hasLabel
+          ? largeSize ?? BadgeTheme.of(context).largeSize ?? 16.0
+          : null,
+    ));
+    if (count != null) {
+      return Badge.count(
+        key: sdkKey,
+        backgroundColor: backgroundColor,
+        textColor: textColor,
+        smallSize: smallSize,
+        largeSize: largeSize,
+        textStyle: textStyle,
+        padding: padding,
+        alignment: alignment,
+        offset: offset,
+        count: count,
+        maxCount: _integer('maxCount') ?? 999,
+        isLabelVisible: isLabelVisible,
+        child: child,
+      );
+    }
+    return Badge(
+      key: sdkKey,
+      backgroundColor: backgroundColor,
+      textColor: textColor,
+      smallSize: smallSize,
+      largeSize: largeSize,
+      textStyle: textStyle,
+      padding: padding,
+      alignment: alignment,
+      offset: offset,
+      label: _single('label'),
+      isLabelVisible: isLabelVisible,
+      child: child,
     );
   }
 

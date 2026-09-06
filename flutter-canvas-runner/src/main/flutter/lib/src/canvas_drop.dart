@@ -168,6 +168,8 @@ enum CanvasDropSlotCardinality { single, list }
 
 /// How the Flutter render tree exposes one reviewed semantic slot.
 enum CanvasDropZonePlacement {
+  badgeLabel,
+
   /// The complete rendered parent is the insertion target.
   fullNode,
 
@@ -263,6 +265,13 @@ const canvasEmptyChildDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'child',
 );
 
+// A proportional corner leaves a separate child target even on a tiny dot.
+const canvasBadgeLabelDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'label',
+  zonePlacement: CanvasDropZonePlacement.badgeLabel,
+  overlapPriority: 1,
+);
+
 const canvasVisibilityReplacementDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'replacement',
 );
@@ -332,6 +341,10 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         canvasAppBarActionsDropSlot,
         canvasAppBarFlexibleSpaceDropSlot,
         canvasAppBarBottomDropSlot,
+      ],
+      'flutter.material.Badge' => const [
+        canvasBadgeLabelDropSlot,
+        canvasEmptyChildDropSlot,
       ],
       'flutter.widgets.Column' ||
       'flutter.widgets.Row' ||

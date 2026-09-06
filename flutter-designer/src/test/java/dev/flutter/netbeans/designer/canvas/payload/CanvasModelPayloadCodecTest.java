@@ -49,6 +49,7 @@ import java.math.BigDecimal;
 import java.math.BigInteger;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.ArrayList;
 import java.util.Map;
@@ -82,6 +83,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.Divider",
                 "flutter.material.VerticalDivider",
                 "flutter.material.Card",
+                "flutter.material.Badge",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -2758,6 +2760,62 @@ class CanvasModelPayloadCodecTest {
             var node = new WidgetNode(StableId.random(), type("flutter.material.Card"), properties, Map.of());
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
+    }
+
+    @Test
+    void badgeBothConstructorsAllStyleValuesAndSlotsPreserveExactTypedPayloadAndNoDefaults() throws Exception {
+        var covered = new HashSet<PropertyName>();
+        for (boolean paints : List.of(false, true)) for (boolean count : List.of(false, true)) {
+            var properties = dev.flutter.netbeans.designer.catalog.BadgeTestValues.full(paints, count);
+            covered.addAll(properties.keySet());
+            var child = text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Badge child");
+            var label = text("fac77c2c-1233-4dff-946f-a3023df9b6ce", "Badge label");
+            var slots = new LinkedHashMap<SlotName, WidgetSlot>();
+            slots.put(new SlotName("child"), WidgetSlot.SingleSlot.of(child));
+            if (!count) slots.put(new SlotName("label"), WidgetSlot.SingleSlot.of(label));
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Badge"), properties, slots);
+            var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            var codec = new CanvasModelPayloadCodec();
+            String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(request), codec.encode(request));
+            assertTrue(json.contains("\"type\":\"flutter.material.Badge\""), json);
+            for (String name : dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema.definitions().keySet())
+                assertEquals(properties.containsKey(new PropertyName(name)), json.contains("\"" + name + "\":"), name + json);
+            assertTrue(json.contains("Badge child"), json); assertEquals(!count, json.contains("Badge label"), json);
+            assertTrue(json.contains("-2.5"), json); assertFalse(json.contains("BadgeThemeData"), json);
+            assertFalse(json.contains("\"variant\":"), json);
+        }
+        assertEquals(41, covered.size());
+    }
+
+    @Test
+    void badgePayloadPreservesEmptyDefaultsExplicitFalseAndPortableCountsWithoutNumericLabelSynthesis() throws Exception {
+        for (boolean count : List.of(false, true)) {
+            var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("isLabelVisible"), new PropertyValue.BooleanValue(false));
+            if (count) properties.put(new PropertyName("count"), new PropertyValue.IntegerValue(new BigInteger("9007199254740991")));
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Badge"), properties, Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertEquals(count, json.contains("9007199254740991"), json);
+            for (String name : List.of("maxCount", "smallSize", "largeSize", "textStyleFontSize", "backgroundColor", "variant"))
+                assertFalse(json.contains("\"" + name + "\":"), json);
+            assertFalse(json.contains("999+"), json);
+        }
+    }
+
+    @Test
+    void badgePayloadRejectsOrphanMaximumLabelConflictAndPaintColorConflicts() {
+        var names = new PropertyName[]{new PropertyName("count"), new PropertyName("maxCount")};
+        List<Map<PropertyName, PropertyValue>> bad = List.of(
+                Map.of(names[1], dev.flutter.netbeans.designer.catalog.BadgeTestValues.i(1)),
+                Map.of(names[0], dev.flutter.netbeans.designer.catalog.BadgeTestValues.i(-1)),
+                Map.of(new PropertyName("textStyleColor"), dev.flutter.netbeans.designer.catalog.BadgeTestValues.theme(), new PropertyName("textStyleForeground"), dev.flutter.netbeans.designer.catalog.BadgeTestValues.paint()));
+        for (var properties : bad) {
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Badge"), properties, Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        var node = new WidgetNode(StableId.random(), type("flutter.material.Badge"), Map.of(names[0], dev.flutter.netbeans.designer.catalog.BadgeTestValues.i(0)), Map.of(new SlotName("label"), WidgetSlot.SingleSlot.of(text("fac77c2c-1233-4dff-946f-a3023df9b6ce", "Keep this label"))));
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
     }
 
     private static CanvasRenderRequest request(DesignerDocument document) {

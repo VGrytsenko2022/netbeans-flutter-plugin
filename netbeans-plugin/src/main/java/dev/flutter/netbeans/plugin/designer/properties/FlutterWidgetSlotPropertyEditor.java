@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
@@ -157,7 +158,8 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
                             + current.cardinality().wireName()
                             + " but the catalog declares "
                             + slot.cardinality().wireName() + ".")
-                    : Optional.empty();
+                    : BadgeWidgetPropertySchema.slotUnavailableReason(owner, slot.name())
+                            .map(reason -> "Cannot edit Badge slot '" + owner.id() + "." + slot.name().value() + "': " + reason);
             currentChildren = structuralProblem.isPresent()
                     ? List.of() : children(current);
             addChoices = buildAddChoices();

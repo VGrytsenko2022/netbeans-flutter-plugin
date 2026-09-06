@@ -563,6 +563,244 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
+    void badgeSecondFalseDecorationRequiresSaveThenSameValueCommitsFdOnlyAndReopens() throws Exception {
+        StableId badgeId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e97");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.Badge");
+        ExactPair emptyPair;
+        try (MutationFixture fixture = fixture("badge_decoration_initial", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> badgeId));
+            applyBadgeMutation(fixture, ready, plan.command(), badgeId); emptyPair = savePhysicalModelPair(fixture);
+        }
+        List<String> flags = List.of("textStyleDecorationUnderline", "textStyleDecorationOverline", "textStyleDecorationLineThrough");
+        for (int index = 0; index < flags.size(); index++) {
+            PropertyName first = new PropertyName(flags.get((index + 1) % flags.size())), second = new PropertyName(flags.get(index));
+            ExactPair savedFalsePair;
+            try (MutationFixture fixture = fixture("badge_false_" + index, emptyPair)) {
+                AtomicInteger analyses = new AtomicInteger();
+                fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> { analyses.incrementAndGet(); return completedAnalysis(passingAnalysis(request, fixture.frameworkFile())); });
+                var current = applyBadgeMutation(fixture, fixture.ready(), new SetProperty(badgeId, first, new PropertyValue.BooleanValue(false)), badgeId);
+                var c1 = findModelWidget(current.document().orElseThrow().root(), badgeId);
+                var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+                var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, c1, definition, commands::add);
+                var secondCell = cellProperty(properties, second.value()); var sets = properties.getPropertySets();
+                var evidence = fixture.coordinator().stagedEvidence(); var proof = fixture.coordinator().stagedProofSnapshot();
+                byte[] dart = fixture.editor().liveSnapshot().markerBearingUtf8();
+                byte[] fd = evidence.preparedPairIdentity().prospectiveFdBytes();
+                var history = fixture.dataObject().getCombinedUndoRedo();
+                String undoName = history.getUndoPresentationName(), redoName = history.getRedoPresentationName();
+                var token = current.token().orElseThrow();
+                DesignerCommand sameFalse = new SetProperty(badgeId, second, new PropertyValue.BooleanValue(false));
+                var rejected = fixture.mutations().submit(token, sameFalse, "Badge explicit false decoration").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.FAILED, rejected.outcome());
+                for (String text : List.of("Save", "undo", "retry", "NO_CHANGES")) assertTrue(rejected.reason().contains(text), rejected.reason());
+                current = awaitReady(fixture.mutations());
+                assertNotSame(token, current.token().orElseThrow(), "Refusal reissues the one-shot presentation token");
+                assertSame(evidence, fixture.coordinator().stagedEvidence());
+                var unchangedProof = fixture.coordinator().stagedProofSnapshot();
+                assertEquals(proof.kind(), unchangedProof.kind());
+                assertSame(proof.loadedCurrentIdentity(), unchangedProof.loadedCurrentIdentity());
+                assertSame(proof.preparedPairIdentity(), unchangedProof.preparedPairIdentity());
+                assertSame(proof.liveCandidateIdentity(), unchangedProof.liveCandidateIdentity());
+                assertArrayEquals(proof.baselineDartBytes(), unchangedProof.baselineDartBytes());
+                assertArrayEquals(proof.baselineFdBytes(), unchangedProof.baselineFdBytes());
+                assertArrayEquals(proof.candidateDartBytes(), unchangedProof.candidateDartBytes());
+                assertEquals(c1, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertEquals(undoName, history.getUndoPresentationName()); assertEquals(redoName, history.getRedoPresentationName());
+                assertSame(secondCell, cellProperty(properties, second.value())); assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                var stale = fixture.mutations().submit(token, sameFalse, "Badge stale retry").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, stale.outcome());
+                savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                int beforeRetry = analyses.get();
+                current = applyBadgeMutation(fixture, current, sameFalse, badgeId);
+                assertEquals(beforeRetry, analyses.get(), "The identical retry after Save follows existing FD_ONLY admission, without analyzer");
+                assertArrayEquals(dart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                byte[] durableFd = Files.readAllBytes(fixture.fdPath()); assertFalse(Arrays.equals(fd, durableFd));
+                var durable = assertInstanceOf(FdDecodeResult.Current.class, new FdDocumentCodec().decode(durableFd)).document();
+                assertEquals(new PropertyValue.BooleanValue(false), findModelWidget(durable.root(), badgeId).properties().get(second));
+                assertEquals(PairSaveCoordinatorStatus.CLEAN, fixture.coordinator().state().status()); assertNull(fixture.coordinator().stagedEvidence());
+                assertNull(fixture.dataObject().getCookie(SaveCookie.class)); assertFalse(fixture.dataObject().isModified());
+                var retained = (DesignerCommandSessionOrchestrator) sessionOwner(fixture.mutations());
+                assertTrue(retained.canUndo(), "Existing FD_ONLY durable adoption retains Designer session history");
+                savedFalsePair = new ExactPair(dart, durableFd);
+            }
+            try (MutationFixture fixture = fixture("badge_false_reopened_" + index, savedFalsePair)) {
+                fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+                var current = fixture.ready(); var before = findModelWidget(current.document().orElseThrow().root(), badgeId);
+                assertEquals(new PropertyValue.BooleanValue(false), before.properties().get(second));
+                current = applyBadgeMutation(fixture, current, new SetProperty(badgeId, second, new PropertyValue.BooleanValue(true)), badgeId);
+                var enabled = findModelWidget(current.document().orElseThrow().root(), badgeId);
+                var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(enabled, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                // Reset would reach a model-only variant of the durable baseline. The existing
+                // physical-history endpoint also requires Save before adopting this FD_ONLY target.
+                var exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+                var exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+                var resetCommand = new ResetProperty(badgeId, second);
+                String undoName = history.getUndoPresentationName();
+                var resetRefused = fixture.mutations().submit(current.token().orElseThrow(), resetCommand, "Badge decoration reset after history").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.FAILED, resetRefused.outcome());
+                assertTrue(resetRefused.reason().contains("physical-endpoint"), resetRefused.reason());
+                current = awaitReady(fixture.mutations());
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertEquals(enabled, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertEquals(undoName, history.getUndoPresentationName());
+                savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                current = applyBadgeMutation(fixture, current, resetCommand, badgeId);
+                assertFalse(findModelWidget(current.document().orElseThrow().root(), badgeId).properties().containsKey(second));
+                assertEquals(new PropertyValue.BooleanValue(false), findModelWidget(current.document().orElseThrow().root(), badgeId).properties().get(first));
+            }
+        }
+    }
+
+    @Test
+    void paletteBadgeAll41FieldsSaveReopenCountLabelHistoryAndRollback() throws Exception {
+        StableId badgeId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e94");
+        StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e95");
+        StableId labelId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e96");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.Badge");
+        SlotName label = new SlotName("label"); PropertyName count = new PropertyName("count"), max = new PropertyName("maxCount");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("badge_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> badgeId));
+            var added = applyBadgeMutation(fixture, ready, plan.command(), badgeId);
+            assertTrue(findModelWidget(added.document().orElseThrow().root(), badgeId).properties().isEmpty());
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("const Badge("));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("badge_reopened_all41", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            WidgetNode initial = findModelWidget(current.document().orElseThrow().root(), badgeId);
+            List<DesignerCommand> commands = new ArrayList<>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); List<WidgetNode> states = new ArrayList<>(); states.add(initial);
+            for (var field : definition.properties()) {
+                var value = dev.flutter.netbeans.plugin.designer.properties.BadgePropertyContractTest.value(field.name().value());
+                commands.clear(); var cell = cellProperty(properties, field.name().value());
+                cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), field.name().value());
+                current = applyBadgeMutation(fixture, current, commands.getFirst(), badgeId);
+                WidgetNode edited = findModelWidget(current.document().orElseThrow().root(), badgeId);
+                assertEquals(value, edited.properties().get(field.name()), field.name().value());
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value())); assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                states.add(edited);
+            }
+            assertEquals(42, states.size()); var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), badgeId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), badgeId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            configured = findModelWidget(current.document().orElseThrow().root(), badgeId).properties();
+            String undoName = history.getUndoPresentationName();
+            var countCell = cellProperty(properties, "count");
+            WidgetNode labelText = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), labelId);
+            for (DesignerCommand invalid : List.of(new AddWidget(new WidgetPlacement(badgeId, label, 0), labelText),
+                    new SetProperty(badgeId, max, new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)),
+                    new SetProperty(badgeId, new PropertyName("smallSize"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Badge rejected edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+                current = awaitReady(fixture.mutations());
+                assertEquals(configured, findModelWidget(current.document().orElseThrow().root(), badgeId).properties());
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertEquals(undoName, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "badge_refused", "Badge candidate refused")));
+            var refused = fixture.mutations().submit(current.token().orElseThrow(), new ResetProperty(badgeId, new PropertyName("textColor")), "Badge text color reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, refused.outcome());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName()); assertSame(countCell, cellProperty(properties, "count"));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("badge_configured_reopened_modes", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            WidgetNode restored = findModelWidget(current.document().orElseThrow().root(), badgeId); assertEquals(configured, restored.properties());
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            var countCell = cellProperty(properties, "count");
+            WidgetNode child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), childId);
+            current = applyBadgeMutation(fixture, current, new AddWidget(new WidgetPlacement(badgeId, CHILD, 0), child), badgeId);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), badgeId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            commands.clear(); countCell.restoreDefaultValue(); assertEquals(1, commands.size()); assertInstanceOf(PatchProperties.class, commands.getFirst());
+            var before = findModelWidget(current.document().orElseThrow().root(), badgeId);
+            current = applyBadgeMutation(fixture, current, commands.getFirst(), badgeId);
+            var reset = findModelWidget(current.document().orElseThrow().root(), badgeId);
+            assertFalse(reset.properties().containsKey(count)); assertFalse(reset.properties().containsKey(max)); assertEquals(before.slots(), reset.slots());
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+            assertEquals(before, findModelWidget(current.document().orElseThrow().root(), badgeId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+            assertEquals(reset, findModelWidget(current.document().orElseThrow().root(), badgeId));
+            WidgetNode labelText = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(current.catalog().orElseThrow().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), labelId);
+            current = applyBadgeMutation(fixture, current, new AddWidget(new WidgetPlacement(badgeId, label, 0), labelText), badgeId);
+            current = applyBadgeMutation(fixture, current, new SetProperty(labelId, DATA, new PropertyValue.StringValue("Badge label after reopen")), badgeId);
+            current = applyBadgeMutation(fixture, current, new SetProperty(childId, DATA, new PropertyValue.StringValue("Badge child after reopen")), badgeId);
+            byte[] exact = fixture.editor().liveSnapshot().markerBearingUtf8(); String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new SetProperty(badgeId, count, new PropertyValue.IntegerValue(java.math.BigInteger.ONE)),
+                    new SetProperty(badgeId, max, new PropertyValue.IntegerValue(java.math.BigInteger.TEN)))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Badge conflicting constructor change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome()); current = awaitReady(fixture.mutations());
+                assertArrayEquals(exact, fixture.editor().liveSnapshot().markerBearingUtf8()); assertEquals(undoName, history.getUndoPresentationName());
+            }
+            current = applyBadgeMutation(fixture, current, new RemoveWidget(labelId), badgeId);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), badgeId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            for (var field : definition.properties().reversed()) {
+                var cell = cellProperty(properties, field.name().value()); if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(1, commands.size());
+                current = applyBadgeMutation(fixture, current, commands.getFirst(), badgeId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), badgeId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+            }
+            assertTrue(findModelWidget(current.document().orElseThrow().root(), badgeId).properties().isEmpty());
+            assertSame(countCell, cellProperty(properties, "count")); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("badge_reset_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyBadgeMutation(fixture, fixture.ready(), new SetProperty(badgeId, count, new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)), badgeId);
+            current = applyBadgeMutation(fixture, current, new SetProperty(badgeId, new PropertyName("isLabelVisible"), new PropertyValue.BooleanValue(true)), badgeId);
+            current = applyBadgeMutation(fixture, current, new SetProperty(badgeId, new PropertyName("largeSize"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-2))), badgeId);
+            assertEquals(new PropertyValue.BooleanValue(true), findModelWidget(current.document().orElseThrow().root(), badgeId).properties().get(new PropertyName("isLabelVisible")));
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("Badge.count("));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyBadgeMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId badgeId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "Badge property/slot editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, badgeId));
+    }
+
+    @Test
     void paletteCardAll31FieldsSaveReopenModesShapesChildHistoryAndRollback() throws Exception {
         StableId cardId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e92");
         StableId childId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e93");

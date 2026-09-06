@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -243,6 +244,12 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + "' has no slot '" + slotName.value() + "'.");
         }
         SlotDefinition slotDefinition = slotLookup.orElseThrow();
+        Optional<String> slotUnavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent, slotName);
+        if (slotUnavailable.isPresent()) {
+            return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
+                    "Cannot add " + sourceDefinition.palette().displayName() + " to Badge '"
+                            + parent.id() + "." + slotName.value() + "': " + slotUnavailable.orElseThrow());
+        }
         WidgetPlacementRules.Decision placement = WidgetPlacementRules.evaluate(
                 parentDefinition, slotDefinition, sourceDefinition);
         if (!placement.accepted()) {

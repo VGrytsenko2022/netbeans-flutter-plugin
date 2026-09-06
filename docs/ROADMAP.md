@@ -1753,10 +1753,23 @@ accepted architecture is documented in
   border order, semantics, empty-child DnD/moves, stable Properties, save/reopen/
   further edits, reset, Undo/Redo, rollback and four SVGs. Isolated custom-code and
   >4096-point path previews report explicit unavailability without altering Dart.
-  Current totals: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
+  At that milestone: 70 widgets, 64 const definitions, 840 rows (823 outside Scaffold),
   67 scalar plus three structural, 129 Boolean fields, nine wrappers/58 destinations,
   4,060 placements (3,760 accepted / 300 rejected), Material 7/Basic 23. Historical
   target 70/92 with 22 remaining; formats stay 13/14/18. Physical acceptance deferred.
+- [x] Add Badge at Material/order 80 with both standard and count constructors,
+  41 typed fields (ten direct plus the full 31-leaf TextStyle projection) and two
+  optional slots, Label and Child. Count presence selects non-const Badge.count;
+  no synthetic mode/default properties. Enforce count/maxCount domains, label/count
+  exclusivity and atomic reset of Count/Max count without deleting user widgets.
+  Preserve full style/paint/font/locale/theme values, real BadgeTheme/M3-in-M2
+  defaults, RTL/offset geometry, foreground-Paint precedence and hidden-label state.
+  Cover conditional DnD/moves, tiny/hidden insertion targets, stable Properties,
+  save/reopen/further edits, Undo/Redo, rollback, accessibility and four SVGs.
+  Current totals: 71 widgets, 65 const definitions, 881 rows (864 outside Scaffold),
+  68 scalar plus three structural, 134 Boolean fields, nine wrappers/60 destinations,
+  4,260 placements (3,952 accepted / 308 rejected), Material 8/Basic 23. Historical
+  target 71/92 with 21 remaining; formats stay 13/14/18. Physical acceptance deferred.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1774,8 +1787,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy admitted built-ins.
-  The 67 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-one admitted built-ins.
+  The 68 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

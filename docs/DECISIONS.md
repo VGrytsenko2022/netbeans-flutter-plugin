@@ -38,10 +38,10 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, and ADR-098 establishes the current `Card`
-surface: 840 typed rows across seventy widgets, sixty-four const-constructor
-definitions and 4,060 Palette/DnD candidates, including 3,760 accepted and 300
-rejected cells. The 823-field
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, and ADR-099 establishes the current `Badge`
+surface: 881 typed rows across seventy-one widgets, sixty-five const-constructor
+definitions and 4,260 Palette/DnD candidates, including 3,952 accepted and 308
+rejected cells. The 864-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-098 make 823 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-099 make 864 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -355,7 +355,9 @@ Divider adds six optional geometry/appearance rows without child slots.
 VerticalDivider adds six optional width/appearance rows without child slots.
 Card adds 31 typed rows, all three constructor variants, ten built-in shapes,
 an analyzed ShapeBorder reference alternative and an optional child slot.
-Scaffold separately contributes 17 rows, giving 840 overall.
+Badge adds 41 typed rows, both constructors and optional Label/Child slots,
+including the full TextStyle projection and state-aware count/label exclusivity.
+Scaffold separately contributes 17 rows, giving 881 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -441,8 +443,10 @@ ADR-096 establishes the historical sixty-eight-source, 3,876-candidate matrix
 (3,583 accepted / 293 rejected).
 ADR-097 establishes the historical sixty-nine-source, 3,933-candidate matrix
 (3,638 accepted / 295 rejected).
-ADR-098 establishes the current seventy-source, 4,060-candidate matrix
+ADR-098 establishes the historical seventy-source, 4,060-candidate matrix
 (3,760 accepted / 300 rejected).
+ADR-099 establishes the current seventy-one-source, 4,260-candidate matrix
+(3,952 accepted / 308 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -453,7 +457,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -467,12 +471,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated seventy-widget model for Mobile, Tablet,
+Canvas now renders the validated seventy-one-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those seventy Create-capable definitions, and the DnD-capable set uses the
-reviewed 4,060-cell candidate matrix across fifty-six insertable any-widget and two
-trait-bound destination slots; 3,760 cells are accepted and 300 rejected.
+those seventy-one Create-capable definitions, and the DnD-capable set uses the
+reviewed 4,260-cell candidate matrix across fifty-eight insertable any-widget and two
+trait-bound destination slots; 3,952 cells are accepted and 308 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -5210,5 +5214,162 @@ read-only cross-layer audit finds no actionable schema/UI/generation/Canvas drif
 test freshness, package metadata, license and artifact checks. The resulting
 `netbeans-plugin/target/netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,387,350 bytes;
 SHA-256 `68BDDBA6588915EE404091249B72F303C994F71D16C50FAD5160688A27F41051`.
+No installed userdir or interactive desktop acceptance is claimed; no unrelated
+platform work, user Flutter project changes or IDE launch was performed.
+
+## ADR-099 — Badge covers both constructors and the complete editable label style
+
+Implement `flutter.material.Badge` at Material/order 80 in the canonical G: checkout.
+Pinned Flutter 3.44.8 supplies const Badge and non-const Badge.count; one catalog
+definition covers both without a synthetic mode selector or stored SDK defaults.
+An empty prototype emits the equivalent of `const Badge()`; its empty optional
+Label/Child slots may be emitted as null. Optional Count presence selects the
+numeric constructor and disables const propagation through that node and parents.
+Count is a nonnegative portable Dart integer; optional Max count is positive and
+requires Count. The numeric label displays Count up to Max count, otherwise the
+maximum plus a trailing plus sign; omitted Max count uses 999. Zero Count is an
+explicit value, not omission. Candidate analysis cannot prove count assertions:
+Badge.count is non-const and executes its assertions at runtime.
+
+There are 41 typed scalar rows: backgroundColor, textColor, smallSize, largeSize,
+padding, alignment, offset, isLabelVisible, count, maxCount and all 31 existing
+TextStyle leaves under the textStyle prefix. Reuse literal/semantic colors, finite
+numeric geometry, nonnegative physical/directional padding, full physical or
+directional alignment, signed Offset and optional centered Boolean editors.
+Small size is nonnegative because the dot uses Container width/height. Large size
+accepts finite signed values: the SDK's intrinsic stadium uses max(minSize, child
+intrinsic height) without a negative-value assertion. Do not invent a nonnegative
+Large size restriction; Canvas must retain its actual label-positioning effect.
+The complete style includes theme base, inherit, color/backgroundColor, font size/
+weight/style/spacing/baseline/height/leading, locale subtags, foreground/background
+Paint, shadows, features, variations, all decoration leaves, debug label, families,
+package and overflow. TextStyle color-versus-Paint alternatives use existing strict
+validation and atomic UI normalization. No raw-expression escape hatch is added.
+
+Label and Child are separate optional single ANY_WIDGET slots, not required-child
+wrappers. In ordinary mode an empty Label is a small dot, and any widget Label is
+a large badge. Count mode owns its generated Text label and requires the stored
+Label slot to be empty. Switching with a nonempty Label is rejected with a clear
+move/clear-first instruction; user subtrees are never deleted implicitly. Max count
+cannot be set before Count. Reset Count atomically resets Max count, preserving
+all shared values and Child with one Undo. Slot editors, tree/palette planners,
+existing-widget moves and Canvas insertion enforce the same current-node rule;
+the generic catalog matrix remains the ordinary prototype's structural baseline.
+
+Generate only Badge's named SDK parameters, composing the 31 leaves as textStyle;
+omit an empty Label argument for Badge.count. Preserve exact Badge.count member,
+TextStyle/locale/decoration/theme/paint symbol provenance and normal const behavior.
+Keep document/cell identity, optimistic revision fencing and pair-save/history
+authority unchanged. Save, reopen, further edits, reset, Undo/Redo and rejection
+rollback must retain both slots and both constructor branches losslessly.
+
+Canvas renders actual SDK Badge/Badge.count. BadgeTheme precedes built-in M3 badge
+defaults even under Theme.useMaterial3 false: error/onError colors, labelSmall,
+sizes 6/16, horizontal padding four and AlignmentDirectional.topEnd. A local
+textStyle replaces the theme/default style; local textColor overrides style.color,
+but an existing foreground Paint still wins according to TextStyle.copyWith.
+The SDK adds Offset(0,8) to labelled offsets; small dots ignore Offset but still
+use resolved Alignment, notwithstanding the API prose's label-only description.
+With isLabelVisible false, Child remains mounted while Label/dot is hidden; the
+stored Label remains editable in the tree but has no mounted Canvas geometry or
+inline-text target. Badge itself is not an inline Text target. Both empty slots
+need usable insertion affordances for tiny and hidden badges, without advertising
+a Label destination in count mode. No arbitrary user Dart is executed by this slice.
+
+Current totals: 71 widgets, 65 const-capable definitions, 881 writable rows
+(864 outside Scaffold), 68 scalar plus three structural definitions, 134 Boolean
+fields and nine required-child wrappers. There are 58 ANY_WIDGET and two trait
+destinations: 71x60 = 4,260 cells, 3,952 accepted and 308 rejected. Categories are
+Layout 31, Scrolling 3, Basic 23, Material 8 and Accessibility 6. Historical target
+71/92 leaves 21; the full ordered 92-item inventory is not claimed recovered.
+FD 13, contributor API 14, Canvas model 18 and NBFC1 remain unchanged. Physical
+desktop acceptance and unrelated platform work remain outside this palette slice.
+
+The focused real-SDK Badge test passes in 34.84 seconds: both constructors,
+complete TextStyle, themes, nullable omissions, directional geometry and portable
+integer boundaries resolve 24 accepted symbol probes. Twenty-three invalid API/
+type/const-constructor variants are rejected. A separate accepted candidate proves
+that runtime count assertions and negative size/padding layout behavior cannot be
+inferred from analyzer success. Source and pubspec bytes remain unchanged. Two
+initial probe-fixture failures resolved string labels instead of class symbols;
+the test labels were corrected without changing production analysis behavior.
+
+Dynamic-size tests expose a pinned SDK bug: Badge's private
+_IntrinsicHorizontalStadium creates a render object with minSize but does not
+implement updateRenderObject, leaving an already mounted large badge at its old
+minimum after local/theme changes. A raw-SDK regression records this independently.
+The isolated preview keys only the actual SDK Badge by its active effective
+largeSize (local, then BadgeTheme, then 16). Existing stable model GlobalKeys
+reparent Child/Label subtrees, preserving their Element/State/FocusNode identity,
+runtime input and an active F2 draft. There is no SDK installation patch, synthetic
+paint/geometry or model-value change. Normal and count branches are covered in
+Windows/Web profiles, including local/theme transitions and finite negative sizes.
+
+Core verification passes all 1,357 tests, zero failures/errors/skips: 1,333
+baseline plus 24 new cases (14 Badge contract, seven command/history and three
+payload tests). Coverage includes all 41 routes, both constructors, full style
+alternatives, exact provenance, count/label dependency rejection, optional slots,
+save/reopen/further edits, Undo/Redo and rollback. Initial local test compilation/
+string-expectation fixtures were corrected before the successful full run.
+
+Flutter verification passes 47 focused Badge tests and all 1,019 suite tests
+(972 baseline plus 47), with clean analyze, format and scoped diff checks. Real-SDK
+comparisons cover dots/counts/custom labels, theme and Paint precedence, geometry,
+signed largeSize, hidden-label interaction, all 4,260 prototype placements,
+conditional slot eligibility, movement/wrapping and count/label transitions.
+Live local/theme size edits preserve TextField Element/State/FocusNode and runtime
+text in both profiles; active F2 label draft/focus survives and commits afterward.
+Source and tests are frozen and all Flutter CLI sessions are closed.
+
+The pinned Web release rebuild succeeds in 17.0 seconds with the existing offline
+and no-icon-tree-shaking flags. All 75 source/Web manifest entries were rehashed:
+three runner source entries and main.dart.js changed. The final Web main is
+2,908,801 bytes, SHA-256
+`eab7c7a5f4470f7551cb3c5f46d436e1f68639f0e77fdf728509b0e0b509dec0`.
+Both manifests and the packaged Web artifact contract test match these bytes.
+Independent read-only documentation and cross-layer admission/state audits found
+no actionable regressions; prototype-null and UI-label wording was clarified.
+
+Live UI tests also characterize an existing shared staging limitation: adding a
+second explicit false decoration flag keeps generated TextDecoration.none unchanged.
+The model changes, but a dirty paired revision has no C1-to-C2 Dart transition;
+the existing NO_CHANGES guard refuses replacement. Do not weaken pair authority,
+implicitly save an unsaved pair, delete explicit flags or insert artificial Dart
+changes to bypass it. Improve only the NO_CHANGES diagnostic to ask for Save/Undo
+and retry. Other transition-status diagnostics and all persistence fences remain
+unchanged. The dedicated live regression preserves exact C1 bytes/proof/history/
+cells on refusal; the controller reissues its one-shot presentation token and
+rejects the old token. Save and retry the same false value through the existing
+FD_ONLY path without analysis or Dart rewriting. Cover all three flags, durable
+reopen, true/false/unset and retained history separately from the all-field
+Dart-changing sequence. After Undo/Redo, resetting a flag can also reach a
+Designer-only variant of the durable baseline that the existing physical-history
+endpoint refuses. The test records that refusal without data/history loss, saves
+the current state, then successfully retries the identical reset. Neither guard
+is relaxed. These shared limitations remain explicit in user-facing docs.
+
+The focused NetBeans UI suite passes 787 tests (770 baseline plus 17), with zero
+failures/errors/skips, in 44.032 seconds (2026-09-06 12:43:49 +03:00). It covers all
+41 stable property cells, full TextStyle editors, 134 centered optional Boolean
+fields, two slot editors, count/label conflicts and atomic Count/Max count reset,
+4,260 placements, tree/move/a11y and four SVGs. The live all-field lifecycle passes
+save/reopen/further edits, Undo/Redo and rejection rollback. The separate three-flag
+regression verifies both save-first limitations and exact retry after Save. All
+Java/UI, Flutter and artifact inputs are frozen for the final clean build.
+
+Final clean `mvn clean install` with pinned Dart/Flutter and Web inputs passes in
+10:42 minutes (2026-09-06 12:55:34 +03:00). Surefire records 3,787 tests across
+348 reports; Failsafe records 13 across seven reports. There are zero failures or
+errors, with six plus one documented optional environment-dependent skips. All
+24 real-SDK candidate-analysis cases execute without skips (421.676 seconds),
+and the 92-case live mutation-controller suite passes (37.75 seconds). The final
+read-only audit confirms the coordinator diagnostic, regression and documented
+limitations agree; the coordinator changes only four diagnostic lines. All 58
+changed files retain their pre-build hashes before this evidence append.
+
+`mvn nbm:cluster` succeeds in 1.562 seconds. `tools/verify-release.ps1` passes test
+freshness, package metadata, license and artifact checks. The resulting
+`netbeans-plugin/target/netbeans-plugin-0.1.3-SNAPSHOT.nbm` is 7,401,569 bytes;
+SHA-256 `EE0C4E764A4724C27B45C20BFBA4C8B31D60CC7F53A7F13D3A3EC49F80F61AC3`.
 No installed userdir or interactive desktop acceptance is claimed; no unrelated
 platform work, user Flutter project changes or IDE launch was performed.

@@ -199,6 +199,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Divider", STATIC_EDITABLE),
             Map.entry("flutter.material.VerticalDivider", STATIC_EDITABLE),
             Map.entry("flutter.material.Card", STATIC_EDITABLE),
+            Map.entry("flutter.material.Badge", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -592,6 +593,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     singleChildScrollViewProjection()),
             Map.entry("flutter.widgets.Image", imageProjection()),
             Map.entry("flutter.material.Card", cardProjection()),
+            Map.entry("flutter.material.Badge", badgeProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1935,6 +1937,21 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection badgeProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>(Map.ofEntries(
+                colorOrThemeProperty("backgroundColor"), colorOrThemeProperty("textColor"),
+                numericProperty("smallSize", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                Map.entry("largeSize", cardNumberSchema(null, null)),
+                edgeInsetsProperty("padding", true),
+                Map.entry("alignment", constrainedSchema(PropertyValueKind.ALIGNMENT_GEOMETRY, "alignmentGeometry")),
+                Map.entry("offset", constrainedSchema(PropertyValueKind.OFFSET, "offset:finiteSigned")),
+                property("isLabelVisible", PropertyValueKind.BOOLEAN),
+                numericProperty("count", NON_NEGATIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER),
+                numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
+        appendTextStyleProjection(properties, "textStyle");
+        return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection cardProjection() {

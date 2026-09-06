@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly seventy
+The current capability-gated Palette and native Canvas admit exactly seventy-one
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider` and `Card`.
-Sixty-four definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 840 typed writable rows: 823 across the sixty-nine
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card` and `Badge`.
+Sixty-five definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 881 typed writable rows: 864 across the seventy
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -775,7 +775,7 @@ the pinned SDK asserts for rounded hairlines in debug and ignores radius in rele
 Designer supplies neither a synthetic height nor an automatic wrapper. Save/reopen,
 continued editing, zero-width selection and Undo/Redo are supported normally.
 
-**Card** is the next Material item, after VerticalDivider. Drop an empty Card,
+**Card** is available after VerticalDivider. Drop an empty Card,
 then add or replace its optional Child through the tree/slot editor. Use **Variant**
 to choose Elevated, Filled or Outlined without replacing the Card's stable identity.
 All constructor fields are available across 31 typed rows. Optional fields reset
@@ -795,9 +795,27 @@ the child and selection. Stars/polygons above 4096 points/sides similarly exceed
 the preview-only resource budget; source values are preserved. Save, reopen and
 continue editing; variant/shape transitions and resets support Undo/Redo.
 
-The practical backlog is now 70/92 complete with 22 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 7 and Accessibility 6. The aggregate
-is 64 reviewed const definitions and 840 writable rows, including 823 outside
+**Badge** follows Card in Material. Drop it for a small dot, then add an Icon in
+**Child** and Text in **Label** using their separate slot editors or Canvas targets.
+Set colors, sizes, physical/directional Padding and Alignment, signed Offset and
+any of the complete TextStyle fields. **Label visible** can be unset or edited
+with the centered checkbox; false hides the label/dot, not the Child or stored tree.
+For a numeric badge, first move/clear Label and set **Count** to zero or greater.
+Optionally set **Max count** above zero: count 100 with maximum 99 displays `99+`.
+The numeric constructor creates its own label, so that slot cannot accept widgets
+until Count is reset. Reset Count also resets Max count in one Undo operation.
+Save, reopen, edit again and Undo/Redo to verify both modes retain shared fields
+and Child. Badge itself is not an inline-text target; a visible Text label is.
+BadgeTheme/M3 defaults apply even under Material 2; foreground Paint can override
+text color, and the SDK's label offset includes an additional `(0, 8)` adjustment.
+If another explicit false decoration flag leaves the generated TextDecoration
+unchanged while the pair is dirty, the shared save guard asks you to Save or Undo
+first. Save and retry the same edit; no existing label, draft or history is lost.
+The same save-first requirement can apply to a decoration reset after Undo/Redo.
+
+The practical backlog is now 71/92 complete with 21 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 8 and Accessibility 6. The aggregate
+is 65 reviewed const definitions and 881 writable rows, including 864 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -863,8 +881,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Seventy sources across fifty-six insertable any-widget and two trait-bound
-slots produce 4,060 compatibility candidates: 3,760 accepted and 300
+Seventy-one sources across fifty-eight insertable any-widget and two trait-bound
+slots produce 4,260 compatibility candidates: 3,952 accepted and 308
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

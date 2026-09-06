@@ -318,6 +318,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.VerticalDivider".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.VerticalDivider.Name"));
                 setShortDescription(message("Widget.VerticalDivider.Description"));
+            } else if ("flutter.material.Badge".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.Badge.Name"));
+                setShortDescription(message("Widget.Badge.Description"));
             } else if ("flutter.material.Card".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Card.Name"));
                 setShortDescription(message("Widget.Card.Description"));

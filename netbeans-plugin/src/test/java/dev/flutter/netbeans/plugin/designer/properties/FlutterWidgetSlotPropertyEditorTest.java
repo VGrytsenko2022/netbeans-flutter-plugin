@@ -65,6 +65,108 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void badgeCountLabelSlotExplainsUnavailabilityWithoutAdvertisingAddMoveOrReplace() throws Exception {
+        var definition = definition("flutter.material.Badge");
+        SlotName label = new SlotName("label");
+        WidgetNode badge = new WidgetNode(StableId.random(), definition.typeId(),
+                Map.of(new PropertyName("count"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)),
+                Map.of(label, WidgetSlot.SingleSlot.empty(), CHILD, WidgetSlot.SingleSlot.empty()));
+        var context = new FlutterWidgetSlotEditorContext(document(badge), CATALOG, List.of(type("flutter.widgets.Text")));
+        var blocked = new FlutterWidgetSlotPropertyEditor.Model(badge, definition, definition.slot(label).orElseThrow(), context);
+        assertTrue(blocked.structuralProblem().orElseThrow().contains("Clear Count"));
+        assertTrue(blocked.structuralProblem().orElseThrow().contains(badge.id().toString()));
+        assertTrue(blocked.addChoices().isEmpty()); assertTrue(blocked.moveChoices().isEmpty());
+        assertFalse(blocked.canAdd()); assertFalse(blocked.canReplaceNew()); assertFalse(blocked.canReplaceExisting());
+        var allowed = new FlutterWidgetSlotPropertyEditor.Model(badge, definition, definition.slot(CHILD).orElseThrow(), context);
+        assertTrue(allowed.structuralProblem().isEmpty()); assertTrue(allowed.canAdd());
+        var editor = new FlutterWidgetSlotPropertyEditor(badge, definition, definition.slot(label).orElseThrow(), context);
+        PropertyEnv environment = PropertyEnv.create(descriptor("Label")); editor.attachEnv(environment);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor();
+            var action = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+            assertFalse(labels(action).contains("Add new widget")); assertFalse(labels(action).contains("Replace with new widget"));
+            assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void badgeFreshRequiredSlotReplacementIsAtomicAndCancelHasNoMutation() throws Exception {
+        WidgetDefinition iconThemeDefinition = definition("flutter.widgets.IconTheme");
+        WidgetNode center = new WidgetNode(
+                id("e3a3ed63-209c-49fc-9bb7-d61a967522bd"),
+                type("flutter.widgets.Center"),
+                Map.of(),
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        WidgetNode iconTheme = new WidgetNode(
+                id("e00a3e9a-abf4-4a26-8af4-8fb1192f9d3b"),
+                iconThemeDefinition.typeId(),
+                Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(center)),
+                Extensions.empty());
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                iconTheme,
+                iconThemeDefinition,
+                iconThemeDefinition.slot(CHILD).orElseThrow(),
+                new FlutterWidgetSlotEditorContext(
+                        document(iconTheme),
+                        CATALOG,
+                        List.of(type("flutter.material.Badge"))));
+        PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+        editor.attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            JComboBox<?> moveSource = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME,
+                    JComboBox.class);
+            JComboBox<?> position = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.POSITION_NAME,
+                    JComboBox.class);
+            JList<?> current = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.CURRENT_LIST_NAME,
+                    JList.class);
+            assertFalse(labels(action).contains("Add new widget"));
+            assertTrue(labels(action).contains("Replace with new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            selectLabel(action, "Replace with new widget");
+            selectLabel(addType, "Badge");
+            assertTrue(addType.isEnabled());
+            assertFalse(moveSource.isEnabled());
+            assertFalse(position.isEnabled());
+            assertFalse(current.isEnabled());
+
+            assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(),
+                    "Cancel before OK cannot publish a required child replacement");
+            environment.setState(PropertyEnv.STATE_VALID);
+            FlutterWidgetSlotMutation.Replace replace = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(iconTheme.id(), replace.ownerId());
+            assertEquals(CHILD, replace.slotName());
+            assertEquals(center.id(), replace.expectedChildId());
+            FlutterWidgetSlotMutation.Replace.NewWidget fresh = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Replace.NewWidget.class,
+                    replace.replacement());
+            assertEquals(type("flutter.material.Badge"), fresh.widgetType());
+            return null;
+        });
+    }
+
+    @Test
     void cardFreshRequiredSlotReplacementIsAtomicAndCancelHasNoMutation() throws Exception {
         WidgetDefinition iconThemeDefinition = definition("flutter.widgets.IconTheme");
         WidgetNode center = new WidgetNode(
@@ -4530,6 +4632,50 @@ class FlutterWidgetSlotPropertyEditorTest {
                 }
                 return null;
             });
+        }
+    }
+
+    @Test
+    void badgeBothOccupiedSlotsSupportsExplicitReplaceClearAndCancelledDrafts() throws Exception {
+        WidgetDefinition definition = definition("flutter.material.Badge");
+        for (SlotName badgeSlot : List.of(CHILD, new SlotName("label"))) {
+        WidgetNode child = WidgetNodePrototypeFactory.create(definition("flutter.widgets.Text"),
+                id("e7a3ed63-209c-49fc-9bb7-d61a967522bd"));
+        WidgetNode boundary = new WidgetNode(id("e40a3e9a-abf4-4a26-8af4-8fb1192f9d3b"),
+                definition.typeId(), Map.of(), Map.of(badgeSlot, WidgetSlot.SingleSlot.of(child)));
+        for (String actionLabel : List.of("Replace with new widget", "Clear single child")) {
+            var editor = new FlutterWidgetSlotPropertyEditor(boundary, definition,
+                    definition.slot(badgeSlot).orElseThrow(), new FlutterWidgetSlotEditorContext(
+                            document(boundary), CATALOG, List.of(type("flutter.widgets.Icon"))));
+            PropertyEnv environment = PropertyEnv.create(descriptor("Child"));
+            editor.attachEnv(environment);
+            onEdt(() -> {
+                Component panel = editor.getCustomEditor();
+                JComboBox<?> action = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertTrue(labels(action).contains("Replace with new widget"));
+                assertTrue(labels(action).contains("Clear single child"));
+                assertFalse(labels(action).contains("Add new widget"));
+                selectLabel(action, actionLabel);
+                if (actionLabel.startsWith("Replace")) {
+                    selectLabel(component(panel, FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME, JComboBox.class), "Icon");
+                }
+                assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(),
+                        "Cancel before OK must not publish the replacement/removal draft");
+                environment.setState(PropertyEnv.STATE_VALID);
+                var mutation = ((FlutterWidgetSlotCellValue) editor.getValue()).mutation().orElseThrow();
+                assertEquals(boundary.id(), mutation.ownerId());
+                assertEquals(badgeSlot, mutation.slotName());
+                if (actionLabel.startsWith("Replace")) {
+                    var replace = assertInstanceOf(FlutterWidgetSlotMutation.Replace.class, mutation);
+                    assertEquals(child.id(), replace.expectedChildId());
+                    assertEquals(type("flutter.widgets.Icon"), assertInstanceOf(
+                            FlutterWidgetSlotMutation.Replace.NewWidget.class, replace.replacement()).widgetType());
+                } else {
+                    assertEquals(child.id(), assertInstanceOf(FlutterWidgetSlotMutation.Remove.class, mutation).childId());
+                }
+                return null;
+            });
+        }
         }
     }
 

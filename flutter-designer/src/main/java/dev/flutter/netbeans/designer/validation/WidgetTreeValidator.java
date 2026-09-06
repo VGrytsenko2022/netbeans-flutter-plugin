@@ -2,6 +2,7 @@ package dev.flutter.netbeans.designer.validation;
 
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -445,6 +446,19 @@ public final class WidgetTreeValidator {
 
         if (type.equals(CardWidgetPropertySchema.CARD_TYPE.value())) {
             validateCardShape(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(BadgeWidgetPropertySchema.BADGE_TYPE.value())) {
+            if (!BadgeWidgetPropertySchema.isCountMode(node) && node.properties().containsKey(new PropertyName("maxCount"))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/maxCount", node.id(), "Badge Max count requires Count. Set Count first."));
+            }
+            if (BadgeWidgetPropertySchema.isCountMode(node)
+                    && node.slots().get(new SlotName("label")) instanceof WidgetSlot.SingleSlot label && label.child().isPresent()) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/count", node.id(), "Badge.count owns the numeric label. Clear or move the existing Label before setting Count."));
+            }
+            validateFontPackageDependency(node, propertiesPath, issues, "textStylePackage", "textStyleFontFamily", "textStyleFontFamilyFallback", "Badge textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleColor", "textStyleForeground", "Badge textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleBackgroundColor", "textStyleBackground", "Badge textStyle");
             return;
         }
         if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())) {

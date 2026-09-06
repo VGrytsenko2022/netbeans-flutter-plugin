@@ -677,6 +677,66 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void badgeTreeCountModeDerivesOnlyChildAndRevalidatesConstructorModeAtCommit() {
+        var label = new SlotName("label");
+        var plain = new WidgetNode(ROOT_ID, type("flutter.material.Badge"), Map.of(),
+                Map.of(label, WidgetSlot.SingleSlot.empty(), CHILD, WidgetSlot.SingleSlot.empty()));
+        var count = new WidgetNode(ROOT_ID, plain.type(), Map.of(new PropertyName("count"), new PropertyValue.IntegerValue(BigInteger.ZERO)), plain.slots());
+        Fixture fixture = fixture(TEXT);
+        StringSelection transfer = new StringSelection(fixture.token());
+        assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document(plain), CATALOG, ROOT_ID));
+        var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document(count), CATALOG, ROOT_ID));
+        assertEquals(CHILD, prepared.slotName());
+        AtomicInteger allocations = new AtomicInteger();
+        var stale = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document(plain), CATALOG,
+                        () -> { allocations.incrementAndGet(); return NEW_ID; }));
+        assertTrue(stale.reason().contains("ambiguous")); assertEquals(0, allocations.get());
+        Fixture fresh = fixture(TEXT); var freshTransfer = new StringSelection(fresh.token());
+        var freshPrepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fresh.adapter().preview(freshTransfer, DnDConstants.ACTION_MOVE, document(count), CATALOG, ROOT_ID));
+        var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fresh.adapter().commit(freshPrepared, freshTransfer, DnDConstants.ACTION_MOVE, document(count), CATALOG, () -> NEW_ID));
+        assertEquals(new WidgetPlacement(ROOT_ID, CHILD, 0), added.command().destination());
+    }
+
+    @Test
+    void badgeTreeDropCreatesLeafWithoutInventedDefaults() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.Badge"));
+        StringSelection transfer = new StringSelection(fixture.token());
+        FlutterImageAssetChoices unavailable = new FlutterImageAssetChoices(
+                List.of(), Optional.of("the current pubspec declares no safe image asset."));
+
+        var prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        ROOT_ID,
+                        unavailable));
+        AtomicInteger allocations = new AtomicInteger();
+        AddWidget command = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transfer,
+                        DnDConstants.ACTION_MOVE,
+                        document(column(List.of())),
+                        CATALOG,
+                        unavailable,
+                        () -> {
+                            allocations.incrementAndGet();
+                            return NEW_ID;
+                        })).command();
+        assertEquals(Map.of(), command.widget().properties());
+        assertEquals(1, allocations.get());
+    }
+
+    @Test
     void cardTreeDropCreatesLeafWithoutInventedDefaults() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.material.Card"));
         StringSelection transfer = new StringSelection(fixture.token());

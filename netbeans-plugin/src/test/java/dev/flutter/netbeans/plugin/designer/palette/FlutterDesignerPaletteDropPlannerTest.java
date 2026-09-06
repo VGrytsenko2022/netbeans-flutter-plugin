@@ -162,9 +162,43 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
+    void badgeCompletes4260CellMatrixAndCountModeRejectsLabelBeforeAllocatingIds() {
+        var badge = new WidgetTypeId("flutter.material.Badge");
+        var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream()
+                .filter(slot -> slot.minChildren() == 0).map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0;
+        for (var definition : BUILT_INS.definitions()) for (var target : targets) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+            var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+            if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++;
+            else { accepted++; assertTrue(result instanceof FlutterDesignerPaletteDropPlanner.Accepted || result instanceof FlutterDesignerPaletteDropPlanner.Wrapped); }
+        }
+        assertEquals(71, BUILT_INS.definitions().size()); assertEquals(60, targets.size());
+        assertEquals(4260, accepted + rejected); assertEquals(3952, accepted); assertEquals(308, rejected);
+        var seed = target("Badge.label", badge, new SlotName("label"));
+        WidgetNode owner = seed.document().root();
+        var countOwner = new WidgetNode(owner.id(), owner.type(), Map.of(new PropertyName("count"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)), owner.slots());
+        var countDocument = new DesignerDocument(seed.document().documentId(), seed.document().source(), countOwner);
+        AtomicInteger allocations = new AtomicInteger();
+        for (var definition : BUILT_INS.definitions()) {
+            var result = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(countDocument, BUILT_INS, definition.typeId(), ROOT_ID, new SlotName("label"), 0, choices, () -> { allocations.incrementAndGet(); return NEW_ID; }));
+            assertEquals(FlutterDesignerPaletteDropPlanner.RejectionCode.SLOT_REJECTS_WIDGET, result.code());
+            assertTrue(result.reason().contains("Cannot add")); assertTrue(result.reason().contains(ROOT_ID.toString()));
+            assertTrue(result.reason().contains("Clear Count"));
+        }
+        assertEquals(0, allocations.get());
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(countDocument, BUILT_INS, badge, ROOT_ID, CHILD, 0, choices, () -> NEW_ID));
+    }
+
+    @Test
     void cardCompletes4060CellMatrixIncludingOptionalChildAndExistingWrapperRoutes() {
         WidgetTypeId card = new WidgetTypeId("flutter.material.Card");
-        List<MatrixTargetCase> targets = BUILT_INS.definitions().stream()
+        List<MatrixTargetCase> targets = preBadgeDefinitions()
                 .flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                         .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         FlutterImageAssetChoices choices = new FlutterImageAssetChoices(List.of(
@@ -183,7 +217,7 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
         var empty = target("Card.child", card, CHILD);
         var occupied = occupiedTarget("Card.child", card, CHILD);
-        for (var definition : BUILT_INS.definitions()) {
+        for (var definition : preBadgeDefinitions().toList()) {
             boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
                     == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
             var destination = wrapper ? occupied : empty;
@@ -198,7 +232,7 @@ class FlutterDesignerPaletteDropPlannerTest {
                 destinationAccepted++;
             }
         }
-        assertEquals(70, BUILT_INS.definitions().size()); assertEquals(58, targets.size());
+        assertEquals(70, preBadgeDefinitions().count()); assertEquals(58, targets.size());
         assertEquals(56, sourceAccepted); assertEquals(2, sourceRejected);
         assertEquals(67, destinationAccepted); assertEquals(3, destinationRejected);
         assertEquals(4060, 70 * targets.size());
@@ -5652,8 +5686,13 @@ class FlutterDesignerPaletteDropPlannerTest {
 
     private static final WidgetTypeId INDEXED_SEMANTICS = new WidgetTypeId("flutter.widgets.IndexedSemantics");
 
-    private static Stream<WidgetDefinition> preCardDefinitions() {
+    private static Stream<WidgetDefinition> preBadgeDefinitions() {
         return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.Badge"));
+    }
+
+    private static Stream<WidgetDefinition> preCardDefinitions() {
+        return preBadgeDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.Card"));
     }
 

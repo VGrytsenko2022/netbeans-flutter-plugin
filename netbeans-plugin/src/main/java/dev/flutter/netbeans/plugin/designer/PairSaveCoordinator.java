@@ -7441,6 +7441,10 @@ final class PairSaveCoordinator implements Node.Cookie,
                         candidate.generation());
         if (liveResult.status() != DartSourceTransitionStatus.READY
                 || liveResult.plan().isEmpty()) {
+            if (liveResult.status() == DartSourceTransitionStatus.NO_CHANGES) {
+                throw new IOException("Cannot apply this Designer-only change while a Dart/Designer pair is unsaved. "
+                        + "Save or undo the staged revision, then retry the change (NO_CHANGES).");
+            }
             throw new IOException(
                     "Cannot replace the staged Flutter Designer revision: C1 "
                     + "cannot be transformed deterministically to C2 ("

@@ -2278,6 +2278,135 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesBadgeBothConstructorsCompleteTextStyleAndCountBranches() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("badge_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String candidate = """
+                import 'package:flutter/material.dart';
+                const completeBadgeStyle = TextStyle(
+                  inherit: false, color: Color(0xFF123456), backgroundColor: Color(0x20123456),
+                  fontSize: 13, fontWeight: FontWeight.w600, fontStyle: FontStyle.italic,
+                  letterSpacing: -0.5, wordSpacing: 1.5, textBaseline: TextBaseline.ideographic,
+                  height: 1.25, leadingDistribution: TextLeadingDistribution.even,
+                  locale: Locale.fromSubtags(languageCode: 'uk', scriptCode: 'Cyrl', countryCode: 'UA'),
+                  shadows: <Shadow>[Shadow(color: Color(0x80445566), offset: Offset(-1, 2), blurRadius: 3)],
+                  fontFeatures: <FontFeature>[FontFeature('smcp'), FontFeature('tnum', 0)],
+                  fontVariations: <FontVariation>[FontVariation('wght', 650)],
+                  decoration: TextDecoration.underline, decorationColor: Color(0xFF334455),
+                  decorationStyle: TextDecorationStyle.wavy, decorationThickness: 1.2,
+                  debugLabel: 'Complete badge style', fontFamily: 'Example',
+                  fontFamilyFallback: <String>['Fallback One', 'Fallback Two'],
+                  package: 'sample_fonts', overflow: TextOverflow.ellipsis);
+                Widget completeLabel() => const Badge(
+                  backgroundColor: Color(0xFF224466), textColor: Color(0xFFFEDCBA),
+                  smallSize: 8.5, largeSize: 24, textStyle: completeBadgeStyle,
+                  padding: EdgeInsetsDirectional.only(start: 3, top: 1, end: 7, bottom: 2),
+                  alignment: AlignmentDirectional(-2, 1.5), offset: Offset(-6, 3),
+                  label: Text('New'), isLabelVisible: true, child: Icon(Icons.mail));
+                Widget completeCount() => Badge.count(
+                  backgroundColor: const Color(0xFF224466), textColor: const Color(0xFFFEDCBA),
+                  smallSize: 0, largeSize: 32.5, textStyle: completeBadgeStyle,
+                  padding: const EdgeInsets.fromLTRB(1, 2, 3, 4),
+                  alignment: const Alignment(2, -3), offset: const Offset(5, -8),
+                  count: 1234, maxCount: 99, isLabelVisible: false, child: const Icon(Icons.mail));
+                Widget inherited() => const BadgeTheme(data: BadgeThemeData(
+                  backgroundColor: Color(0xFF123456), textColor: Color(0xFFFEDCBA),
+                  smallSize: 7, largeSize: 19, textStyle: completeBadgeStyle,
+                  padding: EdgeInsetsDirectional.only(start: 2, end: 9),
+                  alignment: AlignmentDirectional.bottomStart, offset: Offset(1, -3)),
+                  child: Badge(label: Text('Inherited'), child: Icon(Icons.mail)));
+                Widget semanticTheme(BuildContext context) => Badge.count(count: 10,
+                  backgroundColor: Theme.of(context).colorScheme.error,
+                  textColor: Theme.of(context).colorScheme.onError,
+                  textStyle: Theme.of(context).textTheme.labelSmall!.copyWith(
+                    fontSize: 18, decoration: TextDecoration.combine(
+                      [TextDecoration.underline, TextDecoration.overline, TextDecoration.lineThrough])));
+                Widget paintStyle() => Badge(label: const Text('Custom paint'), textStyle: TextStyle(
+                  foreground: Paint()..color = const Color(0xFF123456)..strokeWidth = 2..style = PaintingStyle.stroke,
+                  background: Paint()..color = const Color(0x20334455),
+                  shadows: const [], fontFeatures: const [], fontVariations: const [],
+                  decoration: TextDecoration.none));
+                Widget material2() => Theme(data: ThemeData(useMaterial3: false), child: const Badge());
+                Widget material3() => Theme(data: ThemeData(useMaterial3: true), child: Badge.count(count: 999));
+                List<Widget> boundaries() => <Widget>[
+                  const Badge(), const Badge(label: Text('Label only')),
+                  const Badge(child: Icon(Icons.mail)), const Badge(isLabelVisible: false),
+                  const Badge(backgroundColor: null, textColor: null, smallSize: null, largeSize: null,
+                    textStyle: null, padding: null, alignment: null, offset: null, label: null, child: null),
+                  Badge.count(count: 0), Badge.count(count: 1, maxCount: 1),
+                  Badge.count(count: 99, maxCount: 99), Badge.count(count: 100, maxCount: 99),
+                  Badge.count(count: 9007199254740991, maxCount: 9007199254740991),
+                  Badge.count(count: 9007199254740991, maxCount: 1),
+                  const Badge(smallSize: 0, largeSize: 0, padding: EdgeInsets.zero),
+                ];
+                """;
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("Badge", "BadgeTheme", "BadgeThemeData", "TextStyle", "TextDecoration",
+                "TextDecorationStyle", "TextOverflow", "TextBaseline", "TextLeadingDistribution", "FontWeight",
+                "FontStyle", "Locale", "Shadow", "Offset", "Alignment", "AlignmentDirectional",
+                "EdgeInsets", "EdgeInsetsDirectional", "Color", "Paint", "PaintingStyle")) {
+            var occurrence = java.util.regex.Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("badge-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        for (String member : List.of("Badge.count", "Locale.fromSubtags", "TextDecoration.combine")) {
+            int separator = member.indexOf('.');
+            probes.add(probe("badge-" + member, candidate.indexOf(member) + separator + 1,
+                    member.substring(separator + 1), "package:flutter/material.dart", flutterSdk));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2200, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(24, probes.size());
+        assertEquals(probes.size(), passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertFalse(passed.diagnostics().stream().anyMatch(DartCandidateDiagnostic::blocking));
+        long version = 2201;
+        for (String invalid : List.of("const Badge.count(count: 1)", "Badge.count()", "Badge(count: 1)",
+                "Badge(maxCount: 99)", "Badge.count(count: 1, label: const Text('Conflict'))",
+                "Badge.count(count: 1.5)", "Badge.count(count: '1')", "Badge.count(count: null)",
+                "Badge.count(count: 1, maxCount: 1.5)", "Badge.count(count: 1, maxCount: null)",
+                "const Badge(backgroundColor: true)", "const Badge(textColor: 'red')",
+                "const Badge(smallSize: '6')", "const Badge(largeSize: true)",
+                "const Badge(textStyle: 'style')", "const Badge(padding: 4)",
+                "const Badge(alignment: Offset.zero)", "const Badge(offset: Alignment.center)",
+                "const Badge(isLabelVisible: null)", "const Badge(label: 'text')",
+                "const Badge(child: false)", "const Badge(variant: 'count')",
+                "const Badge(textStyle: TextStyle(fontSize: '12'))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+            assertTrue(rejected.diagnostics().stream().anyMatch(diagnostic -> diagnostic.blocking()
+                    && diagnostic.severity() == DartCandidateDiagnosticSeverity.ERROR));
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        // Badge.count is non-const: these assertions run at runtime, not in candidate analysis.
+        // Negative sizes/padding also belong to layout validation, not Badge's constructor API.
+        String runtimeAssertions = """
+                import 'package:flutter/material.dart';
+                List<Widget> runtimeOnly() => [Badge.count(count: -1), Badge.count(count: 0, maxCount: 0),
+                  const Badge(smallSize: -1, largeSize: -2, padding: EdgeInsets.all(-1))];
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(
+                projectRoot, file, runtimeAssertions, version++, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

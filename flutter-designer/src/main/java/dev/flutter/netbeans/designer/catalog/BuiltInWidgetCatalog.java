@@ -94,6 +94,7 @@ public final class BuiltInWidgetCatalog {
             divider(),
             verticalDivider(),
             card(),
+            badge(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -601,6 +602,26 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition badge() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        properties.add(namedProperty("backgroundColor", 0, false, colorOrTheme()));
+        properties.add(namedProperty("textColor", 1, false, colorOrTheme()));
+        properties.add(namedProperty("smallSize", 2, false, nonNegativeNumbers()));
+        properties.add(namedProperty("largeSize", 3, false, cardNumbers(null, null)));
+        properties.add(namedProperty("padding", 4, false, List.of(new PropertyValueConstraint.EdgeInsetsValues(true))));
+        properties.add(namedProperty("alignment", 5, false, List.of(new PropertyValueConstraint.AlignmentGeometryValues())));
+        properties.add(namedProperty("offset", 6, false, List.of(new PropertyValueConstraint.OffsetValues())));
+        properties.add(namedProperty("isLabelVisible", 7, false, any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("count", 10, false, nonNegativeIntegers()));
+        properties.add(namedProperty("maxCount", 11, false, positiveIntegers()));
+        appendTextStyleProperties(properties, "textStyle", 12);
+        if (properties.size() != BadgeWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) throw new ExceptionInInitializerError("Badge property projection mismatch");
+        return widget(BadgeWidgetPropertySchema.BADGE_TYPE.value(), "Badge", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 80, "Badge"), properties,
+                List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition card() {

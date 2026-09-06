@@ -137,6 +137,41 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void badgeCountModeRejectsLabelMovesButChildAndWholeBadgeMovesRemainAvailable() {
+        WidgetNode source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+        SlotName label = new SlotName("label");
+        WidgetNode badge = new WidgetNode(B_ID, type("flutter.material.Badge"),
+                Map.of(new PropertyName("count"), new PropertyValue.IntegerValue(java.math.BigInteger.TEN),
+                        new PropertyName("textColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.empty(), label, WidgetSlot.SingleSlot.empty()));
+        var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, badge)));
+        var rejected = assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, label, 0)));
+        assertTrue(rejected.reason().contains("Cannot move")); assertTrue(rejected.reason().contains("Clear Count"));
+        assertTrue(rejected.reason().contains(B_ID.toString()));
+        var intoChild = planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID));
+        assertEquals(new WidgetPlacement(B_ID, CHILD, 0), accepted(intoChild).command().destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, source, intoChild);
+        var plainBadge = new WidgetNode(B_ID, badge.type(), Map.of(), badge.slots());
+        var plainDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, plainBadge)));
+        assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(plainDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        assertAcceptedCommandApplies(plainDocument, BUILT_INS, source,
+                planner.plan(plainDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, label, 0)));
+        WidgetNode occupied = new WidgetNode(B_ID, badge.type(), badge.properties(), Map.of(CHILD, WidgetSlot.SingleSlot.of(source)));
+        var occupiedDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(occupied)));
+        assertAcceptedCommandApplies(occupiedDocument, BUILT_INS, source,
+                planner.plan(occupiedDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)));
+        WidgetNode labelText = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), D_ID);
+        WidgetNode withBoth = new WidgetNode(B_ID, badge.type(), Map.of(new PropertyName("textColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(source), label, WidgetSlot.SingleSlot.of(labelText)));
+        WidgetNode destination = listParent(C_ID, STACK, CHILDREN, List.of());
+        var wholeDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(withBoth, destination)));
+        assertAcceptedCommandApplies(wholeDocument, BUILT_INS, withBoth,
+                planner.plan(wholeDocument, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+    }
+
+    @Test
     void cardMovesWithItsConfiguredShapeAndExactDescendantThenAllowsChildMoveOut() {
         WidgetNode child = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), StableId.parse("fea038da-cb8e-497c-9f35-0efc8b273c64"));
         WidgetNode card = new WidgetNode(A_ID, type("flutter.material.Card"),

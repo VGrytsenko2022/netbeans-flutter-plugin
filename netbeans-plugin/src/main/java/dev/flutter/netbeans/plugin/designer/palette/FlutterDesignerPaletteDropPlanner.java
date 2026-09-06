@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory;
@@ -244,10 +245,11 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + "' has no slot '" + slotName.value() + "'.");
         }
         SlotDefinition slotDefinition = slotLookup.orElseThrow();
-        Optional<String> slotUnavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent, slotName);
+        Optional<String> slotUnavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent, slotName)
+                .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent, slotName));
         if (slotUnavailable.isPresent()) {
             return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
-                    "Cannot add " + sourceDefinition.palette().displayName() + " to Badge '"
+                    "Cannot add " + sourceDefinition.palette().displayName() + " to " + parentDefinition.palette().displayName() + " '"
                             + parent.id() + "." + slotName.value() + "': " + slotUnavailable.orElseThrow());
         }
         WidgetPlacementRules.Decision placement = WidgetPlacementRules.evaluate(

@@ -563,7 +563,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
 
 
     @Test
-    void badgeSecondFalseDecorationRequiresSaveThenSameValueCommitsFdOnlyAndReopens() throws Exception {
+    void badgeSecondFalseDecorationStagesSameSourceMetadataAndPreservesNativeHistoryAcrossSaveReopen() throws Exception {
         StableId badgeId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e97");
         WidgetTypeId type = new WidgetTypeId("flutter.material.Badge");
         ExactPair emptyPair;
@@ -589,44 +589,76 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 var evidence = fixture.coordinator().stagedEvidence(); var proof = fixture.coordinator().stagedProofSnapshot();
                 byte[] dart = fixture.editor().liveSnapshot().markerBearingUtf8();
                 byte[] fd = evidence.preparedPairIdentity().prospectiveFdBytes();
+                long sourceVersion = fixture.editor().liveSnapshot().documentVersion();
                 var history = fixture.dataObject().getCombinedUndoRedo();
-                String undoName = history.getUndoPresentationName(), redoName = history.getRedoPresentationName();
+                String undoName = history.getUndoPresentationName();
                 var token = current.token().orElseThrow();
                 DesignerCommand sameFalse = new SetProperty(badgeId, second, new PropertyValue.BooleanValue(false));
-                var rejected = fixture.mutations().submit(token, sameFalse, "Badge explicit false decoration").get(10, TimeUnit.SECONDS);
-                assertEquals(FlutterDesignerMutationController.Outcome.FAILED, rejected.outcome());
-                for (String text : List.of("Save", "undo", "retry", "NO_CHANGES")) assertTrue(rejected.reason().contains(text), rejected.reason());
-                current = awaitReady(fixture.mutations());
-                assertNotSame(token, current.token().orElseThrow(), "Refusal reissues the one-shot presentation token");
-                assertSame(evidence, fixture.coordinator().stagedEvidence());
-                var unchangedProof = fixture.coordinator().stagedProofSnapshot();
-                assertEquals(proof.kind(), unchangedProof.kind());
-                assertSame(proof.loadedCurrentIdentity(), unchangedProof.loadedCurrentIdentity());
-                assertSame(proof.preparedPairIdentity(), unchangedProof.preparedPairIdentity());
-                assertSame(proof.liveCandidateIdentity(), unchangedProof.liveCandidateIdentity());
-                assertArrayEquals(proof.baselineDartBytes(), unchangedProof.baselineDartBytes());
-                assertArrayEquals(proof.baselineFdBytes(), unchangedProof.baselineFdBytes());
-                assertArrayEquals(proof.candidateDartBytes(), unchangedProof.candidateDartBytes());
-                assertEquals(c1, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                int beforeAnalysis = analyses.get();
+                var applied = fixture.mutations().submit(token, sameFalse, "Badge explicit false decoration").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, applied.outcome(), applied::reason);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertNotSame(token, current.token().orElseThrow(), "An applied edit consumes its one-shot presentation token");
+                assertEquals(beforeAnalysis + 1, analyses.get(), "The same-source successor remains PAIRED against the durable baseline and needs fresh exact candidate analysis");
+                var c2 = findModelWidget(current.document().orElseThrow().root(), badgeId);
+                var expectedProperties = new java.util.LinkedHashMap<>(c1.properties());
+                expectedProperties.put(second, new PropertyValue.BooleanValue(false));
+                assertEquals(expectedProperties, c2.properties()); assertEquals(c1.slots(), c2.slots());
+                assertNotSame(evidence, fixture.coordinator().stagedEvidence());
+                var nextProof = fixture.coordinator().stagedProofSnapshot();
+                assertEquals(proof.kind(), nextProof.kind());
+                assertSame(proof.loadedCurrentIdentity(), nextProof.loadedCurrentIdentity());
+                assertNotSame(proof.preparedPairIdentity(), nextProof.preparedPairIdentity());
+                assertArrayEquals(proof.baselineDartBytes(), nextProof.baselineDartBytes());
+                assertArrayEquals(proof.baselineFdBytes(), nextProof.baselineFdBytes());
+                assertArrayEquals(proof.candidateDartBytes(), nextProof.candidateDartBytes());
+                byte[] c2Fd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+                assertFalse(Arrays.equals(fd, c2Fd));
                 assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
-                assertArrayEquals(fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
-                assertEquals(undoName, history.getUndoPresentationName()); assertEquals(redoName, history.getRedoPresentationName());
+                assertEquals(sourceVersion, fixture.editor().liveSnapshot().documentVersion(), "A metadata-only decoration edit must not replace Source");
+                assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+                assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+                properties.refreshPresentation(c2, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
                 assertSame(secondCell, cellProperty(properties, second.value())); assertEquals(List.of(sets), List.of(properties.getPropertySets()));
                 var stale = fixture.mutations().submit(token, sameFalse, "Badge stale retry").get(10, TimeUnit.SECONDS);
                 assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, stale.outcome());
-                savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
-                int beforeRetry = analyses.get();
-                current = applyBadgeMutation(fixture, current, sameFalse, badgeId);
-                assertEquals(beforeRetry, analyses.get(), "The identical retry after Save follows existing FD_ONLY admission, without analyzer");
-                assertArrayEquals(dart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
-                byte[] durableFd = Files.readAllBytes(fixture.fdPath()); assertFalse(Arrays.equals(fd, durableFd));
-                var durable = assertInstanceOf(FdDecodeResult.Current.class, new FdDocumentCodec().decode(durableFd)).document();
-                assertEquals(new PropertyValue.BooleanValue(false), findModelWidget(durable.root(), badgeId).properties().get(second));
+                current = awaitReady(fixture.mutations());
+                assertEquals(c2, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(c2Fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+
+                token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(c1, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertEquals(sourceVersion, fixture.editor().liveSnapshot().documentVersion());
+                assertEquals(undoName, history.getUndoPresentationName()); assertTrue(history.canRedo());
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(c2, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(c2Fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+                assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertEquals(sourceVersion, fixture.editor().liveSnapshot().documentVersion());
+
+                savedFalsePair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                assertArrayEquals(dart, savedFalsePair.dartBytes()); assertArrayEquals(c2Fd, savedFalsePair.fdBytes());
+                var durable = assertInstanceOf(FdDecodeResult.Current.class, new FdDocumentCodec().decode(savedFalsePair.fdBytes())).document();
+                assertEquals(expectedProperties, findModelWidget(durable.root(), badgeId).properties());
                 assertEquals(PairSaveCoordinatorStatus.CLEAN, fixture.coordinator().state().status()); assertNull(fixture.coordinator().stagedEvidence());
                 assertNull(fixture.dataObject().getCookie(SaveCookie.class)); assertFalse(fixture.dataObject().isModified());
                 var retained = (DesignerCommandSessionOrchestrator) sessionOwner(fixture.mutations());
-                assertTrue(retained.canUndo(), "Existing FD_ONLY durable adoption retains Designer session history");
-                savedFalsePair = new ExactPair(dart, durableFd);
+                assertTrue(retained.canUndo(), "Saving the same-source successor retains Designer session history");
+                token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(c1, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(savedFalsePair.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+                assertTrue(history.canRedo());
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, badgeId));
+                assertEquals(c2, findModelWidget(current.document().orElseThrow().root(), badgeId));
+                assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(savedFalsePair.fdBytes(), Files.readAllBytes(fixture.fdPath()));
             }
             try (MutationFixture fixture = fixture("badge_false_reopened_" + index, savedFalsePair)) {
                 fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
@@ -929,6 +961,653 @@ class FlutterDesignerMutationControllerIntegrationTest {
         var result = fixture.mutations().submit(before.token().orElseThrow(), command, "CircleAvatar property/slot editing").get(10, TimeUnit.SECONDS);
         assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, avatarId));
+    }
+
+    @Test
+    void paletteTextButtonAll511FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("9e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var type = new WidgetTypeId("flutter.material.TextButton"); var variant = new PropertyName("variant");
+        ExactPair pair;
+        try (var fixture = fixture("text_button_wrap", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                    ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, FIRST_ID, () -> buttonId));
+            var current = applyTextButtonMutation(fixture, ready, wrapped.command(), buttonId);
+            var button = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertEquals(Map.of(variant, new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), button.properties());
+            assertEquals(FIRST_ID, ((WidgetSlot.SingleSlot) button.slots().get(CHILD)).child().orElseThrow().id());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("onPressed: () {}"));
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow(); onEdt(history::undo);
+            var undone = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            token = undone.token().orElseThrow(); onEdt(history::redo); awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+            pair = savePhysicalModelPair(fixture);
+        }
+        var visited = new java.util.HashSet<String>(); Map<PropertyName, PropertyValue> saved;
+        ExactPair sparsePair = pair;
+        try (var fixture = fixture("text_button_reopened_all_fields", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (int family = 0; family < 3; family++) {
+                var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+                var target = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.full(family > 0, family > 0, family == 2);
+                target.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+                var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>();
+                for (var name : before.properties().keySet()) if (!target.containsKey(name)) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name));
+                target.forEach((name, value) -> patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(name, value)));
+                current = applyTextButtonMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(buttonId, patches), buttonId);
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                // Each maximal legal family exceeds the former 256-property codec ceiling.
+                pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                try (var reopened = fixture("text_button_dense_family_reopen_" + family, pair)) {
+                    var reopenedWidget = findModelWidget(reopened.ready().document().orElseThrow().root(), buttonId);
+                    assertEquals(target, reopenedWidget.properties()); assertEquals(initial.slots(), reopenedWidget.slots());
+                    assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+                }
+            }
+            // Full families above exercise dense source/codec/history. Every individual cell
+            // uses the same stable property instances on a sparse live pair, avoiding a
+            // thousand repeated whole-family navigation proofs without weakening row coverage.
+            try (var sparse = fixture("text_button_sparse_live_cells", sparsePair)) {
+                sparse.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, sparse.frameworkFile())));
+                var sparseCurrent = sparse.ready(); var sparseHistory = sparse.dataObject().getCombinedUndoRedo();
+                var sparseInitial = findModelWidget(sparseCurrent.document().orElseThrow().root(), buttonId);
+                for (var field : definition.properties()) {
+                    String name = field.name().value();
+                    var prerequisites = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.sparsePrerequisites(name);
+                    byte[] initialDart = sparse.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(sparse);
+                    for (var prerequisite : prerequisites.entrySet()) {
+                        sparseCurrent = applyTextButtonMutation(sparse, sparseCurrent,
+                                new SetProperty(buttonId, prerequisite.getKey(), prerequisite.getValue()), buttonId);
+                    }
+                    var beforeEdit = findModelWidget(sparseCurrent.document().orElseThrow().root(), buttonId);
+                    properties.refreshPresentation(beforeEdit, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var cell = cellProperty(properties, name); var editorClass = cell.getPropertyEditor().getClass();
+                    byte[] beforeDart = sparse.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(sparse);
+                    var value = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.value(field);
+                    commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                    sparseCurrent = applyTextButtonMutation(sparse, sparseCurrent, commands.getFirst(), buttonId);
+                    var edited = findModelWidget(sparseCurrent.document().orElseThrow().root(), buttonId);
+                    assertEquals(value, edited.properties().get(field.name()), name); assertEquals(initial.slots(), edited.slots());
+                    properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var editToken = sparseCurrent.token().orElseThrow(); onEdt(sparseHistory::undo);
+                    sparseCurrent = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), editToken, List.of(buttonId, SECOND_ID));
+                    var restored = findModelWidget(sparseCurrent.document().orElseThrow().root(), buttonId);
+                    assertEquals(beforeEdit, restored, name);
+                    assertArrayEquals(beforeDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(beforeFd, refreshProgressFdBytes(sparse));
+                    for (int seed = 0; seed < prerequisites.size(); seed++) {
+                        editToken = sparseCurrent.token().orElseThrow(); onEdt(sparseHistory::undo);
+                        sparseCurrent = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), editToken, List.of(buttonId, SECOND_ID));
+                    }
+                    assertEquals(sparseInitial, findModelWidget(sparseCurrent.document().orElseThrow().root(), buttonId));
+                    assertArrayEquals(initialDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(initialFd, refreshProgressFdBytes(sparse));
+                    properties.refreshPresentation(sparseInitial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    assertSame(cell, cellProperty(properties, name)); assertEquals(editorClass, cell.getPropertyEditor().getClass());
+                    assertEquals(List.of(sets), List.of(properties.getPropertySets())); assertTrue(visited.add(name));
+                }
+            }
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            commands.clear(); cellProperty(properties, "style").setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_buttonStyle")));
+            current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId); visited.add("style");
+            var whole = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertTrue(whole.properties().keySet().stream().noneMatch(name -> dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema.localStyleProperties().contains(name.value())));
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+            assertEquals(511, visited.size()); saved = whole.properties(); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_reopened_references_nullable_and_conflicts", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), buttonId); assertEquals(saved, widget.properties());
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange", "focusNode", "statesController", "style", "styleBackgroundBuilder", "styleForegroundBuilder")) {
+                var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:mutation_controller_fixture/buttons.dart"), "Buttons", Optional.of(name),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(reference));
+                current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId);
+                widget = findModelWidget(current.document().orElseThrow().root(), buttonId); properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertEquals(reference, widget.properties().get(new PropertyName(name)));
+                assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("package:mutation_controller_fixture/buttons.dart"));
+            }
+            for (String name : List.of("clipBehavior", "isSemanticButton")) {
+                for (var value : name.equals("clipBehavior") ? List.<PropertyValue>of(new PropertyValue.EnumValue("Clip", "none"), new PropertyValue.EnumValue("Clip", "antiAliasWithSaveLayer"), new PropertyValue.NullValue())
+                        : List.<PropertyValue>of(new PropertyValue.NullValue(), new PropertyValue.BooleanValue(false), new PropertyValue.BooleanValue(true))) {
+                    var before = widget; commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(value));
+                    current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId);
+                    widget = findModelWidget(current.document().orElseThrow().root(), buttonId);
+                    byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                    if (value instanceof PropertyValue.NullValue) assertTrue(new String(exactDart, StandardCharsets.UTF_8).contains(name + ": null"));
+                    var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+                    token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+                    assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                    properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                }
+                commands.clear(); cellProperty(properties, name).restoreDefaultValue(); current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId);
+                widget = findModelWidget(current.document().orElseThrow().root(), buttonId); assertFalse(widget.properties().containsKey(new PropertyName(name)));
+                assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains(name + ":"));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            commands.clear(); cellProperty(properties, "iconAlignment").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("IconAlignment", "end")));
+            current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId); widget = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            String source = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8); assertTrue(source.contains("TextButton.icon(")); assertTrue(source.contains("label:"));
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(buttonId, variant),
+                    new SetProperty(buttonId, new PropertyName("styleMinimumWidth"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))),
+                    new SetProperty(buttonId, new PropertyName("isSemanticButton"), new PropertyValue.BooleanValue(true)),
+                    new SetProperty(buttonId, new PropertyName("onPressed"), new PropertyValue.CallbackValue("rawCallback")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "TextButton rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), buttonId));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture)); assertEquals(undo, history.getUndoPresentationName());
+            }
+            properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            commands.clear(); cellProperty(properties, "style").setValue(FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_rejectedStyle")));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "button_style_refused", "TextButton style reference rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "TextButton atomic style replacement").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(widget, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), buttonId)); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture)); assertEquals(undo, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyTextButtonMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            assertEquals(FIRST_ID, ((WidgetSlot.SingleSlot) findModelWidget(current.document().orElseThrow().root(), buttonId).slots().get(CHILD)).child().orElseThrow().id());
+        }
+    }
+
+    @Test
+    void paletteTextButtonInactiveCallbackEditWhilePairedChangesAreUnsavedKeepsHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("ce8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var type = new WidgetTypeId("flutter.material.TextButton"); var callback = new PropertyName("onPressed");
+        ExactPair pair;
+        try (var fixture = fixture("text_button_inactive_unsaved", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                    ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, FIRST_ID, () -> buttonId));
+            var current = applyTextButtonMutation(fixture, ready, wrapped.command(), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback,
+                    dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_disabledCallback")), buttonId);
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8(), "Inactive callback changes only FD while paired source remains unsaved");
+            assertFalse(Arrays.equals(beforeFd, refreshProgressFdBytes(fixture)));
+            var after = findModelWidget(current.document().orElseThrow().root(), buttonId); var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID)); assertEquals(after, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+            // Saving must retain the same-source predecessor as an exact undoable FD-only endpoint.
+            token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+            if (fixture.coordinator().stagedEvidence() != null) pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_inactive_saved_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertEquals(dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_disabledCallback"),
+                    findModelWidget(fixture.ready().document().orElseThrow().root(), buttonId).properties().get(callback));
+            var current = applyTextButtonMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), buttonId);
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_disabledCallback"));
+        }
+    }
+
+    @Test
+    void textButtonSameSourceRejectedAnalysisPreservesExactStagedPairAndNativeHistory() throws Exception {
+        StableId buttonId = StableId.parse("da8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        try (var fixture = fixture("text_button_same_source_rejected", columnExactPair())) {
+            var current = stageDisabledTextButton(fixture, buttonId);
+            var proof = fixture.coordinator().stagedEvidence();
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            byte[] dart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            long sourceVersion = fixture.editor().liveSnapshot().documentVersion();
+            byte[] fd = proof.preparedPairIdentity().prospectiveFdBytes();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            String undo = history.getUndoPresentationName();
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "same_source_rejected", "Exact same-source proof was rejected")));
+            var command = new SetProperty(buttonId, new PropertyName("onPressed"),
+                    dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_unexecuted"));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), command,
+                    "Inactive callback must retain exact staged pair on rejection").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            current = awaitReady(fixture.mutations());
+            assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            assertSame(proof, fixture.coordinator().stagedEvidence());
+            assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(sourceVersion, fixture.editor().liveSnapshot().documentVersion());
+            assertEquals(undo, history.getUndoPresentationName());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) ->
+                    completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            applyTextButtonMutation(fixture, current, command, buttonId);
+            assertArrayEquals(dart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertEquals(sourceVersion, fixture.editor().liveSnapshot().documentVersion(),
+                    "A semantic-only callback edit must not perform a fake Source replacement");
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void textButtonSameSourceHistorySurvivesSourceSaveSaveAfterUndoAndNativeRedoChronology() throws Exception {
+        StableId buttonId = StableId.parse("ea8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var callback = new PropertyName("onPressed");
+        var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+        var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+        try (var fixture = fixture("text_button_same_source_saved_overlay", columnExactPair())) {
+            var current = stageDisabledTextButton(fixture, buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+            var saved = savePhysicalModelPair(fixture);
+            awaitReady(fixture.mutations());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            String sourceEdit = "// preserved unmanaged Source after same-source callback save\n";
+            onEdt(() -> fixture.document().insertString(fixture.document().getLength(), sourceEdit, null));
+            byte[] overlay = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var cookie = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(cookie);
+            cookie.save();
+            awaitCurrentWithPair(fixture.controller(), saved.fdBytes(), overlay);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+
+            // Native Source undo remains above the callback-only semantic edge.
+            onEdt(history::undo);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            awaitTextButtonCallback(fixture, buttonId, first);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(overlay, Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+
+            var saveAfterUndo = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(saveAfterUndo);
+            saveAfterUndo.save();
+            byte[] firstFd = Files.readAllBytes(fixture.fdPath());
+            awaitCurrentWithPair(fixture.controller(), firstFd, saved.dartBytes());
+            var decoded = (FdDecodeResult.Current) new FdDocumentCodec().decode(firstFd);
+            assertEquals(first, findModelWidget(decoded.document().root(), buttonId).properties().get(callback));
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertTrue(history.canRedo());
+
+            onEdt(history::redo);
+            awaitTextButtonCallback(fixture, buttonId, second);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertTrue(history.canRedo());
+            onEdt(history::redo);
+            assertArrayEquals(overlay, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var saveRestored = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(saveRestored);
+            saveRestored.save();
+            awaitCurrentWithPair(fixture.controller(), saved.fdBytes(), overlay);
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(overlay, Files.readAllBytes(fixture.dartPath()));
+        }
+    }
+
+    @Test
+    void textButtonPendingMetadataSavesNewOrUndoneSourceOverlayAndKeepsNativeChronology() throws Exception {
+        for (boolean undoSourceBeforeSave : new boolean[]{false, true}) {
+            StableId buttonId = StableId.parse("ad8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+            var callback = new PropertyName("onPressed");
+            var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+            var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+            try (var fixture = fixture("text_button_pending_metadata_new_source_" + undoSourceBeforeSave, columnExactPair())) {
+                var current = stageDisabledTextButton(fixture, buttonId);
+                current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+                current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+                var saved = savePhysicalModelPair(fixture);
+                awaitReady(fixture.mutations());
+                var history = fixture.dataObject().getCombinedUndoRedo();
+                onEdt(history::undo);
+                awaitTextButtonCallback(fixture, buttonId, first);
+                long oldVersion = fixture.editor().liveSnapshot().documentVersion();
+                onEdt(() -> fixture.document().insertString(fixture.document().getLength(),
+                        "// new Source envelope while metadata is pending\n", null));
+                byte[] overlay = fixture.editor().liveSnapshot().markerBearingUtf8();
+                if (undoSourceBeforeSave) {
+                    onEdt(history::undo);
+                    assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+                    assertTrue(fixture.editor().liveSnapshot().documentVersion() > oldVersion,
+                            "identical bytes at a newer native Source version must be reconciled exactly");
+                }
+                var save = fixture.dataObject().getCookie(SaveCookie.class);
+                assertNotNull(save);
+                save.save();
+                byte[] firstFd = Files.readAllBytes(fixture.fdPath());
+                byte[] expectedDart = undoSourceBeforeSave ? saved.dartBytes() : overlay;
+                awaitCurrentWithPair(fixture.controller(), firstFd, expectedDart);
+                var decoded = (FdDecodeResult.Current) new FdDocumentCodec().decode(firstFd);
+                assertEquals(first, findModelWidget(decoded.document().root(), buttonId).properties().get(callback));
+                assertArrayEquals(expectedDart, Files.readAllBytes(fixture.dartPath()));
+                if (undoSourceBeforeSave) {
+                    assertTrue(history.canRedo());
+                    onEdt(history::redo);
+                    assertArrayEquals(overlay, fixture.editor().liveSnapshot().markerBearingUtf8());
+                    save = fixture.dataObject().getCookie(SaveCookie.class);
+                    assertNotNull(save);
+                    save.save();
+                    awaitCurrentWithPair(fixture.controller(), firstFd, overlay);
+                }
+                // Saving the new envelope must not absorb its native Source edge.
+                onEdt(history::undo);
+                assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+                onEdt(history::undo);
+                awaitTextButtonCallback(fixture, buttonId, null);
+                assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+                onEdt(history::redo);
+                awaitTextButtonCallback(fixture, buttonId, first);
+                onEdt(history::redo);
+                assertArrayEquals(overlay, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(firstFd, Files.readAllBytes(fixture.fdPath()));
+                assertArrayEquals(overlay, Files.readAllBytes(fixture.dartPath()));
+            }
+        }
+    }
+
+    @Test
+    void textButtonSameSourceUndoIsSaveableWithCleanSourceAndRetainsRedoAfterFdOnlySave() throws Exception {
+        StableId buttonId = StableId.parse("fa8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var callback = new PropertyName("onPressed");
+        var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+        var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+        try (var fixture = fixture("text_button_same_source_fd_save", columnExactPair())) {
+            var current = stageDisabledTextButton(fixture, buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+            var saved = savePhysicalModelPair(fixture);
+            awaitReady(fixture.mutations());
+            long version = fixture.editor().liveSnapshot().documentVersion();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitTextButtonCallback(fixture, buttonId, first);
+            assertFalse(fixture.editor().sourceModified(), "Callback-only Undo must not manufacture a dirty Source document");
+            assertEquals(version, fixture.editor().liveSnapshot().documentVersion());
+            var save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save, "A pending FD-only history edit needs the shared SaveCookie even when Source is clean");
+            save.save();
+            byte[] firstFd = Files.readAllBytes(fixture.fdPath());
+            awaitCurrentWithPair(fixture.controller(), firstFd, saved.dartBytes());
+            var decoded = (FdDecodeResult.Current) new FdDocumentCodec().decode(firstFd);
+            assertEquals(first, findModelWidget(decoded.document().root(), buttonId).properties().get(callback));
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertEquals(version, fixture.editor().liveSnapshot().documentVersion());
+            assertTrue(history.canRedo(), "FD-only save must preserve semantic redo");
+            onEdt(history::redo);
+            awaitTextButtonCallback(fixture, buttonId, second);
+            assertFalse(fixture.editor().sourceModified());
+            save = fixture.dataObject().getCookie(SaveCookie.class);
+            assertNotNull(save);
+            save.save();
+            awaitCurrentWithPair(fixture.controller(), saved.fdBytes(), saved.dartBytes());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(version, fixture.editor().liveSnapshot().documentVersion());
+        }
+    }
+
+    @Test
+    void textButtonMetadataSaveFailureRetainsExactCursorAndNativeHistoryForRetry() throws Exception {
+        for (boolean rolledBack : new boolean[]{false, true}) {
+            StableId buttonId = StableId.parse("af8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+            var callback = new PropertyName("onPressed");
+            var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+            var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+            try (var fixture = fixture("text_button_metadata_save_failure_" + rolledBack, columnExactPair())) {
+                var current = stageDisabledTextButton(fixture, buttonId);
+                current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+                current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+                var saved = savePhysicalModelPair(fixture);
+                awaitReady(fixture.mutations());
+                var history = fixture.dataObject().getCombinedUndoRedo();
+                onEdt(history::undo);
+                awaitTextButtonCallback(fixture, buttonId, first);
+                var exactCurrent = fixture.controller().state();
+                var exactLive = fixture.editor().liveSnapshot();
+                String undoName = history.getUndoPresentationName();
+                String redoName = history.getRedoPresentationName();
+                Field transactionField = PairSaveCoordinator.class.getDeclaredField("fdOnlyTransaction");
+                transactionField.setAccessible(true);
+                Object originalTransaction = transactionField.get(fixture.coordinator());
+                AtomicInteger attempts = new AtomicInteger();
+                // Isolate coordinator recovery from the already-tested transaction
+                // implementation: both injected outcomes guarantee unchanged disk.
+                PairSaveCoordinator.FdOnlyTransaction injected = request -> {
+                    attempts.incrementAndGet();
+                    assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+                    assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+                    return new dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionResult(
+                            rolledBack
+                                    ? dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionStatus.ROLLED_BACK
+                                    : dev.flutter.netbeans.plugin.designer.persistence.PairFileTransactionStatus.FAILED,
+                            List.of(), rolledBack ? 1 : 0, rolledBack);
+                };
+                transactionField.set(fixture.coordinator(), injected);
+                try {
+                    var save = fixture.dataObject().getCookie(SaveCookie.class);
+                    assertNotNull(save);
+                    assertThrows(IOException.class, save::save);
+                    assertEquals(1, attempts.get());
+                    assertSame(exactCurrent, fixture.controller().state());
+                    assertTrue(exactLive.sameEvidence(fixture.editor().liveSnapshot()));
+                    assertFalse(fixture.editor().sourceModified());
+                    assertEquals(undoName, history.getUndoPresentationName());
+                    assertEquals(redoName, history.getRedoPresentationName());
+                    assertTrue(history.canUndo());
+                    assertTrue(history.canRedo());
+                    assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+                    assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+                    assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+                } finally {
+                    transactionField.set(fixture.coordinator(), originalTransaction);
+                }
+                fixture.dataObject().getCookie(SaveCookie.class).save();
+                byte[] firstFd = Files.readAllBytes(fixture.fdPath());
+                awaitCurrentWithPair(fixture.controller(), firstFd, saved.dartBytes());
+                var decoded = (FdDecodeResult.Current) new FdDocumentCodec().decode(firstFd);
+                assertEquals(first, findModelWidget(decoded.document().root(), buttonId).properties().get(callback));
+                assertTrue(history.canRedo());
+                onEdt(history::redo);
+                awaitTextButtonCallback(fixture, buttonId, second);
+                assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            }
+        }
+    }
+
+    @Test
+    void textButtonFurtherEditAfterSavedSameSourceUndoRetainsNativeHistory() throws Exception {
+        StableId buttonId = StableId.parse("ab8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var callback = new PropertyName("onPressed");
+        var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+        var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+        var third = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_third");
+        try (var fixture = fixture("text_button_same_source_edit_after_undo", columnExactPair())) {
+            var current = stageDisabledTextButton(fixture, buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+            var saved = savePhysicalModelPair(fixture);
+            awaitReady(fixture.mutations());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitTextButtonCallback(fixture, buttonId, first);
+            current = awaitReady(fixture.mutations());
+            applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, third), buttonId);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            var save = fixture.dataObject().getCookie(SaveCookie.class);
+            if (save != null) save.save();
+            byte[] thirdFd = Files.readAllBytes(fixture.fdPath());
+            awaitCurrentWithPair(fixture.controller(), thirdFd, saved.dartBytes());
+            var decoded = (FdDecodeResult.Current) new FdDocumentCodec().decode(thirdFd);
+            assertEquals(third, findModelWidget(decoded.document().root(), buttonId).properties().get(callback));
+            assertTrue(history.canUndo());
+            onEdt(history::undo);
+            awaitTextButtonCallback(fixture, buttonId, first);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertTrue(history.canRedo());
+            onEdt(history::redo);
+            awaitTextButtonCallback(fixture, buttonId, third);
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+        }
+    }
+
+    @Test
+    void textButtonEnableAfterSavedMetadataUndoUsesExactAnalyzerAndKeepsBothNativeEndpoints() throws Exception {
+        StableId buttonId = StableId.parse("ac8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var callback = new PropertyName("onPressed");
+        var first = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_first");
+        var second = dev.flutter.netbeans.plugin.designer.properties.TextButtonPropertyContractTest.reference("_second");
+        try (var fixture = fixture("text_button_enable_after_metadata_undo", columnExactPair())) {
+            var current = stageDisabledTextButton(fixture, buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, first), buttonId);
+            current = applyTextButtonMutation(fixture, current, new SetProperty(buttonId, callback, second), buttonId);
+            var saved = savePhysicalModelPair(fixture);
+            awaitReady(fixture.mutations());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitTextButtonCallback(fixture, buttonId, first);
+            current = awaitReady(fixture.mutations());
+            var analyses = new AtomicInteger();
+            fixture.mutations().setAnalyzerFactoryForTests((executable, request) -> {
+                analyses.incrementAndGet();
+                assertTrue(request.content().contains("_first"));
+                assertTrue(request.symbolProbes().stream().anyMatch(value -> value.expectedSymbolName().equals("_first")
+                        && value.staticTypeProbe().isPresent()));
+                return completedAnalysis(passingAnalysis(request, fixture.frameworkFile()));
+            });
+            applyTextButtonMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"),
+                    new PropertyValue.BooleanValue(true)), buttonId);
+            assertEquals(1, analyses.get(), "Enabling a retained callback requires exact fresh analyzer evidence");
+            var enabled = savePhysicalModelPair(fixture);
+            current = awaitReady(fixture.mutations());
+            assertFalse(Arrays.equals(saved.dartBytes(), enabled.dartBytes()));
+            var token = current.token().orElseThrow();
+            onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+            var node = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertEquals(new PropertyValue.BooleanValue(false), node.properties().get(new PropertyName("enabled")));
+            assertEquals(first, node.properties().get(callback));
+            assertArrayEquals(saved.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            token = current.token().orElseThrow();
+            onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(buttonId, SECOND_ID));
+            node = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertEquals(new PropertyValue.BooleanValue(true), node.properties().get(new PropertyName("enabled")));
+            assertEquals(first, node.properties().get(callback));
+            assertArrayEquals(enabled.dartBytes(), fixture.editor().liveSnapshot().markerBearingUtf8());
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot stageDisabledTextButton(
+            MutationFixture fixture, StableId buttonId) throws Exception {
+        fixture.mutations().setAnalyzerFactoryForTests((executable, request) ->
+                completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+        var ready = fixture.ready();
+        var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                new FlutterDesignerPaletteDropPlanner().planWrapTarget(ready.document().orElseThrow(),
+                        ready.catalog().orElseThrow(), new WidgetTypeId("flutter.material.TextButton"),
+                        FIRST_ID, () -> buttonId));
+        var current = applyTextButtonMutation(fixture, ready, wrapped.command(), buttonId);
+        return applyTextButtonMutation(fixture, current, new SetProperty(buttonId,
+                new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+    }
+
+    private static void awaitTextButtonCallback(MutationFixture fixture, StableId buttonId,
+            PropertyValue expected) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(10);
+        while (System.nanoTime() < deadline) {
+            var snapshot = fixture.mutations().snapshot();
+            if (snapshot.document().isPresent()
+                    && java.util.Objects.equals(expected, findModelWidget(snapshot.document().orElseThrow().root(), buttonId)
+                            .properties().get(new PropertyName("onPressed")))) return;
+            Thread.sleep(10);
+        }
+        throw new AssertionError("TextButton callback history did not publish " + expected
+                + ": " + fixture.mutations().snapshot());
+    }
+
+    @Test
+    void paletteTextButtonNullableValuesAndOccupiedIconSaveReopenWithoutDataLoss() throws Exception {
+        StableId buttonId = StableId.parse("ae8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d"), iconId = StableId.parse("be8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9d");
+        var type = new WidgetTypeId("flutter.material.TextButton"); var variant = new PropertyName("variant"); var semantics = new PropertyName("isSemanticButton"); var clip = new PropertyName("clipBehavior");
+        ExactPair pair;
+        try (var fixture = fixture("text_button_nulls", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, new FlutterDesignerPaletteDropPlanner().planWrapTarget(
+                    ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, FIRST_ID, () -> buttonId));
+            var current = applyTextButtonMutation(fixture, ready, wrapped.command(), buttonId);
+            applyTextButtonMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(buttonId, List.of(
+                    new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(semantics, new PropertyValue.NullValue()),
+                    new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(clip, new PropertyValue.NullValue()))), buttonId);
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_nulls_reopened_icon_added", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertEquals(new PropertyValue.NullValue(), widget.properties().get(semantics)); assertEquals(new PropertyValue.NullValue(), widget.properties().get(clip));
+            String source = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(source.contains("isSemanticButton: null")); assertTrue(source.contains("clipBehavior: null"));
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("icon")));
+            current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId);
+            var icon = new WidgetNode(iconId, new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("Icon")), Map.of());
+            applyTextButtonMutation(fixture, current, new AddWidget(new WidgetPlacement(buttonId, new SlotName("icon"), 0), icon), buttonId);
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_occupied_icon_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), buttonId); var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            assertEquals(iconId, ((WidgetSlot.SingleSlot) widget.slots().get(new SlotName("icon"))).child().orElseThrow().id());
+            var exact = fixture.editor().liveSnapshot().markerBearingUtf8();
+            for (String name : List.of("variant", "isSemanticButton")) {
+                var problem = assertThrows(IllegalArgumentException.class, () -> cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(
+                        name.equals("variant") ? new PropertyValue.StringValue("standard") : new PropertyValue.NullValue())));
+                assertTrue(problem.getMessage().contains("Move or clear Icon first")); assertTrue(commands.isEmpty());
+            }
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new SetProperty(buttonId, variant, new PropertyValue.StringValue("standard")), "No silent icon deletion").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome()); current = awaitReady(fixture.mutations()); assertArrayEquals(exact, fixture.editor().liveSnapshot().markerBearingUtf8());
+            current = applyTextButtonMutation(fixture, current, new dev.flutter.netbeans.designer.command.RemoveWidget(iconId), buttonId);
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), buttonId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            cellProperty(properties, "isSemanticButton").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+            current = applyTextButtonMutation(fixture, current, commands.getFirst(), buttonId);
+            widget = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            assertEquals(new PropertyValue.StringValue("standard"), widget.properties().get(variant)); assertEquals(new PropertyValue.BooleanValue(false), widget.properties().get(semantics));
+            assertEquals(FIRST_ID, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow().id());
+            assertTrue(widget.slots().get(new SlotName("icon")) == null || ((WidgetSlot.SingleSlot) widget.slots().get(new SlotName("icon"))).child().isEmpty()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("text_button_standard_reopened_edit_again", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyTextButtonMutation(fixture, fixture.ready(), new ResetProperty(buttonId, clip), buttonId);
+            assertFalse(findModelWidget(current.document().orElseThrow().root(), buttonId).properties().containsKey(clip));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyTextButtonMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "TextButton full property and slot contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(id, SECOND_ID));
     }
 
     @Test

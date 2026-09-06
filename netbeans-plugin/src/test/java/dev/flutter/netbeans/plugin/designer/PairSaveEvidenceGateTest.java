@@ -731,6 +731,34 @@ class PairSaveEvidenceGateTest {
     }
 
     @Test
+    void textButtonMaterialAndWidgetsReferencesShareExactProofContext() throws Exception {
+        for (String property : List.of("onPressed", "onLongPress", "onHover", "onFocusChange",
+                "focusNode", "statesController", "style", "styleBackgroundBuilder", "styleForegroundBuilder")) {
+            for (boolean imported : List.of(false, true)) {
+                var reference = new PropertyValue.DartObjectReferenceValue(
+                        imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                        "configuredFunction", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+                Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.TextButton", property);
+                PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+                var typed = ticket.request().symbolProbes().stream().flatMap(probe -> probe.staticTypeProbe().stream()).toList();
+                assertEquals(3, typed.size(), property);
+                String library = property.startsWith("style") ? "package:flutter/material.dart" : "package:flutter/widgets.dart";
+                assertEquals(List.of(library), typed.stream().map(value -> value.expectedTypeLibraryUri()).distinct().toList(), property);
+                assertTrue(typed.stream().anyMatch(value -> value.expectedDartType().equals("Animation<Color?>")));
+                assertTrue(typed.stream().anyMatch(value -> value.expectedDartType().equals("CustomClipper<RRect>")));
+                DartSymbolProbe configured = ticket.request().symbolProbes().stream()
+                        .filter(probe -> probe.expectedSymbolName().equals("configuredFunction")).findFirst().orElseThrow();
+                assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", configured.expectedLibraryUri());
+                assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), configured.expectedTargetRoot());
+                PairAnalyzedCandidateResult analyzed = ticket.accept(analysis(ticket, fixture.acceptedEvidence()));
+                assertTrue(analyzed.ready(), () -> property + ": " + analyzed.diagnostics());
+                assertTrue(PairSaveEvidenceGate.bindApplied(analyzed.analyzedOptional().orElseThrow(), fixture.live()).ready());
+            }
+        }
+    }
+
+    @Test
     void bindsClipPathBranchesWithExactGeometryAndStaticHelperEvidence()
             throws Exception {
         for (String property : List.of("clipper", "shape")) {
@@ -1791,7 +1819,7 @@ class PairSaveEvidenceGateTest {
         if (projectReference.isEmpty()) {
             return document(descriptor, text);
         }
-        if (widgetType.equals("flutter.material.RefreshIndicator")) {
+        if (widgetType.equals("flutter.material.RefreshIndicator") || widgetType.equals("flutter.material.TextButton")) {
             var animation = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredAnimation",
                     Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
             var clipper = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredClipper",
@@ -1803,10 +1831,14 @@ class PairSaveEvidenceGateTest {
             var clipped = new WidgetNode(StableId.parse("22222222-2222-4222-8222-222222222222"),
                     new WidgetTypeId("flutter.widgets.ClipRRect"), Map.of(new PropertyName("clipper"), clipper),
                     Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(progress))));
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName(propertyName), projectReference.orElseThrow());
+            properties.put(new PropertyName("variant"), new PropertyValue.StringValue(
+                    widgetType.equals("flutter.material.TextButton") ? "standard"
+                            : propertyName.equals("onStatusChange") ? "noSpinner" : "material"));
+            if (widgetType.equals("flutter.material.TextButton")) properties.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
             var refresh = new WidgetNode(StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
-                    new WidgetTypeId(widgetType), Map.of(new PropertyName(propertyName), projectReference.orElseThrow(),
-                            new PropertyName("variant"), new PropertyValue.StringValue(
-                                    propertyName.equals("onStatusChange") ? "noSpinner" : "material")),
+                    new WidgetTypeId(widgetType), properties,
                     Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(clipped))));
             return new DesignerDocument(DOCUMENT_ID, descriptor, refresh);
         }

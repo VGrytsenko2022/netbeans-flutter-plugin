@@ -46,6 +46,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.RefreshIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.Scaffold",
+                "flutter.material.TextButton",
                 "flutter.material.TextField",
                 "flutter.material.VerticalDivider",
                 "flutter.widgets.AbsorbPointer",
@@ -115,11 +116,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(76, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(70, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(77, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(71, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(73, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(74, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -135,10 +136,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(943, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(1454, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(926, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(1437, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -149,6 +150,7 @@ class BuiltInWidgetCatalogTest {
     void exposesExactOwningLibrariesAndKeepsEachOwnerImported() {
         Map<String, String> expected = Map.ofEntries(
                 Map.entry("flutter.material.AppBar", MATERIAL_IMPORT),
+                Map.entry("flutter.material.TextButton", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Badge", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Card", MATERIAL_IMPORT),
                 Map.entry("flutter.material.CircleAvatar", MATERIAL_IMPORT),
@@ -286,6 +288,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(WIDGETS_IMPORT, "FontStyle"),
                 new DartSymbolReference(WIDGETS_IMPORT, "FontWeight"),
                 new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
+                new DartSymbolReference(MATERIAL_IMPORT, "IconAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "ImageRepeat"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "MainAxisSize"),
@@ -333,6 +336,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.RefreshIndicator",
+                "flutter.material.TextButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -396,7 +400,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IndexedSemantics",
                 "flutter.widgets.ExcludeFocus",
                 "flutter.widgets.ExcludeFocusTraversal"), typeIds(palette));
-        assertEquals(13, palette.stream()
+        assertEquals(14, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

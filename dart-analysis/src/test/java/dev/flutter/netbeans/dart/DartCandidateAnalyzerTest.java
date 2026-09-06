@@ -88,6 +88,71 @@ class DartCandidateAnalyzerTest {
     }
 
     @Test
+    void booleanCallbackProofQualifiesCoreWithoutChangingOriginalImportScope() throws Exception {
+        for (String header : List.of("", "const marker = \"import 'dart:core';\";\n",
+                "import 'dart:core' as sourceCore show bool;\n",
+                "import 'dart:\\u0063ore' hide String;\n")) {
+            String candidate = header + "void build() {\n  print('candidate');\n}\n";
+            Fixture accepted = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+            Files.writeString(accepted.dartFile, "void build() {}\n", StandardCharsets.UTF_8);
+            Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+            int offset = candidate.indexOf("print");
+            var type = new DartStaticTypeProbe(offset, 5, 0, candidate.indexOf("  print"),
+                    "ValueChanged<bool>", "package:flutter/material.dart");
+            var probe = new DartSymbolProbe("typed.bool", offset, 5, "print", "dart:core",
+                    sdkRoot, Optional.of("FUNCTION"), Optional.of(type));
+            DartCandidateAnalysisResult result = await(accepted.analyzer.analyze(request(
+                    accepted, candidate, 41, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+            var additions = accepted.factory.processes().stream().flatMap(process -> process.requests().stream())
+                    .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                    .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
+                    .filter(value -> "add".equals(value.path("type").asText())).toList();
+            assertEquals(2, additions.size());
+            assertEquals(candidate, additions.getFirst().path("content").asText());
+            String witness = additions.getLast().path("content").asText();
+            assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
+            assertTrue(witness.contains("    _nbfdStaticTypeProof0Core.dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
+            assertTrue(witness.contains("_nbfdStaticTypeProof0.ValueChanged<_nbfdStaticTypeProof0Core.bool>"), witness);
+            assertEquals(!header.startsWith("import"), witness.startsWith(
+                    "import 'package:flutter/material.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
+        }
+    }
+
+    @Test
+    void nonBooleanTypedBatchesQualifyTheDynamicControlWithoutWideningCoreScope() throws Exception {
+        for (String expectedType : List.of("ButtonStyle", "VoidCallback", "FocusNode")) {
+            for (String header : List.of("", "import 'dart:core' as sourceCore;\n",
+                    "import 'dart:core' show String;\n")) {
+                String candidate = header + "void build() {\n  print('candidate');\n}\n";
+                Fixture accepted = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+                Files.writeString(accepted.dartFile, "void build() {}\n", StandardCharsets.UTF_8);
+                Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+                int offset = candidate.indexOf("print");
+                var type = new DartStaticTypeProbe(offset, 5, 0, candidate.indexOf("  print"),
+                        expectedType, "package:flutter/material.dart");
+                var probe = new DartSymbolProbe("typed.nonBool", offset, 5, "print", "dart:core",
+                        sdkRoot, Optional.of("FUNCTION"), Optional.of(type));
+                var result = await(accepted.analyzer.analyze(request(
+                        accepted, candidate, 41, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+                assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+                String witness = accepted.factory.processes().stream().flatMap(process -> process.requests().stream())
+                        .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                        .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
+                        .filter(value -> "add".equals(value.path("type").asText()))
+                        .map(value -> value.path("content").asText()).reduce((first, last) -> last).orElseThrow();
+                assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
+                assertTrue(witness.contains("    _nbfdStaticTypeProof0Core.dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
+                assertTrue(witness.contains("final _nbfdStaticTypeProof0." + expectedType
+                        + " _nbfdStaticTypeProof0Control = _nbfdStaticTypeProof0Dynamic();"), witness);
+                assertEquals(header.isEmpty(), witness.startsWith(
+                        "import 'package:flutter/material.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
+                assertTrue(witness.contains(header + "void build()"), witness);
+            }
+        }
+    }
+
+    @Test
     void requiresAnalyzerOnlyNonNullStaticTypeProofForTypedSymbols()
             throws Exception {
         String candidate = """
@@ -151,7 +216,7 @@ class DartCandidateAnalyzerTest {
         assertEquals(witness.indexOf("ignore_for_file"),
                 witness.lastIndexOf("ignore_for_file"), witness);
         assertTrue(witness.contains(
-                "dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
+                "    _nbfdStaticTypeProof0Core.dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
         assertTrue(witness.contains(
                 "final _nbfdStaticTypeProof0.CustomClipper<"
                 + "_nbfdStaticTypeProof0.RRect> "

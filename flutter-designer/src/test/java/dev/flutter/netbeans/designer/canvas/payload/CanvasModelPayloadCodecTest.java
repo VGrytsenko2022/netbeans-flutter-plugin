@@ -89,6 +89,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
             "flutter.material.RefreshIndicator",
+            "flutter.material.TextButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3467,6 +3468,61 @@ class CanvasModelPayloadCodecTest {
                 Map.of(new PropertyName("data"), new PropertyValue.StringValue("Refresh child")), Map.of());
         return new WidgetNode(StableId.random(), type("flutter.material.RefreshIndicator"), properties,
                 Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(Optional.of(child))));
+    }
+
+    @Test
+    void textButtonPayloadCarriesDenseLocalStylesBothSlotsAndOnlyPrivateReferencePresence() throws Exception {
+        for (boolean icon : List.of(false, true)) for (boolean paints : List.of(false, true)) {
+            var properties = dev.flutter.netbeans.designer.catalog.TextButtonTestValues.full(icon, paints, false);
+            var node = dev.flutter.netbeans.designer.catalog.TextButtonTestValues.node(properties);
+            if (icon) {
+                var slots = new java.util.LinkedHashMap<>(node.slots());
+                slots.put(new SlotName("icon"), new WidgetSlot.SingleSlot(Optional.of(
+                        dev.flutter.netbeans.designer.catalog.TextButtonTestValues.text("Preserved icon"))));
+                node = new WidgetNode(node.id(), node.type(), node.properties(), slots);
+            }
+            assertEquals(491, node.properties().size());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"onPressed\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"statesController\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"styleBackgroundBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains("\"styleErrorBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleDraggedBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleSelectedBackgroundColor\":"), json);
+            assertTrue(json.contains("\"styleScrolledUnderBackgroundColor\":"), json);
+            assertEquals(icon, json.contains("Preserved icon"), json);
+            for (String forbidden : List.of("package:buttons", "buttonValues", "styles.dart", "MaterialIcons", "imageProvider")) assertFalse(json.contains(forbidden), json);
+        }
+    }
+
+    @Test
+    void textButtonPayloadPreservesExplicitNullAndWholeStyleSentinelWithoutExecutingReferences() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.TextButtonTestValues.node(Map.of(
+                new PropertyName("clipBehavior"), new PropertyValue.NullValue(),
+                new PropertyName("isSemanticButton"), new PropertyValue.NullValue(),
+                new PropertyName("style"), dev.flutter.netbeans.designer.catalog.TextButtonTestValues.reference("wholeStyle")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"clipBehavior\":{\"kind\":\"null\"}"), json);
+        assertTrue(json.contains("\"isSemanticButton\":{\"kind\":\"null\"}"), json);
+        assertTrue(json.contains("\"style\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+        assertFalse(json.contains("wholeStyle"), json);
+        assertFalse(json.contains("styleBackgroundColor"), json);
+    }
+
+    @Test
+    void textButtonPayloadRejectsConflictingConstructorsStylesAndMissingRequiredChild() {
+        var cases = List.of(
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("icon"), new PropertyName("isSemanticButton"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("style"), dev.flutter.netbeans.designer.catalog.TextButtonTestValues.reference("style"), new PropertyName("styleIconColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(new PropertyName("enabled"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onPressed"), new PropertyValue.CallbackValue("legacyCallback")));
+        for (Map<PropertyName, ? extends PropertyValue> properties : cases) {
+            var node = dev.flutter.netbeans.designer.catalog.TextButtonTestValues.node(new java.util.LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                dev.flutter.netbeans.designer.catalog.TextButtonTestValues.definition(), StableId.random());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
     }
 
     private static WidgetTypeId type(String value) {

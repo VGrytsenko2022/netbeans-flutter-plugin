@@ -1830,10 +1830,24 @@ accepted architecture is documented in
   variant/status/spinner transitions, no-op required refresh generation when unset,
   real SDK Canvas cycles, explicit isolated callback/filter limitations with the
   child preserved, stable Properties, persistence/history, DnD and four SVGs.
-  Current totals: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
+  At that milestone: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
   73 scalar plus three structural definitions, 136 Boolean fields, ten generic wrappers/
   61 insertable destinations, 4,636 placements (4,315 accepted / 321 rejected),
   Material 13/Basic 23. Historical target 76/92 leaves 16; formats stay 13/14/18.
+- [x] Add TextButton at Material/order 140 with both standard/icon constructors,
+  511 typed scalar rows, required Child and optional Icon. Include all eight states
+  plus default, common ButtonStyle fields/builders and whole typed project styles,
+  strict callbacks/focus/controller references, nullable semantics/clipping,
+  atomic constructor/style transitions, no-loss occupied-Icon rejection, local SDK
+  Canvas interaction and retained child state, save/reopen/edit/history, DnD and
+  four SVGs. Preserve exact per-occurrence proof in dense style candidates, with
+  bounded 512-property/2048-probe defaults and unchanged explicit smaller policies.
+  Current totals: 77 widgets, 71 const definitions, 1454 rows (1437 outside Scaffold),
+  74 scalar plus three structural definitions, 175 Boolean-only fields plus one
+  nullable Boolean union, eleven generic wrappers/62 insertable destinations,
+  4,774 placements (4,448 accepted / 326 rejected), Material 14/Basic 23.
+  Historical target 77/92 leaves 15; fixed ordered inventory remains unavailable;
+  formats stay 13/14/18. Application code is not executed in isolated Canvas.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1851,7 +1865,7 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-six admitted built-ins.
+  vertical slices. The current catalog presents all seventy-seven admitted built-ins.
   The 73 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.

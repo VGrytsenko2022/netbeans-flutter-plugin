@@ -330,6 +330,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.CircularProgressIndicator".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.CircularProgressIndicator.Name"));
                 setShortDescription(message("Widget.CircularProgressIndicator.Description"));
+            } else if ("flutter.material.TextButton".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.TextButton.Name"));
+                setShortDescription(message("Widget.TextButton.Description"));
             } else if ("flutter.material.RefreshIndicator".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.RefreshIndicator.Name"));
                 setShortDescription(message("Widget.RefreshIndicator.Description"));

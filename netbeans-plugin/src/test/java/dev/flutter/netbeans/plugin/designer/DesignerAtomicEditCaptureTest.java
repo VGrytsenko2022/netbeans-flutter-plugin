@@ -50,6 +50,58 @@ class DesignerAtomicEditCaptureTest {
     }
 
     @Test
+    void unchangedSourceAdmissionIsOneDeferredSemanticEditWithoutDocumentEvents()
+            throws Exception {
+        onEdt(() -> {
+            BaseDocument document = document("B");
+            UndoRedo.Manager nativeHistory = new UndoRedo.Manager();
+            document.addUndoableEditListener(nativeHistory);
+            DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(nativeHistory);
+            AtomicInteger documentEvents = new AtomicInteger();
+            document.addDocumentListener(new javax.swing.event.DocumentListener() {
+                @Override public void insertUpdate(javax.swing.event.DocumentEvent event) { documentEvents.incrementAndGet(); }
+                @Override public void removeUpdate(javax.swing.event.DocumentEvent event) { documentEvents.incrementAndGet(); }
+                @Override public void changedUpdate(javax.swing.event.DocumentEvent event) { documentEvents.incrementAndGet(); }
+            });
+            AtomicInteger modelRevision = new AtomicInteger();
+            AtomicInteger published = new AtomicInteger();
+            try (var barrier = combined.deferNotifications();
+                    var capture = DesignerAtomicEditCapture.begin(document, nativeHistory)) {
+                document.runAtomic(() -> {
+                    capture.seal(0, 1, "Metadata property", replay(modelRevision, published),
+                            combined::enqueueSemanticPublication, () -> {
+                                modelRevision.set(1);
+                                return published::incrementAndGet;
+                            });
+                    capture.admitUnchangedSource();
+                    assertEquals(1, modelRevision.get());
+                    assertEquals(0, published.get());
+                });
+                capture.verifyCompleted();
+                capture.verifyCompleted();
+                assertEquals(0, published.get(), "publication waits for the outward notification barrier");
+                assertTrue(capture.committed());
+                assertTrue(nativeHistory.canUndo());
+                assertEquals(0, documentEvents.get());
+                assertEquals("B", text(document));
+                assertThrows(IllegalStateException.class, capture::admitUnchangedSource);
+            }
+            assertEquals(1, published.get());
+            combined.undo();
+            assertEquals(0, modelRevision.get());
+            assertEquals(2, published.get());
+            assertFalse(nativeHistory.canUndo(), "only one semantic entry was admitted");
+            assertTrue(nativeHistory.canRedo());
+            combined.redo();
+            assertEquals(1, modelRevision.get());
+            assertEquals(3, published.get());
+            assertEquals("B", text(document));
+            assertEquals(0, documentEvents.get(), "forward, Undo and Redo never fabricate Source edits");
+            assertOnlyNativeListener(document, nativeHistory);
+        });
+    }
+
+    @Test
     void nativeListenerIdentitySurvivesSuccessAbortAndClose()
             throws Exception {
         onEdt(() -> {

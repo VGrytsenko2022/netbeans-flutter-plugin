@@ -14,6 +14,19 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class DartGenerationValueObjectsTest {
 
     @Test
+    void expandedDefaultKeepsIdentityBytesReservationAndExplicitSmallerBudgets() {
+        var defaults = DartCandidateCapacityBudget.DEFAULT;
+        assertEquals("fd-dart-candidate-capacity-v1", defaults.profileId());
+        assertEquals(2 * 1024 * 1024, defaults.maxCandidateUtf8Bytes());
+        assertEquals(2048, defaults.maxSymbolProbes());
+        assertEquals(1, defaults.reservedSourceSymbolProbes());
+        assertEquals(2047, defaults.maxGeneratedSymbolOccurrences());
+        var strict = new DartCandidateCapacityBudget("explicit-legacy-budget", 4096, 256, 1);
+        assertEquals(255, strict.maxGeneratedSymbolOccurrences());
+        assertSame(defaults, DartGenerationLimits.defaults().candidateCapacityBudget());
+    }
+
+    @Test
     void limitsMustBePositiveAndStayBelowSourceScannerMaximum() {
         assertThrows(IllegalArgumentException.class,
                 () -> new DartGenerationLimits(0, 1, 1));

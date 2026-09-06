@@ -6,6 +6,23 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- TextButton at Material/order 140 with standard/icon constructors, 511 typed
+  rows, required Child and optional Icon, all eight WidgetStates plus default,
+  complete local/common style fields and strict project ButtonStyle/Builder,
+  callback, focus and controller references. Includes safe atomic constructor/
+  style transitions, distinct null/omitted fields, centered Boolean checkboxes,
+  child-state-preserving SDK Canvas, isolated project-code diagnostics, persistence,
+  history, DnD and four SVGs. Dense styles retain every symbol's analysis evidence;
+  default codec/candidate capacities rise to 512 properties/2048 probes, with
+  explicit smaller limits unchanged. State-list occurrence IDs are property-scoped.
+  Same-Dart metadata edits now retain native history without synthetic Source
+  changes; clean-source Save writes only `.fd`, mixed Source edits keep their
+  chronology, and verified no-write/rollback failures remain retryable.
+  Current totals: 77 widgets, 71 const definitions, 1454 rows (1437 outside Scaffold),
+  4,774 placements (4,448 accepted / 326 rejected), 175 Boolean-only fields plus
+  one nullable Boolean union, Material 14. Historical target 77/92 leaves 15;
+  formats stay 13/14/18. The full ordered 92-item inventory is not preserved.
+
 - `RefreshIndicator` at Material/order 130, with material, adaptive and noSpinner
   constructors, all 12 SDK scalar fields plus a required variant, and one required
   Child slot. Includes typed RefreshCallback, ScrollNotificationPredicate presets/
@@ -16,7 +33,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   callbacks/custom filters without pretending they completed. Includes numeric,
   color, semantics, trigger modes, all three variants, stable editors, persistence/
   history, DnD, accessibility and four SVGs.
-  Current totals: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
+  At that milestone: 76 widgets, 70 const definitions, 943 rows (926 outside Scaffold),
   4,636 placements (4,315 accepted / 321 rejected), 136 Boolean fields, Material 13.
   Historical target 76/92 leaves 16; formats stay 13/14/18.
 

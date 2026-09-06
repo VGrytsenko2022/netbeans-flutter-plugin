@@ -36,7 +36,7 @@ public record FdCodecLimits(
     public static final int DEFAULT_MAX_ABSOLUTE_DECIMAL_SCALE = 10_000;
     public static final int DEFAULT_MAX_WIDGET_DEPTH = 256;
     public static final int DEFAULT_MAX_WIDGET_NODES = 10_000;
-    public static final int DEFAULT_MAX_PROPERTIES_PER_WIDGET = 256;
+    public static final int DEFAULT_MAX_PROPERTIES_PER_WIDGET = 512;
     public static final int DEFAULT_MAX_SLOTS_PER_WIDGET = 128;
     public static final int DEFAULT_MAX_LIST_CHILDREN = 10_000;
     public static final int DEFAULT_MAX_EXTENSION_KEYS_PER_BAG = 128;

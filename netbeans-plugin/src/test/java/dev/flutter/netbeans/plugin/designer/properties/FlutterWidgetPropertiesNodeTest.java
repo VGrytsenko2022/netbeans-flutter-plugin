@@ -1531,6 +1531,9 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")));
         requiredValues.put("flutter.material.CircularProgressIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
+        requiredValues.put("flutter.material.TextButton", Map.of(
+                new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.RefreshIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
         List<String> types = List.of(
@@ -1547,6 +1550,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.RefreshIndicator",
+                "flutter.material.TextButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1644,7 +1648,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(943, writableCount,
+        assertEquals(1454, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1657,7 +1661,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(926, nonScaffoldWritableCount,
+        assertEquals(1437, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6458,6 +6462,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.RefreshIndicator",
+                "flutter.material.TextButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6550,7 +6555,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(76, iconPaths.size(),
+        assertEquals(77, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

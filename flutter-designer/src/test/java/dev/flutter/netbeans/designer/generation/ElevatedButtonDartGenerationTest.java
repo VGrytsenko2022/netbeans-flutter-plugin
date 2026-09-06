@@ -30,6 +30,21 @@ class ElevatedButtonDartGenerationTest {
     private static final String HASH = "0".repeat(64);
 
     @Test
+    void repeatedStructuredListsInDifferentStyleBucketsHaveIndependentOccurrenceIds() {
+        var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String prefix : List.of("style", "styleHovered")) {
+            for (String suffix : List.of("Shadows", "FontFeatures", "FontVariations")) {
+                properties.put(property(prefix + "Text" + suffix),
+                        dev.flutter.netbeans.designer.catalog.BadgeTestValues.value("textStyle" + suffix));
+            }
+        }
+        String dart = generate(properties);
+        for (String expected : List.of("Shadow", "FontFeature", "FontVariation", "WidgetState.hovered")) {
+            assertTrue(dart.contains(expected), dart);
+        }
+    }
+
+    @Test
     void emitsSafeActivationModesAndRequiredNullableChild() {
         String fresh = generate(Map.of());
         assertTrue(fresh.contains("onPressed: () {}"), fresh);

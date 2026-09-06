@@ -9,6 +9,7 @@ import java.util.logging.Logger;
 import javax.swing.event.ChangeEvent;
 import javax.swing.event.ChangeListener;
 import javax.swing.event.UndoableEditListener;
+import javax.swing.event.UndoableEditEvent;
 import javax.swing.text.AbstractDocument;
 import javax.swing.text.Document;
 import javax.swing.undo.UndoableEdit;
@@ -147,6 +148,20 @@ final class DesignerAtomicEditCapture implements ChangeListener, AutoCloseable {
         }
         state = State.ABORTED;
         detachManagerListener();
+    }
+
+    /** Admit a semantic-only edge without manufacturing a document edit. */
+    void admitUnchangedSource() {
+        requireOwner();
+        if (state != State.READY || armed == null || semanticEdit != null) {
+            throw new IllegalStateException("A metadata edge requires one sealed capture");
+        }
+        semanticEdit = new DesignerSemanticUndoableEdit(
+                armed.beforeRevisionId(), armed.afterRevisionId(),
+                armed.presentationName(), null, armed.replayController(),
+                armed.publicationQueue());
+        state = State.WRAPPED;
+        nativeHistory.undoableEditHappened(new UndoableEditEvent(document, semanticEdit));
     }
 
     /** Called only by the registered Dart MIME wrapper at atomic unlock. */

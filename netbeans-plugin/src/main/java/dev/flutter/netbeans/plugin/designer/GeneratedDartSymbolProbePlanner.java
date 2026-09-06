@@ -148,7 +148,9 @@ final class GeneratedDartSymbolProbePlanner {
                 .flatMap(occurrence -> occurrence.staticTypeRequirement().stream())
                 .map(GeneratedDartStaticTypeRequirement::expectedDartType)
                 .anyMatch(type -> type.equals("RefreshCallback")
-                        || type.equals("ValueChanged<RefreshIndicatorStatus?>"))
+                        || type.equals("ValueChanged<RefreshIndicatorStatus?>")
+                        || type.equals("ButtonStyle")
+                        || type.equals("ButtonLayerBuilder"))
                 ? MATERIAL_LIBRARY_URI : WIDGETS_LIBRARY_URI;
 
         ArrayList<DartSymbolProbe> probes = new ArrayList<>();

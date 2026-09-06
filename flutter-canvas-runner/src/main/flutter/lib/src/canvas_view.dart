@@ -19,6 +19,55 @@ import 'canvas_model.dart';
 import 'canvas_runtime.dart';
 
 bool _ignoreDeleteSelected() => false;
+const _textButtonStateLayers = <WidgetState, String>{
+  WidgetState.disabled: 'styleDisabled',
+  WidgetState.error: 'styleError',
+  WidgetState.dragged: 'styleDragged',
+  WidgetState.pressed: 'stylePressed',
+  WidgetState.selected: 'styleSelected',
+  WidgetState.scrolledUnder: 'styleScrolledUnder',
+  WidgetState.hovered: 'styleHovered',
+  WidgetState.focused: 'styleFocused',
+};
+
+String? _textButtonReferenceMessage(CanvasNode node) {
+  final refs = [
+    for (final entry in node.properties.entries)
+      if (entry.value.kind == 'dartObjectReferencePresence') entry.key,
+  ];
+  if (refs.isEmpty) return null;
+  return 'TextButton.${refs.join('/')} preview limitation: isolated Canvas does not execute project or dependency Dart. '
+      '${refs.contains('style') ? 'The configured ButtonStyle appearance is unavailable; this is an explicitly labeled SDK default/theme preview. ' : ''}'
+      '${refs.any((name) => name.endsWith('Builder')) ? 'Project layer content is unavailable; identity layers preserve the real child and SDK builder-dependent clipping. ' : ''}'
+      '${refs.contains('focusNode') || refs.contains('statesController') ? 'Project focus/controller state is unavailable; the SDK button uses isolated local state. ' : ''}'
+      '${refs.any((name) => name.startsWith('on')) ? 'Project callbacks are not invoked; local button interactions use benign no-ops. ' : ''}'
+      'The real SDK button, child, stored values and generated Dart are preserved.';
+}
+
+class _TextButtonPreview extends StatefulWidget {
+  const _TextButtonPreview({required this.message, required this.child});
+  final String message;
+  final Widget child;
+
+  @override
+  State<_TextButtonPreview> createState() => _TextButtonPreviewState();
+}
+
+class _TextButtonPreviewState extends State<_TextButtonPreview> {
+  // Tooltip adds/removes internal render wrappers when its message changes
+  // between empty and nonempty. Retain the actual SDK button across that move.
+  final _contentKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) => Tooltip(
+    message: widget.message,
+    child: Semantics(
+      tooltip: widget.message.isEmpty ? null : widget.message,
+      child: KeyedSubtree(key: _contentKey, child: widget.child),
+    ),
+  );
+}
+
 bool _ignoreInlineTextCommit(
   String widgetId,
   String text,
@@ -38,6 +87,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.TextButton') {
+    return _textButtonReferenceMessage(node);
+  }
   if (node.type == 'flutter.material.RefreshIndicator') {
     return _refreshIndicatorReferenceMessage(node);
   }
@@ -1009,6 +1061,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.CircularProgressIndicator' ||
         node.type == 'flutter.material.RefreshProgressIndicator' ||
         node.type == 'flutter.material.RefreshIndicator' ||
+        node.type == 'flutter.material.TextButton' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -1865,6 +1918,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   bool _isInteractiveSlot(CanvasNode node, String slotName) {
+    if (node.type == 'flutter.material.TextButton' && slotName == 'icon') {
+      return node.properties['variant']?.value == 'icon';
+    }
     if (node.type == 'flutter.material.Badge' && slotName == 'label') {
       return !node.properties.containsKey('count') &&
           node.properties['isLabelVisible']?.value != false;
@@ -2947,6 +3003,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         },
       ),
       'flutter.material.ElevatedButton' => _elevatedButton(context),
+      'flutter.material.TextButton' => _textButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
       'flutter.widgets.Wrap' => _wrap(),
@@ -3314,15 +3371,97 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  bool get _isTextButton => node.type == 'flutter.material.TextButton';
+
+  bool _buttonReferencePresent(String name) =>
+      node.properties[name]?.kind == 'dartObjectReferencePresence';
+
+  IconAlignment? _buttonIconAlignment(String name) =>
+      switch (_enumOrString(name)) {
+        'start' => IconAlignment.start,
+        'end' => IconAlignment.end,
+        _ => null,
+      };
+
+  Widget _textButton(BuildContext context) {
+    final enabled = _boolean('enabled') ?? true;
+    final pressed = _buttonReferencePresent('onPressed');
+    final longPressed = _buttonReferencePresent('onLongPress');
+    final onPressed = enabled && (pressed || !longPressed) ? () {} : null;
+    final onLongPress = enabled && longPressed ? () {} : null;
+    final style = _elevatedButtonStyle(context);
+    final child = _single('child')!;
+    final iconVariant = _string('variant') == 'icon';
+    final clip = node.properties['clipBehavior'];
+    final clipBehavior = clip == null
+        ? (iconVariant ? Clip.none : null)
+        : clip.kind == 'null'
+        ? null
+        : _clipBehavior();
+    if (iconVariant) {
+      return _textButtonPreview(
+        TextButton.icon(
+          onPressed: onPressed,
+          onLongPress: onLongPress,
+          onHover: _buttonReferencePresent('onHover') ? (_) {} : null,
+          onFocusChange: _buttonReferencePresent('onFocusChange')
+              ? (_) {}
+              : null,
+          autofocus: _boolean('autofocus') ?? false,
+          clipBehavior: clipBehavior,
+          style: style,
+          iconAlignment: _buttonIconAlignment('iconAlignment'),
+          icon: _single('icon'),
+          label: child,
+        ),
+      );
+    }
+    return _textButtonPreview(
+      TextButton(
+        onPressed: onPressed,
+        onLongPress: onLongPress,
+        onHover: _buttonReferencePresent('onHover') ? (_) {} : null,
+        onFocusChange: _buttonReferencePresent('onFocusChange') ? (_) {} : null,
+        autofocus: _boolean('autofocus') ?? false,
+        clipBehavior: clipBehavior,
+        isSemanticButton: node.properties.containsKey('isSemanticButton')
+            ? _boolean('isSemanticButton')
+            : true,
+        style: style,
+        child: child,
+      ),
+    );
+  }
+
+  Widget _textButtonPreview(Widget button) {
+    final message = _textButtonReferenceMessage(node) ?? '';
+    return _TextButtonPreview(message: message, child: button);
+  }
+
   ButtonStyle? _elevatedButtonStyle(BuildContext context) {
+    // Project ButtonStyle code is never evaluated in the isolated runner.
+    // The per-node diagnostic explicitly labels this as a default preview.
+    if (_isTextButton && _buttonReferencePresent('style')) return null;
     if (!node.properties.keys.any((name) => name.startsWith('style'))) {
       return null;
     }
-    final themeStyle = ElevatedButtonTheme.of(context).style;
-    final defaultStyle = ElevatedButton(
-      onPressed: () {},
-      child: null,
-    ).defaultStyleOf(context);
+    final themeStyle = _isTextButton
+        ? TextButtonTheme.of(context).style
+        : ElevatedButtonTheme.of(context).style;
+    final ButtonStyleButton defaultButton = !_isTextButton
+        ? ElevatedButton(onPressed: () {}, child: null)
+        : _string('variant') == 'icon'
+        ? TextButton.icon(
+            onPressed: () {},
+            icon: (node.slot('icon')?.children.isNotEmpty ?? false)
+                ? const SizedBox.shrink()
+                : null,
+            label: const SizedBox.shrink(),
+          )
+        : TextButton(onPressed: () {}, child: const SizedBox.shrink());
+    final defaultStyle = defaultButton is TextButton
+        ? defaultButton.defaultStyleOf(context)
+        : (defaultButton as ElevatedButton).defaultStyleOf(context);
     final constraintSizes = _buttonConstraintSizeStateProperties(
       themeMinimum: themeStyle?.minimumSize,
       defaultMinimum: defaultStyle.minimumSize,
@@ -3394,12 +3533,40 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       enableFeedback: _boolean('styleEnableFeedback'),
       alignment: _buttonAlignment(),
       splashFactory: _buttonSplashFactory(),
+      iconAlignment: _isTextButton
+          ? _buttonIconAlignment('styleIconAlignment')
+          : null,
+      backgroundBuilder:
+          _isTextButton && _buttonReferencePresent('styleBackgroundBuilder')
+          ? (_, _, child) => child ?? const SizedBox.shrink()
+          : null,
+      foregroundBuilder:
+          _isTextButton && _buttonReferencePresent('styleForegroundBuilder')
+          ? (_, _, child) => child ?? const SizedBox.shrink()
+          : null,
     );
   }
 
   WidgetStateProperty<T?>? _buttonStateProperty<T>(
     T? Function(String prefix) resolve,
   ) {
+    if (_isTextButton) {
+      final values = {
+        for (final entry in _textButtonStateLayers.entries)
+          entry.key: resolve(entry.value),
+      };
+      if (values.values.every((value) => value == null) &&
+          resolve('style') == null) {
+        return null;
+      }
+      return WidgetStateProperty<T?>.fromMap({
+        WidgetState.disabled: values[WidgetState.disabled],
+        for (final entry in values.entries)
+          if (entry.key != WidgetState.disabled && entry.value != null)
+            entry.key: entry.value,
+        WidgetState.any: ?resolve('style'),
+      });
+    }
     final disabled = resolve('styleDisabled');
     final pressed = resolve('stylePressed');
     final hovered = resolve('styleHovered');
@@ -3882,13 +4049,16 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   };
 
   bool _buttonHasAnyStateGroup(bool Function(String prefix) hasGroup) =>
-      const <String>[
-        'styleDisabled',
-        'stylePressed',
-        'styleHovered',
-        'styleFocused',
-        'style',
-      ].any(hasGroup);
+      (_isTextButton
+              ? <String>[..._textButtonStateLayers.values, 'style']
+              : const <String>[
+                  'styleDisabled',
+                  'stylePressed',
+                  'styleHovered',
+                  'styleFocused',
+                  'style',
+                ])
+          .any(hasGroup);
 
   List<String> _buttonActiveStateLayers(
     Set<WidgetState> states,
@@ -3901,12 +4071,20 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     }
     return <String>[
       if (hasGroup('style')) 'style',
-      if (states.contains(WidgetState.focused) && hasGroup('styleFocused'))
-        'styleFocused',
-      if (states.contains(WidgetState.hovered) && hasGroup('styleHovered'))
-        'styleHovered',
-      if (states.contains(WidgetState.pressed) && hasGroup('stylePressed'))
-        'stylePressed',
+      if (_isTextButton)
+        for (final entry in _textButtonStateLayers.entries.toList().reversed)
+          if (entry.key != WidgetState.disabled &&
+              states.contains(entry.key) &&
+              hasGroup(entry.value))
+            entry.value,
+      if (!_isTextButton) ...[
+        if (states.contains(WidgetState.focused) && hasGroup('styleFocused'))
+          'styleFocused',
+        if (states.contains(WidgetState.hovered) && hasGroup('styleHovered'))
+          'styleHovered',
+        if (states.contains(WidgetState.pressed) && hasGroup('stylePressed'))
+          'stylePressed',
+      ],
     ];
   }
 

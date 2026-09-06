@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetProp
 import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
@@ -266,7 +267,9 @@ public final class DartRegionGenerator {
                     "Validated widget type '" + current.node().type().value()
                     + "' disappeared from the generation catalog.")));
             usedDefinitions.putIfAbsent(definition.typeId().value(), definition);
-            current.node().properties().values().stream()
+            current.node().properties().entrySet().stream()
+                    .filter(entry -> emittedReferenceProperty(current.node(), entry.getKey()))
+                    .map(Map.Entry::getValue)
                     .filter(PropertyValue.DartObjectReferenceValue.class::isInstance)
                     .map(PropertyValue.DartObjectReferenceValue.class::cast)
                     .map(PropertyValue.DartObjectReferenceValue::libraryUri)
@@ -324,6 +327,13 @@ public final class DartRegionGenerator {
         return new GenerationContext(catalog, planner.plan(), planner, 0);
     }
 
+    private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
+        return !node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                || !new PropertyValue.BooleanValue(false).equals(
+                        node.properties().get(new PropertyName("enabled")))
+                || !(name.value().equals("onPressed") || name.value().equals("onLongPress"));
+    }
+
     private static boolean requiresDartConvert(PropertyValue value) {
         if (value instanceof PropertyValue.ImageProviderValue provider) {
             return provider.isUnresolved();
@@ -374,7 +384,15 @@ public final class DartRegionGenerator {
                 ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
+        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+            boolean icon = TextButtonWidgetPropertySchema.isIcon(node);
+            boolean hasIcon = node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
+                    && slot.child().isPresent();
+            context.buttonFamilies().put(node.id(), new ButtonFamily("TextButton", "TextButtonTheme", icon, hasIcon));
+        }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                    && TextButtonWidgetPropertySchema.isCompound(property.name())) continue;
             if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
                     && property.name().value().equals("variant")) continue;
             if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
@@ -465,6 +483,8 @@ public final class DartRegionGenerator {
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
+            if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                    && slot.name().value().equals("icon") && !TextButtonWidgetPropertySchema.isIcon(node)) continue;
             if (BadgeWidgetPropertySchema.isCountMode(node) && slot.name().value().equals("label")) continue;
             if (value != null) {
                 if ((node.type().value().equals("flutter.widgets.Transform")
@@ -480,7 +500,8 @@ public final class DartRegionGenerator {
                 String slotPath = path + "/slots/" + pointer(slot.name().value());
                 arguments.add(new ConstructorArgument(
                         slot.parameter(),
-                        slot.name().value(),
+                        TextButtonWidgetPropertySchema.isIcon(node) && slot.name().value().equals("child")
+                                ? "label" : slot.name().value(),
                         true,
                     renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
             }
@@ -536,7 +557,8 @@ public final class DartRegionGenerator {
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
         }
-        if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)) {
+        if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)
+                || node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
             appendElevatedButtonCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
@@ -575,7 +597,8 @@ public final class DartRegionGenerator {
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
         boolean iconThemeMerge = node.type().equals(IconThemeWidgetPropertySchema.ICON_THEME_TYPE)
                 && new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("merge")));
-        boolean constant = !BadgeWidgetPropertySchema.isCountMode(node) && !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
+        boolean constant = !TextButtonWidgetPropertySchema.isIcon(node)
+                && !BadgeWidgetPropertySchema.isCountMode(node) && !clipPathShape && !selectionMerge && !iconThemeMerge && definition.constConstructor()
                 && arguments.stream().allMatch(value -> value.value().constant());
         RenderedSymbol renderedClass = context.planner().renderedSymbol(
                 definition.dartLibraryUri(), definition.dartClassName());
@@ -589,7 +612,12 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
-        if (clipPathShape) {
+        if (TextButtonWidgetPropertySchema.isIcon(node)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":textButtonIconConstructor",
+                    constructor.length() + 1, "icon", renderedClass.libraryUri(),
+                    path + "/properties/variant", Optional.of(node.id())));
+            constructor += ".icon";
+        } else if (clipPathShape) {
             constructorOccurrences.add(occurrence(
                     "widget:" + node.id() + ":shapeFactory", constructor.length() + 1,
                     "shape", renderedClass.libraryUri(), path, Optional.of(node.id())));
@@ -906,6 +934,21 @@ public final class DartRegionGenerator {
         }
     }
 
+    private static List<ElevatedButtonState> buttonStates(WidgetNode node) {
+        if (!node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+            return ELEVATED_BUTTON_STATES;
+        }
+        return TextButtonWidgetPropertySchema.statePriority().stream()
+                .map(state -> new ElevatedButtonState(state.equals("any") ? "style"
+                        : "style" + Character.toUpperCase(state.charAt(0)) + state.substring(1), state))
+                .toList();
+    }
+
+    private static List<String> enabledButtonStates(Map<String, ?> layers) {
+        return layers.keySet().stream()
+                .filter(state -> !state.equals("disabled") && !state.equals("any")).toList();
+    }
+
     private void appendElevatedButtonCompoundArguments(
             WidgetNode node,
             WidgetDefinition definition,
@@ -915,8 +958,13 @@ public final class DartRegionGenerator {
             List<ConstructorArgument> arguments) {
         appendElevatedButtonCallbacks(node, definition, path, context, arguments);
 
+        // A project ButtonStyle is emitted by the ordinary direct-property path.
+        // It is mutually exclusive with every local style leaf.
+        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                && node.properties().containsKey(new PropertyName("style"))) return;
+
         LinkedHashMap<String, Map<String, RenderedValue>> states = new LinkedHashMap<>();
-        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+        for (ElevatedButtonState state : buttonStates(node)) {
             states.put(state.key(), renderElevatedButtonState(
                     node, definition, state.prefix(), path, valueIndent + 2, context));
         }
@@ -1121,21 +1169,9 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
-        Map<String, RenderedValue> disabled = states.get("disabled");
-        Map<String, RenderedValue> pressed = states.get("pressed");
-        Map<String, RenderedValue> hovered = states.get("hovered");
-        Map<String, RenderedValue> focused = states.get("focused");
-        Map<String, RenderedValue> fallback = states.get("any");
-        RenderedValue disabledValue = disabled.get(dartName);
-        RenderedValue pressedValue = pressed.get(dartName);
-        RenderedValue hoveredValue = hovered.get(dartName);
-        RenderedValue focusedValue = focused.get(dartName);
-        RenderedValue fallbackValue = fallback.get(dartName);
-        if (disabledValue == null
-                && pressedValue == null
-                && hoveredValue == null
-                && focusedValue == null
-                && fallbackValue == null) {
+        RenderedValue disabledValue = states.get("disabled").get(dartName);
+        RenderedValue fallbackValue = states.get("any").get(dartName);
+        if (states.values().stream().noneMatch(values -> values.containsKey(dartName))) {
             return;
         }
 
@@ -1152,14 +1188,11 @@ public final class DartRegionGenerator {
                     scalar("null", true, path + "/properties/styleDisabled",
                             widgetId, context)));
         }
-        if (pressedValue != null) {
-            entries.add(new ElevatedButtonStateEntry("pressed", pressedValue));
-        }
-        if (hoveredValue != null) {
-            entries.add(new ElevatedButtonStateEntry("hovered", hoveredValue));
-        }
-        if (focusedValue != null) {
-            entries.add(new ElevatedButtonStateEntry("focused", focusedValue));
+        for (String state : enabledButtonStates(states)) {
+            RenderedValue value = states.get(state).get(dartName);
+            if (value != null) {
+                entries.add(new ElevatedButtonStateEntry(state, value));
+            }
         }
         if (fallbackValue != null) {
             entries.add(new ElevatedButtonStateEntry("any", fallbackValue));
@@ -1339,7 +1372,7 @@ public final class DartRegionGenerator {
         rendered.append("  }\n");
 
         ElevatedButtonLayer base = layers.get("any");
-        List<String> configuredStates = List.of("focused", "hovered", "pressed")
+        List<String> configuredStates = enabledButtonStates(layers).reversed()
                 .stream()
                 .filter(state -> layers.get(state).configured())
                 .toList();
@@ -1692,7 +1725,7 @@ public final class DartRegionGenerator {
             appendElevatedSideAssignment(
                     rendered, occurrences, base, propertyPath, "any", node.id());
         }
-        for (String state : List.of("focused", "hovered", "pressed")) {
+        for (String state : enabledButtonStates(layers).reversed()) {
             ElevatedButtonLayer layer = layers.get(state);
             if (!layer.configured()) {
                 continue;
@@ -1772,7 +1805,7 @@ public final class DartRegionGenerator {
             StableId widgetId,
             String path,
             String leafId) {
-        for (String state : List.of("pressed", "hovered", "focused")) {
+        for (String state : enabledButtonStates(layers)) {
             RenderedValue value = layers.get(state).values().get(suffix);
             if (value == null) {
                 continue;
@@ -1802,7 +1835,7 @@ public final class DartRegionGenerator {
             GenerationContext context,
             List<String> suffixes) {
         LinkedHashMap<String, ElevatedButtonLayer> layers = new LinkedHashMap<>();
-        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+        for (ElevatedButtonState state : buttonStates(node)) {
             LinkedHashMap<String, RenderedValue> values = new LinkedHashMap<>();
             for (String suffix : suffixes) {
                 String propertyName = state.prefix() + suffix;
@@ -1830,7 +1863,7 @@ public final class DartRegionGenerator {
             GenerationContext context,
             String frameworkVariable) {
         RenderedSymbol themeType = context.planner().renderedSymbol(
-                MATERIAL_IMPORT, "ElevatedButtonTheme");
+                MATERIAL_IMPORT, context.buttonFamily(widgetId).themeName());
         appendElevatedSymbol(
                 rendered, occurrences, themeType,
                 "widget:" + widgetId + ":button-style:" + field + ":theme:" + path,
@@ -1851,20 +1884,51 @@ public final class DartRegionGenerator {
         RenderedSymbol styleType = context.planner().renderedSymbol(
                 MATERIAL_IMPORT, "ButtonStyle");
         RenderedSymbol buttonType = context.planner().renderedSymbol(
-                MATERIAL_IMPORT, "ElevatedButton");
+                MATERIAL_IMPORT, context.buttonFamily(widgetId).className());
         rendered.append("  final ");
         appendElevatedSymbol(
                 rendered, occurrences, styleType,
                 "widget:" + widgetId + ":button-style:framework-style-type:"
                 + scope + ':' + path,
                 path, widgetId);
-        rendered.append(" frameworkDefaults = (const ");
+        ButtonFamily family = context.buttonFamily(widgetId);
+        rendered.append(" frameworkDefaults = (");
+        if (!family.iconConstructor()) rendered.append("const ");
         appendElevatedSymbol(
                 rendered, occurrences, buttonType,
                 "widget:" + widgetId + ":button-style:default-button:"
                 + scope + ':' + path,
                 path, widgetId);
-        rendered.append("(onPressed: null, child: null)).defaultStyleOf(context);\n");
+        if (family.className().equals("ElevatedButton")) {
+            rendered.append("(onPressed: null, child: null)).defaultStyleOf(context);\n");
+        } else {
+            if (family.iconConstructor()) {
+                rendered.append('.');
+                int offset = rendered.length();
+                rendered.append("icon");
+                occurrences.add(occurrence("widget:" + widgetId + ":button-style:default-icon:"
+                        + scope + ':' + path, offset, "icon", MATERIAL_IMPORT, path, Optional.of(widgetId)));
+            }
+            rendered.append("(onPressed: null, ")
+                    .append(family.iconConstructor() ? "label: " : "child: ");
+            appendButtonDefaultPlaceholder(rendered, occurrences, widgetId, context, path, scope + ":child");
+            if (family.iconConstructor() && family.iconPresent()) {
+                rendered.append(", icon: ");
+                appendButtonDefaultPlaceholder(rendered, occurrences, widgetId, context, path, scope + ":icon");
+            }
+            rendered.append(")).defaultStyleOf(context);\n");
+        }
+    }
+
+    private void appendButtonDefaultPlaceholder(StringBuilder rendered,
+            List<GeneratedDartSymbolOccurrence> occurrences, StableId widgetId,
+            GenerationContext context, String path, String scope) {
+        RenderedSymbol placeholder = context.planner().renderedSymbol(WIDGETS_IMPORT, "SizedBox");
+        rendered.append("const ");
+        appendElevatedSymbol(rendered, occurrences, placeholder,
+                "widget:" + widgetId + ":button-style:default-placeholder:" + scope + ':' + path,
+                path, widgetId);
+        rendered.append("()");
     }
 
     private static void appendElevatedLeafFallback(
@@ -2050,7 +2114,7 @@ public final class DartRegionGenerator {
         }
         rendered.append("  }\n");
 
-        for (String state : List.of("pressed", "hovered", "focused")) {
+        for (String state : enabledButtonStates(layers)) {
             ElevatedButtonLayer layer = layers.get(state);
             if (!layer.values().containsKey("ShapeKind")) {
                 continue;
@@ -2289,7 +2353,7 @@ public final class DartRegionGenerator {
             String branch,
             RenderedSymbol stateType) {
         rendered.append(dartName).append(": ");
-        for (String state : List.of("pressed", "hovered", "focused")) {
+        for (String state : enabledButtonStates(layers)) {
             RenderedValue value = layers.get(state).values().get(
                     "ShapeRadius" + suffix);
             if (value == null) {
@@ -2414,7 +2478,7 @@ public final class DartRegionGenerator {
                     rendered, occurrences, base, "any",
                     propertyPath, node.id(), context);
         }
-        for (String state : List.of("focused", "hovered", "pressed")) {
+        for (String state : enabledButtonStates(layers).reversed()) {
             ElevatedButtonTextLayer layer = layers.get(state);
             if (!layer.configured()) {
                 continue;
@@ -2442,7 +2506,7 @@ public final class DartRegionGenerator {
             String path,
             GenerationContext context) {
         LinkedHashMap<String, ElevatedButtonTextLayer> layers = new LinkedHashMap<>();
-        for (ElevatedButtonState state : ELEVATED_BUTTON_STATES) {
+        for (ElevatedButtonState state : buttonStates(node)) {
             ArrayList<ElevatedButtonTextMember> styleMembers = new ArrayList<>();
             ArrayList<ElevatedButtonTextMember> localeMembers = new ArrayList<>();
             ArrayList<ElevatedButtonTextMember> decorationMembers = new ArrayList<>();
@@ -2458,8 +2522,9 @@ public final class DartRegionGenerator {
                     continue;
                 }
                 ElevatedButtonWidgetPropertySchema.Definition binding =
-                        ElevatedButtonWidgetPropertySchema.find(property.name())
-                                .orElseThrow();
+                        node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                                ? TextButtonWidgetPropertySchema.sharedStyleDefinition(property.name().value())
+                                : ElevatedButtonWidgetPropertySchema.find(property.name()).orElseThrow();
                 String propertyPath = path + "/properties/" + pointer(propertyName);
                 RenderedValue rendered = switch (binding.encoding()) {
                     case SCALAR -> renderProperty(
@@ -2939,6 +3004,14 @@ public final class DartRegionGenerator {
         if (splash != null) {
             style.add(new CompositeMember("splashFactory", 22, splash));
         }
+        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) {
+            addElevatedCommonDirect(node, definition, "styleIconAlignment", "iconAlignment", 13,
+                    path, context, style);
+            addElevatedCommonDirect(node, definition, "styleBackgroundBuilder", "backgroundBuilder", 23,
+                    path, context, style);
+            addElevatedCommonDirect(node, definition, "styleForegroundBuilder", "foregroundBuilder", 24,
+                    path, context, style);
+        }
     }
 
     private RenderedValue renderElevatedVisualDensity(
@@ -2970,7 +3043,7 @@ public final class DartRegionGenerator {
         RenderedSymbol densityType = context.planner().renderedSymbol(
                 MATERIAL_IMPORT, "VisualDensity");
         RenderedSymbol themeType = context.planner().renderedSymbol(
-                MATERIAL_IMPORT, "ElevatedButtonTheme");
+                MATERIAL_IMPORT, context.buttonFamily(node.id()).themeName());
         StringBuilder rendered = new StringBuilder("(() {\n");
         ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
         appendElevatedFrameworkDefaultsDeclaration(
@@ -4814,7 +4887,7 @@ public final class DartRegionGenerator {
             int shadowOffset = item.length();
             item.append(shadowType.text()).append("(color: ");
             itemOccurrences.add(occurrence(
-                    "widget:" + widgetId + ":shadow:" + shadow.id(),
+                    "widget:" + widgetId + ":shadow:" + shadow.id() + ':' + itemPath,
                     shadowOffset + shadowType.nameOffset(), shadowType.name(),
                     shadowType.libraryUri(), itemPath, Optional.of(widgetId)));
             appendRendered(item, itemOccurrences, color);
@@ -4825,7 +4898,7 @@ public final class DartRegionGenerator {
                     .append(dartDouble(shadow.offsetY())).append("), blurRadius: ")
                     .append(dartDouble(shadow.blurRadius())).append(')');
             itemOccurrences.add(occurrence(
-                    "widget:" + widgetId + ":shadow-offset:" + shadow.id(),
+                    "widget:" + widgetId + ":shadow-offset:" + shadow.id() + ':' + itemPath,
                     offsetOffset + offsetType.nameOffset(), offsetType.name(),
                     offsetType.libraryUri(), itemPath, Optional.of(widgetId)));
             items.add(scalar(item.toString(), color.constant(), itemPath,
@@ -4851,7 +4924,7 @@ public final class DartRegionGenerator {
                     context.maxRenderedUtf8Bytes()) + ", " + feature.value() + ')';
             items.add(scalar(item, true, itemPath, widgetId, context,
                     List.of(occurrence(
-                            "widget:" + widgetId + ":font-feature:" + feature.id(),
+                            "widget:" + widgetId + ":font-feature:" + feature.id() + ':' + itemPath,
                             "const ".length() + type.nameOffset(), type.name(),
                             type.libraryUri(), itemPath, Optional.of(widgetId)))));
         }
@@ -4875,7 +4948,7 @@ public final class DartRegionGenerator {
                     + dartDouble(variation.value()) + ')';
             items.add(scalar(item, true, itemPath, widgetId, context,
                     List.of(occurrence(
-                            "widget:" + widgetId + ":font-variation:" + variation.id(),
+                            "widget:" + widgetId + ":font-variation:" + variation.id() + ':' + itemPath,
                             "const ".length() + type.nameOffset(), type.name(),
                             type.libraryUri(), itemPath, Optional.of(widgetId)))));
         }
@@ -4895,7 +4968,7 @@ public final class DartRegionGenerator {
         rendered.append(elementType.text()).append(">[");
         ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
         occurrences.add(occurrence(
-                "widget:" + widgetId + ':' + occurrenceKind + ":element-type",
+                "widget:" + widgetId + ':' + occurrenceKind + ":element-type:" + path,
                 typeOffset + elementType.nameOffset(), elementType.name(),
                 elementType.libraryUri(), path, Optional.of(widgetId)));
         for (int index = 0; index < items.size(); index++) {
@@ -6208,8 +6281,21 @@ public final class DartRegionGenerator {
             WidgetCatalog catalog,
             DartImportPlan importPlan,
             ImportPlanner planner,
-            int maxRenderedUtf8Bytes) {
+            int maxRenderedUtf8Bytes,
+            Map<StableId, ButtonFamily> buttonFamilies) {
+        private GenerationContext(WidgetCatalog catalog, DartImportPlan importPlan,
+                ImportPlanner planner, int maxRenderedUtf8Bytes) {
+            this(catalog, importPlan, planner, maxRenderedUtf8Bytes, new LinkedHashMap<>());
+        }
+
+        ButtonFamily buttonFamily(StableId widgetId) {
+            return buttonFamilies.getOrDefault(widgetId,
+                    new ButtonFamily("ElevatedButton", "ElevatedButtonTheme", false, false));
+        }
     }
+
+    private record ButtonFamily(String className, String themeName,
+            boolean iconConstructor, boolean iconPresent) { }
 
     private record WidgetAtPath(WidgetNode node, String path) {
     }

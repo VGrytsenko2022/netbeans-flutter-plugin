@@ -100,6 +100,7 @@ public final class BuiltInWidgetCatalog {
             circularProgressIndicator(),
             refreshProgressIndicator(),
             refreshIndicator(),
+            textButton(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -2392,6 +2393,63 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.material", 100, 40, "Text Field"),
                 List.copyOf(properties),
                 List.of());
+    }
+
+    private static WidgetDefinition textButton() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        int order = 0;
+        properties.add(namedProperty("enabled", order++, true,
+                any(PropertyValueKind.BOOLEAN), new PropertyValue.BooleanValue(true)));
+        for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange")) {
+            properties.add(namedProperty(name, order++, false,
+                    List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                            name.equals("onPressed") || name.equals("onLongPress")
+                                    ? "VoidCallback" : "ValueChanged<bool>"))));
+        }
+        properties.add(namedProperty("focusNode", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"))));
+        properties.add(namedProperty("autofocus", order++, false, any(PropertyValueKind.BOOLEAN)));
+        List<PropertyValueConstraint> clip = new ArrayList<>(enumValues(
+                "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"));
+        clip.addAll(any(PropertyValueKind.NULL));
+        properties.add(namedProperty("clipBehavior", order++, false, List.copyOf(clip)));
+        properties.add(namedProperty("statesController", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStatesController"))));
+        List<PropertyValueConstraint> semantics = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
+        semantics.addAll(any(PropertyValueKind.NULL));
+        properties.add(namedProperty("isSemanticButton", order++, false, List.copyOf(semantics)));
+        properties.add(namedProperty("iconAlignment", order++, false,
+                materialEnumValues("IconAlignment", "start", "end")));
+        properties.add(namedProperty("variant", order++, true,
+                stringPattern("(?:standard|icon)", "TextButton constructor variant"),
+                new PropertyValue.StringValue("standard")));
+        for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
+            order = appendElevatedButtonStateProperties(properties, prefix, order);
+            order = appendElevatedButtonTextStyleProperties(properties, prefix, order);
+        }
+        WidgetDefinition shared = elevatedButton();
+        for (PropertyDefinition property : shared.properties()) {
+            if (ElevatedButtonWidgetPropertySchema.find(property.name()).orElseThrow().group()
+                    == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE) {
+                properties.add(namedProperty(property.name().value(), order++, false, property.constraints()));
+            }
+        }
+        properties.add(namedProperty("styleIconAlignment", order++, false,
+                materialEnumValues("IconAlignment", "start", "end")));
+        for (String name : List.of("styleBackgroundBuilder", "styleForegroundBuilder")) {
+            properties.add(namedProperty(name, order++, false,
+                    List.of(new PropertyValueConstraint.DartObjectReferenceValues("ButtonLayerBuilder"))));
+        }
+        properties.add(namedProperty("style", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues("ButtonStyle"))));
+        if (properties.size() != TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("TextButton catalog property count: " + properties.size());
+        }
+        return widget("flutter.material.TextButton", "TextButton", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 140, "TextButton"), List.copyOf(properties),
+                List.of(singleSlot("child", order++, true, 1, ANY_WIDGET),
+                        singleSlot("icon", order, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition elevatedButton() {

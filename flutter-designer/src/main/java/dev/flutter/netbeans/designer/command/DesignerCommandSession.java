@@ -606,6 +606,30 @@ public final class DesignerCommandSession {
                 saved, nextAnchor, "Exact-pair command history re-anchor");
     }
 
+    /**
+     * Saves one retained metadata revision in an exact historical Source envelope.
+     * Only unmanaged bytes may differ; no generated expression or analyzer proof
+     * is invented. The caller owns persistence and the exact native history fence.
+     */
+    public DesignerCommandSession markSavedWithSourceEnvelope(byte[] exactDart) {
+        Objects.requireNonNull(exactDart, "exactDart");
+        DesignerCommandRevision saved = current();
+        if (!dirty() || saved.persistenceKind() != DesignerRevisionPersistenceKind.FD_ONLY) {
+            throw new IllegalArgumentException("A metadata Source envelope requires a dirty FD_ONLY revision");
+        }
+        DartSourceIntegrityScanner scanner = new DartSourceIntegrityScanner(limits.sourceLimits());
+        DartSourceIntegrityResult source = scanner.scan(exactDart, saved.document().source());
+        DartThreeWayIntegrityResult threeWay = new DartThreeWayIntegrityGate(scanner)
+                .evaluate(source, saved.document().source(), saved.generation());
+        if (!threeWay.onDiskThreeWayMatch()
+                || !exactManagedPayloadsMatch(saved.sourceIntegrity(), source)) {
+            throw new IllegalArgumentException("The metadata Source envelope must retain exact managed payloads");
+        }
+        return markSavedAtAnchor(saved, new DurableAnchor(saved.fdSnapshot(), saved.document(),
+                exactDart.clone(), saved.generation(), source, threeWay),
+                "Metadata Source-envelope history re-anchor");
+    }
+
     private DesignerCommandSession markSavedAtAnchor(
             DesignerCommandRevision saved,
             DurableAnchor nextAnchor,

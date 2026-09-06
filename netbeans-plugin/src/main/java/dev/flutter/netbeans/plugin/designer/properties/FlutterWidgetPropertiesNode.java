@@ -35,6 +35,7 @@ import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetProp
 import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
@@ -517,6 +518,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.equals(
                 widget.type())) {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
+        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())) {
+            addTextButtonPropertySets(sheet, hasSlotTab);
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {
             addTextFieldPropertySets(sheet, hasSlotTab);
         } else if (ListViewWidgetPropertySchema.LIST_VIEW_TYPE.equals(widget.type())) {
@@ -774,6 +777,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
+        if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())) {
+            return slot.name().value().equals("icon")
+                    ? "Optional icon for TextButton.icon only. Select the Icon constructor before adding or moving an icon here. "
+                            + "Move or clear a populated Icon before selecting Standard or setting Semantic button. No child is silently removed."
+                    : "Required child, emitted as Child for Standard or Label for Icon. Its stable identity and content survive all constructor changes. "
+                            + "Replace it atomically; it cannot be removed or cleared. Button foreground style is inherited by text and icon descendants.";
+        }
         if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type()) && CHILD_SLOT.equals(slot.name())) {
             return "Required child retained by all three refresh constructors. Usually contains a vertical ScrollView; "
                     + "short contents need AlwaysScrollableScrollPhysics on that descendant. Any widget is accepted, "
@@ -2243,6 +2253,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     "continuousRectangle");
             default -> java.util.List.of();
         };
+    }
+
+    private void addTextButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<TextButtonWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(TextButtonWidgetPropertySchema.Group.class);
+        for (var group : TextButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = TextButtonWidgetPropertySchema.find(property.name()).orElseThrow();
+            boolean variant = property.name().value().equals("variant");
+            String hint = TextButtonWidgetPropertySchema.localStyleProperties().contains(property.name().value())
+                    ? " Setting a local leaf atomically clears Button style. State priority is disabled, error, dragged, pressed, selected, scrolledUnder, hovered, focused, default. Disabled remains isolated from enabled buckets. Unset preserves TextButtonTheme/framework fallback."
+                    : property.name().value().equals("style")
+                            ? " Setting this reference atomically clears all local style leaves; resetting it does not restore discarded leaves. Undo restores the exact prior style."
+                            : " Constructor changes retain Child. A populated Icon must be moved or cleared before selecting Standard; no widget is silently deleted.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint,
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    variant ? TextButtonWidgetPropertySchema.variants() : elevatedButtonStringPresets(property.name())));
+        }
     }
 
     private void addElevatedButtonPropertySets(
@@ -3725,6 +3755,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
+        if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(currentWidget.type())) {
+            return textButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(currentWidget.type())) {
             return refreshIndicatorPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4028,6 +4061,95 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return result.toString();
     }
 
+    private DesignerCommand textButtonPropertyCommand(WidgetNode currentWidget, PropertyName name, FlutterPropertyCellValue accepted) {
+        if (accepted.explicitValue().isEmpty()) {
+            var resets = new java.util.LinkedHashSet<PropertyName>();
+            if (name.value().endsWith("TextInherit") && currentWidget.properties().containsKey(name)) {
+                for (String prefix : TextButtonWidgetPropertySchema.statePrefixes())
+                    for (String suffix : java.util.List.of("TextInherit", "TextTheme")) {
+                        var key = new PropertyName(prefix + suffix);
+                        if (currentWidget.properties().containsKey(key)) resets.add(key);
+                    }
+            } else if (java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(name.value())) {
+                for (String key : java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY"))
+                    if (currentWidget.properties().containsKey(new PropertyName(key))) resets.add(new PropertyName(key));
+            }
+            if (resets.size() > 1) return new PatchProperties(currentWidget.id(), resets.stream()
+                    .<PatchProperties.Patch>map(PatchProperties.ResetPatch::new).toList());
+            return ordinaryPropertyCommand(currentWidget, name, accepted);
+        }
+        var value = accepted.explicitValue().orElseThrow();
+        var variant = new PropertyName("variant"); var semantics = new PropertyName("isSemanticButton");
+        var alignment = new PropertyName("iconAlignment"); var style = new PropertyName("style");
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        if (name.equals(style)) {
+            for (String local : TextButtonWidgetPropertySchema.localStyleProperties()) {
+                var key = new PropertyName(local);
+                if (currentWidget.properties().containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
+            }
+        } else if (TextButtonWidgetPropertySchema.localStyleProperties().contains(name.value()) && currentWidget.properties().containsKey(style)) {
+            patches.add(new PatchProperties.ResetPatch(style));
+        }
+        textButtonStyleDependencies(currentWidget, name, value, patches);
+        boolean selectingIcon = name.equals(variant) && new PropertyValue.StringValue("icon").equals(value);
+        boolean selectingStandard = name.equals(variant) && new PropertyValue.StringValue("standard").equals(value);
+        if (selectingIcon || name.equals(alignment)) {
+            if (currentWidget.properties().containsKey(semantics)) patches.add(new PatchProperties.ResetPatch(semantics));
+            if (name.equals(alignment) && !TextButtonWidgetPropertySchema.isIcon(currentWidget))
+                patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("icon")));
+        } else if (selectingStandard || name.equals(semantics)) {
+            var icon = currentWidget.slots().get(new SlotName("icon"));
+            if (icon instanceof WidgetSlot.SingleSlot single && single.child().isPresent())
+                throw new IllegalArgumentException("Cannot set " + (name.equals(semantics) ? "Semantic button" : "Constructor Standard")
+                        + " on TextButton '" + currentWidget.id() + "': Icon contains widget '" + single.child().orElseThrow().id()
+                        + "'. Move or clear Icon first; the existing icon will not be deleted.");
+            if (currentWidget.properties().containsKey(alignment)) patches.add(new PatchProperties.ResetPatch(alignment));
+            if (name.equals(semantics) && TextButtonWidgetPropertySchema.isIcon(currentWidget))
+                patches.add(new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("standard")));
+        }
+        patches.add(new PatchProperties.SetPatch(name, value));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, name, accepted)
+                : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private static void textButtonStyleDependencies(WidgetNode widget, PropertyName name,
+            PropertyValue value, java.util.List<PatchProperties.Patch> patches) {
+        String edited = name.value();
+        for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
+            if (edited.equals(prefix + "TextBackground") || edited.equals(prefix + "TextBackgroundColor")) {
+                var opposite = new PropertyName(prefix + (edited.endsWith("Color") ? "TextBackground" : "TextBackgroundColor"));
+                if (widget.properties().containsKey(opposite)) patches.add(new PatchProperties.ResetPatch(opposite));
+            }
+            if (edited.equals(prefix + "TextInherit") || edited.equals(prefix + "TextTheme")) {
+                var inherit = edited.endsWith("TextInherit") ? value : widget.properties().getOrDefault(
+                        new PropertyName("styleTextInherit"), widget.properties().getOrDefault(
+                        new PropertyName("styleDisabledTextInherit"), new PropertyValue.BooleanValue(true)));
+                for (String peer : TextButtonWidgetPropertySchema.statePrefixes()) {
+                    var key = new PropertyName(peer + "TextInherit");
+                    if (!key.equals(name) && (peer.equals("style") || peer.equals("styleDisabled") || peer.equals(prefix)
+                            || widget.properties().containsKey(key) || widget.properties().containsKey(new PropertyName(peer + "TextTheme")))
+                            && !inherit.equals(widget.properties().get(key)))
+                        patches.add(new PatchProperties.SetPatch(key, inherit));
+                }
+            }
+            if (edited.startsWith(prefix + "Shape") && (edited.contains("Radius") || edited.endsWith("Eccentricity"))) {
+                var kind = new PropertyName(prefix + "ShapeKind");
+                if (!widget.properties().containsKey(kind) && (prefix.equals("styleDisabled")
+                        || !widget.properties().containsKey(new PropertyName("styleShapeKind"))))
+                    patches.add(new PatchProperties.SetPatch(kind, new PropertyValue.StringValue(
+                            edited.endsWith("Eccentricity") ? "circle" : "roundedRectangle")));
+            }
+        }
+        if (java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(edited)) {
+            for (String key : java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY")) {
+                var property = new PropertyName(key);
+                if (!property.equals(name) && !widget.properties().containsKey(property))
+                    patches.add(new PatchProperties.SetPatch(property, key.endsWith("Kind")
+                            ? new PropertyValue.StringValue("physical") : new PropertyValue.DoubleValue(java.math.BigDecimal.ZERO)));
+            }
+        }
+    }
+
     private DesignerCommand refreshIndicatorPropertyCommand(WidgetNode currentWidget,
             PropertyName name, FlutterPropertyCellValue accepted) {
         if (accepted.explicitValue().isEmpty()) return ordinaryPropertyCommand(currentWidget, name, accepted);
@@ -4069,13 +4191,23 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "no merge argument is emitted.";
         } else if ((CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
                 || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())
-                || RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type()))
+                || RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
+                || TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()))
                 && "variant".equals(property.name().value())) {
             reset = " This required Designer constructor selector cannot be unset or reset; "
                     + "no variant argument is emitted.";
         } else if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
                 && "onRefresh".equals(property.name().value())) {
             reset = " Restore Default removes the project reference and generates onRefresh: () async {}; the required callback is not null or omitted.";
+        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && "onPressed".equals(property.name().value())) {
+            reset = " Restore Default removes the project callback, not the required Dart argument. Enabled with no activation callbacks generates a no-op; disabled or long-press-only emits onPressed: null.";
+        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && property.name().value().endsWith("TextInherit")) {
+            reset = " Editing Text inherit keeps all configured state inherit flags consistent. Restore Default removes every Text inherit and Text theme selection together, preserving other style fields.";
+        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())
+                && java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(property.name().value())) {
+            reset = " Editing seeds missing alignment components (Physical, X 0, Y 0). Restore Default removes the complete style alignment.";
+        } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type()) && "enabled".equals(property.name().value())) {
+            reset = " Required Designer activation selector; cannot be unset or reset. No enabled argument is emitted.";
         } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";
         } else if (TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE.equals(widget.type())) {

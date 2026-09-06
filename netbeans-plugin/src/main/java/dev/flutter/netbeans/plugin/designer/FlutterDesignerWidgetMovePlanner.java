@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -135,6 +136,7 @@ public final class FlutterDesignerWidgetMovePlanner {
         WidgetDefinition parentDefinition = context.definition();
         List<SlotDefinition> compatible = parentDefinition.slots().stream()
                 .filter(slot -> BadgeWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
+                .filter(slot -> TextButtonWidgetPropertySchema.slotUnavailableReason(context.parent().node(), slot.name()).isEmpty())
                 .filter(slot -> WidgetPlacementRules.accepts(
                         parentDefinition, slot, sourceDefinition))
                 .toList();
@@ -301,11 +303,12 @@ public final class FlutterDesignerWidgetMovePlanner {
             WidgetDefinition parentDefinition,
             SlotDefinition slot,
             int destinationIndex) {
-        Optional<String> unavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name());
+        Optional<String> unavailable = BadgeWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name())
+                .or(() -> TextButtonWidgetPropertySchema.slotUnavailableReason(parent.node(), slot.name()));
         if (unavailable.isPresent()) {
             return rejected(RejectionCode.SLOT_REJECTS_WIDGET,
                     "Cannot move " + sourceDefinition.palette().displayName() + " '" + source.node().id()
-                            + "' to Badge '" + parent.node().id() + "." + slot.name().value()
+                            + "' to " + parentDefinition.palette().displayName() + " '" + parent.node().id() + "." + slot.name().value()
                             + "': " + unavailable.orElseThrow());
         }
         if (!WidgetPlacementRules.accepts(

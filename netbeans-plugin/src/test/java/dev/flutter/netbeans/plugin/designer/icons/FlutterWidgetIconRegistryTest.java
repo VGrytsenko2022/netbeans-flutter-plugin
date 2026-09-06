@@ -86,6 +86,19 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void textButtonFamilyUsesReviewedTextStrokeGeometryWithoutFontDependencies() throws Exception {
+        String base = ICON_ROOT + "textbutton.svg";
+        var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32);
+        assertEquals(List.of("g[stroke-linecap=round, stroke-linejoin=round, stroke-width=1, transform=scale(1)]",
+                "rect[height=10, rx=2, stroke-dasharray=1.3 1.7, width=13, x=1.5, y=3]",
+                "path[d=M4 6h4M6 6v4M9.5 7.5h2M10.5 7.5V10]",
+                "path[d=M4 12h8]"), small.geometry());
+        assertEquals(small.geometry(), dark.geometry()); assertEquals(small.topology(), large.topology());
+        assertTrue(small.paint().toString().contains("#146FA8")); assertTrue(dark.paint().toString().contains("#9BD6FF"));
+    }
+
+    @Test
     void sizedBoxFamilyUsesExactReviewedDimensionGeometryAndThemePaint()
             throws Exception {
         String base = ICON_ROOT + "sizedbox.svg";
@@ -1812,6 +1825,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.CircularProgressIndicator", ICON_ROOT + "circularprogressindicator.svg");
         expected.put("flutter.material.RefreshProgressIndicator", ICON_ROOT + "refreshprogressindicator.svg");
         expected.put("flutter.material.RefreshIndicator", ICON_ROOT + "refreshindicator.svg");
+        expected.put("flutter.material.TextButton", ICON_ROOT + "textbutton.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

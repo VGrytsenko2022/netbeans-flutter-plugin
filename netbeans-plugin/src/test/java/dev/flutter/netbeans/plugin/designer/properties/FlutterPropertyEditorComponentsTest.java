@@ -154,6 +154,94 @@ class FlutterPropertyEditorComponentsTest {
     }
 
     @Test
+    void textButtonAllNineStrictReferenceEditorsPreserveDraftsAndSupportPackageFactories() throws Exception {
+        for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange", "focusNode", "statesController", "style", "styleBackgroundBuilder", "styleForegroundBuilder")) {
+            var editor = binding(property("flutter.material.TextButton", name)).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "Strict project reference.")); ((ExPropertyEditor) editor).attachEnv(env);
+            var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                if (name.equals("onPressed")) {
+                    assertEquals("Use Designer activation default", clear.getText());
+                    assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().contains("Enabled and On long press"));
+                }
+                clear.doClick(); var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                root.setText("() => raw()"); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(0, commits.get());
+                findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+                findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:buttons/values.dart");
+                root.setText("Buttons"); findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText(name);
+                findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(0, commits.get()); env.setState(PropertyEnv.STATE_VALID);
+                var expected = FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:buttons/values.dart"), "Buttons", Optional.of(name),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+                assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                var reopenedEnv = PropertyEnv.create(descriptor(name, "Reopened factory.")); ((ExPropertyEditor) editor).attachEnv(reopenedEnv);
+                var reopened = editor.getCustomEditor(); findNamed(reopened, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME).doClick();
+                assertEquals(expected, editor.getValue()); reopenedEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(2, commits.get());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void textButtonNullableChoicesKeepOmissionNullAndConcreteValuesCancelSafe() throws Exception {
+        for (String name : List.of("isSemanticButton", "clipBehavior")) {
+            var definition = property("flutter.material.TextButton", name);
+            var concrete = name.equals("isSemanticButton") ? new PropertyValue.BooleanValue(false) : new PropertyValue.EnumValue("Clip", "antiAlias");
+            for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), FlutterPropertyCellValue.explicit(concrete))) {
+                for (String target : List.of(FlutterNullableChoiceEditorComponent.OMIT, FlutterNullableChoiceEditorComponent.NULL, FlutterNullableChoiceEditorComponent.VALUE)) {
+                    var editor = binding(definition).createEditor(); editor.setValue(initial);
+                    var env = PropertyEnv.create(descriptor(name, "Three distinct source modes.")); ((ExPropertyEditor) editor).attachEnv(env);
+                    var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                    onEdt(() -> {
+                        var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "nullable");
+                        var mode = findNamed(panel, JComboBox.class, FlutterNullableChoiceEditorComponent.MODE_NAME);
+                        assertEquals(initial.explicitValue().isEmpty() ? FlutterNullableChoiceEditorComponent.OMIT : initial.explicitValue().orElseThrow() instanceof PropertyValue.NullValue
+                                ? FlutterNullableChoiceEditorComponent.NULL : FlutterNullableChoiceEditorComponent.VALUE, mode.getSelectedItem());
+                        mode.setSelectedItem(target);
+                        if (name.equals("isSemanticButton")) {
+                            var checkbox = findNamed(panel, JCheckBox.class, FlutterNullableChoiceEditorComponent.VALUE_NAME);
+                            assertEquals(SwingConstants.CENTER, checkbox.getHorizontalAlignment()); checkbox.setSelected(false);
+                            assertEquals(target.equals(FlutterNullableChoiceEditorComponent.VALUE), checkbox.isEnabled());
+                        } else {
+                            var choices = findNamed(panel, JComboBox.class, FlutterNullableChoiceEditorComponent.VALUE_NAME);
+                            assertEquals(4, choices.getItemCount()); choices.setSelectedItem("antiAlias");
+                            assertEquals(target.equals(FlutterNullableChoiceEditorComponent.VALUE), choices.isEnabled());
+                        }
+                        assertEquals(initial, editor.getValue(), "Cancelling draft preserves omission/null/concrete value"); assertEquals(0, commits.get());
+                        env.setState(PropertyEnv.STATE_VALID);
+                        var expected = target.equals(FlutterNullableChoiceEditorComponent.OMIT) ? FlutterPropertyCellValue.unset()
+                                : target.equals(FlutterNullableChoiceEditorComponent.NULL) ? FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()) : FlutterPropertyCellValue.explicit(concrete);
+                        assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                        env.setState(PropertyEnv.STATE_NEEDS_VALIDATION); env.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                        var reopenedEnv = PropertyEnv.create(descriptor(name, "Reopened source.")); ((ExPropertyEditor) editor).attachEnv(reopenedEnv);
+                        assertEquals(target, findNamed(editor.getCustomEditor(), JComboBox.class, FlutterNullableChoiceEditorComponent.MODE_NAME).getSelectedItem());
+                        return null;
+                    });
+                }
+            }
+        }
+    }
+
+    @Test
+    void nullableBooleanStillUsesCenteredCheckboxAndCyclesNullToTrueThenFalse() throws Exception {
+        var binding = binding(property("flutter.material.TextButton", "isSemanticButton")); var editor = binding.createEditor();
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.NULLABLE_BOOLEAN, binding.editorKind()); assertNull(editor.getTags()); assertTrue(editor.isPaintable());
+        onEdt(() -> {
+            var nullValue = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); editor.setValue(nullValue);
+            assertEquals("Explicit null", editor.getAsText());
+            assertFalse(java.util.Arrays.equals(paintBoolean(editor, nullValue), paintBoolean(editor, FlutterPropertyCellValue.unset())));
+            var inplace = FlutterPropertyEditorComponents.inplaceFactory(binding).orElseThrow().getInplaceEditor();
+            editor.setValue(nullValue); inplace.connect(editor, PropertyEnv.create(descriptor("Semantic button", "nullable Boolean")));
+            var box = assertInstanceOf(JCheckBox.class, inplace.getComponent()); assertEquals("Explicit null", box.getText());
+            assertEquals(SwingConstants.CENTER, box.getHorizontalAlignment());
+            box.doClick(); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)), inplace.getValue());
+            box.doClick(); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), inplace.getValue());
+            inplace.clear(); return null;
+        });
+    }
+
+    @Test
     void refreshNullableWidthInactiveAndInlinePresentationRoundTripWithoutLeakingNull() throws Exception {
         var binding = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")); var editor = binding.createEditor();
         var initial = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); editor.setValue(initial);
@@ -3269,7 +3357,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(136, booleanProperties.size(),
+        assertEquals(175, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

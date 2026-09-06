@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator` and `RefreshIndicator`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator` and `TextButton`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,14 +241,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-76 reviewed Canvas widgets. Palette insertion evaluates 4,636 exact
-source/destination cells across 76 draggable sources and 61 insertable reviewed
-slots; 4,315 are accepted and 321 cells are rejected. Expanded and Flexible are
+77 reviewed Canvas widgets. Palette insertion evaluates 4,774 exact
+source/destination cells across 77 draggable sources and 62 insertable reviewed
+slots; 4,448 are accepted and 326 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme and RefreshIndicator are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator and TextButton are generic atomic wrappers around
 an existing widget,
 never an empty required-child prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
@@ -1238,10 +1238,51 @@ not ignored Apple/noSpinner parameters. All three constructors, SDK notification
 status/async cycles, child preservation, themes, semantics, profiles and wrapping
 have dedicated coverage without stored synthetic progress or application code.
 
-The aggregate catalog now has 76 widgets and 70 reviewed const definitions,
-with 943 writable rows (926 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, thirteen Material and six Accessibility items; the
-backlog is 76/92 complete with 16 remaining. The 76 sources across 61
-insertable destinations form 4,636 cells, with 4,315 accepted and 321 rejected.
-The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
-model protocol to v18. NBFC framing, control and wire remain v1.
+TextButton adds Material/order 140 with standard and icon constructors. Its 511
+scalar rows comprise 12 direct controls, nine 54-leaf state style buckets, 12 common
+style fields and a strict whole ButtonStyle reference. Child is required and stable;
+the optional Icon slot is admitted only by the icon constructor. Standard is
+const-capable when all emitted arguments are const; the SDK icon factory is not.
+Required Enabled/Constructor controls select valid activation and construction.
+Disabled activation references remain stored without generated occurrences or
+evidence obligations. Long-press-only emits null onPressed; an enabled button with
+neither activation reference gets an explicitly documented no-op.
+
+All eight WidgetStates plus default are editable, with disabled/error/dragged/
+pressed/selected/scrolledUnder/hovered/focused/default priority. Arbitrary combined
+state constraints and custom styles remain supported through strict project
+ButtonStyle references, not raw Dart text. Whole style and all 498 local leaves
+are mutually exclusive, with atomic Properties transitions. ButtonLayerBuilder,
+VoidCallback, ValueChanged<bool>, FocusNode and WidgetStatesController references
+retain exact current/imported/factory type proofs. Standard semantic role and
+constructor-dependent Clip behavior distinguish omission, explicit null and
+concrete values. Nullable Boolean values keep centered checkbox rendering.
+
+Switching to icon clears standard-only semantics; setting iconAlignment selects
+icon. Returning to standard rejects an occupied Icon with a clear move/remove-first
+diagnostic instead of deleting it. The actual SDK Canvas preserves local button
+interaction and child state across constructor/icon/diagnostic changes, with unique
+per-button retained keys. It never executes project code: callbacks/controllers/
+focus/builders are explicitly isolated, and a project-defined whole style is an
+explicitly approximate SDK-default preview. ElevatedButton's existing 286-row
+contract remains unchanged; shared style assembly uses the correct button's theme
+and constructor defaults.
+
+Dense legal 491-row/464-row style families round-trip; not all 511 fields may
+coexist because of constructor and style exclusivity. The default per-widget codec
+limit rises to 512 and the shared candidate budget to 2048 symbol probes, preserving
+every occurrence, explicit smaller caller limits and the existing 2 MiB/45-second
+bounds. Structured-list proof IDs now include property paths so independent state
+buckets do not collide. Every typed proof uses a collision-free dart:core alias for
+its dynamic control; bool callback arguments use the same qualified core scope.
+Original implicit/explicit imports, including adjacent and multiline URI literals,
+remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
+
+The aggregate catalog now has 77 widgets and 71 reviewed const definitions,
+with 1454 writable rows (1437 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, fourteen Material and six Accessibility items; the
+backlog is 77/92 complete with 15 remaining. The 77 sources across 62
+insertable destinations form 4,774 cells, with 4,448 accepted and 326 rejected.
+PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
+schema v13 and Canvas model protocol v18; these versions remain unchanged.
+NBFC framing, control and wire remain v1.

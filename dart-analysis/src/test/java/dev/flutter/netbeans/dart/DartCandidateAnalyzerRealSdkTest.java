@@ -3229,6 +3229,396 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesTextButtonConstructorsCompleteStyleAndTypedReferences() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("text_button_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLibrary = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedFile = dependencyLibrary.resolve("button.dart");
+        String importedSource = """
+                import 'package:flutter/material.dart';
+                void importedPress() {}
+                void importedBool(bool value) {}
+                const ButtonStyle importedStyle = ButtonStyle();
+                final FocusNode importedFocus = FocusNode();
+                final WidgetStatesController importedStates = WidgetStatesController();
+                Widget importedLayer(BuildContext context, Set<WidgetState> states, Widget? child) => child ?? const SizedBox();
+                """;
+        Files.writeString(importedFile, importedSource, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String prelude = """
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/button.dart' as project_button;
+                String unchangedCoreScope(String value, Object object) => value;
+                void localPress() {}
+                VoidCallback pressFactory() => localPress;
+                void localBool(bool value) {}
+                ValueChanged<bool> boolFactory() => localBool;
+                const ButtonStyle localStyle = ButtonStyle();
+                ButtonStyle styleFactory() => localStyle;
+                final FocusNode localFocus = FocusNode();
+                FocusNode focusFactory() => localFocus;
+                final WidgetStatesController localStates = WidgetStatesController();
+                WidgetStatesController statesFactory() => localStates;
+                Widget localLayer(BuildContext context, Set<WidgetState> states, Widget? child) => child ?? const SizedBox();
+                ButtonLayerBuilder layerFactory() => localLayer;
+                dynamic dynamicPress = localPress;
+                VoidCallback? nullablePress;
+                void wrongPress(String value) {}
+                dynamic dynamicBool = localBool;
+                ValueChanged<bool>? nullableBool;
+                void wrongBool(String value) {}
+                dynamic dynamicStyle = localStyle;
+                ButtonStyle? nullableStyle;
+                dynamic dynamicFocus = localFocus;
+                FocusNode? nullableFocus;
+                dynamic dynamicStates = localStates;
+                WidgetStatesController? nullableStates;
+                dynamic dynamicLayer = localLayer;
+                ButtonLayerBuilder? nullableLayer;
+                Widget? nullableLayerResult(BuildContext context, Set<WidgetState> states, Widget? child) => child;
+                Widget narrowLayer(BuildContext context, Set<WidgetState> states, Widget child) => child;
+                const Animation<Color?> localAnimation = AlwaysStoppedAnimation<Color?>(null);
+                const CustomClipper<RRect> localClipper = ButtonProofClipper();
+                class ButtonProofClipper extends CustomClipper<RRect> {
+                  const ButtonProofClipper();
+                  @override
+                  RRect getClip(Size size) => RRect.fromRectAndRadius(Offset.zero & size, Radius.zero);
+                  @override
+                  bool shouldReclip(covariant ButtonProofClipper oldClipper) => false;
+                }
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        List<String[]> references = List.of(
+                new String[]{"localPress", "localPress", "onPressed", "VoidCallback"},
+                new String[]{"pressFactory()", "pressFactory", "onPressed", "VoidCallback"},
+                new String[]{"project_button.importedPress", "importedPress", "onPressed", "VoidCallback"},
+                new String[]{"localBool", "localBool", "onHover", "ValueChanged<bool>"},
+                new String[]{"boolFactory()", "boolFactory", "onHover", "ValueChanged<bool>"},
+                new String[]{"project_button.importedBool", "importedBool", "onHover", "ValueChanged<bool>"},
+                new String[]{"localStyle", "localStyle", "style", "ButtonStyle"},
+                new String[]{"styleFactory()", "styleFactory", "style", "ButtonStyle"},
+                new String[]{"project_button.importedStyle", "importedStyle", "style", "ButtonStyle"},
+                new String[]{"localFocus", "localFocus", "focusNode", "FocusNode"},
+                new String[]{"focusFactory()", "focusFactory", "focusNode", "FocusNode"},
+                new String[]{"project_button.importedFocus", "importedFocus", "focusNode", "FocusNode"},
+                new String[]{"localStates", "localStates", "statesController", "WidgetStatesController"},
+                new String[]{"statesFactory()", "statesFactory", "statesController", "WidgetStatesController"},
+                new String[]{"project_button.importedStates", "importedStates", "statesController", "WidgetStatesController"},
+                new String[]{"localLayer", "localLayer", "backgroundBuilder", "ButtonLayerBuilder"},
+                new String[]{"layerFactory()", "layerFactory", "backgroundBuilder", "ButtonLayerBuilder"},
+                new String[]{"project_button.importedLayer", "importedLayer", "backgroundBuilder", "ButtonLayerBuilder"});
+        StringBuilder valid = new StringBuilder(prelude);
+        for (String variant : List.of("standard", "icon")) {
+            String constructor = variant.equals("standard") ? "TextButton" : "TextButton.icon";
+            String child = variant.equals("standard") ? "child: const Text('Label')" : "icon: const Icon(Icons.add), label: const Text('Label')";
+            valid.append("Widget ").append(variant).append("Complete() => ").append(constructor)
+                    .append("(onPressed: localPress, onLongPress: localPress, onHover: localBool, onFocusChange: localBool, ")
+                    .append("style: localStyle, focusNode: localFocus, autofocus: true, clipBehavior: null, statesController: localStates, ")
+                    .append(child).append(variant.equals("standard") ? ", isSemanticButton: null" : ", iconAlignment: IconAlignment.end")
+                    .append(");\n");
+            valid.append("Widget ").append(variant).append("Prototype() => ").append(constructor)
+                    .append("(onPressed: () {}, ").append(child).append(");\n");
+            valid.append("Widget ").append(variant).append("LongPressOnly() => ").append(constructor)
+                    .append("(onPressed: null, onLongPress: localPress, ").append(child).append(");\n");
+            for (String[] spec : references) {
+                boolean layer = spec[2].equals("backgroundBuilder");
+                valid.append("Widget ").append(variant).append(spec[1]).append("() => ").append(constructor).append('(')
+                        .append(spec[2].equals("onPressed") ? "" : "onPressed: null, ")
+                        .append(layer ? "style: ButtonStyle(backgroundBuilder: " : spec[2] + ": ")
+                        .append(spec[0]).append(layer ? "), " : ", ").append(child).append(");\n");
+            }
+        }
+        valid.append("""
+                const ButtonStyle completeStyle = ButtonStyle(
+                  textStyle: WidgetStatePropertyAll<TextStyle?>(TextStyle(fontSize: 17, fontWeight: FontWeight.w500)),
+                  backgroundColor: WidgetStatePropertyAll<Color?>(Color(0xFF112233)),
+                  foregroundColor: WidgetStatePropertyAll<Color?>(Color(0xFF445566)),
+                  overlayColor: WidgetStatePropertyAll<Color?>(Color(0x55123456)),
+                  shadowColor: WidgetStatePropertyAll<Color?>(Color(0xFF123456)),
+                  surfaceTintColor: WidgetStatePropertyAll<Color?>(Color(0xFF234567)),
+                  elevation: WidgetStatePropertyAll<double?>(2),
+                  padding: WidgetStatePropertyAll<EdgeInsetsGeometry?>(EdgeInsetsDirectional.fromSTEB(10, 6, 14, 8)),
+                  minimumSize: WidgetStatePropertyAll<Size?>(Size(20, 20)),
+                  fixedSize: WidgetStatePropertyAll<Size?>(Size(90, 40)),
+                  maximumSize: WidgetStatePropertyAll<Size?>(Size.infinite),
+                  iconColor: WidgetStatePropertyAll<Color?>(Color(0xFF345678)),
+                  iconSize: WidgetStatePropertyAll<double?>(21),
+                  iconAlignment: IconAlignment.end,
+                  side: WidgetStatePropertyAll<BorderSide?>(BorderSide(width: 2, color: Color(0xFF456789))),
+                  shape: WidgetStatePropertyAll<OutlinedBorder?>(StadiumBorder()),
+                  mouseCursor: WidgetStatePropertyAll<MouseCursor?>(SystemMouseCursors.click),
+                  visualDensity: VisualDensity(horizontal: 1, vertical: -1),
+                  tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  animationDuration: Duration(milliseconds: 150),
+                  enableFeedback: true, alignment: AlignmentDirectional(1, -0.5),
+                  splashFactory: InkRipple.splashFactory,
+                  backgroundBuilder: localLayer, foregroundBuilder: localLayer,
+                );
+                final ButtonStyle arbitraryStateStyle = ButtonStyle(
+                  foregroundColor: WidgetStateProperty<Color?>.fromMap(<WidgetStatesConstraint, Color?>{
+                    WidgetState.disabled: const Color(0xFF111111),
+                    WidgetState.error & WidgetState.hovered: const Color(0xFF222222),
+                    WidgetState.dragged | WidgetState.selected: const Color(0xFF333333),
+                    WidgetState.scrolledUnder: const Color(0xFF444444),
+                    WidgetState.pressed: const Color(0xFF555555),
+                    WidgetState.focused: const Color(0xFF666666),
+                    WidgetState.any: null,
+                  }),
+                  backgroundBuilder: localLayer, foregroundBuilder: localLayer,
+                );
+                Widget constStandard() => const TextButton(onPressed: localPress, style: completeStyle,
+                  onLongPress: localPress, onHover: localBool, onFocusChange: localBool,
+                  autofocus: false, clipBehavior: Clip.antiAlias, isSemanticButton: false, child: Text('Const'));
+                Widget iconNull() => TextButton.icon(onPressed: null, icon: null, label: const Text('No icon'),
+                  clipBehavior: null, style: completeStyle, iconAlignment: IconAlignment.start);
+                Widget iconOmitted() => TextButton.icon(onPressed: null, label: const Text('Omitted icon'));
+                Widget themed(BuildContext context) => TextButtonTheme(
+                  data: const TextButtonThemeData(style: ButtonStyle(iconAlignment: IconAlignment.end)),
+                  child: TextButton.icon(onPressed: localPress, icon: const Icon(Icons.add), label: const Text('Theme'),
+                    style: arbitraryStateStyle));
+                Widget mixedReferences() => TextButton(onPressed: localPress, style: localStyle,
+                  child: ClipRRect(clipper: localClipper, child: CircularProgressIndicator(valueColor: localAnimation)));
+                """);
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        List<String> sdkSymbols = List.of("TextButton", "ButtonStyle", "ButtonLayerBuilder", "VoidCallback", "ValueChanged",
+                "FocusNode", "WidgetStatesController", "WidgetState", "WidgetStatesConstraint", "WidgetStateProperty",
+                "WidgetStatePropertyAll", "Text", "Icon", "Icons", "IconAlignment", "Clip", "TextButtonTheme", "TextButtonThemeData",
+                "MaterialTapTargetSize", "VisualDensity", "InkRipple", "AlignmentDirectional", "EdgeInsetsDirectional");
+        for (String symbol : sdkSymbols) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("text-button-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        probes.add(probe("text-button-icon-constructor", candidate.indexOf("TextButton.icon") + "TextButton.".length(),
+                "icon", "package:flutter/material.dart", flutterSdk));
+        for (String variant : List.of("standard", "icon")) {
+            for (String[] spec : references) {
+                int methodOffset = candidate.indexOf("Widget " + variant + spec[1] + "()");
+                int offset = candidate.indexOf(spec[2] + ": " + spec[0], methodOffset) + spec[2].length() + 2;
+                boolean imported = spec[0].startsWith("project_button.");
+                probes.add(typedProbe("text-button-" + variant + '-' + spec[1],
+                        offset + (imported ? "project_button.".length() : 0), spec[1],
+                        imported ? "package:clipper_dependency/button.dart" : "project:current",
+                        imported ? dependencyLibrary : lib, offset, spec[0].length(), candidate, spec[3], "package:flutter/material.dart"));
+            }
+        }
+        for (String[] spec : List.of(new String[]{"localAnimation", "Animation<Color?>"},
+                new String[]{"localClipper", "CustomClipper<RRect>"})) {
+            int offset = candidate.indexOf(spec[0], candidate.indexOf("Widget mixedReferences()"));
+            probes.add(0, typedProbe("text-button-mixed-" + spec[0], offset, spec[0], "project:current", lib,
+                    offset, spec[0].length(), candidate, spec[1], "package:flutter/material.dart"));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2900, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(sdkSymbols.size() + 39, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(38, passed.symbolEvidence().stream().filter(e -> e.staticTypeEvidence().isPresent()).count());
+        long version = 2901;
+        for (String[] spec : List.of(
+                new String[]{"dynamicPress", "onPressed", "VoidCallback"},
+                new String[]{"nullablePress", "onPressed", "VoidCallback"},
+                new String[]{"wrongPress", "onPressed", "VoidCallback"},
+                new String[]{"dynamicBool", "onHover", "ValueChanged<bool>"},
+                new String[]{"nullableBool", "onHover", "ValueChanged<bool>"},
+                new String[]{"wrongBool", "onHover", "ValueChanged<bool>"},
+                new String[]{"dynamicStyle", "style", "ButtonStyle"},
+                new String[]{"nullableStyle", "style", "ButtonStyle"},
+                new String[]{"dynamicFocus", "focusNode", "FocusNode"},
+                new String[]{"nullableFocus", "focusNode", "FocusNode"},
+                new String[]{"dynamicStates", "statesController", "WidgetStatesController"},
+                new String[]{"nullableStates", "statesController", "WidgetStatesController"},
+                new String[]{"dynamicLayer", "backgroundBuilder", "ButtonLayerBuilder"},
+                new String[]{"nullableLayer", "backgroundBuilder", "ButtonLayerBuilder"},
+                new String[]{"nullableLayerResult", "backgroundBuilder", "ButtonLayerBuilder"},
+                new String[]{"narrowLayer", "backgroundBuilder", "ButtonLayerBuilder"})) {
+            boolean layer = spec[1].equals("backgroundBuilder");
+            String invalid = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n" + prelude
+                    + "Widget invalid() => TextButton(" + (spec[1].equals("onPressed") ? "" : "onPressed: null, ")
+                    + (layer ? "style: ButtonStyle(backgroundBuilder: " : spec[1] + ": ") + spec[0]
+                    + (layer ? "), " : ", ") + "child: const Text('Label'));\n";
+            int offset = invalid.indexOf(spec[0], invalid.indexOf("Widget invalid()"));
+            DartSymbolProbe typeProbe = typedProbe("text-button-invalid-" + spec[0], offset, spec[0],
+                    "project:current", lib, offset, spec[0].length(), invalid, spec[2], "package:flutter/material.dart");
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of(typeProbe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> spec[0] + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        for (String expression : List.of(
+                "TextButton(child: Text('Missing press'))",
+                "TextButton(onPressed: null)", "TextButton(onPressed: null, child: null)",
+                "TextButton(onPressed: null, child: Text('x'), icon: Icon(Icons.add))",
+                "TextButton(onPressed: null, child: Text('x'), iconAlignment: IconAlignment.start)",
+                "TextButton(onPressed: null, child: Text('x'), isSemanticButton: 1)",
+                "TextButton(onPressed: null, child: Text('x'), autofocus: null)",
+                "TextButton(onPressed: null, child: Text('x'), clipBehavior: Axis.horizontal)",
+                "TextButton(onPressed: null, child: Text('x'), style: true)",
+                "TextButton(onPressed: null, child: Text('x'), focusNode: true)",
+                "TextButton(onPressed: null, child: Text('x'), statesController: true)",
+                "TextButton(onPressed: null, child: Text('x'), enabled: true)",
+                "TextButton(onPressed: null, child: Text('x'), variant: 'icon')",
+                "TextButton.icon(label: Text('Missing press'))",
+                "TextButton.icon(onPressed: null)", "TextButton.icon(onPressed: null, label: null)",
+                "TextButton.icon(onPressed: null, label: Text('x'), child: Text('y'))",
+                "TextButton.icon(onPressed: null, label: Text('x'), isSemanticButton: true)",
+                "TextButton.icon(onPressed: null, label: Text('x'), icon: true)",
+                "TextButton.icon(onPressed: null, label: Text('x'), iconAlignment: Axis.vertical)",
+                "const TextButton.icon(onPressed: null, label: Text('Not const'))",
+                "TextButton(onPressed: null, child: Text('x'), style: ButtonStyle(iconAlignment: Axis.horizontal))",
+                "TextButton(onPressed: null, child: Text('x'), style: ButtonStyle(backgroundBuilder: localBool))",
+                "TextButton(onPressed: null, child: Text('x'), style: ButtonStyle(foregroundBuilder: localPress))")) {
+            String invalid = prelude + "Widget invalid() => " + expression + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, invalid, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> expression + ": " + rejected);
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(importedSource, Files.readString(importedFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    @Test
+    void validatesBooleanCallbackProofWithoutChangingExplicitOrImplicitCoreScope() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("bool_callback_scope_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        Files.writeString(file, "void main() {}\n", StandardCharsets.UTF_8);
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable, ignored -> { });
+        long version = 3100;
+        for (var scope : List.of(
+                Map.entry("", ""),
+                Map.entry("import 'dart:core' as core;\n", "core."),
+                Map.entry("import r'dart:core' as core;\n", "core."),
+                Map.entry("import '''\ndart:core''' as core;\n", "core."),
+                Map.entry("import r''' \t\r\ndart:core''' as core;\n", "core."),
+                Map.entry("import '''\\\ndart:core''' as core;\n", "core."),
+                Map.entry("import 'dart:' /* split */ r'core' as core;\n", "core."),
+                Map.entry("import 'dart:' '''\ncore''' as core;\n", "core."),
+                Map.entry("import 'dart:\\u0063ore' as core;\n", "core."),
+                Map.entry("import 'dart:core' hide bool;\nimport 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:core' if (dart.library.io) 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:math' if (dart.library.io) 'dart:core' as conditional;\n", ""))) {
+            String header = scope.getKey();
+            String prefix = scope.getValue();
+            String candidate = header + "import 'package:flutter/material.dart';\n"
+                    + "const marker = \"import 'dart:core';\";\n"
+                    + prefix + "String unchangedScope(" + prefix + "String value, " + prefix + "Object object) => value;\n"
+                    + "void callback(" + prefix + "bool value) {}\n"
+                    + "void analyzerStaticTypeProofScope() {\n  // analyzer static-type proof insertion\n}\n"
+                    + "Widget sample() => TextButton(onPressed: null, onHover: callback, child: const Text('Label'));\n";
+            int offset = candidate.indexOf("callback", candidate.indexOf("Widget sample()"));
+            var probe = typedProbe("scoped-bool", offset, "callback", "project:current", lib,
+                    offset, "callback".length(), candidate, "ValueChanged<bool>", "package:flutter/widgets.dart");
+            var result = await(analyzer.analyze(request(projectRoot, file, candidate, version++, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status(), () -> header + ": " + result);
+            assertTrue(result.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        String shadowed = """
+                // ignore_for_file: argument_type_not_assignable
+                import 'dart:core' as core;
+                import 'package:flutter/material.dart';
+                class bool {}
+                void callback(bool value) {}
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                Widget sample() => TextButton(onPressed: null, onHover: callback, child: const Text('Label'));
+                """;
+        int offset = shadowed.indexOf("callback", shadowed.indexOf("Widget sample()"));
+        var probe = typedProbe("shadowed-bool", offset, "callback", "project:current", lib,
+                offset, "callback".length(), shadowed, "ValueChanged<bool>", "package:flutter/widgets.dart");
+        var rejected = await(analyzer.analyze(request(projectRoot, file, shadowed, version, List.of(probe))));
+        assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> rejected.toString());
+        assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        assertEquals("void main() {}\n", Files.readString(file, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    @Test
+    void validatesNonBooleanTypedBatchesWithRestrictedCoreAndRejectsDynamicReferences() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("non_bool_core_scope_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable, ignored -> { });
+        List<String[]> references = List.of(
+                new String[]{"localStyle", "style", "ButtonStyle"},
+                new String[]{"localPress", "onPressed", "VoidCallback"},
+                new String[]{"localFocus", "focusNode", "FocusNode"});
+        long version = 3200;
+        for (var scope : List.of(
+                Map.entry("", ""),
+                Map.entry("import 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:core' show String;\nimport 'dart:core' as core;\n", "core."))) {
+            String candidate = scope.getKey() + "import 'package:flutter/material.dart';\n"
+                    + scope.getValue() + "String unchangedScope(" + scope.getValue() + "String value, "
+                    + scope.getValue() + "Object object) => value;\n"
+                    + "const localStyle = ButtonStyle();\n"
+                    + "void localPress() {}\n"
+                    + "final localFocus = FocusNode();\n"
+                    + "void analyzerStaticTypeProofScope() {\n  // analyzer static-type proof insertion\n}\n"
+                    + "Widget sample() => TextButton(style: localStyle, onPressed: localPress, focusNode: localFocus, child: const Text('Label'));\n";
+            ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+            for (String[] reference : references) {
+                int offset = candidate.indexOf(reference[0], candidate.indexOf("Widget sample()"));
+                probes.add(typedProbe("scoped-" + reference[0], offset, reference[0], "project:current", lib,
+                        offset, reference[0].length(), candidate, reference[2], "package:flutter/material.dart"));
+            }
+            var result = await(analyzer.analyze(request(projectRoot, file, candidate, version++, probes)));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status(), () -> scope.getKey() + ": " + result);
+            assertEquals(3, result.symbolEvidence().size());
+            assertTrue(result.symbolEvidence().stream().allMatch(evidence ->
+                    evidence.staticTypeEvidence().orElseThrow().accepted()));
+        }
+        for (String[] reference : references) {
+            String candidate = """
+                    // ignore_for_file: argument_type_not_assignable, invalid_assignment
+                    import 'dart:core' show String;
+                    import 'dart:core' as core;
+                    import 'package:flutter/material.dart';
+                    core.dynamic dynamicReference;
+                    void analyzerStaticTypeProofScope() {
+                      // analyzer static-type proof insertion
+                    }
+                    """ + "Widget sample() => TextButton("
+                    + (reference[1].equals("onPressed") ? "" : "onPressed: null, ")
+                    + reference[1] + ": dynamicReference, child: const Text('Label'));\n";
+            int offset = candidate.indexOf("dynamicReference", candidate.indexOf("Widget sample()"));
+            var probe = typedProbe("dynamic-" + reference[2], offset, "dynamicReference", "project:current", lib,
+                    offset, "dynamicReference".length(), candidate, reference[2], "package:flutter/material.dart");
+            var rejected = await(analyzer.analyze(request(projectRoot, file, candidate, version++, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> reference[2] + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

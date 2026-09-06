@@ -639,13 +639,27 @@ public final class DartCandidateAnalyzer {
         DartIgnoreForFileMasker.Result masked =
                 DartIgnoreForFileMasker.mask(request.content());
         String alias = unusedProofAlias(request.content());
+        String coreAlias = alias + "Core";
         String importLine = "import '" + context.expectedTypeLibraryUri()
                 + "' as " + alias + ";\n";
+        boolean explicitCore;
+        try {
+            explicitCore = DartCoreImportScope.hasExplicitCoreImport(request.content());
+        } catch (IllegalArgumentException failure) {
+            throw malformed(failure.getMessage());
+        }
+        // Every batch needs core.dynamic for its strict-casts control, even
+        // without a bool type argument. A prefixed core import suppresses
+        // implicit unprefixed dart:core; restore that scope only when the
+        // source had no explicit core directive. Never undo show/hide/prefix.
+        if (!explicitCore) importLine += "import 'dart:core';\n";
+        importLine += "import 'dart:core' as " + coreAlias + ";\n";
         String controlExpectedType = qualifiedExpectedType(
-                context.expectedDartType(), alias);
+                context.expectedDartType(), alias, coreAlias);
         StringBuilder statements = new StringBuilder();
         ArrayList<StaticTypeProofControl> relativeControls = new ArrayList<>();
-        statements.append("    dynamic ")
+        statements.append("    ")
+                .append(coreAlias).append(".dynamic ")
                 .append(alias)
                 .append("Dynamic() => null;\n");
         int assignabilityControlStart = statements.length();
@@ -668,7 +682,7 @@ public final class DartCandidateAnalyzer {
             String expression = request.content().substring(
                     probe.expressionOffset(), probe.expressionEndOffset());
             String expectedType = qualifiedExpectedType(
-                    probe.expectedDartType(), alias);
+                    probe.expectedDartType(), alias, coreAlias);
             int start = statements.length();
             statements.append("    final ")
                     .append(expectedType)
@@ -713,16 +727,17 @@ public final class DartCandidateAnalyzer {
                     DartCandidateAnalysisIssueCode.CANDIDATE_TOO_LARGE,
                     "Static-type proof overlay exceeds its bounded UTF-8 allowance.");
         }
-        int statementStart = Math.addExact(statementOffset, importLine.length());
+        int importLength = importLine.length();
+        int statementStart = Math.addExact(statementOffset, importLength);
         List<StaticTypeWitnessEntry> entries = relativeEntries.stream()
                 .map(entry -> new StaticTypeWitnessEntry(
                         entry.probeId(),
                         Math.addExact(statementStart, entry.startOffset()),
                         Math.addExact(statementStart, entry.endOffset()),
                         Math.addExact(entry.originalExpressionStartOffset(),
-                                importLine.length() + statements.length()),
+                                importLength + statements.length()),
                         Math.addExact(entry.originalExpressionEndOffset(),
-                                importLine.length() + statements.length())))
+                                importLength + statements.length())))
                 .toList();
         List<StaticTypeProofControl> controls = relativeControls.stream()
                 .map(control -> new StaticTypeProofControl(
@@ -747,7 +762,7 @@ public final class DartCandidateAnalyzer {
                 "Cannot allocate a bounded collision-free static-type proof import alias.");
     }
 
-    private static String qualifiedExpectedType(String value, String alias)
+    private static String qualifiedExpectedType(String value, String alias, String coreAlias)
             throws AnalysisFailure {
         Matcher matcher = CLOSED_EXPECTED_TYPE.matcher(value);
         if (!matcher.matches()) {
@@ -755,7 +770,9 @@ public final class DartCandidateAnalyzer {
         }
         String result = alias + '.' + matcher.group(1);
         if (matcher.group(2) != null) {
-            result += '<' + alias + '.' + matcher.group(2) + '>';
+            String argument = matcher.group(2);
+            String argumentAlias = argument.equals("bool") || argument.equals("bool?") ? coreAlias : alias;
+            result += '<' + argumentAlias + '.' + argument + '>';
         }
         return result;
     }

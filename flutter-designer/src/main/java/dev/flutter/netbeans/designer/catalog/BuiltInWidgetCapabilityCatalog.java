@@ -157,6 +157,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", STATIC_EDITABLE),
             Map.entry("flutter.material.AppBar", STATIC_EDITABLE),
             Map.entry("flutter.material.ElevatedButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.TextButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -319,6 +320,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Scaffold", scaffoldProjection()),
             Map.entry("flutter.material.AppBar", appBarProjection()),
             Map.entry("flutter.material.ElevatedButton", elevatedButtonProjection()),
+            Map.entry("flutter.material.TextButton", textButtonProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -1500,6 +1502,54 @@ public final class BuiltInWidgetCapabilityCatalog {
                 "bottom", traitSingleSlotSchema(
                         false, 0,
                 BuiltInWidgetCatalog.PREFERRED_SIZE_WIDGET_TRAIT)));
+    }
+
+    private static CanvasProjection textButtonProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        put(properties, requiredDefaultProperty("enabled", "boolean:true", PropertyValueKind.BOOLEAN));
+        for (String name : List.of("onPressed", "onLongPress", "onHover", "onFocusChange")) {
+            properties.put(name, constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                    refreshIndicatorReferenceFingerprint(name.equals("onPressed") || name.equals("onLongPress")
+                            ? "VoidCallback" : "ValueChanged<bool>")));
+        }
+        properties.put("focusNode", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                refreshIndicatorReferenceFingerprint("FocusNode")));
+        put(properties, property("autofocus", PropertyValueKind.BOOLEAN));
+        CanvasPropertyContract clip = enumProperty("clipBehavior", "Clip", "none", "hardEdge", "antiAlias",
+                "antiAliasWithSaveLayer").getValue();
+        Map<PropertyValueKind, String> nullableClip = new java.util.EnumMap<>(PropertyValueKind.class);
+        nullableClip.putAll(clip.constraintFingerprints());
+        nullableClip.put(PropertyValueKind.NULL, "any");
+        properties.put("clipBehavior", new CanvasPropertyContract(nullableClip.keySet(), false,
+                Optional.empty(), Map.of(), nullableClip));
+        properties.put("statesController", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                refreshIndicatorReferenceFingerprint("WidgetStatesController")));
+        put(properties, property("isSemanticButton", PropertyValueKind.BOOLEAN, PropertyValueKind.NULL));
+        put(properties, materialEnumProperty("iconAlignment", "IconAlignment", "start", "end"));
+        put(properties, requiredDefaultConstrainedProperty("variant", "string:" + base64("standard"),
+                PropertyValueKind.STRING, "pattern:" + base64("(?:standard|icon)")));
+        for (String prefix : TextButtonWidgetPropertySchema.statePrefixes()) {
+            appendElevatedButtonStateProjection(properties, prefix);
+            appendElevatedButtonTextProjection(properties, prefix);
+        }
+        elevatedButtonProjection().propertyContracts().forEach((name, property) -> {
+            if (ElevatedButtonWidgetPropertySchema.find(name).orElseThrow().group()
+                    == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE) {
+                properties.put(name.value(), property);
+            }
+        });
+        put(properties, materialEnumProperty("styleIconAlignment", "IconAlignment", "start", "end"));
+        for (String name : List.of("styleBackgroundBuilder", "styleForegroundBuilder")) {
+            properties.put(name, constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                    refreshIndicatorReferenceFingerprint("ButtonLayerBuilder")));
+        }
+        properties.put("style", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                refreshIndicatorReferenceFingerprint("ButtonStyle")));
+        if (properties.size() != TextButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("TextButton projection count: " + properties.size());
+        }
+        return projection(properties, Map.of("child", singleSlotSchema(true, 1),
+                "icon", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection elevatedButtonProjection() {

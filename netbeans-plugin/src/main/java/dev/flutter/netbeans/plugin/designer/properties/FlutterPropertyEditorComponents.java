@@ -88,7 +88,7 @@ final class FlutterPropertyEditorComponents {
     static Optional<InplaceEditor.Factory> inplaceFactory(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
+            case BOOLEAN, NULLABLE_BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
             case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NULLABLE_NUMBER, NUMBER_WITH_INFINITY -> Optional.of(
                     () -> new NumericInplaceEditor(binding));
             default -> Optional.empty();
@@ -98,7 +98,7 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER,
+            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_BOOLEAN, NULLABLE_ENUM,
                     EDGE_INSETS, COLOR,
                     THEME_COLOR, COLOR_ANIMATION, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
@@ -126,6 +126,7 @@ final class FlutterPropertyEditorComponents {
             case NULLABLE_INTEGER -> new NullableIntegerCustomEditor(
                     editor, binding, environment);
             case NULLABLE_NUMBER -> FlutterNullableNumberEditorComponent.customEditor(editor, binding, environment);
+            case NULLABLE_BOOLEAN, NULLABLE_ENUM -> FlutterNullableChoiceEditorComponent.customEditor(editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
             case COLOR -> new ColorCustomEditor(editor, binding, environment);
@@ -239,7 +240,8 @@ final class FlutterPropertyEditorComponents {
         }
         FontMetrics metrics = graphics.getFontMetrics();
         graphics.drawString(
-                FlutterPropertyCellValue.NOT_SET_TEXT,
+                cell.explicitValue().orElse(null) instanceof PropertyValue.NullValue
+                        ? FlutterNullableChoiceEditorComponent.NULL_TEXT : FlutterPropertyCellValue.NOT_SET_TEXT,
                 box.x + 2,
                 box.y + (box.height + metrics.getAscent()
                 - metrics.getDescent()) / 2);
@@ -444,13 +446,15 @@ final class FlutterPropertyEditorComponents {
                 // text keeps the inactive value unambiguous on every NetBeans LAF.
                 checkBox.setSelected(false);
                 indeterminate = "indeterminate";
-                checkBox.setText(FlutterPropertyCellValue.NOT_SET_TEXT);
+                checkBox.setText(value.explicitValue().orElse(null) instanceof PropertyValue.NullValue
+                        ? FlutterNullableChoiceEditorComponent.NULL_TEXT : FlutterPropertyCellValue.NOT_SET_TEXT);
             }
             checkBox.putClientProperty("JButton.selectedState", indeterminate);
             String accessibleValue = value.explicitValue().orElse(null)
                     instanceof PropertyValue.BooleanValue explicit
                     ? Boolean.toString(explicit.value())
-                    : FlutterPropertyCellValue.NOT_SET_TEXT;
+                    : value.explicitValue().orElse(null) instanceof PropertyValue.NullValue
+                            ? FlutterNullableChoiceEditorComponent.NULL_TEXT : FlutterPropertyCellValue.NOT_SET_TEXT;
             checkBox.getAccessibleContext().setAccessibleDescription(
                     "Boolean value " + accessibleValue
                     + (binding.optional()
@@ -461,7 +465,7 @@ final class FlutterPropertyEditorComponents {
         private static FlutterPropertyCellValue nextValue(
                 FlutterPropertyCellValue current) {
             PropertyValue explicit = current.explicitValue().orElse(null);
-            if (explicit == null) {
+            if (explicit == null || explicit instanceof PropertyValue.NullValue) {
                 return FlutterPropertyCellValue.explicit(
                         new PropertyValue.BooleanValue(true));
             }

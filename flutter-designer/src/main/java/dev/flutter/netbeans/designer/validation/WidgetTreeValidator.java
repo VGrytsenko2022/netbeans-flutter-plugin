@@ -9,6 +9,7 @@ import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetProp
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -435,10 +436,12 @@ public final class WidgetTreeValidator {
             return;
         }
 
-        if (type.equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.value())) {
-            for (String prefix : List.of(
-                    "style", "styleDisabled", "stylePressed",
-                    "styleHovered", "styleFocused")) {
+        if (type.equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.value())
+                || type.equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.value())) {
+            if (type.equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.value())) {
+                validateTextButtonBranches(node, propertiesPath, issues);
+            }
+            for (String prefix : buttonStatePrefixes(node)) {
                 validateElevatedButtonState(node, propertiesPath, issues, prefix);
             }
             validateElevatedButtonEffectiveDimensions(node, propertiesPath, issues);
@@ -924,12 +927,51 @@ public final class WidgetTreeValidator {
         }
     }
 
+    private static void validateTextButtonBranches(WidgetNode node, String path, IssueCollector issues) {
+        boolean icon = TextButtonWidgetPropertySchema.isIcon(node);
+        if (!icon && node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
+                && slot.child().isPresent()) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/variant", node.id(),
+                    "TextButton Standard has no icon argument. Clear or move the existing Icon before switching to Standard."));
+        }
+        String incompatible = icon ? "isSemanticButton" : "iconAlignment";
+        if (node.properties().containsKey(new PropertyName(incompatible))) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/" + incompatible, node.id(),
+                    "TextButton " + (icon ? "Icon" : "Standard") + " constructor does not accept "
+                    + incompatible + ". Reset it or switch constructor."));
+        }
+        if (node.properties().containsKey(new PropertyName("style"))) {
+            for (String name : TextButtonWidgetPropertySchema.localStyleProperties()) {
+                if (node.properties().containsKey(new PropertyName(name))) {
+                    issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                            "TextButton project ButtonStyle is exclusive with every local style field. Reset the project style or local fields first."));
+                }
+            }
+        }
+    }
+
+    private static List<String> buttonStatePrefixes(WidgetNode node) {
+        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                ? TextButtonWidgetPropertySchema.statePrefixes()
+                : List.of("style", "styleDisabled", "stylePressed", "styleHovered", "styleFocused");
+    }
+
+    private static List<String> enabledButtonStatePriority(WidgetNode node) {
+        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)
+                ? List.of("Error", "Dragged", "Pressed", "Selected", "ScrolledUnder", "Hovered", "Focused")
+                : List.of("Pressed", "Hovered", "Focused");
+    }
+
+    private static String buttonName(WidgetNode node) {
+        return node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE) ? "TextButton" : "ElevatedButton";
+    }
+
     private static void validateElevatedButtonState(
             WidgetNode node,
             String propertiesPath,
             IssueCollector issues,
             String prefix) {
-        String owner = "ElevatedButton " + prefix + " state";
+        String owner = buttonName(node) + " " + prefix + " state";
         validateElevatedButtonFontPackage(
                 node, propertiesPath, issues, prefix, owner);
         validateMutuallyExclusiveProperties(
@@ -951,7 +993,7 @@ public final class WidgetTreeValidator {
             validateEffectiveDimension(
                     node, propertiesPath, issues, dimension,
                     Set.of(), true, reported);
-            List<String> states = List.of("Focused", "Hovered", "Pressed");
+            List<String> states = enabledButtonStatePriority(node).reversed();
             for (int mask = 1; mask < (1 << states.size()); mask++) {
                 HashSet<String> active = new HashSet<>();
                 for (int index = 0; index < states.size(); index++) {
@@ -996,7 +1038,7 @@ public final class WidgetTreeValidator {
                 PROPERTY_CONFLICT,
                 propertiesPath + '/' + maximum.propertyName(),
                 node.id(),
-                "ElevatedButton effective " + stateDescription + ' '
+                buttonName(node) + " effective " + stateDescription + ' '
                 + dimension.toLowerCase()
                 + " resolves '" + minimum.propertyName() + "' above '"
                 + maximum.propertyName() + "'. Minimum size must be less than "
@@ -1011,9 +1053,9 @@ public final class WidgetTreeValidator {
         if (disabled) {
             EffectiveNumber value = elevatedNumber(
                     node, "styleDisabled" + suffix);
-            return value != null ? value : elevatedFrameworkMinimum(suffix);
+            return value != null ? value : elevatedFrameworkMinimum(node, suffix);
         }
-        for (String state : List.of("Pressed", "Hovered", "Focused")) {
+        for (String state : enabledButtonStatePriority(node)) {
             if (activeStates.contains(state)) {
                 EffectiveNumber value = elevatedNumber(
                         node, "style" + state + suffix);
@@ -1023,10 +1065,13 @@ public final class WidgetTreeValidator {
             }
         }
         EffectiveNumber value = elevatedNumber(node, "style" + suffix);
-        return value != null ? value : elevatedFrameworkMinimum(suffix);
+        return value != null ? value : elevatedFrameworkMinimum(node, suffix);
     }
 
-    private static EffectiveNumber elevatedFrameworkMinimum(String suffix) {
+    private static EffectiveNumber elevatedFrameworkMinimum(WidgetNode node, String suffix) {
+        // TextButton preserves context-dependent theme sizing; only two explicit
+        // local bounds may conflict. Generation resolves and normalizes inherited bounds.
+        if (node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE)) return null;
         // Validation has no BuildContext, so the deterministic floor is the
         // pinned generated-project Material 3 default. A runtime-supplied
         // ElevatedButtonTheme may replace this value; Dart generation still
@@ -1082,9 +1127,7 @@ public final class WidgetTreeValidator {
             WidgetNode node,
             String propertiesPath,
             IssueCollector issues) {
-        List<String> prefixes = List.of(
-                "style", "styleDisabled", "styleFocused",
-                "styleHovered", "stylePressed");
+        List<String> prefixes = buttonStatePrefixes(node);
         boolean guardedFeaturePresent = prefixes.stream().anyMatch(prefix ->
                 node.properties().containsKey(new PropertyName(prefix + "TextInherit"))
                 || node.properties().containsKey(new PropertyName(prefix + "TextTheme")));
@@ -1099,7 +1142,7 @@ public final class WidgetTreeValidator {
                     PROPERTY_DEPENDENCY,
                     propertiesPath + "/styleTextInherit",
                     node.id(),
-                    "ElevatedButton stateful TextStyle inherit/theme overrides require "
+                    buttonName(node) + " stateful TextStyle inherit/theme overrides require "
                     + "an explicit enabled/default styleTextInherit value."));
         }
         if (disabled == null) {
@@ -1107,7 +1150,7 @@ public final class WidgetTreeValidator {
                     PROPERTY_DEPENDENCY,
                     propertiesPath + "/styleDisabledTextInherit",
                     node.id(),
-                    "ElevatedButton stateful TextStyle inherit/theme overrides require "
+                    buttonName(node) + " stateful TextStyle inherit/theme overrides require "
                     + "an explicit disabled TextInherit value so animated state "
                     + "transitions remain safe."));
         } else if (base != null && !disabled.equals(base)) {
@@ -1115,7 +1158,7 @@ public final class WidgetTreeValidator {
                     PROPERTY_CONFLICT,
                     propertiesPath + "/styleDisabledTextInherit",
                     node.id(),
-                    "ElevatedButton reachable TextStyle values must use one inherit "
+                    buttonName(node) + " reachable TextStyle values must use one inherit "
                     + "value; disabled differs from enabled/default."));
         }
 
@@ -1128,7 +1171,7 @@ public final class WidgetTreeValidator {
                         PROPERTY_DEPENDENCY,
                         propertiesPath + '/' + prefix + "TextInherit",
                         node.id(),
-                        "ElevatedButton property '" + prefix
+                        buttonName(node) + " property '" + prefix
                         + "TextTheme' requires an explicit same-state TextInherit "
                         + "value for transition-safe TextStyle resolution."));
             } else if (!prefix.equals("style")
@@ -1138,7 +1181,7 @@ public final class WidgetTreeValidator {
                         PROPERTY_CONFLICT,
                         propertiesPath + '/' + prefix + "TextInherit",
                         node.id(),
-                        "ElevatedButton reachable TextStyle values must use the "
+                        buttonName(node) + " reachable TextStyle values must use the "
                         + "enabled/default inherit value " + base + "."));
             }
         }
@@ -1167,7 +1210,7 @@ public final class WidgetTreeValidator {
         HashSet<String> reported = new HashSet<>();
         validateEffectiveShape(
                 node, propertiesPath, issues, Set.of(), true, reported);
-        List<String> states = List.of("Focused", "Hovered", "Pressed");
+        List<String> states = enabledButtonStatePriority(node).reversed();
         for (int mask = 0; mask < (1 << states.size()); mask++) {
             HashSet<String> active = new HashSet<>();
             for (int index = 0; index < states.size(); index++) {
@@ -1208,7 +1251,7 @@ public final class WidgetTreeValidator {
                 addEffectiveShapeIssue(
                         node, propertiesPath, issues, reported,
                         PROPERTY_DEPENDENCY, radius.propertyName(),
-                        "ElevatedButton effective " + stateDescription
+                        buttonName(node) + " effective " + stateDescription
                         + " corner radius requires a locally configured effective "
                         + "shape kind.");
             } else if (!(kind.value() instanceof PropertyValue.StringValue name)
@@ -1219,7 +1262,7 @@ public final class WidgetTreeValidator {
                 addEffectiveShapeIssue(
                         node, propertiesPath, issues, reported,
                         PROPERTY_CONFLICT, radius.propertyName(),
-                        "ElevatedButton effective " + stateDescription
+                        buttonName(node) + " effective " + stateDescription
                         + " corner radius is incompatible with '"
                         + shapeKindName(kind) + "' from '"
                         + kind.propertyName() + "'.");
@@ -1234,7 +1277,7 @@ public final class WidgetTreeValidator {
             addEffectiveShapeIssue(
                     node, propertiesPath, issues, reported,
                     PROPERTY_DEPENDENCY, eccentricity.propertyName(),
-                    "ElevatedButton effective " + stateDescription
+                    buttonName(node) + " effective " + stateDescription
                     + " circle eccentricity requires a locally configured "
                     + "effective shape kind.");
         } else if (!(kind.value() instanceof PropertyValue.StringValue name)
@@ -1242,7 +1285,7 @@ public final class WidgetTreeValidator {
             addEffectiveShapeIssue(
                     node, propertiesPath, issues, reported,
                     PROPERTY_CONFLICT, eccentricity.propertyName(),
-                    "ElevatedButton effective " + stateDescription
+                    buttonName(node) + " effective " + stateDescription
                     + " circle eccentricity is incompatible with '"
                     + shapeKindName(kind) + "' from '"
                     + kind.propertyName() + "'.");
@@ -1257,7 +1300,7 @@ public final class WidgetTreeValidator {
         if (disabled) {
             return elevatedShapeValue(node, "styleDisabled" + suffix);
         }
-        for (String state : List.of("Pressed", "Hovered", "Focused")) {
+        for (String state : enabledButtonStatePriority(node)) {
             if (activeStates.contains(state)) {
                 EffectiveShapeValue value = elevatedShapeValue(
                         node, "style" + state + suffix);
@@ -1310,7 +1353,7 @@ public final class WidgetTreeValidator {
                     PROPERTY_DEPENDENCY,
                     propertiesPath + "/styleAlignmentKind",
                     node.id(),
-                    "ElevatedButton ButtonStyle alignment requires "
+                    buttonName(node) + " ButtonStyle alignment requires "
                     + "styleAlignmentKind, styleAlignmentX, and styleAlignmentY together."));
         }
     }

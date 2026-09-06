@@ -128,6 +128,7 @@ final class FlutterDartObjectReferenceEditorComponent {
         private final String argumentDisplayName;
         private final boolean shapeBranch;
         private final boolean noOpRefreshBranch;
+        private final boolean buttonActivationBranch;
         private boolean updating;
 
         ReferencePanel(
@@ -148,8 +149,9 @@ final class FlutterDartObjectReferenceEditorComponent {
             shapeBranch = "shape".equals(argumentName)
                     && "ShapeBorder".equals(expectedDartType);
             noOpRefreshBranch = "onRefresh".equals(argumentName) && "RefreshCallback".equals(expectedDartType);
+            buttonActivationBranch = "onPressed".equals(argumentName) && "VoidCallback".equals(expectedDartType);
             useDefault = new JCheckBox(noOpRefreshBranch ? "Use generated no-op refresh callback"
-                    : "Use Flutter default (omit " + argumentName + ")");
+                    : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default (omit " + argumentName + ")");
 
             setLayout(new BorderLayout(0, 8));
             setName(PANEL_NAME);
@@ -161,9 +163,10 @@ final class FlutterDartObjectReferenceEditorComponent {
 
             useDefault.setName(DEFAULT_NAME);
             useDefault.getAccessibleContext().setAccessibleName(
-                    noOpRefreshBranch ? "Use generated no-op refresh callback" : "Use Flutter default without " + argumentDisplayName);
+                    noOpRefreshBranch ? "Use generated no-op refresh callback" : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
                     noOpRefreshBranch ? "Removes the project reference and generates the required async no-op callback, not a null callback."
+                            : buttonActivationBranch ? "Removes the project reference. Enabled with neither activation callback generates a no-op; disabled or long-press-only generates onPressed: null."
                             : "When selected, removes the optional " + argumentName + " Dart object reference.");
             if (binding.optional()) {
                 add(useDefault, BorderLayout.NORTH);
@@ -342,6 +345,7 @@ final class FlutterDartObjectReferenceEditorComponent {
             String rendered;
             if (unset) {
                 rendered = noOpRefreshBranch ? "onRefresh: () async {}"
+                        : buttonActivationBranch ? "onPressed: <generated from Enabled and On long press>"
                         : shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
                         : argumentName + ": <Flutter default null>";
             } else {
@@ -385,6 +389,9 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + "symbol is assignable to " + expectedDartType + ". ";
             if (noOpRefreshBranch) {
                 base += "Omission generates the required onRefresh: () async {} no-op; it does not emit null or omit the required Dart argument. ";
+            }
+            if (buttonActivationBranch) {
+                base += "Unset removes the project callback, not the required Dart argument. Enabled with neither activation callback generates a no-op; disabled or long-press-only generates onPressed: null. ";
             }
             if ("CustomClipper<RRect>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores ClipRRect.borderRadius. ";

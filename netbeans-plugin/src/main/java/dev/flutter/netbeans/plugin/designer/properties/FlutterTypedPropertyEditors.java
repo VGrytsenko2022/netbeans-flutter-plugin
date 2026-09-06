@@ -74,6 +74,8 @@ final class FlutterTypedPropertyEditors {
             editorKind = EditorKind.PRESET_DART_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN))) {
             editorKind = EditorKind.BOOLEAN;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))) {
+            editorKind = EditorKind.NULLABLE_BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
             editorKind = EditorKind.INTEGER;
         } else if (kinds.equals(EnumSet.of(
@@ -99,6 +101,9 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().getFirst()
                         instanceof PropertyValueConstraint.EnumValues) {
             editorKind = EditorKind.ENUM;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.ENUM, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.EnumValues.class::isInstance)) {
+            editorKind = EditorKind.NULLABLE_ENUM;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS))
                 && definition.constraints().getFirst()
                         instanceof PropertyValueConstraint.EdgeInsetsValues) {
@@ -198,6 +203,8 @@ final class FlutterTypedPropertyEditors {
         PRESET_DART_REFERENCE,
         NEWLINE_STRING_LIST,
         BOOLEAN,
+        NULLABLE_BOOLEAN,
+        NULLABLE_ENUM,
         INTEGER,
         NULLABLE_INTEGER,
         DOUBLE,
@@ -330,12 +337,12 @@ final class FlutterTypedPropertyEditors {
                 case STRING -> new StringEditor(this);
                 case STRING_PRESET -> new StringPresetEditor(this);
                 case NEWLINE_STRING_LIST -> new NewlineStringListEditor(this);
-                case BOOLEAN -> new BooleanEditor(this);
+                case BOOLEAN, NULLABLE_BOOLEAN -> new BooleanEditor(this);
                 case INTEGER -> new IntegerEditor(this);
                 case NULLABLE_INTEGER -> new NullableIntegerEditor(this);
                 case DOUBLE -> new DoubleEditor(this);
                 case NUMBER, NULLABLE_NUMBER, NUMBER_WITH_INFINITY -> new NumberEditor(this);
-                case ENUM -> new CatalogEnumEditor(this);
+                case ENUM, NULLABLE_ENUM -> new CatalogEnumEditor(this);
                 case EDGE_INSETS -> new EdgeInsetsEditor(this);
                 case COLOR -> new ColorEditor(this);
                 case THEME_COLOR -> new ThemeColorEditor(this);
@@ -429,6 +436,7 @@ final class FlutterTypedPropertyEditors {
         @Override
         public final boolean isPaintable() {
             return binding.editorKind() == EditorKind.BOOLEAN
+                    || binding.editorKind() == EditorKind.NULLABLE_BOOLEAN
                     || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
                     || binding.editorKind() == EditorKind.COLOR_ANIMATION
@@ -447,7 +455,7 @@ final class FlutterTypedPropertyEditors {
                     graphics.drawString(getAsText(), box.x + 2,
                             box.y + (box.height + metrics.getAscent() - metrics.getDescent()) / 2);
                 }
-            } else if (binding.editorKind() == EditorKind.BOOLEAN) {
+            } else if (binding.editorKind() == EditorKind.BOOLEAN || binding.editorKind() == EditorKind.NULLABLE_BOOLEAN) {
                 FlutterPropertyEditorComponents.paintBooleanValue(
                         graphics, box, cellValue());
             } else if (binding.editorKind() == EditorKind.COLOR
@@ -587,9 +595,8 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
-            return explicitValue()
-                    .map(PropertyValue.BooleanValue.class::cast)
-                    .map(value -> Boolean.toString(value.value()))
+            return explicitValue().map(value -> value instanceof PropertyValue.NullValue
+                    ? FlutterNullableChoiceEditorComponent.NULL_TEXT : Boolean.toString(((PropertyValue.BooleanValue) value).value()))
                     .orElseGet(this::unsetText);
         }
 
@@ -599,7 +606,10 @@ final class FlutterTypedPropertyEditors {
             if (parseUnset(text)) {
                 return;
             }
-            if ("true".equalsIgnoreCase(text.strip())) {
+            if (binding.editorKind() == EditorKind.NULLABLE_BOOLEAN
+                    && ("null".equalsIgnoreCase(text.strip()) || FlutterNullableChoiceEditorComponent.NULL_TEXT.equalsIgnoreCase(text.strip()))) {
+                setExplicit(new PropertyValue.NullValue());
+            } else if ("true".equalsIgnoreCase(text.strip())) {
                 setExplicit(new PropertyValue.BooleanValue(true));
             } else if ("false".equalsIgnoreCase(text.strip())) {
                 setExplicit(new PropertyValue.BooleanValue(false));
@@ -768,6 +778,7 @@ final class FlutterTypedPropertyEditors {
             if (binding.optional()) {
                 values.add(FlutterPropertyCellValue.NOT_SET_TEXT);
             }
+            if (binding.editorKind() == EditorKind.NULLABLE_ENUM) values.add(FlutterNullableChoiceEditorComponent.NULL_TEXT);
             values.addAll(constraint.values());
             tags = values.toArray(String[]::new);
         }
@@ -779,9 +790,8 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
-            return explicitValue()
-                    .map(PropertyValue.EnumValue.class::cast)
-                    .map(PropertyValue.EnumValue::value)
+            return explicitValue().map(value -> value instanceof PropertyValue.NullValue
+                    ? FlutterNullableChoiceEditorComponent.NULL_TEXT : ((PropertyValue.EnumValue) value).value())
                     .orElseGet(this::unsetText);
         }
 
@@ -792,6 +802,10 @@ final class FlutterTypedPropertyEditors {
                 return;
             }
             String normalized = text.strip();
+            if (binding.editorKind() == EditorKind.NULLABLE_ENUM
+                    && ("null".equalsIgnoreCase(normalized) || FlutterNullableChoiceEditorComponent.NULL_TEXT.equalsIgnoreCase(normalized))) {
+                setExplicit(new PropertyValue.NullValue()); return;
+            }
             if (!constraint.values().contains(normalized)) {
                 throw new IllegalArgumentException(
                         "Expected one of " + constraint.values() + ".");

@@ -362,6 +362,14 @@ final class DesignerCommandSessionOrchestrator
      * evidence only; this method performs no I/O.
      */
     DurableSaveLease beginDurableSave(PreparedDesignerPair exactPair) {
+        return beginDurableSave(exactPair, null);
+    }
+
+    DurableSaveLease beginMetadataDurableSave(byte[] exactDart) {
+        return beginDurableSave(null, Objects.requireNonNull(exactDart, "exactDart").clone());
+    }
+
+    private DurableSaveLease beginDurableSave(PreparedDesignerPair exactPair, byte[] metadataDart) {
         DurableSaveLease lease;
         synchronized (monitor) {
             beginOperationLocked();
@@ -373,7 +381,8 @@ final class DesignerCommandSessionOrchestrator
             DesignerCommandSession captured = session;
             DesignerCommandRevision revision = captured.current();
             try {
-                DesignerCommandSession precomputedSaved = exactPair == null
+                DesignerCommandSession precomputedSaved = metadataDart != null
+                        ? captured.markSavedWithSourceEnvelope(metadataDart) : exactPair == null
                         ? captured.markSaved()
                         : captured.markSaved(exactPair);
                 lease = new DurableSaveLease(
@@ -383,7 +392,7 @@ final class DesignerCommandSessionOrchestrator
                         precomputedSaved,
                         captured.durableFdAnchor().copyBytes(),
                         captured.durableDartAnchorBytes(),
-                        exactPair);
+                        exactPair, metadataDart);
                 activeDurableSave = lease;
             } catch (RuntimeException | Error failure) {
                 operationRunning = false;
@@ -1649,7 +1658,7 @@ final class DesignerCommandSessionOrchestrator
                 DesignerCommandSession precomputedSaved,
                 byte[] durableFdBytes,
                 byte[] durableDartBytes,
-                PreparedDesignerPair exactPairIdentity) {
+                PreparedDesignerPair exactPairIdentity, byte[] metadataDart) {
             this.owner = owner;
             this.sessionIdentity = sessionIdentity;
             this.revisionIdentity = revisionIdentity;
@@ -1660,7 +1669,7 @@ final class DesignerCommandSessionOrchestrator
             DesignerCommandRevision reanchoredLeaseRevision =
                     precomputedSaved.retainedRevision(
                             revisionIdentity.revisionId()).orElse(null);
-            byte[] expectedSavedDart = exactPairIdentity == null
+            byte[] expectedSavedDart = metadataDart != null ? metadataDart : exactPairIdentity == null
                     ? revisionIdentity.dartCandidateBytes()
                     : exactPairIdentity.prospectiveDartBytes();
             if (!sessionIdentity.dirty()
@@ -1703,8 +1712,8 @@ final class DesignerCommandSessionOrchestrator
             }
             if (revisionIdentity.persistenceKind()
                     == DesignerRevisionPersistenceKind.FD_ONLY) {
-                if (!Arrays.equals(
-                        revisionIdentity.dartCandidateBytes(), this.durableDartBytes)
+                if ((metadataDart == null && !Arrays.equals(
+                        revisionIdentity.dartCandidateBytes(), this.durableDartBytes))
                         || Arrays.equals(
                                 revisionIdentity.fdBytes(), this.durableFdBytes)) {
                     throw new IllegalArgumentException(

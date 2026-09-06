@@ -2118,6 +2118,18 @@ class DartRegionGeneratorTest {
     }
 
     @Test
+    void defaultExpandedCapacityAccepts2048TotalAndRejects2049WithoutPartialEvidence() {
+        var exact = new DartRegionGenerator().generate(columnWithTextChildren(2044), BuiltInWidgetCatalog.getDefault());
+        var excessive = new DartRegionGenerator().generate(columnWithTextChildren(2045), BuiltInWidgetCatalog.getDefault());
+        assertTrue(exact.successful(), exact.diagnostics().toString());
+        assertEquals(2047, exact.generated().orElseThrow().symbolOccurrences().size());
+        assertSame(DartCandidateCapacityBudget.DEFAULT, exact.generated().orElseThrow().candidateCapacityBudget());
+        assertFalse(excessive.successful());
+        assertTrue(excessive.generated().isEmpty());
+        assertEquals(DartGenerationDiagnosticCode.SYMBOL_PROBE_LIMIT, excessive.diagnostics().getFirst().code());
+    }
+
+    @Test
     void minimumUsableProbeCapacityIncludesTheRootConstructor() {
         DartCandidateCapacityBudget capacity = new DartCandidateCapacityBudget(
                 "generator-minimum-probe-capacity", 100_000, 4, 1);

@@ -14,7 +14,9 @@ public final class DartCandidateCapacityBudget {
             "fd-dart-candidate-capacity-v1";
     public static final int DEFAULT_MAX_CANDIDATE_UTF8_BYTES =
             2 * 1024 * 1024;
-    public static final int DEFAULT_MAX_SYMBOL_PROBES = 256;
+    // A complete nine-state TextButton style exceeds 1,100 distinct source
+    // occurrences. Retain every occurrence's evidence instead of coalescing it.
+    public static final int DEFAULT_MAX_SYMBOL_PROBES = 2_048;
     public static final int DEFAULT_RESERVED_SOURCE_SYMBOL_PROBES = 1;
 
     public static final DartCandidateCapacityBudget DEFAULT =

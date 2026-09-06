@@ -1255,6 +1255,40 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
         });
     }
 
+    /** Exact semantic admission with no source mutation or synthetic Undo delegate. */
+    LiveDartDocumentSnapshot applyUnchangedSourceAndFinalize(
+            LiveDartDocumentSnapshot expected,
+            byte[] exactBytes,
+            ForwardSemanticEdge edge,
+            AppliedSemanticFinalizer finalizer) throws IOException {
+        Objects.requireNonNull(expected, "expected");
+        DesignerCombinedUndoRedo outward = Objects.requireNonNull(combinedUndoRedo,
+                "combined Undo/Redo bridge");
+        try (var notifications = outward.deferNotifications();
+                NativeHistoryReplay replay = beginNativeHistoryReplay(expected.documentIdentity());
+                DesignerAtomicEditCapture capture = DesignerAtomicEditCapture.begin(
+                expected.documentIdentity(), getUndoRedo())) {
+            try {
+                LiveDartDocumentSnapshot applied = verifyNativeReplayAndFinalize(
+                        expected.documentIdentity(), exactBytes, fresh -> {
+                            if (!expected.sameEvidence(fresh)) {
+                                throw new IOException("The unchanged-source admission lost its exact live revision");
+                            }
+                            var commit = finalizer.verifyAndPrepare(fresh);
+                            capture.seal(edge.beforeRevisionId(), edge.afterRevisionId(),
+                                    edge.presentationName(), edge.replayController(),
+                                    outward::enqueueSemanticPublication, commit);
+                            capture.admitUnchangedSource();
+                        });
+                capture.verifyCompleted();
+                return applied;
+            } catch (IOException | RuntimeException | Error failure) {
+                abortUnadmittedCapture(capture, failure);
+                throw failure;
+            }
+        }
+    }
+
     private static void abortUnadmittedCapture(
             DesignerAtomicEditCapture capture,
             Throwable primary) {

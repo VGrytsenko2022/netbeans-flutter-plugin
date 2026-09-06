@@ -555,6 +555,10 @@ final class PairSaveCoordinator implements Node.Cookie,
     private static boolean exactSemanticBaselineEndpoint(
             HistoryEndpoint endpoint,
             DesignerCommandRevision revision) {
+        if (endpoint instanceof MetadataHistoryEndpoint metadata) {
+            return metadata.revision() == revision
+                    && revision.persistenceKind() == DesignerRevisionPersistenceKind.FD_ONLY;
+        }
         if (endpoint == null
                 || endpoint.revision() != revision
                 || revision.persistenceKind()
@@ -1116,6 +1120,137 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
     }
 
+    boolean retainsMetadataHistory(
+            DesignerCommandSessionOrchestrator owner,
+            DesignerCommandRevision revision) {
+        synchronized (this) {
+            return retainsMetadataHistoryLocked(owner, revision);
+        }
+    }
+
+    private boolean retainsMetadataHistoryLocked(
+            DesignerCommandSessionOrchestrator owner,
+            DesignerCommandRevision revision) {
+        return unsavedHistoryOwner == owner && staged == null
+                && unsavedHistoryCursor != null
+                && unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint metadata
+                && metadata.revision() == revision
+                && metadata.currentIdentity() == controller.state();
+    }
+
+    /**
+     * Extends an already retained metadata cursor without touching Source or
+     * persisting implicitly. The validated command and exact durable/live
+     * anchors, not a fabricated Dart transition, authorize this native edit.
+     */
+    void applyRetainedMetadataCommand(
+            CloseRevision expectedRevision,
+            FlutterDesignerDocumentState.Current expectedCurrent,
+            DesignerCommandSessionOrchestrator.PendingCommandLease commandLease,
+            LiveDartDocumentSnapshot initialLive) throws IOException {
+        DiskBaseline observed = readDiskBaseline();
+        rejectForeignSaveCookie();
+        Object claim = new Object();
+        onEdt(() -> {
+            boolean claimed = false;
+            boolean adopted = false;
+            try (EffectsDeferral effects = deferEffects()) {
+                UnsavedPairHistoryCursor predecessorCursor;
+                UnsavedPairHistoryEdge edge;
+                UnsavedPairHistoryCursor targetCursor;
+                ArmedForwardAdmission admission;
+                synchronized (PairSaveCoordinator.this) {
+                    ensureStageableLocked();
+                    DesignerCommandRevision before = commandLease.predecessorRevision();
+                    DesignerCommandRevision after = commandLease.candidateRevision();
+                    if (!ownsCloseRevisionLocked(expectedRevision)
+                            || controller.state() != expectedCurrent
+                            || !retainsMetadataHistoryLocked(commandLease.owner(), before)
+                            || commandLease.catalogIdentity() != expectedCurrent.catalog()
+                            || commandLease.kind() != DesignerCommandSessionOrchestrator.PendingTransitionKind.APPLY
+                            || !commandLease.ownsExactActiveTransition()
+                            || sourceDirty || editor.sourceModified() || failedSavePending
+                            || diskBaseline == null
+                            || !Arrays.equals(observed.dartBytes(), diskBaseline.dartBytes())
+                            || !Arrays.equals(observed.fdBytes(), diskBaseline.fdBytes())
+                            || !Arrays.equals(initialLive.markerBearingUtf8(), observed.dartBytes())
+                            || !initialLive.sameEvidence(unsavedHistoryCursor.liveIdentity())
+                            || !Arrays.equals(after.dartCandidateBytes(), initialLive.markerBearingUtf8())
+                            || !(after.persistenceKind() == DesignerRevisionPersistenceKind.FD_ONLY
+                                || after.persistenceKind() == DesignerRevisionPersistenceKind.BASELINE)) {
+                        throw new IOException("Cannot extend retained metadata: the exact command, source or durable anchor changed");
+                    }
+                    predecessorCursor = unsavedHistoryCursor;
+                    HistoryEndpoint target = after.persistenceKind() == DesignerRevisionPersistenceKind.BASELINE
+                            ? new BaselineHistoryEndpoint(after, expectedCurrent,
+                                    observed.dartBytes(), observed.fdBytes())
+                            : new MetadataHistoryEndpoint(after, expectedCurrent,
+                                    observed.dartBytes(), observed.fdBytes(), after,
+                                    new ValidatedMetadataHistorySeed(after));
+                    edge = new UnsavedPairHistoryEdge(predecessorCursor.endpoint(), target, commandLease.owner());
+                    requireRegisterableHistoryEdgeLocked(edge);
+                    verifyReplacementPhysicalBudgetLocked(commandLease, null);
+                    targetCursor = new UnsavedPairHistoryCursor(target, initialLive, (StagedPairProof) null);
+                    commandLease.claimForTransition(claim);
+                    claimed = true;
+                    admission = armForwardAdmissionLocked(claim, true);
+                }
+                forwardAdmissionHook.afterArmed(commandLease, true);
+                editor.applyUnchangedSourceAndFinalize(initialLive,
+                        initialLive.markerBearingUtf8(), forwardSemanticEdge(commandLease), fresh -> {
+                    synchronized (PairSaveCoordinator.this) {
+                        if (forwardAdmission != admission
+                                || admission.poisoned || externalEventEpoch != admission.eventTicket
+                                || epoch != admission.coordinatorEpoch
+                                || controller.state() != expectedCurrent
+                                || unsavedHistoryCursor != predecessorCursor
+                                || !initialLive.sameEvidence(fresh)
+                                || sourceDirty || editor.sourceModified()
+                                || !commandLease.ownsExactActiveTransition()) {
+                            throw new IOException("The retained metadata authority changed before native admission");
+                        }
+                    }
+                    return () -> {
+                        StateChange[] change = new StateChange[1];
+                        DesignerCommandSessionOrchestrator.DeferredLeaseEffects commandEffects;
+                        synchronized (PairSaveCoordinator.this) {
+                            commandEffects = commandLease.adoptExactTargetCloseAwareDeferredEffects(
+                                    commandLease.candidateRevision(), ownerClosePending -> {
+                                boolean exact = forwardAdmission == admission
+                                        && epoch == admission.coordinatorEpoch
+                                        && unsavedHistoryCursor == predecessorCursor
+                                        && controller.state() == expectedCurrent;
+                                boolean poisoned = admission.poisoned || externalEventEpoch != admission.eventTicket;
+                                forwardAdmission = null;
+                                if (exact && !poisoned && !ownerClosePending) {
+                                    unsavedPairHistory.put(edge.key(), edge);
+                                    unsavedHistoryCursor = targetCursor;
+                                    unsavedHistoryOwner = edge.owner();
+                                    // CLEAN describes Source. Pending FD metadata is
+                                    // represented independently by the shared SaveCookie.
+                                    change[0] = transitionLocked(PairSaveCoordinatorStatus.CLEAN, null);
+                                } else {
+                                    failClosedForwardAdmissionLocked(admission, poisoned,
+                                            "Retained metadata authority changed during native admission", change);
+                                }
+                            }, claim);
+                        }
+                        return deferredForwardPublication(change[0], commandEffects, effects);
+                    };
+                });
+                adopted = true;
+            } finally {
+                StateChange release = disarmForwardAdmission(claim);
+                if (claimed && !adopted && commandLease.ownsExactActiveTransition()) {
+                    publishEffects(release, commandLease.abortToExactPredecessorDeferredEffects(claim));
+                } else {
+                    publishEffects(release);
+                }
+            }
+            return null;
+        });
+    }
+
     /** Compatibility seam for direct coordinator callers without a UI token. */
     void commitFdOnly(
             FlutterDesignerDocumentState.Current expectedCurrent,
@@ -1294,7 +1429,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 throw new IOException("Cannot save " + dartFile.getNameExt()
                         + ": a synchronous Designer-only save is already running");
             }
-            if (historyTransition != null) {
+            if (historyTransition != null || forwardAdmission != null) {
                 throw new IOException("Cannot save " + dartFile.getNameExt()
                         + ": an exact unsaved Designer history transition is active");
             }
@@ -1315,7 +1450,9 @@ final class PairSaveCoordinator implements Node.Cookie,
                 }
                 rejectConflictSaveLocked();
                 if (staged == null) {
-                    if (!sourceDirty && !failedSavePending) {
+                    if (!sourceDirty && !failedSavePending
+                            && !(unsavedHistoryCursor != null
+                                && unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint)) {
                         return;
                     }
                     if (diskBaseline == null) {
@@ -2172,11 +2309,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 .generated().orElseThrow();
         var result = new java.util.concurrent.atomic.AtomicReference<
                 PairSaveEvidenceResult>();
-        editor.applyPreparedRegionsAndFinalize(
-                lease.initialLive,
-                generated,
-                lease.candidatePair.prospectiveDartBytes(),
-                forwardSemanticEdge(lease.commandLease),
+        FlutterDesignerEditorSupport.AppliedSemanticFinalizer finalizer =
                 applied -> prepareReplacementAdmissionWithinDocumentLock(
                         lease,
                         ticket,
@@ -2184,7 +2317,16 @@ final class PairSaveCoordinator implements Node.Cookie,
                         analysis,
                         applied,
                         result,
-                        effectsDeferral));
+                        effectsDeferral);
+        if (lease.liveTransition.status() == DartSourceTransitionStatus.NO_CHANGES) {
+            editor.applyUnchangedSourceAndFinalize(lease.initialLive,
+                    lease.candidatePair.prospectiveDartBytes(),
+                    forwardSemanticEdge(lease.commandLease), finalizer);
+        } else {
+            editor.applyPreparedRegionsAndFinalize(lease.initialLive, generated,
+                    lease.candidatePair.prospectiveDartBytes(),
+                    forwardSemanticEdge(lease.commandLease), finalizer);
+        }
         PairSaveEvidenceResult evaluated = result.get();
         if (evaluated == null) {
             throw new IOException(
@@ -2969,9 +3111,9 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
         if (unsavedHistoryOwner == null
                 || unsavedHistoryCursor.stagedProof() != null
-                || unsavedHistoryCursor.endpoint().revision()
-                        .persistenceKind()
-                    != DesignerRevisionPersistenceKind.BASELINE) {
+                || !(unsavedHistoryCursor.endpoint().revision().persistenceKind()
+                        == DesignerRevisionPersistenceKind.BASELINE
+                    || unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint)) {
             throw new IOException(
                     "Cannot save Dart source: retained Designer history has no exact saved cursor");
         }
@@ -3153,7 +3295,13 @@ final class PairSaveCoordinator implements Node.Cookie,
 
         DesignerCommandSessionOrchestrator.DurableSaveLease lease;
         try {
-            lease = commandOwner.beginDurableSave();
+            boolean metadata;
+            synchronized (this) {
+                metadata = unsavedHistoryCursor != null
+                        && unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint;
+            }
+            lease = metadata ? commandOwner.beginMetadataDurableSave(candidate.serializedDartBytes())
+                    : commandOwner.beginDurableSave();
         } catch (RuntimeException planningFailure) {
             if (retireClosedEdgeLessHistoryOwner(commandOwner)) {
                 return false;
@@ -3184,7 +3332,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 synchronized (PairSaveCoordinator.this) {
                     if (!fresh.sameEvidence(candidate.liveIdentity())
                             || editorDirty != candidate.editorDirty()
-                            || !sourceDirty
+                            || !sourceDirty && !(plan.priorCursorIdentity().endpoint() instanceof MetadataHistoryEndpoint)
                             || sourceStateEpoch != plan.sourceStateEpoch()
                             || epoch != plan.coordinatorEpoch()
                             || externalEventEpoch != plan.eventEpoch()
@@ -3227,7 +3375,31 @@ final class PairSaveCoordinator implements Node.Cookie,
             throw wrapped;
         }
         publishEffects(activatedChange[0]);
-        saveSourceOnly(attempt);
+        if (!candidate.editorDirty()
+                && plan.priorCursorIdentity().endpoint() instanceof MetadataHistoryEndpoint) {
+            // Explicit Save of metadata must not manufacture a source edit or
+            // advance CES's source savepoint. Retain the same native history.
+            try {
+                if (!Arrays.equals(plan.priorBaselineIdentity().dartBytes(),
+                        plan.savedBaseline().dartBytes())) {
+                    throw new IOException("Clean-source metadata Save cannot replace a Source envelope");
+                }
+                attempt.result = fdOnlyTransaction.commit(new PairFileTransactionRequest(
+                        dartFile, designerFile, plan.priorBaselineIdentity().dartBytes(),
+                        plan.priorBaselineIdentity().fdBytes(), plan.savedBaseline().dartBytes(),
+                        plan.savedBaseline().fdBytes()));
+                attempt.committedDart = plan.savedBaseline().dartBytes();
+                if (!acceptsFdOnlyTransaction(attempt.result)) {
+                    throw new IOException("Retained metadata Save did not commit exactly one .fd write");
+                }
+                finishCommittedSemanticBaselineSource(attempt, null);
+            } catch (IOException | RuntimeException failure) {
+                finishFailedSource(attempt, attempt.result, failure);
+                throw asIOException(failure);
+            }
+        } else {
+            saveSourceOnly(attempt);
+        }
         return true;
     }
 
@@ -4174,6 +4346,27 @@ final class PairSaveCoordinator implements Node.Cookie,
             Throwable failure) {
         SemanticBaselineHistorySavePlan plan =
                 attempt.semanticBaselinePlan;
+        if (!attempt.cesEntered && result != null
+                && (result.status() == PairFileTransactionStatus.ROLLED_BACK
+                    || result.status() == PairFileTransactionStatus.FAILED
+                        && result.forwardWriteAttempts() == 0 && !result.rollbackAttempted())) {
+            StateChange retryable = null;
+            synchronized (this) {
+                if (activeSourceSave == attempt && externalEventEpoch == plan.eventEpoch()
+                        && controller.state() == plan.priorCurrentIdentity()
+                        && unsavedHistoryCursor == plan.priorCursorIdentity()
+                        && retainsExactSemanticBaselinePlanLocked(plan)) {
+                    activeSourceSave = null;
+                    retryable = transitionLocked(PairSaveCoordinatorStatus.SAVE_FAILED,
+                            "Metadata Save made no durable change; the exact history is retained: " + reason(failure));
+                }
+            }
+            if (retryable != null) {
+                abortLeaseSafely(plan.leaseIdentity(), failure);
+                publishEffects(retryable);
+                return;
+            }
+        }
         IOException terminal = new IOException(
                 "Semantic BASELINE Save did not complete after CES entered its persistence barrier: "
                 + reason(failure), failure);
@@ -5296,6 +5489,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                             expectedCursor.endpoint(), sourceEndpoint)
                     || sourceEndpoint.revision().persistenceKind()
                         != DesignerRevisionPersistenceKind.BASELINE
+                        && !(sourceEndpoint instanceof MetadataHistoryEndpoint)
                     || staged != null
                     || sourceOverlay && !sourceDirty
                     || controller.state() != sourceEndpoint.currentIdentity()) {
@@ -5764,7 +5958,8 @@ final class PairSaveCoordinator implements Node.Cookie,
                         serialized,
                         editorDirty,
                         sourceDirty,
-                        sourceStateEpoch);
+                        sourceStateEpoch,
+                        retainedMetadataCursorLocked());
             }
         });
     }
@@ -5915,8 +6110,9 @@ final class PairSaveCoordinator implements Node.Cookie,
         long coordinatorEpoch;
         long eventEpoch;
         synchronized (this) {
-            if (!sourceDirty
-                    || !candidate.editorDirty()
+            boolean metadata = retainedMetadataCursorLocked();
+            if (!sourceDirty && !metadata
+                    || !candidate.editorDirty() && !metadata
                     || staged != null
                     || activeSourceSave != null
                     || activePairSave != null
@@ -5935,11 +6131,11 @@ final class PairSaveCoordinator implements Node.Cookie,
                     || lease.revision()
                         != unsavedHistoryCursor.endpoint().revision()
                     || lease.revision().persistenceKind()
-                        != DesignerRevisionPersistenceKind.BASELINE
+                        != DesignerRevisionPersistenceKind.BASELINE && !metadata
                     || candidate.liveIdentity().documentIdentity()
                         != unsavedHistoryCursor.liveIdentity()
                                 .documentIdentity()
-                    || !candidate.liveIdentity().sameEvidence(
+                    || !metadata && !candidate.liveIdentity().sameEvidence(
                             unsavedHistoryCursor.liveIdentity())) {
                 throw new IOException(
                         "Cannot precompute semantic BASELINE Save from stale command, model or native cursor evidence");
@@ -5972,17 +6168,15 @@ final class PairSaveCoordinator implements Node.Cookie,
                 || !Arrays.equals(
                     lease.durableFdBytes(), retainedBaseline.fdBytes())
                 || !Arrays.equals(
-                    lease.revision().dartCandidateBytes(),
+                    lease.reanchoredRevision(lease.savedRevisionId()).dartCandidateBytes(),
                     candidate.serializedDartBytes())
-                || !Arrays.equals(
+                || !(retainedEndpoint instanceof MetadataHistoryEndpoint) && !Arrays.equals(
                     retainedEndpoint.dartBytes(),
                     candidate.serializedDartBytes())
                 || !Arrays.equals(
                     retainedEndpoint.baselineDartBytes(),
                     retainedBaseline.dartBytes())
-                || !Arrays.equals(
-                    lease.revision().fdBytes(),
-                    retainedBaseline.fdBytes())
+                || !Arrays.equals(lease.revision().fdBytes(), retainedEndpoint.revision().fdBytes())
                 || !Arrays.equals(
                     retainedEndpoint.baselineFdBytes(),
                     retainedBaseline.fdBytes())) {
@@ -6014,16 +6208,19 @@ final class PairSaveCoordinator implements Node.Cookie,
                         lease.maxRetainedPairBytes());
         Map<HistoryEdgeKey, UnsavedPairHistoryEdge> reanchored =
                 new HashMap<>();
+        HistoryEndpoint savedSourceEndpoint = Arrays.equals(
+                retainedCursor.endpoint().dartBytes(), candidate.serializedDartBytes())
+                ? retainedCursor.endpoint() : null;
         for (Map.Entry<HistoryEdgeKey, UnsavedPairHistoryEdge> entry
                 : retained.entrySet()) {
             UnsavedPairHistoryEdge oldEdge = entry.getValue();
             HistoryEndpoint before = reanchoredEndpoint(
                     oldEdge.before(), lease, savedCurrent, savedBaseline,
-                    retainedCursor.endpoint(), endpointByIdentity,
+                    savedSourceEndpoint, endpointByIdentity,
                     endpointBudget);
             HistoryEndpoint after = reanchoredEndpoint(
                     oldEdge.after(), lease, savedCurrent, savedBaseline,
-                    retainedCursor.endpoint(), endpointByIdentity,
+                    savedSourceEndpoint, endpointByIdentity,
                     endpointBudget);
             UnsavedPairHistoryEdge next = new UnsavedPairHistoryEdge(
                     before, after, oldEdge.owner());
@@ -6033,10 +6230,18 @@ final class PairSaveCoordinator implements Node.Cookie,
             }
             reanchored.put(entry.getKey(), next);
         }
-        HistoryEndpoint savedEndpoint = reanchoredEndpoint(
-                retainedCursor.endpoint(), lease, savedCurrent, savedBaseline,
-                retainedCursor.endpoint(), endpointByIdentity,
-                endpointBudget);
+        HistoryEndpoint savedEndpoint;
+        if (savedSourceEndpoint == null) {
+            // Keep the old native edge's physical Source underlay intact.
+            // The saved live overlay is a separate cursor of the same revision.
+            savedEndpoint = new BaselineHistoryEndpoint(savedRevision, savedCurrent,
+                    savedBaseline.dartBytes(), savedBaseline.fdBytes());
+            endpointBudget.retain(savedEndpoint);
+        } else {
+            savedEndpoint = reanchoredEndpoint(
+                    retainedCursor.endpoint(), lease, savedCurrent, savedBaseline,
+                    savedSourceEndpoint, endpointByIdentity, endpointBudget);
+        }
         if (savedEndpoint == null
                 || savedEndpoint.revision() != savedRevision
                 || savedEndpoint.revision().persistenceKind()
@@ -6122,6 +6327,11 @@ final class PairSaveCoordinator implements Node.Cookie,
                             savedBaseline.dartBytes(),
                             savedBaseline.fdBytes());
             }
+        } else if (revision.persistenceKind() == DesignerRevisionPersistenceKind.FD_ONLY) {
+            DesignerCommandRevision physical = lease.reanchoredPhysicalRevisionByProjectingAnchor(
+                    revision.revisionId(), oldEndpoint.dartBytes());
+            next = metadataHistoryEndpoint(oldEndpoint, revision, physical,
+                    savedCurrent, savedBaseline);
         } else if (revision.persistenceKind()
                 == DesignerRevisionPersistenceKind.PAIRED) {
             SavedHistorySeed seed;
@@ -6141,6 +6351,8 @@ final class PairSaveCoordinator implements Node.Cookie,
             } else if (oldEndpoint
                     instanceof ReanchoredPairedHistoryEndpoint paired) {
                 seed = paired.seed();
+            } else if (oldEndpoint instanceof MetadataHistoryEndpoint metadata) {
+                seed = metadata.seed();
             } else {
                 throw new IOException(
                         "Unsupported retained endpoint during Source history re-anchor");
@@ -6339,6 +6551,11 @@ final class PairSaveCoordinator implements Node.Cookie,
                         savedBaseline.dartBytes(),
                         savedBaseline.fdBytes());
             }
+        } else if (revision.persistenceKind() == DesignerRevisionPersistenceKind.FD_ONLY) {
+            DesignerCommandRevision physical = lease.reanchoredPhysicalRevisionByProjectingAnchor(
+                    revisionId, oldEndpoint.dartBytes());
+            next = metadataHistoryEndpoint(oldEndpoint, revision, physical,
+                    savedCurrent, savedBaseline);
         } else if (revision.persistenceKind()
                 == DesignerRevisionPersistenceKind.PAIRED) {
             SavedHistorySeed seed;
@@ -6358,6 +6575,8 @@ final class PairSaveCoordinator implements Node.Cookie,
             } else if (oldEndpoint
                     instanceof ReanchoredPairedHistoryEndpoint paired) {
                 seed = paired.seed();
+            } else if (oldEndpoint instanceof MetadataHistoryEndpoint metadata) {
+                seed = metadata.seed();
             } else {
                 throw new IOException(
                         "Unsupported retained history endpoint during durable re-anchor");
@@ -6400,6 +6619,30 @@ final class PairSaveCoordinator implements Node.Cookie,
         endpointBudget.retain(next);
         endpointByIdentity.put(oldEndpoint, next);
         return next;
+    }
+
+    private static MetadataHistoryEndpoint metadataHistoryEndpoint(
+            HistoryEndpoint previous, DesignerCommandRevision revision,
+            DesignerCommandRevision physical, FlutterDesignerDocumentState.Current current,
+            DiskBaseline baseline) throws IOException {
+        if (physical.persistenceKind() != DesignerRevisionPersistenceKind.FD_ONLY
+                || !physical.document().equals(revision.document())
+                || !Arrays.equals(physical.fdBytes(), revision.fdBytes())
+                || !Arrays.equals(physical.dartCandidateBytes(), previous.dartBytes())) {
+            throw new IOException("Retained metadata history lost its exact physical Source envelope");
+        }
+        SavedHistorySeed seed;
+        if (previous instanceof PairedHistoryEndpoint paired) {
+            seed = new ReanchoredAnalyzedHistorySeed(paired.seed());
+        } else if (previous instanceof ReanchoredPairedHistoryEndpoint paired) {
+            seed = paired.seed();
+        } else if (previous instanceof MetadataHistoryEndpoint metadata) {
+            seed = metadata.seed();
+        } else {
+            seed = new FormerDurableHistorySeed(previous.dartBytes(), revision.fdBytes());
+        }
+        return new MetadataHistoryEndpoint(revision, current, baseline.dartBytes(),
+                baseline.fdBytes(), physical, seed);
     }
 
     /** Incremental fail-fast accounting for unique projected output identities. */
@@ -6508,7 +6751,7 @@ final class PairSaveCoordinator implements Node.Cookie,
     private UnsavedPairHistoryEdge prepareInitialHistoryEdgeLocked(
             PairPreparation lease,
             PairSaveEvidence evidence) throws IOException {
-        BaselineHistoryEndpoint baseline;
+        HistoryEndpoint baseline;
         if (unsavedHistoryCursor == null) {
             baseline = new BaselineHistoryEndpoint(
                     lease.predecessor,
@@ -6541,6 +6784,14 @@ final class PairSaveCoordinator implements Node.Cookie,
                     lease.expectedCurrent,
                     lease.prepared.baselineDartBytes(),
                     lease.prepared.baselineFdBytes());
+        } else if (unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint metadata
+                && metadata.revision() == lease.predecessor
+                && metadata.currentIdentity() == lease.expectedCurrent
+                && staged == null
+                && Arrays.equals(metadata.dartBytes(), lease.initialLive.markerBearingUtf8())
+                && Arrays.equals(metadata.baselineDartBytes(), lease.prepared.baselineDartBytes())
+                && Arrays.equals(metadata.baselineFdBytes(), lease.prepared.baselineFdBytes())) {
+            baseline = metadata;
         } else {
             baseline = requireBaselineEndpointLocked(lease.predecessor);
         }
@@ -7024,7 +7275,8 @@ final class PairSaveCoordinator implements Node.Cookie,
             throw new IOException(
                     "The native history target differs from its exact Dart endpoint bytes");
         }
-        if (endpoint instanceof BaselineHistoryEndpoint
+        if (endpoint instanceof MetadataHistoryEndpoint
+                || endpoint instanceof BaselineHistoryEndpoint
                 || endpoint instanceof SourceOverlayBaselineHistoryEndpoint) {
             return null;
         }
@@ -7258,6 +7510,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             LiveDartDocumentSnapshot initialLive) throws IOException {
         DesignerCommandRevision predecessor = commandLease.predecessorRevision();
         DesignerCommandRevision candidate = commandLease.candidateRevision();
+        boolean metadataPredecessor = retainsMetadataHistoryLocked(commandLease.owner(), predecessor);
         if (!commandLease.ownsExactActiveTransition()
                 || commandLease.kind()
                     != DesignerCommandSessionOrchestrator.PendingTransitionKind.APPLY) {
@@ -7271,8 +7524,8 @@ final class PairSaveCoordinator implements Node.Cookie,
                     "Cannot prepare the first Flutter Designer revision: the "
                     + "loaded Current or catalog identity differs from the command session");
         }
-        if (predecessor.persistenceKind()
-                    != DesignerRevisionPersistenceKind.BASELINE
+        if ((!metadataPredecessor && predecessor.persistenceKind()
+                    != DesignerRevisionPersistenceKind.BASELINE)
                 || candidate.persistenceKind()
                     != DesignerRevisionPersistenceKind.PAIRED
                 || candidate.preparedPair().isEmpty()) {
@@ -7281,14 +7534,14 @@ final class PairSaveCoordinator implements Node.Cookie,
                     + "and PAIRED C1 command revisions");
         }
         PreparedDesignerPair prepared = candidate.preparedPair().orElseThrow();
-        if (predecessor.fdSnapshot() != current.decoded().original()
+        if ((!metadataPredecessor && (predecessor.fdSnapshot() != current.decoded().original()
                 || predecessor.sourceIntegrity()
-                    != current.sourceIntegrity().orElse(null)
+                    != current.sourceIntegrity().orElse(null)))
                 || current.threeWayIntegrity().isEmpty()
                 || prepared.baselineFd() != current.decoded().original()
                 || prepared.dartTransition().baseline()
                     != current.threeWayIntegrity().orElseThrow()
-                || !Arrays.equals(
+                || !metadataPredecessor && !Arrays.equals(
                         predecessor.fdBytes(), prepared.baselineFdBytes())
                 || !Arrays.equals(
                         predecessor.dartCandidateBytes(),
@@ -7439,22 +7692,20 @@ final class PairSaveCoordinator implements Node.Cookie,
                         expectedStaged.candidateDartBytes(),
                         predecessor.document().source(),
                         candidate.generation());
-        if (liveResult.status() != DartSourceTransitionStatus.READY
-                || liveResult.plan().isEmpty()) {
-            if (liveResult.status() == DartSourceTransitionStatus.NO_CHANGES) {
-                throw new IOException("Cannot apply this Designer-only change while a Dart/Designer pair is unsaved. "
-                        + "Save or undo the staged revision, then retry the change (NO_CHANGES).");
-            }
+        boolean unchanged = liveResult.status() == DartSourceTransitionStatus.NO_CHANGES;
+        if (!unchanged && (liveResult.status() != DartSourceTransitionStatus.READY
+                || liveResult.plan().isEmpty())) {
             throw new IOException(
                     "Cannot replace the staged Flutter Designer revision: C1 "
                     + "cannot be transformed deterministically to C2 ("
                     + liveResult.status() + ")");
         }
-        DartSourceTransitionPlan liveTransition = liveResult.plan().orElseThrow();
         if (!Arrays.equals(
-                    liveTransition.candidateBytes(),
+                    unchanged ? expectedStaged.candidateDartBytes()
+                            : liveResult.plan().orElseThrow().candidateBytes(),
                     candidatePair.prospectiveDartBytes())
-                || !liveTransition.prospectiveDescriptor().equals(
+                || !(unchanged ? predecessor.document().source()
+                        : liveResult.plan().orElseThrow().prospectiveDescriptor()).equals(
                         candidatePair.prospectiveDocument().source())) {
             throw new IOException(
                     "Cannot replace the staged Flutter Designer revision: the "
@@ -7462,7 +7713,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
         verifyReplacementPhysicalBudgetLocked(commandLease, candidatePair);
         return new ReplacementInputs(
-                predecessor, candidate, candidatePair, liveTransition);
+                predecessor, candidate, candidatePair, liveResult);
     }
 
     /**
@@ -7499,7 +7750,7 @@ final class PairSaveCoordinator implements Node.Cookie,
 
     private void ensureStageableLocked() throws IOException {
         if (preparation != null || replacement != null || staged != null
-                || historyTransition != null
+                || historyTransition != null || forwardAdmission != null
                 || activePairSave != null
                 || activeSourceSave != null || activeFdOnlySave != null
                 || activePairPathOperation != null) {
@@ -7774,7 +8025,7 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     private boolean saveCookieRequiredLocked() {
-        return sourceDirty || failedSavePending || staged != null
+        return sourceDirty || failedSavePending || staged != null || retainedMetadataCursorLocked()
                 || activePairSave != null || activeSourceSave != null
                 || preparation != null && preparation.applied != null
                 || replacement != null
@@ -7782,6 +8033,11 @@ final class PairSaveCoordinator implements Node.Cookie,
                     && (state.status() == PairSaveCoordinatorStatus.EXTERNAL_CONFLICT
                         || state.status()
                             == PairSaveCoordinatorStatus.RECOVERY_CONFLICT);
+    }
+
+    private boolean retainedMetadataCursorLocked() {
+        return unsavedHistoryCursor != null
+                && unsavedHistoryCursor.endpoint() instanceof MetadataHistoryEndpoint;
     }
 
     /**
@@ -8238,7 +8494,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         private final DesignerCommandRevision predecessor;
         private final DesignerCommandRevision candidate;
         private final PreparedDesignerPair candidatePair;
-        private final DartSourceTransitionPlan liveTransition;
+        private final DartSourceTransitionResult liveTransition;
         private final LiveDartDocumentSnapshot initialLive;
         private final long eventTicket;
         private PairCandidateAnalysisTicket analysisTicket;
@@ -8257,7 +8513,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 DesignerCommandRevision predecessor,
                 DesignerCommandRevision candidate,
                 PreparedDesignerPair candidatePair,
-                DartSourceTransitionPlan liveTransition,
+                DartSourceTransitionResult liveTransition,
                 LiveDartDocumentSnapshot initialLive,
                 long eventTicket) {
             this.predecessorProof = Objects.requireNonNull(
@@ -8456,14 +8712,15 @@ final class PairSaveCoordinator implements Node.Cookie,
             byte[] serializedDartBytes,
             boolean editorDirty,
             boolean coordinatorDirty,
-            long sourceStateEpoch) {
+            long sourceStateEpoch,
+            boolean retainedMetadata) {
         SourceSaveCandidate {
             Objects.requireNonNull(liveIdentity, "liveIdentity");
             serializedDartBytes = Objects.requireNonNull(
                     serializedDartBytes, "serializedDartBytes").clone();
             if (sourceStateEpoch < 0
                     || editorDirty != coordinatorDirty
-                    || !editorDirty
+                    || !editorDirty && !retainedMetadata
                     || !Arrays.equals(
                             liveIdentity.markerBearingUtf8(),
                             serializedDartBytes)) {
@@ -8602,8 +8859,8 @@ final class PairSaveCoordinator implements Node.Cookie,
             if (coordinatorEpoch < 0 || eventEpoch < 0
                     || sourceStateEpoch < 0
                     || sourceStateEpoch != candidate.sourceStateEpoch()
-                    || !candidate.editorDirty()
-                    || !candidate.coordinatorDirty()
+                    || !candidate.editorDirty() && !(priorCursorIdentity.endpoint() instanceof MetadataHistoryEndpoint)
+                    || !candidate.coordinatorDirty() && !(priorCursorIdentity.endpoint() instanceof MetadataHistoryEndpoint)
                     || priorEdgesIdentity.size() != reanchoredEdges.size()
                     || !priorEdgesIdentity.keySet()
                             .equals(reanchoredEdges.keySet())
@@ -8630,14 +8887,14 @@ final class PairSaveCoordinator implements Node.Cookie,
                             priorBaselineIdentity.fdBytes())
                     || !Arrays.equals(
                             candidate.serializedDartBytes(),
-                            leaseIdentity.revision()
+                            leaseIdentity.reanchoredRevision(leaseIdentity.savedRevisionId())
                                     .dartCandidateBytes())
                     || !Arrays.equals(
                             savedBaseline.dartBytes(),
                             candidate.serializedDartBytes())
                     || !Arrays.equals(
                             savedBaseline.fdBytes(),
-                            priorBaselineIdentity.fdBytes())
+                            leaseIdentity.revision().fdBytes())
                     || !Arrays.equals(
                             priorCursorIdentity.endpoint()
                                     .baselineDartBytes(),
@@ -8792,6 +9049,7 @@ final class PairSaveCoordinator implements Node.Cookie,
     enum StagedPairProofKind {
         ANALYZED,
         REANCHORED_ANALYZED,
+        REANCHORED_METADATA,
         FORMER_DURABLE
     }
 
@@ -9230,12 +9488,38 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     private sealed interface SavedHistorySeed permits
-            FormerDurableHistorySeed, ReanchoredAnalyzedHistorySeed {
+            FormerDurableHistorySeed, ReanchoredAnalyzedHistorySeed,
+            ValidatedMetadataHistorySeed {
         StagedPairProofKind kind();
 
         byte[] candidateDartBytes();
 
         byte[] candidateFdBytes();
+    }
+
+    /** Validated FD-only bytes whose generated Source exactly matched its durable anchor. */
+    private record ValidatedMetadataHistorySeed(DesignerCommandRevision revision)
+            implements SavedHistorySeed {
+        ValidatedMetadataHistorySeed {
+            Objects.requireNonNull(revision, "revision");
+            if (revision.persistenceKind() != DesignerRevisionPersistenceKind.FD_ONLY) {
+                throw new IllegalArgumentException("Metadata provenance requires an exact FD_ONLY revision");
+            }
+        }
+        @Override
+        public StagedPairProofKind kind() {
+            return StagedPairProofKind.REANCHORED_METADATA;
+        }
+
+        @Override
+        public byte[] candidateDartBytes() {
+            return revision.dartCandidateBytes();
+        }
+
+        @Override
+        public byte[] candidateFdBytes() {
+            return revision.fdBytes();
+        }
     }
 
     /**
@@ -9350,6 +9634,36 @@ final class PairSaveCoordinator implements Node.Cookie,
         }
     }
 
+    /** A retained, proven metadata revision; no PreparedDesignerPair is fabricated. */
+    private record MetadataHistoryEndpoint(
+            DesignerCommandRevision revision,
+            FlutterDesignerDocumentState.Current currentIdentity,
+            byte[] baselineDartBytes,
+            byte[] baselineFdBytes,
+            DesignerCommandRevision physicalRevision,
+            SavedHistorySeed seed) implements HistoryEndpoint {
+        MetadataHistoryEndpoint {
+            Objects.requireNonNull(revision, "revision");
+            Objects.requireNonNull(currentIdentity, "currentIdentity");
+            Objects.requireNonNull(physicalRevision, "physicalRevision");
+            Objects.requireNonNull(seed, "seed");
+            baselineDartBytes = Objects.requireNonNull(baselineDartBytes, "baselineDartBytes").clone();
+            baselineFdBytes = Objects.requireNonNull(baselineFdBytes, "baselineFdBytes").clone();
+            if (revision.persistenceKind() != DesignerRevisionPersistenceKind.FD_ONLY
+                    || physicalRevision.persistenceKind() != DesignerRevisionPersistenceKind.FD_ONLY
+                    || !physicalRevision.document().equals(revision.document())
+                    || !Arrays.equals(physicalRevision.fdBytes(), revision.fdBytes())
+                    || !Arrays.equals(physicalRevision.dartCandidateBytes(), seed.candidateDartBytes())
+                    || !Arrays.equals(physicalRevision.fdBytes(), seed.candidateFdBytes())
+                    || Arrays.equals(revision.fdBytes(), baselineFdBytes)) {
+                throw new IllegalArgumentException("Metadata history requires exact retained FD_ONLY provenance");
+            }
+        }
+        @Override public byte[] dartBytes() { return physicalRevision.dartCandidateBytes(); }
+        @Override public byte[] baselineDartBytes() { return baselineDartBytes.clone(); }
+        @Override public byte[] baselineFdBytes() { return baselineFdBytes.clone(); }
+    }
+
     private record HistoryEdgeKey(
             long beforeRevisionId,
             long afterRevisionId) {
@@ -9371,10 +9685,6 @@ final class PairSaveCoordinator implements Node.Cookie,
             Objects.requireNonNull(after, "after");
             Objects.requireNonNull(owner, "owner");
             if (before.revision().persistenceKind()
-                        == DesignerRevisionPersistenceKind.FD_ONLY
-                    || after.revision().persistenceKind()
-                        == DesignerRevisionPersistenceKind.FD_ONLY
-                    || before.revision().persistenceKind()
                         == DesignerRevisionPersistenceKind.BASELINE
                         && after.revision().persistenceKind()
                             == DesignerRevisionPersistenceKind.BASELINE
@@ -9590,7 +9900,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             DesignerCommandRevision predecessor,
             DesignerCommandRevision candidate,
             PreparedDesignerPair candidatePair,
-            DartSourceTransitionPlan liveTransition) {
+            DartSourceTransitionResult liveTransition) {
         ReplacementInputs {
             Objects.requireNonNull(predecessor, "predecessor");
             Objects.requireNonNull(candidate, "candidate");
@@ -10107,7 +10417,8 @@ final class PairSaveCoordinator implements Node.Cookie,
                                 attempt.baseline.dartBytes(),
                                 attempt.baseline.fdBytes(),
                                 candidate,
-                                attempt.baseline.fdBytes()));
+                                attempt.semanticBaselinePlan == null ? attempt.baseline.fdBytes()
+                                        : attempt.semanticBaselinePlan.savedBaseline().fdBytes()));
                 // Retain a durable outcome even when a post-transaction
                 // identity check fails; COMMITTED must never be misreported as
                 // a retryable serializer failure.

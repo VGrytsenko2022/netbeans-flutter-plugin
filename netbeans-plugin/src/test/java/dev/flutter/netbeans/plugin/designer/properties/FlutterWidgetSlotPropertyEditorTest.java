@@ -65,6 +65,28 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void textButtonStandardIconSlotExplainsConstructorDependencyAndIconModeRestoresEditing() throws Exception {
+        var definition = definition("flutter.material.TextButton"); var icon = new SlotName("icon");
+        var label = text(StableId.random(), "Stable label");
+        var node = new WidgetNode(StableId.random(), definition.typeId(),
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true), new PropertyName("variant"), new PropertyValue.StringValue("standard")),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(label), icon, WidgetSlot.SingleSlot.empty()));
+        var context = new FlutterWidgetSlotEditorContext(document(node), CATALOG, List.of(type("flutter.widgets.Text")));
+        var blocked = new FlutterWidgetSlotPropertyEditor.Model(node, definition, definition.slot(icon).orElseThrow(), context);
+        assertTrue(blocked.structuralProblem().orElseThrow().contains("icon")); assertTrue(blocked.structuralProblem().orElseThrow().contains(node.id().toString()));
+        assertTrue(blocked.addChoices().isEmpty()); assertTrue(blocked.moveChoices().isEmpty()); assertFalse(blocked.canAdd());
+        var editor = new FlutterWidgetSlotPropertyEditor(node, definition, definition.slot(icon).orElseThrow(), context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Icon")));
+        onEdt(() -> { var panel = editor.getCustomEditor(); var action = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+            assertFalse(labels(action).contains("Add new widget")); assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty()); return null; });
+        var properties = new java.util.LinkedHashMap<>(node.properties()); properties.put(new PropertyName("variant"), new PropertyValue.StringValue("icon"));
+        var active = new WidgetNode(node.id(), node.type(), properties, node.slots());
+        var allowed = new FlutterWidgetSlotPropertyEditor.Model(active, definition, definition.slot(icon).orElseThrow(),
+                new FlutterWidgetSlotEditorContext(document(active), CATALOG, List.of(type("flutter.widgets.Text"))));
+        assertTrue(allowed.structuralProblem().isEmpty()); assertTrue(allowed.canAdd()); assertFalse(allowed.addChoices().isEmpty());
+    }
+
+    @Test
     void badgeCountLabelSlotExplainsUnavailabilityWithoutAdvertisingAddMoveOrReplace() throws Exception {
         var definition = definition("flutter.material.Badge");
         SlotName label = new SlotName("label");
@@ -629,6 +651,67 @@ class FlutterWidgetSlotPropertyEditorTest {
                         new FlutterWidgetSlotMutation.Replace.NewWidget(
                                 type("flutter.widgets.Text"))));
         assertThrows(IllegalArgumentException.class, () -> editor.setValue(stale));
+    }
+
+    @Test
+    void textButtonRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition textButtonDefinition = definition("flutter.material.TextButton");
+        WidgetNode current = text(
+                id("90a2eafd-835d-44b5-9cb8-9fb2f3fbff39"), "current");
+        WidgetNode replacement = text(
+                id("04f98964-c16e-4464-b1f1-cee8c9e50b40"), "replacement");
+        WidgetNode textButton = new WidgetNode(
+                id("c5c07d66-4711-4511-b6b5-a489abfb65d7"),
+                textButtonDefinition.typeId(),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current), new SlotName("icon"), WidgetSlot.SingleSlot.empty()),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("dd12692f-f736-48aa-a310-a356c58a3913"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(textButton, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"), type("flutter.material.TextButton")));
+
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                textButton,
+                textButtonDefinition,
+                textButtonDefinition.slot(CHILD).orElseThrow(),
+                context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "TextButton.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                textButton.id(), CHILD, current.id()))));
     }
 
     @Test

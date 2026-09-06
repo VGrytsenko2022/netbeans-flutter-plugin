@@ -275,6 +275,9 @@ const canvasBadgeLabelDropSlot = CanvasDropSlotSemantics.emptySingle(
 const canvasVisibilityReplacementDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'replacement',
 );
+const canvasTextButtonIconDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'icon',
+);
 
 const canvasScaffoldBodyDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'body',
@@ -401,6 +404,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SingleChildScrollView' ||
       'flutter.widgets.SizedBox' ||
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],
+      'flutter.material.TextButton' => const [canvasTextButtonIconDropSlot],
       _ => const [],
     };
 

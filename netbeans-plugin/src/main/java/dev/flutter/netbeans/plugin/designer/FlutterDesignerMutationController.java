@@ -467,6 +467,14 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
         try (DesignerCommandSessionOrchestrator.PendingCommandLease commandLease =
                         attempt.lease().orElseThrow()) {
+            if (pairCoordinator.retainsMetadataHistory(owner, expectedRevision)
+                    && commandLease.candidateRevision().persistenceKind()
+                        != DesignerRevisionPersistenceKind.PAIRED) {
+                crossCommitBoundary(operationId);
+                pairCoordinator.applyRetainedMetadataCommand(
+                        expectedPairRevision, current, commandLease, live);
+                return MutationResult.applied(operation, target);
+            }
             if (commandLease.candidateRevision().persistenceKind()
                     == DesignerRevisionPersistenceKind.FD_ONLY) {
                 return executeInitialFdOnly(
@@ -922,7 +930,19 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                     pairCoordinator.bindingRevision();
             if (!pairBinding.closeRevision().sameRevision(
                     verifiedPairBinding.closeRevision())) {
-                documentController.reload();
+                if (retainedOwner != null && pairCoordinator.retainsHistoryOwner(retainedOwner)) {
+                    // A native history move or Save may have advanced the
+                    // authority while SDK resolution ran. Discard this bind,
+                    // not the identity-bound Current owned by that history.
+                    synchronized (monitor) {
+                        if (!refreshStillCurrentLocked(generation, current)) {
+                            return;
+                        }
+                    }
+                    scheduleRefresh(documentController.state());
+                } else {
+                    documentController.reload();
+                }
                 return;
             }
 
@@ -947,6 +967,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
                         && observedOwner.ownsExactBaselineCurrent(
                                 observedRevision, current);
                 boolean retainedCleanFenceChanged = observedSameCurrent
+                        && !pairCoordinator.retainsMetadataHistory(observedOwner, observedRevision)
                         && sessionCurrentPairRevision != null
                         && !sessionCurrentPairRevision.sameRevision(
                                 pairBinding.closeRevision());

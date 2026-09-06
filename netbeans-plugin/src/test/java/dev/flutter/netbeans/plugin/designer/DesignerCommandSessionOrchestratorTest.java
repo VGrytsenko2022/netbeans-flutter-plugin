@@ -414,6 +414,100 @@ class DesignerCommandSessionOrchestratorTest {
     }
 
     @Test
+    void metadataDurableLeaseClonesEnvelopeAbortsExactlyAndRetainsHistoryOnRetry()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        try (var orchestrator = new DesignerCommandSessionOrchestrator(fdOnlySession(), combined)) {
+            var candidate = orchestrator.currentRevision();
+            applyAndAdopt(orchestrator, new MoveWidget(
+                    FIRST_ID, new WidgetPlacement(ROOT_ID, CHILDREN, 0)));
+            var redoRevision = orchestrator.currentRevision();
+            orchestrator.undo();
+            assertSame(candidate, orchestrator.currentRevision());
+            assertTrue(orchestrator.canUndo());
+            assertTrue(orchestrator.canRedo());
+            AtomicInteger callbacks = new AtomicInteger();
+            orchestrator.addChangeListener(event -> callbacks.incrementAndGet());
+            byte[] envelope = sourceOverlay(candidate, "// exact unmanaged source envelope\n");
+            byte[] expectedEnvelope = envelope.clone();
+            var aborted = orchestrator.beginMetadataDurableSave(envelope);
+            envelope[0] ^= 0x7f;
+            var proposedSaved = aborted.reanchoredRevision(aborted.savedRevisionId());
+            assertArrayEquals(expectedEnvelope, proposedSaved.dartCandidateBytes());
+            byte[] exposed = proposedSaved.dartCandidateBytes();
+            exposed[0] ^= 0x7f;
+            assertArrayEquals(expectedEnvelope, proposedSaved.dartCandidateBytes());
+            assertArrayEquals(candidate.dartCandidateBytes(), aborted.durableDartBytes(),
+                    "the lease retains the previous durable anchor for exact persistence guards");
+            assertSame(candidate, aborted.revision());
+            assertSame(candidate, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty());
+            assertFalse(orchestrator.canUndo());
+            assertFalse(orchestrator.canRedo());
+            aborted.abort();
+            int afterAbort = callbacks.get();
+            assertEquals(2, afterAbort, "begin and abort each publish one state change");
+            aborted.abort();
+            assertEquals(afterAbort, callbacks.get());
+            assertSame(candidate, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty());
+            assertTrue(orchestrator.canUndo());
+            assertTrue(orchestrator.canRedo());
+            orchestrator.redo();
+            assertSame(redoRevision, orchestrator.currentRevision());
+            orchestrator.undo();
+            assertSame(candidate, orchestrator.currentRevision());
+
+            var retry = orchestrator.beginMetadataDurableSave(expectedEnvelope);
+            byte[] durableFd = candidate.fdBytes();
+            retry.adoptCommitted();
+            var saved = orchestrator.currentRevision();
+            assertEquals(candidate.revisionId(), saved.revisionId());
+            assertArrayEquals(expectedEnvelope, saved.dartCandidateBytes());
+            assertArrayEquals(durableFd, saved.fdBytes());
+            assertFalse(orchestrator.dirty());
+            assertTrue(orchestrator.canRedo(), "saving metadata must retain the existing redo branch");
+            orchestrator.undo();
+            assertTrue(orchestrator.dirty());
+            assertEquals(DesignerRevisionPersistenceKind.FD_ONLY,
+                    orchestrator.currentRevision().persistenceKind());
+            assertArrayEquals(expectedEnvelope, orchestrator.currentRevision().dartCandidateBytes());
+            orchestrator.redo();
+            assertSame(saved, orchestrator.currentRevision());
+            assertFalse(orchestrator.dirty());
+            orchestrator.redo();
+            assertEquals(redoRevision.revisionId(), orchestrator.currentRevision().revisionId());
+            assertArrayEquals(expectedEnvelope, orchestrator.currentRevision().dartCandidateBytes());
+        }
+    }
+
+    @Test
+    void metadataDurableLeaseRejectsManagedChangesWithoutPublishingOrLosingCursor()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        try (var orchestrator = new DesignerCommandSessionOrchestrator(fdOnlySession(), combined)) {
+            var candidate = orchestrator.currentRevision();
+            byte[] invalid = new String(candidate.dartCandidateBytes(), StandardCharsets.UTF_8)
+                    .replace("'same'", "'changed'").getBytes(StandardCharsets.UTF_8);
+            assertFalse(Arrays.equals(candidate.dartCandidateBytes(), invalid));
+            AtomicInteger callbacks = new AtomicInteger();
+            orchestrator.addChangeListener(event -> callbacks.incrementAndGet());
+            assertThrows(IllegalArgumentException.class,
+                    () -> orchestrator.beginMetadataDurableSave(invalid));
+            assertSame(candidate, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty());
+            assertTrue(orchestrator.canUndo());
+            assertFalse(orchestrator.canRedo());
+            assertEquals(0, callbacks.get());
+            try (var retry = orchestrator.beginMetadataDurableSave(candidate.dartCandidateBytes())) {
+                assertSame(candidate, retry.revision());
+            }
+            assertSame(candidate, orchestrator.currentRevision());
+            assertTrue(orchestrator.dirty());
+        }
+    }
+
+    @Test
     void closeDuringDurableLeaseIsDeferredUntilCommittedAdoption()
             throws Exception {
         DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(

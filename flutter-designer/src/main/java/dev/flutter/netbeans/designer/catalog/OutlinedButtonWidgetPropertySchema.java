@@ -129,6 +129,11 @@ public final class OutlinedButtonWidgetPropertySchema {
                 node.properties().get(new PropertyName("variant")));
     }
 
+    /** Shared style semantics without imposing the Child/Icon constructor contract. */
+    public static boolean usesFullStyleProjection(WidgetNode node) {
+        return isFullStyleButton(node) || node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE);
+    }
+
     public static Optional<String> slotUnavailableReason(WidgetNode node, SlotName slot) {
         Objects.requireNonNull(node, "node");
         Objects.requireNonNull(slot, "slot");

@@ -19,6 +19,48 @@ import 'canvas_model.dart';
 import 'canvas_runtime.dart';
 
 bool _ignoreDeleteSelected() => false;
+
+// Flutter 3.44.8 IconButton exposes no public defaultStyleOf. Project only
+// the compound fallback fields used by our partial-field style composer.
+// The real SDK IconButton remains responsible for all colors, overlays,
+// selection, variant paint, animation and interactions. No private elements
+// or State instances are inspected or manufactured here.
+ButtonStyle _iconButtonCompoundDefaults(BuildContext context, String variant) =>
+    ButtonStyle(
+      minimumSize: const WidgetStatePropertyAll(Size(40, 40)),
+      maximumSize: const WidgetStatePropertyAll(Size.infinite),
+      shape: const WidgetStatePropertyAll(StadiumBorder()),
+      visualDensity: VisualDensity.standard,
+      side: variant == 'outlined'
+          ? WidgetStateProperty.resolveWith((states) {
+              if (states.contains(WidgetState.selected)) return null;
+              final colors = Theme.of(context).colorScheme;
+              return BorderSide(
+                color: states.contains(WidgetState.disabled)
+                    ? colors.onSurface.withAlpha((255 * .12).round())
+                    : colors.outline,
+              );
+            })
+          : null,
+    );
+
+ButtonStyle _iconButtonThemeStyle(BuildContext context) {
+  final iconTheme = IconTheme.of(context);
+  final defaultColor = identical(
+    iconTheme.color,
+    Theme.brightnessOf(context) == Brightness.light
+        ? kDefaultIconDarkColor
+        : kDefaultIconLightColor,
+  );
+  final icons = IconButton.styleFrom(
+    foregroundColor: defaultColor ? null : iconTheme.color,
+    iconSize: iconTheme.size == const IconThemeData.fallback().size
+        ? null
+        : iconTheme.size,
+  );
+  return IconButtonTheme.of(context).style?.merge(icons) ?? icons;
+}
+
 const _textButtonStateLayers = <WidgetState, String>{
   WidgetState.disabled: 'styleDisabled',
   WidgetState.error: 'styleError',
@@ -149,6 +191,73 @@ String? _textButtonReferenceMessage(CanvasNode node) {
       'The real SDK button, child, stored values and generated Dart are preserved.';
 }
 
+String? _iconButtonPreviewMessage(CanvasNode node, BuildContext? context) {
+  final material3 = context == null || Theme.of(context).useMaterial3;
+  final refs = [
+    for (final entry in node.properties.entries)
+      if (entry.value.kind == 'dartObjectReferencePresence' &&
+          (material3 ||
+              (!entry.key.startsWith('style') &&
+                  entry.key != 'statesController')))
+        entry.key,
+  ];
+  if (refs.isEmpty) return null;
+  return 'IconButton.${refs.join('/')} preview limitation: isolated Canvas never executes project or dependency Dart. '
+      '${refs.contains('style') ? 'Configured ButtonStyle appearance is unavailable; this is an explicit SDK default/theme preview. ' : ''}'
+      '${refs.any((name) => name.endsWith('Builder')) ? 'Project layer content is unavailable; identity layers preserve the SDK child. ' : ''}'
+      '${refs.contains('focusNode') || refs.contains('statesController') ? 'Project focus/controller state is unavailable; isolated SDK local state is used. ' : ''}'
+      '${refs.contains('mouseCursor') ? 'Project cursor is unavailable; the SDK default cursor is used. ' : ''}'
+      '${refs.any((name) => name.startsWith('on')) ? 'Project callbacks are not invoked; local interactions use benign no-ops and preserve SDK enabled/long-press rules. ' : ''}'
+      'The real SDK button, stored values and generated Dart are preserved.';
+}
+
+String? _iconButtonM2GeometryMessage(
+  CanvasNode node,
+  BuildContext context, [
+  BoxConstraints? constraints,
+]) {
+  if (Theme.of(context).useMaterial3) return null;
+  final value = node.properties['iconSize']?.value;
+  final size = value is CanvasEnumValue
+      ? double.infinity
+      : value is num
+      ? value.toDouble()
+      : IconTheme.of(context).size ?? 24;
+  if (size < 0) {
+    return 'Render IconButton ${node.id}: iconSize preview unavailable because the resolved Material 2 SizedBox dimension is $size; it must be nonnegative. Stored values and generated Dart are unchanged.';
+  }
+  final box = node.properties['constraints']?.value;
+  final maxWidth = box is CanvasBoxConstraintsValue
+      ? box.maxWidth ?? double.infinity
+      : double.infinity;
+  final maxHeight = box is CanvasBoxConstraintsValue
+      ? box.maxHeight ?? double.infinity
+      : double.infinity;
+  if (constraints != null &&
+      size.isInfinite &&
+      ((!constraints.hasBoundedWidth && maxWidth.isInfinite) ||
+          (!constraints.hasBoundedHeight && maxHeight.isInfinite))) {
+    return 'Render IconButton ${node.id}: iconSize preview unavailable because infinity has an unbounded Material 2 layout axis. Stored values and generated Dart are unchanged.';
+  }
+  final radius = node.properties['splashRadius']?.value;
+  final infiniteInk =
+      radius is CanvasEnumValue || (radius == null && size.isInfinite);
+  if (node.properties['enabled']?.value != false && infiniteInk) {
+    return 'Render IconButton ${node.id}: ${radius == null ? 'iconSize-derived splashRadius' : 'splashRadius'} preview unavailable because enabled Material 2 ink animation converts an infinite radius to an integer. Stored values and generated Dart are unchanged.';
+  }
+  return null;
+}
+
+String? _iconButtonMountedIconMessage(CanvasNode node, BuildContext context) {
+  if (context.findAncestorWidgetOfExactType<IconButton>() == null) return null;
+  final size =
+      (node.properties['size']?.value as num?)?.toDouble() ??
+      IconTheme.of(context).size ??
+      24;
+  if (size.isFinite && size >= 0) return null;
+  return 'Render Icon ${node.id} inside IconButton: iconSize preview unavailable because the actual mounted IconTheme resolves size $size; an Icon requires a finite nonnegative dimension. The SDK button remains active, and stored values and generated Dart are unchanged.';
+}
+
 class _TextButtonPreview extends StatefulWidget {
   const _TextButtonPreview({required this.message, required this.child});
   final String message;
@@ -194,6 +303,15 @@ String? _customClipperPreviewUnavailableMessageForNode(
 }) {
   if (node.type == 'flutter.material.FloatingActionButton') {
     return _fabPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.IconButton') {
+    return context == null
+        ? _iconButtonPreviewMessage(node, context)
+        : _iconButtonM2GeometryMessage(node, context) ??
+              _iconButtonPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.widgets.Icon' && context != null) {
+    return _iconButtonMountedIconMessage(node, context);
   }
   if (node.type == 'flutter.material.TextButton' ||
       node.type == 'flutter.material.OutlinedButton' ||
@@ -1817,7 +1935,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
 
   CanvasNode? _requiredChildOwner(CanvasNode node, String childId) {
     if (isCanvasReviewedRequiredChildWrapperWidgetType(node.type) &&
-        node.slot('child')?.child?.id == childId) {
+        node.slot(canvasReviewedRequiredWrapperSlot(node.type)!)?.child?.id ==
+            childId) {
       return node;
     }
     for (final slot in node.slots.values) {
@@ -2051,6 +2170,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     CanvasSlot slot,
   ) sync* {
     if (!_isInteractiveSlot(node, slotName)) return;
+    if (node.type == 'flutter.material.IconButton') {
+      final selected =
+          Theme.of(context).useMaterial3 &&
+          node.properties['isSelected']?.value == true &&
+          (node.slot('selectedIcon')?.children.isNotEmpty ?? false);
+      if ((slotName == 'selectedIcon') != selected) return;
+    }
     if (node.type == 'flutter.widgets.IndexedStack' && slotName == 'children') {
       final indexValue = node.properties['index'];
       final index = indexValue == null
@@ -3164,6 +3290,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.TextButton' => _textButton(context),
       'flutter.material.OutlinedButton' => _textButton(context),
       'flutter.material.FilledButton' => _textButton(context),
+      'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
@@ -3534,12 +3661,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   bool get _isOutlinedButton => node.type == 'flutter.material.OutlinedButton';
   bool get _isFilledButton => node.type == 'flutter.material.FilledButton';
+  bool get _isIconButton => node.type == 'flutter.material.IconButton';
   bool get _buttonIconVariant =>
       {'icon', 'tonalIcon'}.contains(_string('variant'));
   bool get _usesExtendedButtonStyle =>
       node.type == 'flutter.material.TextButton' ||
       _isOutlinedButton ||
-      _isFilledButton;
+      _isFilledButton ||
+      _isIconButton;
 
   bool _buttonReferencePresent(String name) =>
       node.properties[name]?.kind == 'dartObjectReferencePresence';
@@ -3550,6 +3679,215 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         'end' => IconAlignment.end,
         _ => null,
       };
+
+  double? _iconButtonNumber(String name) =>
+      switch (node.properties[name]?.value) {
+        CanvasEnumValue(value: 'infinity') => double.infinity,
+        _ => _number(name),
+      };
+
+  VisualDensity? _iconButtonDirectDensity(BuildContext context) {
+    final horizontal = _number('visualDensityHorizontal');
+    final vertical = _number('visualDensityVertical');
+    if (horizontal == null && vertical == null) return null;
+    return VisualDensity(horizontal: horizontal ?? 0, vertical: vertical ?? 0);
+  }
+
+  ButtonStyle _iconButtonCompoundTheme(BuildContext context) {
+    final theme = _iconButtonThemeStyle(context);
+    final constraints = _boxConstraints('constraints');
+    // Deliberate partial-composite completion: the missing dimension/axis
+    // inherits constructor values before theme/defaults. The resulting local
+    // WidgetStateProperty still shadows the entire direct property in the SDK,
+    // including states where the local property resolves null.
+    return theme.copyWith(
+      minimumSize: constraints == null
+          ? null
+          : WidgetStatePropertyAll(
+              Size(constraints.minWidth, constraints.minHeight),
+            ),
+      maximumSize: constraints == null
+          ? null
+          : WidgetStatePropertyAll(
+              Size(constraints.maxWidth, constraints.maxHeight),
+            ),
+      visualDensity: _iconButtonDirectDensity(context),
+    );
+  }
+
+  Widget _iconButton(BuildContext context) => _RefreshLayoutObserver(
+    builder: (context, constraints) => _buildIconButton(context, constraints),
+  );
+
+  Widget _buildIconButton(BuildContext context, BoxConstraints constraints) {
+    final material3 = Theme.of(context).useMaterial3;
+    final style = material3 ? _elevatedButtonStyle(context) : null;
+    final geometryMessage =
+        _iconButtonConstraintsMessage(context, constraints, style) ??
+        _iconButtonM2GeometryMessage(node, context, constraints);
+    if (geometryMessage != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'IconButton',
+        expectedType: 'valid button geometry',
+        previewLabel: 'Button geometry\npreview unavailable',
+        messageOverride: geometryMessage,
+        preservedChild: material3 && _boolean('isSelected') == true
+            ? _single('selectedIcon') ?? _single('icon')
+            : _single('icon'),
+      );
+    }
+    final enabled = _boolean('enabled') ?? true;
+    final longPressed = _buttonReferencePresent('onLongPress');
+    final VoidCallback? onPressed = enabled ? () {} : null;
+    final VoidCallback? onLongPress = enabled && longPressed ? () {} : null;
+    final ValueChanged<bool>? onHover = _buttonReferencePresent('onHover')
+        ? (_) {}
+        : null;
+    final icon = _single('icon')!;
+    final selectedIcon = _single('selectedIcon');
+    final visualDensity = _iconButtonDirectDensity(context);
+    final message = _iconButtonPreviewMessage(node, context) ?? '';
+    final button = switch (_string('variant')) {
+      'filled' => IconButton.filled(
+        iconSize: _iconButtonNumber('iconSize'),
+        visualDensity: visualDensity,
+        padding: _edgeInsetsGeometry('padding'),
+        alignment: _alignmentGeometry('alignment'),
+        splashRadius: _iconButtonNumber('splashRadius'),
+        color: _resolvedColor(context, 'color'),
+        focusColor: _resolvedColor(context, 'focusColor'),
+        hoverColor: _resolvedColor(context, 'hoverColor'),
+        highlightColor: _resolvedColor(context, 'highlightColor'),
+        splashColor: _resolvedColor(context, 'splashColor'),
+        disabledColor: _resolvedColor(context, 'disabledColor'),
+        onPressed: onPressed,
+        onHover: onHover,
+        onLongPress: onLongPress,
+        mouseCursor: _mouseCursor('mouseCursor'),
+        autofocus: _boolean('autofocus') ?? false,
+        tooltip: _string('tooltip'),
+        enableFeedback: _boolean('enableFeedback'),
+        constraints: _boxConstraints('constraints'),
+        style: style,
+        isSelected: _boolean('isSelected'),
+        selectedIcon: selectedIcon,
+        icon: icon,
+      ),
+      'filledTonal' => IconButton.filledTonal(
+        iconSize: _iconButtonNumber('iconSize'),
+        visualDensity: visualDensity,
+        padding: _edgeInsetsGeometry('padding'),
+        alignment: _alignmentGeometry('alignment'),
+        splashRadius: _iconButtonNumber('splashRadius'),
+        color: _resolvedColor(context, 'color'),
+        focusColor: _resolvedColor(context, 'focusColor'),
+        hoverColor: _resolvedColor(context, 'hoverColor'),
+        highlightColor: _resolvedColor(context, 'highlightColor'),
+        splashColor: _resolvedColor(context, 'splashColor'),
+        disabledColor: _resolvedColor(context, 'disabledColor'),
+        onPressed: onPressed,
+        onHover: onHover,
+        onLongPress: onLongPress,
+        mouseCursor: _mouseCursor('mouseCursor'),
+        autofocus: _boolean('autofocus') ?? false,
+        tooltip: _string('tooltip'),
+        enableFeedback: _boolean('enableFeedback'),
+        constraints: _boxConstraints('constraints'),
+        style: style,
+        isSelected: _boolean('isSelected'),
+        selectedIcon: selectedIcon,
+        icon: icon,
+      ),
+      'outlined' => IconButton.outlined(
+        iconSize: _iconButtonNumber('iconSize'),
+        visualDensity: visualDensity,
+        padding: _edgeInsetsGeometry('padding'),
+        alignment: _alignmentGeometry('alignment'),
+        splashRadius: _iconButtonNumber('splashRadius'),
+        color: _resolvedColor(context, 'color'),
+        focusColor: _resolvedColor(context, 'focusColor'),
+        hoverColor: _resolvedColor(context, 'hoverColor'),
+        highlightColor: _resolvedColor(context, 'highlightColor'),
+        splashColor: _resolvedColor(context, 'splashColor'),
+        disabledColor: _resolvedColor(context, 'disabledColor'),
+        onPressed: onPressed,
+        onHover: onHover,
+        onLongPress: onLongPress,
+        mouseCursor: _mouseCursor('mouseCursor'),
+        autofocus: _boolean('autofocus') ?? false,
+        tooltip: _string('tooltip'),
+        enableFeedback: _boolean('enableFeedback'),
+        constraints: _boxConstraints('constraints'),
+        style: style,
+        isSelected: _boolean('isSelected'),
+        selectedIcon: selectedIcon,
+        icon: icon,
+      ),
+      _ => IconButton(
+        iconSize: _iconButtonNumber('iconSize'),
+        visualDensity: visualDensity,
+        padding: _edgeInsetsGeometry('padding'),
+        alignment: _alignmentGeometry('alignment'),
+        splashRadius: _iconButtonNumber('splashRadius'),
+        color: _resolvedColor(context, 'color'),
+        focusColor: _resolvedColor(context, 'focusColor'),
+        hoverColor: _resolvedColor(context, 'hoverColor'),
+        highlightColor: _resolvedColor(context, 'highlightColor'),
+        splashColor: _resolvedColor(context, 'splashColor'),
+        disabledColor: _resolvedColor(context, 'disabledColor'),
+        onPressed: onPressed,
+        onHover: onHover,
+        onLongPress: onLongPress,
+        mouseCursor: _mouseCursor('mouseCursor'),
+        autofocus: _boolean('autofocus') ?? false,
+        tooltip: _string('tooltip'),
+        enableFeedback: _boolean('enableFeedback'),
+        constraints: _boxConstraints('constraints'),
+        style: style,
+        isSelected: _boolean('isSelected'),
+        selectedIcon: selectedIcon,
+        icon: icon,
+      ),
+    };
+    return _TextButtonPreview(message: message, child: button);
+  }
+
+  String? _iconButtonConstraintsMessage(
+    BuildContext context,
+    BoxConstraints incoming,
+    ButtonStyle? local,
+  ) {
+    if (incoming.hasBoundedWidth && incoming.hasBoundedHeight) return null;
+    final direct = _boxConstraints('constraints');
+    final material3 = Theme.of(context).useMaterial3;
+    final theme = material3 ? _iconButtonThemeStyle(context) : null;
+    final minimum =
+        local?.minimumSize ??
+        (direct == null
+            ? null
+            : WidgetStatePropertyAll(Size(direct.minWidth, direct.minHeight)));
+    final disabled = _boolean('enabled') == false;
+    // Only local SDK-reachable states: no external controller/project code is
+    // executed. A disabled button cannot start a hover/focus/press ink cycle.
+    for (var bits = 0; bits < (material3 && !disabled ? 8 : 1); bits++) {
+      final states = <WidgetState>{
+        if (disabled) WidgetState.disabled,
+        if (_boolean('isSelected') == true) WidgetState.selected,
+        if ((bits & 1) != 0) WidgetState.hovered,
+        if ((bits & 2) != 0) WidgetState.focused,
+        if ((bits & 4) != 0) WidgetState.pressed,
+      };
+      final size =
+          minimum?.resolve(states) ??
+          theme?.minimumSize?.resolve(states) ??
+          Size.square(material3 ? 40 : 48);
+      if ((!incoming.hasBoundedWidth && !size.width.isFinite) ||
+          (!incoming.hasBoundedHeight && !size.height.isFinite)) {
+        return 'Render IconButton ${node.id}: constraints preview unavailable because the resolved minimum size has an infinite unbounded layout axis. Stored values and generated Dart are unchanged.';
+      }
+    }
+    return null;
+  }
 
   Widget _textButton(BuildContext context) {
     final enabled = _boolean('enabled') ?? true;
@@ -3724,7 +4062,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     if (!node.properties.keys.any((name) => name.startsWith('style'))) {
       return null;
     }
-    final themeStyle = _isFilledButton
+    final themeStyle = _isIconButton
+        ? _iconButtonCompoundTheme(context)
+        : _isFilledButton
         ? FilledButtonTheme.of(context).style
         : _isOutlinedButton
         ? OutlinedButtonTheme.of(context).style
@@ -3760,12 +4100,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
             label: const SizedBox.shrink(),
           )
         : TextButton(onPressed: () {}, child: const SizedBox.shrink());
-    final defaultStyle = switch (defaultButton) {
-      FilledButton button => button.defaultStyleOf(context),
-      OutlinedButton button => button.defaultStyleOf(context),
-      TextButton button => button.defaultStyleOf(context),
-      _ => (defaultButton as ElevatedButton).defaultStyleOf(context),
-    };
+    final defaultStyle = _isIconButton
+        ? _iconButtonCompoundDefaults(context, _string('variant') ?? 'standard')
+        : switch (defaultButton) {
+            FilledButton button => button.defaultStyleOf(context),
+            OutlinedButton button => button.defaultStyleOf(context),
+            TextButton button => button.defaultStyleOf(context),
+            _ => (defaultButton as ElevatedButton).defaultStyleOf(context),
+          };
     final constraintSizes = _buttonConstraintSizeStateProperties(
       themeMinimum: themeStyle?.minimumSize,
       defaultMinimum: defaultStyle.minimumSize,
@@ -6080,6 +6422,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     required String expectedType,
     String previewLabel = 'Custom clipper\npreview unavailable',
     String? messageOverride,
+    Widget? preservedChild,
   }) {
     final message =
         messageOverride ??
@@ -6094,7 +6437,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         fit: StackFit.passthrough,
         clipBehavior: Clip.none,
         children: [
-          _single('child') ?? const SizedBox.shrink(),
+          preservedChild ?? _single('child') ?? const SizedBox.shrink(),
           Positioned.fill(
             child: IgnorePointer(
               child: Semantics(
@@ -6316,6 +6659,15 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   );
 
   Widget _icon(BuildContext context) {
+    final sizeMessage = _iconButtonMountedIconMessage(node, context);
+    if (sizeMessage != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'IconButton.Icon',
+        expectedType: 'finite iconSize',
+        previewLabel: 'Icon size\npreview unavailable',
+        messageOverride: sizeMessage,
+      );
+    }
     final value = node.properties['icon']!.value as CanvasIconDataValue;
     final icon = value.codePoint == null
         ? null

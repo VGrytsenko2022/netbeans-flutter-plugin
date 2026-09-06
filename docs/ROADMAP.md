@@ -1882,12 +1882,28 @@ accepted architecture is documented in
   Canvas state, Save/reopen/further editing, native history and SVGs. Constructor
   changes reset incompatible scalar branches atomically, never silently deleting
   a child. Use actual SDK component defaults, report duplicate/unresolved Hero
-  tags, and isolate project callbacks/objects. Current totals: 80 widgets, 74 const
+  tags, and isolate project callbacks/objects. At that milestone: 80 widgets, 74 const
   definitions, 2552 rows (2535 outside Scaffold), 77 scalar plus three structural
   definitions, 262 Boolean-only rows plus the nullable-Boolean and Object-tag
   unions, 67 destinations (65 ANY plus two traits), 5,360 placements (5,013 accepted /
   347 rejected), twelve generic/fourteen total wrappers and seventeen Material
   items. Historical target 80/92 leaves 12; no fixed ordered inventory is claimed.
+- [x] Add IconButton at Material/order 180 with standard/filled/filledTonal/outlined
+  constructors and all 524 typed rows, including 498 local ButtonStyle leaves and
+  a strict whole-style reference alternative. Wrap an existing widget in required
+  Icon; preserve optional Selected icon across all variants and selection states.
+  Retain real SDK Material 2/3/theme behavior, exact callback activation, stable
+  Properties cells, native history, Save/reopen/continued editing and four SVGs.
+  Decouple catalog metadata (1024 descriptors) from unchanged stored/validated/
+  patched values (512); dense legal maps fit 505. Current totals: 81 widgets,
+  75 const definitions, 3076 rows (3059 outside Scaffold), 78 scalar plus three
+  structural definitions, 302 Boolean-only fields, two nullable-Boolean unions
+  and the Object-tag union; 68 destinations (66 ANY plus two traits), 5,508
+  placements (5,156 accepted / 352 rejected), thirteen generic/fifteen total
+  creation wrappers and eighteen Material items. Historical target 81/92 leaves
+  11; no fixed ordered inventory is claimed. Formats and candidate budgets stay
+  unchanged. Physical desktop acceptance and deferred platform work stay outside
+  this palette slice.
   Formats 13/14/18 and existing budgets are unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
@@ -1906,8 +1922,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty admitted built-ins.
-  The 77 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty-one admitted built-ins.
+  The 78 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

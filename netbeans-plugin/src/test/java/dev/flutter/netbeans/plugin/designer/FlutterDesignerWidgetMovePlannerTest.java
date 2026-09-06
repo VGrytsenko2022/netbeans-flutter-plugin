@@ -193,6 +193,33 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void iconButtonAllConstructorsProtectRequiredIconAndRetainSelectedIconAcrossWholeMoves() {
+        for (String variant : List.of("standard", "filled", "filledTonal", "outlined")) {
+            var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+            var requiredIcon = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), D_ID);
+            var icon = new SlotName("icon");
+            var selectedIcon = new SlotName("selectedIcon");
+            var button = new WidgetNode(B_ID, type("flutter.material.IconButton"), Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                    new PropertyName("variant"), new PropertyValue.StringValue(variant), new PropertyName("isSelected"), new PropertyValue.BooleanValue(false)),
+                    Map.of(icon, WidgetSlot.SingleSlot.of(requiredIcon), selectedIcon, WidgetSlot.SingleSlot.empty()));
+            var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, button)));
+            assertAcceptedCommandApplies(document, BUILT_INS, source,
+                    planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, selectedIcon, 0)));
+            var denied = assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(document, BUILT_INS, D_ID, new FlutterDesignerWidgetMovePlanner.On(ROOT_ID)));
+            assertTrue(denied.reason().toLowerCase(java.util.Locale.ROOT).contains("icon"), denied::reason);
+            var occupied = new WidgetNode(B_ID, button.type(), button.properties(),
+                    Map.of(icon, WidgetSlot.SingleSlot.of(requiredIcon), selectedIcon, WidgetSlot.SingleSlot.of(source)));
+            var occupiedDocument = document(listParent(ROOT_ID, COLUMN, CHILDREN,
+                    List.of(occupied, listParent(C_ID, STACK, CHILDREN, List.of()))));
+            assertAcceptedCommandApplies(occupiedDocument, BUILT_INS, source,
+                    planner.plan(occupiedDocument, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+            assertAcceptedCommandApplies(occupiedDocument, BUILT_INS, occupied,
+                    planner.plan(occupiedDocument, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+        }
+    }
+
+    @Test
     void floatingActionButtonAllConstructorsProtectOnlyRequiredIconLabelsAndKeepWholeSubtrees() {
         for (String variant : List.of("standard", "small", "large", "extended")) {
             boolean iconMode = variant.equals("extended");

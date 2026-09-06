@@ -38,6 +38,7 @@ import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -525,6 +526,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addTextButtonPropertySets(sheet, hasSlotTab);
         } else if (OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(widget.type())) {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
+        } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type())) {
+            addIconButtonPropertySets(sheet, hasSlotTab);
         } else if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
             addFilledButtonPropertySets(sheet, hasSlotTab);
         } else if (FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.equals(widget.type())) {
@@ -2342,6 +2345,29 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addIconButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<IconButtonWidgetPropertySchema.Group, Sheet.Set>(IconButtonWidgetPropertySchema.Group.class);
+        for (var group : IconButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = IconButtonWidgetPropertySchema.find(property.name()).orElseThrow();
+            String hint = IconButtonWidgetPropertySchema.localStyleProperties().contains(property.name().value())
+                    ? " Setting a local leaf atomically clears Button style. State priority is disabled, error, dragged, pressed, selected, scrolledUnder, hovered, focused, default. Disabled remains isolated from enabled buckets. Unset preserves IconButtonTheme/framework fallback."
+                    : property.name().value().equals("style")
+                            ? " Setting this reference atomically clears all 498 local style leaves; resetting it does not restore discarded leaves. Undo restores the exact prior style."
+                            : " All four constructors retain Icon, Selected icon and explicit properties. Selected icon remains stored when selection is unset or false. Restore Default omits an optional argument.";
+            var presets = switch (property.name().value()) {
+                case "variant" -> IconButtonWidgetPropertySchema.variants();
+                case "mouseCursor" -> IconButtonWidgetPropertySchema.mouseCursorPresets();
+                default -> elevatedButtonStringPresets(property.name());
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint,
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST, presets));
+        }
+    }
+
     private void addFilledButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<FilledButtonWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(FilledButtonWidgetPropertySchema.Group.class);
         for (var group : FilledButtonWidgetPropertySchema.Group.values()) {
@@ -3841,6 +3867,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
+        if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
+            return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (isModernButton(currentWidget)) {
             return modernButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4193,18 +4222,57 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 || FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type());
     }
 
+    private static boolean hasFullButtonStyle(WidgetNode node) {
+        return isModernButton(node) || IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type());
+    }
+
+    private DesignerCommand iconButtonPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        if (accepted.explicitValue().isEmpty()) {
+            var resets = new java.util.LinkedHashSet<PropertyName>();
+            if (name.value().endsWith("TextInherit") && widget.properties().containsKey(name)) {
+                for (String prefix : modernButtonStatePrefixes(widget))
+                    for (String suffix : java.util.List.of("TextInherit", "TextTheme")) {
+                        var key = new PropertyName(prefix + suffix);
+                        if (widget.properties().containsKey(key)) resets.add(key);
+                    }
+            } else if (java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(name.value())) {
+                for (String key : java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY"))
+                    if (widget.properties().containsKey(new PropertyName(key))) resets.add(new PropertyName(key));
+            }
+            if (resets.size() > 1) return new PatchProperties(widget.id(), resets.stream()
+                    .<PatchProperties.Patch>map(PatchProperties.ResetPatch::new).toList());
+            return ordinaryPropertyCommand(widget, name, accepted);
+        }
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        var style = new PropertyName("style");
+        if (name.equals(style)) {
+            for (String local : modernButtonLocalStyleProperties(widget)) {
+                var key = new PropertyName(local);
+                if (widget.properties().containsKey(key)) patches.add(new PatchProperties.ResetPatch(key));
+            }
+        } else if (modernButtonLocalStyleProperties(widget).contains(name.value()) && widget.properties().containsKey(style)) {
+            patches.add(new PatchProperties.ResetPatch(style));
+        }
+        var value = accepted.explicitValue().orElseThrow();
+        modernButtonStyleDependencies(widget, name, value, patches);
+        patches.add(new PatchProperties.SetPatch(name, value));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
     private static String modernButtonName(WidgetNode node) {
         return FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type()) ? "FilledButton"
                 : OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type()) ? "OutlinedButton" : "TextButton";
     }
 
     private static java.util.List<String> modernButtonStatePrefixes(WidgetNode node) {
+        if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type())) return IconButtonWidgetPropertySchema.statePrefixes();
         if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.statePrefixes();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
                 ? OutlinedButtonWidgetPropertySchema.statePrefixes() : TextButtonWidgetPropertySchema.statePrefixes();
     }
 
     private static java.util.List<String> modernButtonLocalStyleProperties(WidgetNode node) {
+        if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type())) return IconButtonWidgetPropertySchema.localStyleProperties();
         if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.localStyleProperties();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
                 ? OutlinedButtonWidgetPropertySchema.localStyleProperties() : TextButtonWidgetPropertySchema.localStyleProperties();
@@ -4354,21 +4422,23 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if ((CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
                 || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())
                 || RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
-                || isModernButton(widget))
+                || hasFullButtonStyle(widget))
                 && "variant".equals(property.name().value())) {
             reset = " This required Designer constructor selector cannot be unset or reset; "
                     + "no variant argument is emitted.";
         } else if (RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE.equals(widget.type())
                 && "onRefresh".equals(property.name().value())) {
             reset = " Restore Default removes the project reference and generates onRefresh: () async {}; the required callback is not null or omitted.";
+        } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type()) && "onPressed".equals(property.name().value())) {
+            reset = " Restore Default removes the project callback. Enabled generates a no-op onPressed when unset; disabled emits null and suppresses long press. Project callbacks are retained without execution in isolated Canvas.";
         } else if (isModernButton(widget) && "onPressed".equals(property.name().value())) {
             reset = " Restore Default removes the project callback, not the required Dart argument. Enabled with no activation callbacks generates a no-op; disabled or long-press-only emits onPressed: null.";
-        } else if (isModernButton(widget) && property.name().value().endsWith("TextInherit")) {
+        } else if (hasFullButtonStyle(widget) && property.name().value().endsWith("TextInherit")) {
             reset = " Editing Text inherit keeps all configured state inherit flags consistent. Restore Default removes every Text inherit and Text theme selection together, preserving other style fields.";
-        } else if (isModernButton(widget)
+        } else if (hasFullButtonStyle(widget)
                 && java.util.List.of("styleAlignmentKind", "styleAlignmentX", "styleAlignmentY").contains(property.name().value())) {
             reset = " Editing seeds missing alignment components (Physical, X 0, Y 0). Restore Default removes the complete style alignment.";
-        } else if (isModernButton(widget) && "enabled".equals(property.name().value())) {
+        } else if (hasFullButtonStyle(widget) && "enabled".equals(property.name().value())) {
             reset = " Required Designer activation selector; cannot be unset or reset. No enabled argument is emitted.";
         } else if (property.parameter().required()) {
             reset = " This required constructor argument cannot be unset.";

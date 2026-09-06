@@ -93,6 +93,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.OutlinedButton",
             "flutter.material.FilledButton",
             "flutter.material.FloatingActionButton",
+            "flutter.material.IconButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3685,6 +3686,67 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void iconButtonDenseAllFourVariantsPreserveBothIconsAndOnlyTypedReferencePresence() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema.variants()) {
+            for (boolean paints : List.of(false, true)) {
+                var properties = dev.flutter.netbeans.designer.catalog.IconButtonTestValues.full(variant, paints, false);
+                var base = dev.flutter.netbeans.designer.catalog.IconButtonTestValues.node(properties);
+                var slots = new LinkedHashMap<>(base.slots());
+                slots.put(new SlotName("selectedIcon"), WidgetSlot.SingleSlot.of(
+                        dev.flutter.netbeans.designer.catalog.IconButtonTestValues.text("Preserved selected icon")));
+                var node = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+                assertEquals(505, node.properties().size());
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                for (String name : List.of("onPressed", "onHover", "onLongPress", "focusNode",
+                        "mouseCursor", "statesController", "styleBackgroundBuilder", "styleForegroundBuilder")) {
+                    assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                }
+                assertTrue(json.contains("Preserved selected icon"));
+                assertTrue(json.contains("\"icon\":{\"kind\":\"single\""));
+                assertTrue(json.contains("\"selectedIcon\":{\"kind\":\"single\""));
+                for (String forbidden : List.of("package:buttons", "buttonValues", "styles.dart", "libraryUri",
+                        "MaterialIcons", "imageProvider")) assertFalse(json.contains(forbidden), forbidden);
+            }
+        }
+    }
+
+    @Test
+    void iconButtonPayloadPreservesExplicitNullSelectionInfinityAndWholeStyleWithoutProtocolChanges() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.IconButtonTestValues.node(Map.of(
+                new PropertyName("isSelected"), new PropertyValue.NullValue(),
+                new PropertyName("iconSize"), new PropertyValue.EnumValue("double", "infinity"),
+                new PropertyName("style"), dev.flutter.netbeans.designer.catalog.IconButtonTestValues.reference("wholeStyle")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"protocolVersion\":18"));
+        assertTrue(json.contains("\"isSelected\":{\"kind\":\"null\"}"));
+        assertTrue(json.contains("\"iconSize\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"));
+        assertTrue(json.contains("\"style\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertFalse(json.contains("wholeStyle"));
+        assertFalse(json.contains("styleBackgroundColor"));
+    }
+
+    @Test
+    void iconButtonPayloadRejectsMissingRequiredIconAndInvalidLocalOrReferenceDomainsBeforeEncoding() {
+        var invalid = List.of(
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("icon")),
+                Map.of(new PropertyName("splashRadius"), new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                Map.of(new PropertyName("style"), dev.flutter.netbeans.designer.catalog.IconButtonTestValues.reference("style"),
+                        new PropertyName("styleIconColor"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(new PropertyName("onHover"), new PropertyValue.CallbackValue("legacy")));
+        for (var properties : invalid) {
+            var node = dev.flutter.netbeans.designer.catalog.IconButtonTestValues.node(new LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                dev.flutter.netbeans.designer.catalog.IconButtonTestValues.definition(), StableId.random());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), prototype))));
     }
 
     private static WidgetTypeId type(String value) {

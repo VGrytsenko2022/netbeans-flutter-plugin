@@ -155,7 +155,7 @@ public final class WidgetPlacementRules {
      * would violate its required slot, so Palette creation must wrap one
      * existing widget in a single atomic command.
      */
-    private static Optional<SlotDefinition> requiredAnyWidgetWrapperSlot(
+    public static Optional<SlotDefinition> requiredAnyWidgetWrapperSlot(
             WidgetDefinition definition) {
         if (definition.properties().stream().anyMatch(property ->
                 property.parameter().required()
@@ -163,7 +163,8 @@ public final class WidgetPlacementRules {
             return Optional.empty();
         }
         SlotDefinition slot = definition.slots().stream()
-                .filter(value -> "child".equals(value.name().value())).findFirst().orElse(null);
+                .filter(value -> value.parameter().required() && value.minChildren() == 1)
+                .findFirst().orElse(null);
         if (slot == null || !slot.parameter().required()
                 || slot.cardinality() != dev.flutter.netbeans.designer.model.SlotCardinality.SINGLE
                 || slot.minChildren() != 1

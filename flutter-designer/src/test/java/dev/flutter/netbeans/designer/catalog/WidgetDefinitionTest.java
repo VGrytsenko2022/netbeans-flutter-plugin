@@ -167,7 +167,10 @@ class WidgetDefinitionTest {
     }
 
     @Test
-    void boundsMetadataToTheValidatorPerWidgetContract() {
+    void boundsMetadataIndependentlyFromPersistedValueAndCommandBudgets() {
+        assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
+        assertEquals(512, dev.flutter.netbeans.designer.validation.ValidationLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(512, dev.flutter.netbeans.designer.codec.FdCodecLimits.defaults().maxPropertiesPerWidget());
         ArrayList<PropertyDefinition> tooManyProperties = new ArrayList<>();
         for (int index = 0; index <= WidgetDefinition.MAX_PROPERTIES; index++) {
             tooManyProperties.add(property("p" + index, DartParameter.named(index, false)));

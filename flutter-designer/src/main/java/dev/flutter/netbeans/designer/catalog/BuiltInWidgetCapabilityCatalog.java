@@ -161,6 +161,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.OutlinedButton", STATIC_EDITABLE),
             Map.entry("flutter.material.FilledButton", STATIC_EDITABLE),
             Map.entry("flutter.material.FloatingActionButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -327,6 +328,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.OutlinedButton", fullStyleButtonProjection("OutlinedButton")),
             Map.entry("flutter.material.FilledButton", fullStyleButtonProjection("FilledButton")),
             Map.entry("flutter.material.FloatingActionButton", floatingActionButtonProjection()),
+            Map.entry("flutter.material.IconButton", iconButtonProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2146,6 +2148,44 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection iconButtonProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection shared = fullStyleButtonProjection("TextButton");
+        CanvasProjection fab = floatingActionButtonProjection();
+        for (String name : IconButtonWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            if (IconButtonWidgetPropertySchema.localStyleProperties().contains(name)) {
+                value = shared.propertyContracts().get(new PropertyName(name));
+            } else {
+                value = switch (name) {
+                    case "iconSize" -> withPositiveInfinity(cardNumberSchema(null, null));
+                    case "splashRadius" -> withPositiveInfinity(new CanvasPropertyContract(
+                            Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE), false, Optional.empty(),
+                            Map.of(PropertyValueKind.INTEGER, bounds(BigDecimal.ONE, true, new BigDecimal("9007199254740991"), true),
+                                    PropertyValueKind.DOUBLE, bounds(BigDecimal.ZERO, false, null, true)),
+                            rangeConstraintFingerprints(Map.of(
+                                    PropertyValueKind.INTEGER, bounds(BigDecimal.ONE, true, new BigDecimal("9007199254740991"), true),
+                                    PropertyValueKind.DOUBLE, bounds(BigDecimal.ZERO, false, null, true)))));
+                    case "visualDensityHorizontal", "visualDensityVertical" -> shared.propertyContracts().get(new PropertyName("style" + Character.toUpperCase(name.charAt(0)) + name.substring(1)));
+                    case "padding" -> edgeInsetsProperty(name, true).getValue();
+                    case "alignment" -> constrainedSchema(PropertyValueKind.ALIGNMENT_GEOMETRY, "alignmentGeometry");
+                    case "color", "focusColor", "hoverColor", "highlightColor", "splashColor", "disabledColor" -> colorOrThemeProperty(name).getValue();
+                    case "onPressed", "onLongPress", "onHover", "focusNode", "statesController", "style" -> shared.propertyContracts().get(new PropertyName(name));
+                    case "mouseCursor" -> fab.propertyContracts().get(new PropertyName(name));
+                    case "constraints" -> constrainedSchema(PropertyValueKind.BOX_CONSTRAINTS, "boxConstraints:v2:finiteOrPositiveInfinity");
+                    case "isSelected" -> propertySchema(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL);
+                    case "variant" -> requiredDefaultConstrainedProperty(name, "string:" + base64("standard"),
+                            PropertyValueKind.STRING, "pattern:" + base64("(?:standard|filled|filledTonal|outlined)")).getValue();
+                    case "enabled" -> requiredDefaultProperty(name, "boolean:true", PropertyValueKind.BOOLEAN).getValue();
+                    case "tooltip" -> propertySchema(PropertyValueKind.STRING);
+                    default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of("icon", singleSlotSchema(true, 1), "selectedIcon", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection floatingActionButtonProjection() {

@@ -65,6 +65,71 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void iconButtonRequiredIconAndOptionalSelectedIconEditorsRespectAllFourConstructors() throws Exception {
+        var definition = definition("flutter.material.IconButton");
+        var iconSlot = new SlotName("icon");
+        var selectedIconSlot = new SlotName("selectedIcon");
+        for (String variant : List.of("standard", "filled", "filledTonal", "outlined")) {
+            var icon = text(StableId.random(), "Stable icon widget");
+            var node = new WidgetNode(StableId.random(), definition.typeId(),
+                    Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                            new PropertyName("variant"), new PropertyValue.StringValue(variant)),
+                    Map.of(iconSlot, WidgetSlot.SingleSlot.of(icon), selectedIconSlot, WidgetSlot.SingleSlot.empty()));
+            var context = new FlutterWidgetSlotEditorContext(document(node), CATALOG, List.of(type("flutter.widgets.Text")));
+            var iconModel = new FlutterWidgetSlotPropertyEditor.Model(node, definition, definition.slot(iconSlot).orElseThrow(), context);
+            assertFalse(iconModel.canRemove(), variant);
+            assertTrue(iconModel.canReplaceNew(), variant);
+            var selectedModel = new FlutterWidgetSlotPropertyEditor.Model(node, definition, definition.slot(selectedIconSlot).orElseThrow(), context);
+            assertTrue(selectedModel.canAdd(), variant);
+            assertTrue(selectedModel.structuralProblem().isEmpty(), variant);
+            var editor = new FlutterWidgetSlotPropertyEditor(node, definition, definition.slot(iconSlot).orElseThrow(), context);
+            editor.attachEnv(PropertyEnv.create(descriptor("Icon")));
+            onEdt(() -> {
+                var action = component(editor.getCustomEditor(), FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertFalse(labels(action).contains("Clear single child"), variant);
+                assertTrue(labels(action).contains("Replace with new widget"), variant);
+                return null;
+            });
+            assertThrows(IllegalArgumentException.class, () -> editor.setValue(FlutterWidgetSlotCellValue.staged("Remove icon",
+                    new FlutterWidgetSlotMutation.Remove(node.id(), iconSlot, icon.id()))));
+            editor.setValue(FlutterWidgetSlotCellValue.staged("Replace icon", new FlutterWidgetSlotMutation.Replace(node.id(), iconSlot,
+                    icon.id(), new FlutterWidgetSlotMutation.Replace.NewWidget(type("flutter.widgets.Text")))));
+            var occupied = new WidgetNode(node.id(), node.type(), node.properties(), Map.of(iconSlot, WidgetSlot.SingleSlot.of(icon),
+                    selectedIconSlot, WidgetSlot.SingleSlot.of(text(StableId.random(), "Selected icon"))));
+            var occupiedContext = new FlutterWidgetSlotEditorContext(document(occupied), CATALOG, List.of(type("flutter.widgets.Text")));
+            assertTrue(new FlutterWidgetSlotPropertyEditor.Model(occupied, definition,
+                    definition.slot(selectedIconSlot).orElseThrow(), occupiedContext).canRemove(), variant);
+        }
+    }
+
+    @Test
+    void otherSlotEditorsCannotMoveOrReplaceWithAnIconButtonsRequiredIcon() {
+        var definition = definition("flutter.material.IconButton");
+        var centerDefinition = definition("flutter.widgets.Center");
+        for (String variant : List.of("standard", "filled", "filledTonal", "outlined")) {
+            for (boolean occupied : List.of(false, true)) {
+                var requiredIcon = text(StableId.random(), "Required icon");
+                var existing = text(StableId.random(), "Destination child");
+                var node = new WidgetNode(StableId.random(), definition.typeId(),
+                        Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                                new PropertyName("variant"), new PropertyValue.StringValue(variant)),
+                        Map.of(new SlotName("icon"), WidgetSlot.SingleSlot.of(requiredIcon), new SlotName("selectedIcon"), WidgetSlot.SingleSlot.empty()));
+                var center = new WidgetNode(StableId.random(), centerDefinition.typeId(), Map.of(),
+                        Map.of(CHILD, occupied ? WidgetSlot.SingleSlot.of(existing) : WidgetSlot.SingleSlot.empty()));
+                var root = new WidgetNode(StableId.random(), type("flutter.widgets.Column"), Map.of(),
+                        Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(node, center))));
+                var editor = new FlutterWidgetSlotPropertyEditor(center, centerDefinition, centerDefinition.slot(CHILD).orElseThrow(),
+                        new FlutterWidgetSlotEditorContext(document(root), CATALOG, List.of(type("flutter.widgets.Text"))));
+                var mutation = occupied
+                        ? new FlutterWidgetSlotMutation.Replace(center.id(), CHILD, existing.id(), new FlutterWidgetSlotMutation.Replace.ExistingWidget(requiredIcon.id()))
+                        : new FlutterWidgetSlotMutation.Move(center.id(), CHILD, requiredIcon.id(), 0);
+                assertThrows(IllegalArgumentException.class,
+                        () -> editor.setValue(FlutterWidgetSlotCellValue.staged("Move required icon", mutation)), variant);
+            }
+        }
+    }
+
+    @Test
     void floatingActionButtonChildAndIconEditorsRespectAllFourConstructorContracts() throws Exception {
         var definition = definition("flutter.material.FloatingActionButton");
         var iconSlot = new SlotName("icon");

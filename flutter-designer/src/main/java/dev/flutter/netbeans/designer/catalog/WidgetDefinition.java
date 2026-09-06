@@ -28,8 +28,9 @@ public final class WidgetDefinition {
      * legitimately expose more than 256 independently resettable leaves; the
      * bound remains deliberately finite so contributed catalogs cannot turn a
      * validation pass into an unbounded allocation.
+     * Persisted values, validation and atomic edits retain independent 512 limits.
      */
-    public static final int MAX_PROPERTIES = 512;
+    public static final int MAX_PROPERTIES = 1024;
     public static final int MAX_SLOTS = 128;
 
     private static final Pattern TRAIT = Pattern.compile("^[A-Za-z][A-Za-z0-9_.-]{0,254}$");

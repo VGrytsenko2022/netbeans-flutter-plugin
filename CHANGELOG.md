@@ -6,6 +6,21 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- IconButton at Material/order 180 with all four const constructors (standard,
+  filled, filledTonal, outlined) and all 524 typed rows: complete direct controls,
+  nine state/default style buckets, common layout/builders and strict whole-style
+  references. Palette wraps an existing widget in the required Icon; Selected icon
+  remains optional across constructor and nullable selection changes. Actual SDK
+  Material 2/3, component themes, direct/local style precedence, typed editors,
+  stable cells, save/reopen/continued editing, history and four SVGs are covered.
+  Catalog metadata permits 1024 rows, independently of unchanged 512 stored-value,
+  validation and atomic-patch limits; dense compatible maps contain at most 505.
+  Current totals: 81 widgets, 75 const definitions, 3076 rows (3059 outside Scaffold),
+  302 Boolean-only fields plus two nullable-Boolean unions and the Object-tag union,
+  68 destinations and 5,508 placements (5,156 accepted / 352 rejected), Material 18.
+  Historical target 81/92 leaves 11; no recovered fixed order is claimed. Formats
+  and the 2048-probe/2 MiB/45-second candidate limits remain unchanged.
+
 - FloatingActionButton at Material/order 170 with standard/small/large/extended
   constructors and all 78 typed rows, including the full ShapeBorder/TextStyle
   projections, strict callbacks/focus/cursors and unset/null/literal/Object Hero tags.
@@ -13,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   empty children, conditional label/icon guards, atomic edits, save/reopen/history
   and four SVGs are covered. Object witnesses now use the existing dart:core alias;
   dynamic and nullable references remain rejected. Canvas reports duplicate tags
-  and unresolved project objects without executing application code. Current totals:
+  and unresolved project objects without executing application code. At that milestone:
   80 widgets, 74 const definitions, 2552 rows (2535 outside Scaffold), 262 Boolean-only
   rows plus the existing nullable-Boolean and new Object-tag unions, 67 destinations,
   5,360 placements (5,013 accepted / 347 rejected), Material 17. Historical target

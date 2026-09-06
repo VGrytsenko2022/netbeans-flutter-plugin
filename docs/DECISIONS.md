@@ -41,17 +41,17 @@ ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, ADR-100 adds `CircleAvatar`, ADR-101 adds `LinearProgressIndicator`, ADR-102 adds `CircularProgressIndicator`, ADR-103 adds `RefreshProgressIndicator`, ADR-104 adds `RefreshIndicator`, and ADR-105 establishes the historical `TextButton`
 surface: 1454 typed rows across seventy-seven widgets, seventy-one const-constructor
 definitions and 4,774 Palette/DnD candidates, including 4,448 accepted and 326
-rejected cells. The 1437-field
-non-`Scaffold` total still
-sits beside the 17 closed
-scalar `Scaffold` fields. ADR-036
+rejected cells. Its 1437 non-`Scaffold` rows sat beside the 17 closed scalar
+`Scaffold` fields. ADR-106 adds OutlinedButton, ADR-107 adds FilledButton,
+ADR-108 adds FloatingActionButton and ADR-109 adds IconButton: the current
+surface is 81 widgets, 3076 rows and 5508 placement candidates. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
 is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-108 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-109 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -471,8 +471,9 @@ ADR-105 establishes the historical seventy-seven-source, 4,774-candidate matrix
 (4,448 accepted / 326 rejected).
 ADR-106 records the historical 78-source, 4,914-candidate matrix (4,583 accepted /
 331 rejected), and ADR-107 records 79 sources and 5,135 candidates (4,796 accepted /
-339 rejected). ADR-108 establishes the current 80-source, 5,360-candidate matrix
-(5,013 accepted / 347 rejected).
+339 rejected). ADR-108 records the historical 80-source, 5,360-candidate matrix
+(5,013 accepted / 347 rejected). ADR-109 establishes the current 81-source,
+5,508-candidate matrix (5,156 accepted / 352 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -483,7 +484,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -497,16 +498,16 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated seventy-seven-widget model for Mobile, Tablet,
+Canvas now renders the validated eighty-one-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those seventy-seven Create-capable definitions, and the DnD-capable set uses the
-reviewed 4,774-cell candidate matrix across sixty insertable any-widget and two
-trait-bound destination slots; 4,448 cells are accepted and 326 rejected.
+those eighty-one Create-capable definitions, and the DnD-capable set uses the
+reviewed 5,508-cell candidate matrix across sixty-six insertable any-widget and two
+trait-bound destination slots; 5,156 cells are accepted and 352 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator and TextButton use the same generic atomic required-child wrapper
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton and IconButton use the same generic atomic required-slot wrapper
 mode, with tree root/non-root and Canvas non-root-only targets; none can wrap Expanded,
 Flexible or Spacer.
 Canvas model
@@ -6510,3 +6511,170 @@ assembled runtime module are byte-identical (3,411,513 bytes), SHA-256
 The ordinary Maven JAR differs only in the expected transformed manifest, and
 all four FloatingActionButton SVGs are present. No user IDE/userdir was launched
 or changed, and no global physical desktop acceptance was run.
+
+## ADR-109 — IconButton required Icon and full state style
+
+### Contract and scope
+
+Admit `flutter.material.IconButton` at Material/order 180 in the canonical G:
+checkout against pinned Flutter 3.44.8 and its
+[official API](https://api.flutter.dev/flutter/material/IconButton-class.html).
+All four const constructors are included: standard, filled, filledTonal and
+outlined. The required `icon` and optional `selectedIcon` are real named Widget
+slots, not scalar glyph selectors or a fictitious `child` argument. Palette
+creation wraps one existing any-widget subtree in `icon` atomically, preserving
+its stable IDs and properties. Optional Selected icon remains valid for every
+constructor and every selection value. Constructor/selection edits cannot delete
+either subtree. The required Icon can be replaced but not removed or moved out.
+
+The full 524-row schema includes all direct SDK parameters, two required Designer
+selectors (`variant`/`enabled`), two flattened direct density axes, a strict whole
+ButtonStyle reference and all 498 existing local state/style leaves. The eight
+WidgetState buckets plus default preserve the reviewed priority, disabled
+isolation, complete TextStyle/ShapeBorder projections, paint/color alternatives,
+lists, common layout and layer builders. Whole style and local leaves switch
+atomically. `isSelected` uses the existing Boolean/null union: unset and explicit
+null both mean a non-toggle button, while false/true are unselected/selected
+toggles. Both null representations persist without discarding Selected icon.
+
+Callbacks, FocusNode, WidgetStatesController, MouseCursor, ButtonStyle and layer
+builders retain strict static witnesses for references or supported zero-argument
+invocations. Dynamic, nullable outer reference types and wrong signatures remain
+rejected. Enabled with no onPressed supplies an explicitly documented benign
+onPressed, so long press can work; disabled emits `onPressed: null` and
+`onLongPress: null`, omitting the stored project references from calls/imports/proofs
+while preserving them in FD. This matches the
+SDK rule that onLongPress is ignored without onPressed in both Material versions.
+
+### Real SDK style and preview semantics
+
+IconButton is not a public ButtonStyleButton subclass. The generator and Canvas
+therefore do not use private SDK classes, element inspection or fabricated
+TextButton defaults. Only the compound defaults required to complete sparse
+local fields are projected with public API: 40-by-40 minimum, unbounded maximum,
+null fixed/text style, StadiumBorder, standard density and the outlined state
+side. Actual IconButton retains variant colors, overlays, IconTheme merging,
+compact behavior and remaining defaults. Missing counterpart axes of local
+size/density composites deliberately retain the corresponding direct constraint/
+density before the IconButtonTheme/default fallback. This projection policy is
+not a change to SDK property-level style precedence or a per-state scalar merge.
+
+The isolated runner constructs the real four SDK variants. Material 2 ignores
+style, selection, selectedIcon and statesController as the SDK does; those model
+fields remain intact. Project Dart is never executed in preview. Unsupported
+project-object/style/builder effects receive explicit diagnostics; constructor,
+visible subtree and supported SDK-local state are preserved where possible.
+Geometry guards are based on the mounted SDK branch, not blanket rejection of
+signed/infinite iconSize or splashRadius values that another branch ignores.
+
+### Limits and aggregate surface
+
+Catalog property-descriptor capacity increases to 1024 because 524 alternative
+rows cannot fit in the previous metadata limit. Persisted node values, validation
+and atomic property patches are explicitly decoupled and remain capped at 512.
+The maximal compatible rounded/color fixture uses 505 values; the circle/paint
+fixture uses 478. All 2048 symbol occurrences, 2 MiB candidate bytes and the
+45-second analyzer deadline remain enforced. FD13, Catalog API14, Canvas model18
+and NBFC1 are unchanged. The reviewed pre-IconButton records remain byte-for-byte
+equivalent after normalizing line endings.
+
+Current totals are 81 widgets, 75 const-capable definitions, 3076 writable rows
+(3059 outside Scaffold), 78 scalar plus three structural definitions, 302
+Boolean-only rows, two nullable-Boolean unions and the separate Object-tag union.
+There are 68 insertable destinations (66 ANY plus two trait-bound), yielding
+5508 placements: 5156 accepted and 352 rejected. Thirteen generic required-slot
+wrappers plus Expanded/Flexible give fifteen creation wrappers. Categories are
+Material18, Layout31, Scrolling3, Basic23 and Accessibility6. Relative to the
+historical practical 92-widget target, 81 are complete and 11 remain; no recovered
+fixed-order inventory is claimed.
+
+Stable Properties cells, all constructor/selection combinations, strict editors,
+native history, save/reopen/continued edits, required-slot guards, SVGs and the
+candidate/SDK/Canvas tests belong to this slice. No user IDE/userdir or Flutter
+application is modified; deferred platform and global physical acceptance work
+are not part of this palette change.
+
+### Pinned SDK, Canvas and focused verification
+
+All 1582 core tests pass on the final source snapshot. The focused NetBeans
+selection comprises 767 tests, including all 524 stable Properties rows, 92
+editor-component cases, all 5508 placement cells and the three live IconButton
+lifecycles. Its first run found one incorrect new-test assumption: removing an
+optional Selected icon may remove the slot key rather than leave SingleSlot.empty.
+The assertion now accepts either canonical empty representation while requiring
+the selected widget to be absent and the required Icon intact. All three live
+cases pass on rerun (50.57 seconds); production was unchanged by that correction.
+
+The four real-SDK test methods validate twelve same-file candidates: ten accepted
+and two intentional dynamic/nullable ButtonStyle-reference rejections. These
+include all four dense constructors, whole styles and factories, repeated scoped
+state-list items, direct/local composite fallback and disabled foreign-package
+handlers. Every symbol occurrence remains unique and proved; FD reopening is
+exact and the original Dart/pubspec/package-config bytes remain unchanged.
+No candidate-budget or analyzer-timeout relaxation is used.
+
+The complete Flutter suite passes 1421 tests with clean analyze output, including
+46 dedicated IconButton cases, all 256 style-state combinations and 96 raw-SDK
+pixel comparisons across Material 2/3, four variants, selection, enabled state and
+direction. Both supported Canvas routes preserve child editing state during
+constructor/history changes. Mounted-size/ink/constraint diagnostics retain the
+active Selected icon in M3 and the ordinary Icon in M2; the geometry fallback
+is labeled as button geometry rather than mislabeling every failure as icon size.
+
+All 2727 previous W/P/S/C records are unchanged in order after normalizing line
+endings; IconButton contributes 528 new records. The final offline Web build and
+all 40 source/35 Web manifest entries were independently rehashed and size checked.
+Source manifest SHA-256:
+`16fede70effeaa1f48282c0b7c3a4eaa71bd1e10213e20839dce78ac5019b484`.
+Web manifest SHA-256:
+`2e240defbac62ed8e73687648c26cea7cff8eb3aac9275f127698472241987de`.
+main.dart.js is 3,028,796 bytes, SHA-256
+`656f034a6848a284e1773da923ae81e76b647da2eb178c97236c16fa9772417c`.
+
+### Final integration corrections and evidence
+
+The first complete remaining-reactor pass exposed one exact Java/Canvas metadata
+disagreement: IconButton.padding had nonnegative numeric bounds on both sides,
+but Canvas omitted its explicit nonnegative-insets constraint flag. The Canvas
+definition and its one reviewed record are corrected together, with a regression
+for physical and directional padding. All other 3254 reviewed records are
+unchanged. The complete Flutter suite, affected Java Canvas suites, all three
+parity checks and packaged runtime integration are repeated for this correction.
+
+That pass also repeated the unchanged Windows folder-rename timing failure in
+FlutterDesignerMoveDependencyGuardTest at line 483, after the exclusive admission
+lock had been released; the in-admission exclusion assertion passed. Its exact
+runtime blocker is not established and no guard or timeout was relaxed. All 38
+tests in the unchanged class passed in a fresh Maven fork (1.874 seconds). This
+is recorded as a retry, not a one-shot clean full-reactor result or a fixed bug.
+
+The final affected-module install succeeds at 2026-09-07 00:11:25 +03:00.
+It rebuilds the corrected runner and plugin, reruns 575 Canvas/parity/Palette/
+IconButton Properties tests (573 executed, two existing optional skips), and
+runs all 15 Failsafe cases (14 executed, one existing physical-Canvas skip).
+No Failsafe filter or test-skip override is used. The Palette description also
+uses the actual `Selected` Properties label.
+
+Final reports contain 4242 registered Java cases across 390 reports: 4235
+executed, zero failures/errors and seven allowed optional SDK/physical/filesystem
+skips. Surefire records 4227 cases across 383 reports and Failsafe records 15
+across seven. All reports except the retained analyzer gate are fresh relative
+to the full remaining-reactor start at 2026-09-06 23:47:48 +03:00. The 63 analyzer
+tests are retained with all 39 analyzer/core-API inputs rehashed unchanged;
+target and installed analyzer JARs both have SHA-256
+`6dce65a3ec1b43733c67290db090b65a390d55fe347d80c788ee91a3c7ad8c5f`.
+The new IconButton real-SDK suite runs freshly in the complete reactor; it is not
+part of that retained evidence. All 1596 non-Markdown repository inputs match
+the final corrected snapshot after packaging.
+
+Root and module `nbm:cluster` complete successfully. `tools/verify-release.ps1`
+passes with freshness checks enabled. The final
+`netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm` is 7,623,663 bytes, SHA-256
+`9c34187fda0ef73c0bd43d24cc7035ac962361930ea6deb26624b882e9980eab`.
+The NBM's embedded module matches all four package/development/runtime copies
+(3,414,732 bytes, SHA-256
+`c00524423df5c9ffa0ce31f760d5cd1f2c010b471f3fd359b0bdc1869d6eea19`).
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
+IconButton SVG assets are present. All 40 source and 35 Web manifest entries
+are reverified against the final artifacts. No interactive IDE acceptance or
+installed-userdir verification is claimed.

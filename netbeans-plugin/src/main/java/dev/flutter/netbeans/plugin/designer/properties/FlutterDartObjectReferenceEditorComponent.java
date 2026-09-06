@@ -166,7 +166,7 @@ final class FlutterDartObjectReferenceEditorComponent {
                     noOpRefreshBranch ? "Use generated no-op refresh callback" : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
                     noOpRefreshBranch ? "Removes the project reference and generates the required async no-op callback, not a null callback."
-                            : buttonActivationBranch ? "Removes the project reference. The active widget activation policy generates a no-op for an enabled button without activation callbacks, or onPressed: null when disabled. A long-press-only button also emits null if its widget supports that callback."
+                            : buttonActivationBranch ? "Removes the project reference. The active widget contract determines the generated no-op or null callback from Enabled and other activation callbacks. See the property's help for the exact widget policy."
                             : "When selected, removes the optional " + argumentName + " Dart object reference.");
             if (binding.optional()) {
                 add(useDefault, BorderLayout.NORTH);
@@ -391,7 +391,7 @@ final class FlutterDartObjectReferenceEditorComponent {
                 base += "Omission generates the required onRefresh: () async {} no-op; it does not emit null or omit the required Dart argument. ";
             }
             if (buttonActivationBranch) {
-                base += "Unset removes the project callback, not the required Dart argument. The active widget activation policy generates a no-op for an enabled button without activation callbacks, or onPressed: null when disabled. A long-press-only button also emits null if its widget supports that callback. ";
+                base += "Unset removes the project callback, not the required Dart argument. The active widget contract determines the generated no-op or null callback from Enabled and other activation callbacks. See the property's help for the exact widget policy. ";
             }
             if ("CustomClipper<RRect>".equals(expectedDartType)) {
                 base += "When configured, Flutter ignores ClipRRect.borderRadius. ";

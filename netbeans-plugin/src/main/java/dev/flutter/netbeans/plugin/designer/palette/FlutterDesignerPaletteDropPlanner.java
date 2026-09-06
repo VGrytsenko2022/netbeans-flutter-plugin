@@ -43,7 +43,6 @@ import java.util.function.Supplier;
  * supplied document.</p>
  */
 public final class FlutterDesignerPaletteDropPlanner {
-    private static final SlotName CHILD_SLOT = new SlotName("child");
 
     /** Plans one Palette drop without changing the document. */
     public Result plan(
@@ -468,7 +467,7 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + concreteMessage(invalidDefinition) + '.');
         }
         return new Wrapped(new WrapWidget(
-                target.id(), wrapper, CHILD_SLOT, 0));
+                target.id(), wrapper, WidgetPlacementRules.requiredAnyWidgetWrapperSlot(sourceDefinition).orElseThrow().name(), 0));
     }
 
     private static Optional<WidgetNode> existingChild(
@@ -494,13 +493,13 @@ public final class FlutterDesignerPaletteDropPlanner {
             WidgetDefinition wrapperDefinition,
             WidgetNode target) {
         Optional<SlotDefinition> childSlotLookup =
-                wrapperDefinition.slot(CHILD_SLOT);
+                WidgetPlacementRules.requiredAnyWidgetWrapperSlot(wrapperDefinition);
         if (childSlotLookup.isEmpty()) {
             return Optional.of(rejected(
                     RejectionCode.CATALOG_DEFINITION_MISMATCH,
                     "Required-child Palette wrapper '"
                     + wrapperDefinition.typeId().value()
-                    + "' has no child slot."));
+                    + "' has no unique required single-widget slot."));
         }
         SlotDefinition childSlot = childSlotLookup.orElseThrow();
         if (childSlot.cardinality() != SlotCardinality.SINGLE

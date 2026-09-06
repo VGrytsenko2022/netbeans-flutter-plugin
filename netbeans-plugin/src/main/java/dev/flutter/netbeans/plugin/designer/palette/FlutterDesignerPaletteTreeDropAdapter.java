@@ -52,7 +52,7 @@ import java.util.stream.Collectors;
  * and index or a stable root sentinel.</p>
  */
 public final class FlutterDesignerPaletteTreeDropAdapter {
-    private static final SlotName CHILD_SLOT = new SlotName("child");
+
     private final FlutterDesignerPaletteDragLifecycle lifecycle;
     private final FlutterDesignerPaletteDropPlanner planner;
 
@@ -438,7 +438,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             }
             return new Destination(
                     targetChildId,
-                    CHILD_SLOT,
+                    WidgetPlacementRules.requiredAnyWidgetWrapperSlot(source).orElseThrow().name(),
                     0,
                     Optional.of(targetChildId));
         }
@@ -513,11 +513,11 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             WidgetCatalog catalog,
             WidgetDefinition wrapper,
             WidgetNode target) {
-        Optional<SlotDefinition> childSlotLookup = wrapper.slot(CHILD_SLOT);
+        Optional<SlotDefinition> childSlotLookup = WidgetPlacementRules.requiredAnyWidgetWrapperSlot(wrapper);
         if (childSlotLookup.isEmpty()) {
             return Optional.of(
                     "Required-child Palette wrapper '" + wrapper.typeId().value()
-                    + "' has no child slot.");
+                    + "' has no unique required single-widget slot.");
         }
         SlotDefinition childSlot = childSlotLookup.orElseThrow();
         if (childSlot.cardinality() != SlotCardinality.SINGLE

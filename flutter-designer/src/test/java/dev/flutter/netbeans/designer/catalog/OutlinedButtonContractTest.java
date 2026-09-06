@@ -30,15 +30,15 @@ class OutlinedButtonContractTest {
             }
             assertEquals(shared.creationDefault(), property.creationDefault(), property.name().value());
         }
-        assertEquals(14, CATALOG.definitions().stream().filter(value ->
+        assertEquals(15, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
-        assertEquals(12, CATALOG.definitions().stream().filter(value ->
+        assertEquals(13, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.evaluateRoot(value).accepted()
                         && WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count(),
                 "Generic wrappers exclude the special Expanded and Flexible ParentData wrappers");
-        assertEquals(1, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
+        assertEquals(2, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
                 .filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN,
                         PropertyValueKind.NULL))).count());
         assertTrue(OutlinedButtonWidgetPropertySchema.find("clipBehavior").orElseThrow()

@@ -278,6 +278,9 @@ const canvasVisibilityReplacementDropSlot = CanvasDropSlotSemantics.emptySingle(
 const canvasTextButtonIconDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'icon',
 );
+const canvasSelectedIconDropSlot = CanvasDropSlotSemantics.emptySingle(
+  slotName: 'selectedIcon',
+);
 
 const canvasScaffoldBodyDropSlot = CanvasDropSlotSemantics.emptySingle(
   slotName: 'body',
@@ -406,6 +409,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.material.ElevatedButton' => const [canvasEmptyChildDropSlot],
       'flutter.material.TextButton' => const [canvasTextButtonIconDropSlot],
       'flutter.material.OutlinedButton' => const [canvasTextButtonIconDropSlot],
+      'flutter.material.IconButton' => const [canvasSelectedIconDropSlot],
       'flutter.material.FilledButton' => const [
         canvasTextButtonIconDropSlot,
         canvasEmptyChildDropSlot,
@@ -443,8 +447,7 @@ CanvasDropSlotSemantics? canvasExistingChildWrapTargetSlot({
 }) {
   final insertionSlot = canvasDropSlotForWidgetSlot(parentWidgetType, slotName);
   final requiredChild =
-      slotName == 'child' &&
-      isCanvasReviewedRequiredChildWrapperWidgetType(parentWidgetType);
+      slotName == canvasReviewedRequiredWrapperSlot(parentWidgetType);
   final cardinality =
       insertionSlot?.cardinality ??
       (requiredChild ? CanvasDropSlotCardinality.single : null);

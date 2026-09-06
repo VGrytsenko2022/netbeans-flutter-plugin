@@ -1,6 +1,5 @@
 package dev.flutter.netbeans.designer.command;
 
-import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.StableId;
@@ -27,9 +26,9 @@ public record PatchProperties(
         if (patches.isEmpty()) {
             throw new IllegalArgumentException("patches must not be empty");
         }
-        if (patches.size() > WidgetDefinition.MAX_PROPERTIES) {
+        if (patches.size() > 512) {
             throw new IllegalArgumentException(
-                    "patches cannot exceed " + WidgetDefinition.MAX_PROPERTIES);
+                    "patches cannot exceed 512");
         }
         HashSet<PropertyName> names = new HashSet<>();
         for (Patch patch : patches) {

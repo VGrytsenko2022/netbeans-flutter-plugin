@@ -764,6 +764,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.OutlinedButton",
                     "flutter.material.FilledButton",
                     "flutter.material.FloatingActionButton",
+                    "flutter.material.IconButton",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -1043,6 +1044,20 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void iconButtonDetachedPrototypeDeclaresRequiredIconAndOptionalSelectedIconWithoutChild() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.IconButton")).orElseThrow();
+        var expectedId = StableId.parse("33655e27-aa73-430f-9967-5344076c4fa3"); var allocations = new AtomicInteger();
+        var prototype = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(),
+                () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, prototype.id()); assertEquals(definition.typeId(), prototype.type());
+        assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), prototype.properties());
+        assertEquals(Map.of(new dev.flutter.netbeans.designer.model.SlotName("selectedIcon"), dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot.empty(),
+                new dev.flutter.netbeans.designer.model.SlotName("icon"), dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot.empty()), prototype.slots());
+        assertEquals(1, allocations.get());
+        assertEquals(new dev.flutter.netbeans.designer.model.SlotName("icon"), dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition).orElseThrow().name());
     }
 
     @Test

@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton` and `FloatingActionButton`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton` and `IconButton`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,16 +241,16 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-80 reviewed Canvas widgets. Palette insertion evaluates 5,360 exact
-source/destination cells across 80 draggable sources and 67 insertable reviewed
-slots; 5,013 are accepted and 347 cells are rejected. Expanded and Flexible are
+81 reviewed Canvas widgets. Palette insertion evaluates 5,508 exact
+source/destination cells across 81 draggable sources and 68 insertable reviewed
+slots; 5,156 are accepted and 352 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton and OutlinedButton are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton and IconButton are generic atomic wrappers around
 an existing widget,
-never an empty required-child prototype. The current Canvas target wire exposes
+never an empty required-slot prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
 wrapping remains available through the NetBeans tree. None of these wrappers can wrap
 Expanded, Flexible or Spacer because their ParentData must remain attached
@@ -1238,6 +1238,31 @@ not ignored Apple/noSpinner parameters. All three constructors, SDK notification
 status/async cycles, child preservation, themes, semantics, profiles and wrapping
 have dedicated coverage without stored synthetic progress or application code.
 
+IconButton extends Material at order 180 with standard, filled, filledTonal and
+outlined const constructors. Its 524 typed rows comprise the complete direct
+constructor surface, two required Designer selectors, all 498 local ButtonStyle
+leaves, and a mutually exclusive strict whole-style project reference. The
+required any-widget Icon slot is the palette wrapper target; Selected icon is an
+optional destination in every constructor, including null/unset Selected.
+Neither switching constructors nor changing selection deletes either subtree.
+
+Actual public SDK IconButton constructors retain Material 2/3 and component-theme
+semantics. Partial local size/density fields preserve the counterpart direct
+constraint/density axis before consulting IconButtonTheme and a minimal pinned
+public-API projection of compound defaults. Atomic style fields still use SDK
+property-level merging; this is not an invented per-state scalar merge. Variant
+colors, overlays and IconTheme behavior remain owned by the real SDK. Material 2
+ignores style/selectedIcon/isSelected/statesController exactly as documented;
+onLongPress is inactive without onPressed in both Material versions. The isolated
+Canvas never executes project callbacks, controllers, styles or builders.
+
+Catalog metadata now permits 1024 property descriptors per widget so this widget can
+describe 524 mutually exclusive rows. Stored per-node properties, validation and
+atomic patches remain limited to 512; legal dense maps fit within 505 entries.
+The 2048-probe, 2 MiB and 45-second candidate limits and formats 13/14/18 stay
+unchanged. Full typed editors, stable cells, native history, save/reopen/continued
+editing, wrapper/slot guards and four SVGs are part of the same vertical slice.
+
 FloatingActionButton extends Material at order 170 with all four const
 constructors (standard/small/large/extended) and 78 typed rows. Standard/small/large
 allow empty Child; extended requires the same Child as Label and alone admits
@@ -1332,11 +1357,11 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 80 widgets and 74 reviewed const definitions,
-with 2552 writable rows (2535 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, seventeen Material and six Accessibility items; the
-backlog is 80/92 complete with 12 remaining. The 80 sources across 67
-insertable destinations form 5,360 cells, with 5,013 accepted and 347 rejected.
+The aggregate catalog now has 81 widgets and 75 reviewed const definitions,
+with 3076 writable rows (3059 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, eighteen Material and six Accessibility items; the
+backlog is 81/92 complete with 11 remaining. The 81 sources across 68
+insertable destinations form 5,508 cells, with 5,156 accepted and 352 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.

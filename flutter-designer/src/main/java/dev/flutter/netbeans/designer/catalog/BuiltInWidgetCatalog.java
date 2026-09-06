@@ -104,6 +104,7 @@ public final class BuiltInWidgetCatalog {
             fullStyleButton("OutlinedButton"),
             fullStyleButton("FilledButton"),
             floatingActionButton(),
+            iconButton(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -768,6 +769,59 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition iconButton() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition shared = fullStyleButton("TextButton");
+        for (var entry : IconButtonWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (IconButtonWidgetPropertySchema.localStyleProperties().contains(name)) {
+                constraints = shared.property(new PropertyName(name)).orElseThrow().constraints();
+            } else {
+                constraints = switch (name) {
+                    case "iconSize", "splashRadius" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(name.equals("iconSize")
+                                ? cardNumbers(null, null) : List.of(
+                                        new PropertyValueConstraint.IntegerRange(BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                                        new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, false, null, true)));
+                        values.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity")));
+                        yield List.copyOf(values);
+                    }
+                    case "visualDensityHorizontal", "visualDensityVertical" -> minusFourToFourDoubles();
+                    case "padding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                    case "alignment" -> List.of(new PropertyValueConstraint.AlignmentGeometryValues());
+                    case "color", "focusColor", "hoverColor", "highlightColor", "splashColor", "disabledColor" -> colorOrTheme();
+                    case "onPressed", "onLongPress" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VoidCallback"));
+                    case "onHover" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool>"));
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "statesController" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStatesController"));
+                    case "style" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ButtonStyle"));
+                    case "mouseCursor" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(stringPattern(
+                                DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset"));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"));
+                        yield List.copyOf(values);
+                    }
+                    case "constraints" -> List.of(new PropertyValueConstraint.BoxConstraintsValues());
+                    case "isSelected" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "variant" -> stringPattern("(?:standard|filled|filledTonal|outlined)", "IconButton constructor");
+                    case "tooltip" -> any(PropertyValueKind.STRING);
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.add(name.equals("variant")
+                    ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.StringValue("standard"))
+                    : name.equals("enabled")
+                            ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.BooleanValue(true))
+                            : namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.value(), "IconButton", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 180, "IconButton"), properties,
+                List.of(singleSlot("icon", 25, true, 1, ANY_WIDGET), singleSlot("selectedIcon", 23, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition floatingActionButton() {

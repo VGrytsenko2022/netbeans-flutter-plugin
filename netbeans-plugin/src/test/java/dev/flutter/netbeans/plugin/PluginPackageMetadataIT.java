@@ -16,7 +16,9 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashSet;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Properties;
 import java.util.Set;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
@@ -24,6 +26,10 @@ import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
 import java.util.zip.ZipInputStream;
+import javax.swing.text.MutableAttributeSet;
+import javax.swing.text.html.HTML;
+import javax.swing.text.html.HTMLEditorKit;
+import javax.swing.text.html.parser.ParserDelegator;
 import javax.xml.parsers.DocumentBuilderFactory;
 import org.junit.jupiter.api.Test;
 import org.w3c.dom.Document;
@@ -253,10 +259,17 @@ class PluginPackageMetadataIT {
     private static final String CATEGORY = "Flutter";
     private static final String SHORT_DESCRIPTION =
             "Develop Dart and Flutter applications in Apache NetBeans.";
-    private static final String LONG_DESCRIPTION =
+    private static final String LONG_DESCRIPTION_INTRO =
             "Adds Dart editing, analysis, completion, navigation and formatting together with "
                     + "Flutter project creation, building, execution, device management, testing and debugging "
-                    + "to Apache NetBeans 30.";
+                    + "to Apache NetBeans.";
+    private static final String MODULE_BUNDLE =
+            "dev/flutter/netbeans/plugin/Bundle.properties";
+    private static final String LONG_DESCRIPTION_KEY = "OpenIDE-Module-Long-Description";
+    private static final Map<String, String> CONTACT_LINKS = Map.of(
+            "mailto:hrytsenkovalentyn@gmail.com", "hrytsenkovalentyn@gmail.com",
+            "https://t.me/netbeans_flutter_plugin", "netbeans_flutter_plugin",
+            "https://www.paypal.com/donate/?hosted_button_id=GRQBC554NA356", "Donate via PayPal");
 
     @Test
     void exposesCompletePluginManagerMetadata() throws Exception {
@@ -273,8 +286,8 @@ class PluginPackageMetadataIT {
         assertEquals(CATEGORY, manifest.getAttribute("OpenIDE-Module-Display-Category"));
         assertEquals(SHORT_DESCRIPTION,
                 manifest.getAttribute("OpenIDE-Module-Short-Description"));
-        assertEquals(LONG_DESCRIPTION,
-                manifest.getAttribute("OpenIDE-Module-Long-Description"));
+        assertTrue(manifest.getAttribute(LONG_DESCRIPTION_KEY).contains(LONG_DESCRIPTION_INTRO),
+                "the plugin description must retain its version-neutral feature introduction");
         assertEquals(
                 DESIGNER_PUBLIC_PACKAGES,
                 Set.of(moduleManifest.getMainAttributes()
@@ -310,6 +323,20 @@ class PluginPackageMetadataIT {
                     attributeValue.contains("<undefined>"),
                     () -> "undefined manifest metadata: " + attributeName);
         }
+    }
+
+    @Test
+    void packagesVisibleDeveloperContactAndSupportLinksInBothDescriptions() throws Exception {
+        Path nbm = requiredPath("nbm.file");
+        Element manifest = firstElement(readInfo(nbm).getDocumentElement(), "manifest");
+        // DOM decoding must yield usable HTML, not double-escaped literal markup.
+        String infoDescription = manifest.getAttribute(LONG_DESCRIPTION_KEY);
+        String bundleDescription = readPackagedModuleBundle(nbm).getProperty(LONG_DESCRIPTION_KEY);
+        assertNotNull(bundleDescription, "the packaged module bundle must contain the plugin description");
+        assertEquals(bundleDescription, infoDescription,
+                "Plugin Manager metadata and the actual runtime bundle must expose the same description");
+        assertContactDescription(infoDescription, "Info/info.xml");
+        assertContactDescription(bundleDescription, MODULE_BUNDLE);
     }
 
     @Test
@@ -426,6 +453,70 @@ class PluginPackageMetadataIT {
         assertTrue(missing.isEmpty(),
                 () -> "packaged " + libraryName
                 + " runtime is missing entries: " + missing);
+    }
+
+    private static void assertContactDescription(String html, String origin) throws IOException {
+        StringBuilder visibleText = new StringBuilder();
+        Map<String, StringBuilder> anchorText = new LinkedHashMap<>();
+        new ParserDelegator().parse(new StringReader(html), new HTMLEditorKit.ParserCallback() {
+            private String currentHref;
+
+            @Override
+            public void handleStartTag(HTML.Tag tag, MutableAttributeSet attributes, int position) {
+                if (tag == HTML.Tag.A) {
+                    Object href = attributes.getAttribute(HTML.Attribute.HREF);
+                    currentHref = href == null ? null : href.toString();
+                    if (currentHref != null) {
+                        anchorText.computeIfAbsent(currentHref, ignored -> new StringBuilder());
+                    }
+                }
+            }
+
+            @Override
+            public void handleText(char[] text, int position) {
+                visibleText.append(text).append(' ');
+                if (currentHref != null) {
+                    anchorText.get(currentHref).append(text).append(' ');
+                }
+            }
+
+            @Override
+            public void handleEndTag(HTML.Tag tag, int position) {
+                if (tag == HTML.Tag.A) {
+                    currentHref = null;
+                }
+            }
+        }, true);
+        String rendered = visibleText.toString().replaceAll("\\s+", " ").strip();
+        assertTrue(rendered.contains(LONG_DESCRIPTION_INTRO), origin + " must render its feature introduction");
+        assertTrue(rendered.contains("Developer contact"), origin + " must visibly label developer contact");
+        assertTrue(rendered.contains("Support the project"), origin + " must visibly label project support");
+        assertFalse(rendered.contains("Apache NetBeans 30"), origin + " must not advertise a fixed old IDE release");
+        CONTACT_LINKS.forEach((href, label) -> {
+            assertTrue(anchorText.containsKey(href), () -> origin + " is missing a real HTML anchor for " + href);
+            assertTrue(anchorText.get(href).toString().contains(label),
+                    () -> origin + " must render the " + label + " link with visible English text");
+        });
+    }
+
+    private static Properties readPackagedModuleBundle(Path nbm) throws IOException {
+        try (ZipFile zip = new ZipFile(nbm.toFile())) {
+            ZipEntry module = zip.getEntry(MODULE_JAR);
+            assertNotNull(module, "NBM is missing its NetBeans module JAR");
+            try (ZipInputStream nested = new ZipInputStream(zip.getInputStream(module))) {
+                ZipEntry entry;
+                while ((entry = nested.getNextEntry()) != null) {
+                    if (MODULE_BUNDLE.equals(entry.getName())) {
+                        byte[] bytes = nested.readNBytes(65_537);
+                        assertTrue(bytes.length <= 65_536, "packaged module bundle exceeds the metadata safety bound");
+                        Properties bundle = new Properties();
+                        bundle.load(new StringReader(new String(bytes, StandardCharsets.UTF_8)));
+                        return bundle;
+                    }
+                }
+            }
+        }
+        throw new IOException("NBM module JAR is missing " + MODULE_BUNDLE);
     }
 
     private static Document readInfo(Path nbm) throws Exception {

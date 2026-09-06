@@ -2,6 +2,15 @@
 
 Starter architecture for first-class Dart + Flutter support in Apache NetBeans 31.
 
+## Developer contact and project support
+
+- Email: [hrytsenkovalentyn@gmail.com](mailto:hrytsenkovalentyn@gmail.com)
+- Telegram channel: [netbeans_flutter_plugin](https://t.me/netbeans_flutter_plugin)
+- Support the project: [Donate via PayPal](https://www.paypal.com/donate/?hosted_button_id=GRQBC554NA356)
+
+If you find this plugin useful, please consider supporting its development.
+These contacts and the donation link are also available in the NetBeans Plugin Description.
+
 Current palette milestone: **71 widgets / the historical 92-widget practical target**
 (21 remaining), now including `Badge`. The repository does not preserve
 the full ordered 92-item inventory; widgets are being admitted from the pinned

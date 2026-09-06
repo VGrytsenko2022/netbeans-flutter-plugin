@@ -6,6 +6,10 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- English developer contact and project-support information in the NetBeans
+  Plugin Description: email, Telegram channel and a PayPal donation link.
+  The same contact links are available in the README and verified in the NBM metadata.
+
 - `Badge` at Material/order 80 covers const Badge and non-const Badge.count in
   one type, all 41 fields (ten direct plus 31 complete TextStyle leaves) and two
   optional widget slots. Count presence chooses the constructor; Max count requires

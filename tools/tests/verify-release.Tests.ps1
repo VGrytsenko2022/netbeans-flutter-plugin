@@ -41,6 +41,8 @@ function New-ZipFile {
 function New-ReleaseFixture {
     param(
         [string]$Root,
+        [string]$ArtifactBaseName = 'netbeans-flutter-plugin',
+        [string]$RootVersion = '0.1.2',
         [string]$Category = 'Flutter',
         [switch]$OptionalSdkSkip,
         [switch]$OptionalMaterialIconPreviewSkip,
@@ -62,11 +64,12 @@ function New-ReleaseFixture {
     )
 
     $version = '0.1.2'
+    $nbmFileName = "$ArtifactBaseName-$version.nbm"
     $license = "Apache License`nVersion 2.0"
     Write-Utf8File (Join-Path $Root 'pom.xml') @"
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>test</groupId><artifactId>fixture</artifactId><version>$version</version>
+  <groupId>test</groupId><artifactId>fixture</artifactId><version>$RootVersion</version>
   <modules><module>netbeans-plugin</module></modules>
 </project>
 "@
@@ -74,7 +77,7 @@ function New-ReleaseFixture {
     Write-Utf8File (Join-Path $Root 'netbeans-plugin\pom.xml') @"
 <project xmlns="http://maven.apache.org/POM/4.0.0">
   <modelVersion>4.0.0</modelVersion>
-  <parent><groupId>test</groupId><artifactId>fixture</artifactId><version>$version</version></parent>
+  <parent><groupId>test</groupId><artifactId>fixture</artifactId><version>$RootVersion</version></parent>
   <artifactId>netbeans-plugin</artifactId>
 </project>
 "@
@@ -321,11 +324,11 @@ $testCases
 "@
     }
 
-    $nbmPath = Join-Path $Root 'netbeans-plugin\target\netbeans-plugin-0.1.2.nbm'
+    $nbmPath = Join-Path (Join-Path $Root 'netbeans-plugin\target') $nbmFileName
     $info = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <module codenamebase="dev.flutter.netbeans.netbeans.plugin"
-        distribution="netbeans-plugin-0.1.2.nbm" license="license-id">
+        distribution="$nbmFileName" license="license-id">
   <manifest OpenIDE-Module="dev.flutter.netbeans.netbeans.plugin"
             OpenIDE-Module-Name="Flutter and Dart Support"
             OpenIDE-Module-Display-Category="$Category"
@@ -362,7 +365,7 @@ $testCases
             Write-Utf8File $catalogPath @"
 <module_updates>
   <module codenamebase="dev.flutter.netbeans.netbeans.plugin"
-          distribution="netbeans-plugin-0.1.2.nbm" downloadsize="$length">
+          distribution="$nbmFileName" downloadsize="$length">
     <manifest OpenIDE-Module="dev.flutter.netbeans.netbeans.plugin"
               OpenIDE-Module-Specification-Version="0.1.2"/>
     <message_digest algorithm="SHA-512" value="$sha512"/>
@@ -394,7 +397,7 @@ $catalogVersion
         } else {
             $tracking = @"
 <module codename="dev.flutter.netbeans.netbeans.plugin">
-  <module_version last="true" origin="netbeans-plugin-0.1.2.nbm"
+  <module_version last="true" origin="$nbmFileName"
                   specification_version="0.1.2">
     <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
     <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
@@ -463,6 +466,7 @@ WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-y
 function Invoke-ReleaseVerifier {
     param(
         [pscustomobject]$Fixture,
+        [switch]$UseDefaultNbmPath,
         [switch]$InstalledUserdir,
         [switch]$RequireOptionalSdkTests,
         [switch]$RequireOptionalWebCanvasTests,
@@ -473,9 +477,11 @@ function Invoke-ReleaseVerifier {
         '-File', $Verifier,
         '-RepositoryRoot', $Fixture.Root,
         '-Version', '0.1.2',
-        '-NbmPath', $Fixture.Nbm,
         '-SkipFreshnessCheck'
     )
+    if (-not $UseDefaultNbmPath) {
+        $arguments += @('-NbmPath', $Fixture.Nbm)
+    }
     if ($InstalledUserdir) {
         $arguments += @('-InstalledUserdir', $Fixture.Userdir)
     }
@@ -496,6 +502,47 @@ function Invoke-ReleaseVerifier {
 }
 
 Describe 'verify-release.ps1' {
+    It 'finds the renamed current NBM by default' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'renamed-default')
+
+        $result = Invoke-ReleaseVerifier $fixture -UseDefaultNbmPath
+
+        $result.ExitCode | Should Be 0
+        $result.Text | Should Match 'NBM file name = netbeans-flutter-plugin-0\.1\.2\.nbm'
+        $result.Text | Should Match 'NBM distribution = netbeans-flutter-plugin-0\.1\.2\.nbm'
+    }
+
+    It 'rejects the legacy basename for the current version even with an explicit path' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'legacy-current') `
+            -ArtifactBaseName 'netbeans-plugin'
+
+        $result = Invoke-ReleaseVerifier $fixture
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match "expected 'netbeans-flutter-plugin-0\.1\.2\.nbm'"
+    }
+
+    It 'accepts an explicitly selected historical legacy artifact' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'legacy-previous') `
+            -ArtifactBaseName 'netbeans-plugin' -RootVersion '0.1.3-SNAPSHOT'
+
+        $result = Invoke-ReleaseVerifier $fixture
+
+        $result.ExitCode | Should Be 0
+        $result.Text | Should Match 'Explicit previous-version NBM retains its legacy'
+        $result.Text | Should Match 'NBM distribution = netbeans-plugin-0\.1\.2\.nbm'
+    }
+
+    It 'does not silently fall back to an old basename when the default NBM is absent' {
+        $fixture = New-ReleaseFixture (Join-Path $TestDrive 'no-legacy-fallback') `
+            -ArtifactBaseName 'netbeans-plugin' -RootVersion '0.1.3-SNAPSHOT'
+
+        $result = Invoke-ReleaseVerifier $fixture -UseDefaultNbmPath
+
+        $result.ExitCode | Should Be 1
+        $result.Text | Should Match 'NBM does not exist: .*netbeans-flutter-plugin-0\.1\.2\.nbm'
+    }
+
     It 'accepts a valid NBM and complete passing Maven reports' {
         $fixture = New-ReleaseFixture (Join-Path $TestDrive 'valid')
 

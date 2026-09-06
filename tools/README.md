@@ -11,7 +11,7 @@ pwsh -NoProfile -File tools/verify-release.ps1
 ```
 
 By default the script reads the version from the root `pom.xml` and verifies
-`netbeans-plugin/target/netbeans-plugin-<version>.nbm`. It exits with code `1`
+`netbeans-plugin/target/netbeans-flutter-plugin-<version>.nbm`. It exits with code `1`
 if any release contract fails and prints the artifact SHA-256 on success or
 failure.
 
@@ -127,6 +127,12 @@ case because current source timestamps and newly added test classes no longer
 describe that artifact. Report totals, failures/errors, allowed skips, and the
 mandatory package metadata integration test are still verified:
 
+An explicitly supplied `-NbmPath` and `-Version` different from the checkout's
+version may retain the historical `netbeans-plugin-<version>.nbm` name. Current
+builds must use `netbeans-flutter-plugin-<version>.nbm`; there is no automatic
+fallback to a stale legacy-named file. Maven repository coordinates and internal
+NetBeans module filenames remain unchanged.
+
 ```powershell
 pwsh -NoProfile -File tools/verify-release.ps1 `
   -Version 0.1.1 `
@@ -184,13 +190,13 @@ pwsh -NoProfile -File tools/smoke-netbeans30-nbm.ps1 `
 ```
 
 The current NBM defaults to
-`netbeans-plugin/target/netbeans-plugin-<root-pom-version>.nbm`. Override it for
+`netbeans-plugin/target/netbeans-flutter-plugin-<root-pom-version>.nbm`. Override it for
 an explicitly selected artifact:
 
 ```powershell
 pwsh -NoProfile -File tools/smoke-netbeans30-nbm.ps1 `
   -NetBeansHome G:/netbeans `
-  -CurrentNbmPath artifacts/netbeans-plugin-0.1.2.nbm
+  -CurrentNbmPath artifacts/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm
 ```
 
 Add `-PreviousNbmPath` to run two independent scenarios: a clean installation

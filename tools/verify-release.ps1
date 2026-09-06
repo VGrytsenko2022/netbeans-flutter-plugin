@@ -494,7 +494,18 @@ function Verify-Nbm {
         return
     }
     Write-Pass "NBM exists: $($nbm.FullName) ($($nbm.Length) bytes)"
-    Assert-Equal $nbm.Name "netbeans-plugin-$MavenVersion.nbm" 'NBM file name'
+    $expectedFileName = "netbeans-flutter-plugin-$MavenVersion.nbm"
+    $rootVersionNode = $RootPom.SelectSingleNode(
+        "/*[local-name()='project']/*[local-name()='version']")
+    $legacyPreviousArtifact = $ExplicitNbmPath -and $ExplicitVersion -and
+        $null -ne $rootVersionNode -and
+        $MavenVersion -cne $rootVersionNode.InnerText.Trim() -and
+        $nbm.Name -ceq "netbeans-plugin-$MavenVersion.nbm"
+    if ($legacyPreviousArtifact) {
+        Write-Pass 'Explicit previous-version NBM retains its legacy artifactId-based file name.'
+    } else {
+        Assert-Equal $nbm.Name $expectedFileName 'NBM file name'
+    }
 
     if (-not $SkipFreshnessCheck) {
         $inputs = New-Object 'System.Collections.Generic.List[System.IO.FileInfo]'
@@ -893,6 +904,8 @@ function Verify-InstalledUserdir {
 }
 
 try {
+    $ExplicitNbmPath = -not [string]::IsNullOrWhiteSpace($NbmPath)
+    $ExplicitVersion = -not [string]::IsNullOrWhiteSpace($Version)
     $RepositoryRoot = (Resolve-Path -LiteralPath $RepositoryRoot).Path
     $rootPomPath = Join-Path $RepositoryRoot 'pom.xml'
     if (-not (Test-Path -LiteralPath $rootPomPath -PathType Leaf)) {
@@ -909,7 +922,7 @@ try {
     }
     if ([string]::IsNullOrWhiteSpace($NbmPath)) {
         $NbmPath = Join-Path $RepositoryRoot `
-            "netbeans-plugin\target\netbeans-plugin-$Version.nbm"
+            "netbeans-plugin\target\netbeans-flutter-plugin-$Version.nbm"
     } elseif (-not [System.IO.Path]::IsPathRooted($NbmPath)) {
         $NbmPath = Join-Path $RepositoryRoot $NbmPath
     }

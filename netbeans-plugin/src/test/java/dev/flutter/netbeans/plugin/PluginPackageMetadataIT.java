@@ -275,13 +275,17 @@ class PluginPackageMetadataIT {
     void exposesCompletePluginManagerMetadata() throws Exception {
         Path nbm = requiredPath("nbm.file");
         String mavenVersion = requiredProperty("maven.version");
+        String expectedNbmFileName = "netbeans-flutter-plugin-" + mavenVersion + ".nbm";
+        assertEquals(expectedNbmFileName, nbm.getFileName().toString(),
+                "the distributable NBM filename must use the netbeans-flutter-plugin base");
         Document info = readInfo(nbm);
         Manifest moduleManifest = readModuleManifest(nbm);
         Element module = info.getDocumentElement();
         Element manifest = firstElement(module, "manifest");
         Element license = firstElement(module, "license");
 
-        assertEquals("netbeans-plugin-" + mavenVersion + ".nbm", module.getAttribute("distribution"));
+        assertEquals(expectedNbmFileName, module.getAttribute("distribution"),
+                "Plugin Manager distribution must match the actual NBM filename");
         assertEquals(NAME, manifest.getAttribute("OpenIDE-Module-Name"));
         assertEquals(CATEGORY, manifest.getAttribute("OpenIDE-Module-Display-Category"));
         assertEquals(SHORT_DESCRIPTION,

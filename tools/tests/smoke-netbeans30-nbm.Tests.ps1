@@ -368,7 +368,7 @@ dart.sdk.useBundled=false
 
     It 'stages an immutable local catalog from the exact NBM bytes' {
         $nbm = New-NbmFixture (Join-Path $TestDrive `
-            'artifact\netbeans-plugin-0.1.2.nbm')
+            'artifact\netbeans-flutter-plugin-0.1.2.nbm')
         $metadata = Get-NbmMetadata $nbm
         $catalog = New-LocalUpdateCatalog $metadata (Join-Path $TestDrive 'site')
 
@@ -381,7 +381,7 @@ dart.sdk.useBundled=false
         $module = $document.SelectSingleNode(
             "/*[local-name()='module_updates']/*[local-name()='module']")
         $module.GetAttribute('distribution') | Should Be `
-            'netbeans-plugin-0.1.2.nbm'
+            'netbeans-flutter-plugin-0.1.2.nbm'
         $module.GetAttribute('downloadsize') | Should Be `
             ([string](Get-Item $nbm).Length)
         $digest = $module.SelectSingleNode("./*[local-name()='message_digest']")
@@ -391,6 +391,47 @@ dart.sdk.useBundled=false
         @($document.SelectNodes(
                 "/*[local-name()='module_updates']/*[local-name()='license']")).Count |
             Should Be 1
+    }
+
+    It 'defaults to the renamed NBM and accepts a legacy-named previous version without launching an IDE' {
+        $repository = Join-Path $TestDrive 'renamed-upgrade-repository'
+        Write-Utf8File (Join-Path $repository 'pom.xml') `
+            '<project xmlns="http://maven.apache.org/POM/4.0.0"><version>0.1.3-SNAPSHOT</version></project>'
+        $current = New-NbmFixture (Join-Path $repository `
+            'netbeans-plugin\target\netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm') `
+            -SpecificationVersion '0.1.3' -ImplementationVersion '0.1.3-20260906'
+        $previous = New-NbmFixture (Join-Path $TestDrive `
+            'previous\netbeans-plugin-0.1.2.nbm')
+        $netBeansHome = Join-Path $TestDrive 'renamed-upgrade-fake-netbeans'
+        Write-Utf8File (Join-Path $netBeansHome 'bin\netbeans64.exe') 'fixture launcher'
+        [void][System.IO.Directory]::CreateDirectory((Join-Path $repository 'target'))
+        $script:renamedUpgradeCurrent = $null
+        $script:renamedUpgradePrevious = $null
+        $script:renamedUpgradeCurrentCodeName = $null
+        $script:renamedUpgradePreviousCodeName = $null
+        Mock Invoke-SmokeScenario {
+            param($Name, $Executable, $ScenarioRoot, $CurrentMetadata,
+                $PreviousMetadata, $StartupTimeout, $CommandTimeout)
+            if ($Name -eq 'Upgrade') {
+                $script:renamedUpgradeCurrent = $CurrentMetadata.Path
+                $script:renamedUpgradePrevious = $PreviousMetadata.Path
+                $script:renamedUpgradeCurrentCodeName = $CurrentMetadata.CodeName
+                $script:renamedUpgradePreviousCodeName = $PreviousMetadata.CodeName
+            }
+            return [pscustomobject]@{
+                Name = $Name
+                Userdir = Join-Path $ScenarioRoot 'userdir'
+            }
+        }
+
+        (Get-DefaultCurrentNbmPath $repository) | Should Be $current
+        [void](Invoke-NetBeans30NbmSmoke $repository $netBeansHome $null $previous `
+            (Join-Path $repository 'target\renamed-upgrade') 10 10)
+
+        $script:renamedUpgradeCurrent | Should Be $current
+        $script:renamedUpgradePrevious | Should Be $previous
+        $script:renamedUpgradeCurrentCodeName | Should Be $script:renamedUpgradePreviousCodeName
+        Assert-MockCalled Invoke-SmokeScenario -Times 2 -Exactly -Scope It
     }
 
     It 'accepts only new, target-descendant probe roots' {
@@ -478,7 +519,7 @@ dart.sdk.useBundled=false
             [System.IO.FileAccess]::ReadWrite,
             [System.IO.FileShare]::None)
         $releasedStream.Dispose()
-        Assert-MockCalled Invoke-SmokeScenario -Times 1 -Exactly
+        Assert-MockCalled Invoke-SmokeScenario -Times 1 -Exactly -Scope It
     }
 
     It 'atomically rejects a second owner for the same probe root' {

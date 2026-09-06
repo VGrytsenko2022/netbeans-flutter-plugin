@@ -2403,7 +2403,7 @@ function Get-DefaultCurrentNbmPath {
         throw 'Could not read the Maven version from the root pom.xml.'
     }
     return Join-Path $Root (
-        "netbeans-plugin\target\netbeans-plugin-$($versionNode.InnerText.Trim()).nbm")
+        "netbeans-plugin\target\netbeans-flutter-plugin-$($versionNode.InnerText.Trim()).nbm")
 }
 
 function Invoke-NetBeans30NbmSmoke {

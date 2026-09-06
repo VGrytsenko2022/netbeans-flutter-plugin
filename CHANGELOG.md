@@ -1386,6 +1386,11 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Changed
 
+- Build outputs now use the `netbeans-flutter-plugin-<version>.nbm` and matching
+  `.jar` filenames. Package metadata, release verification and current smoke-test
+  defaults use the same name; Maven coordinates and NetBeans module identity stay
+  unchanged, preserving installed-module updates and dependency resolution.
+
 - The Flutter Designer footer is now a single compact status row. Normal state shows only `Designer ready.` and the current Canvas summary; full model/source/hash diagnostics remain available through tooltips and accessibility metadata, while the existing Canvas `Details...` dialog remains reserved for failed or unavailable native rendering.
 - `.dart` is the technical primary NetBeans entry for a designer pair while `.fd` remains the canonical visual-model source of truth. Dart-only Save As remains withheld until a dedicated pair-aware Save As flow is implemented.
 - Designer mutation remains closed except for the admitted revision-bound 497-property Set/Reset path, selected-widget Delete, same-tree compatibility-planned move/reorder, exact-slot management and the separately fenced catalog-driven insertion path for the ten DnD-capable Palette sources. Insertion accepts exactly 122 of the 140 reviewed source/destination cells, with trait-bound AppBar slots enforced on both host and Canvas. Scanner/generator probes, analyzed replacement, exact rollback/rebind, native Source/model replay, Pair/Source Save re-anchoring, the isolated native Canvas host and the NetBeans 30 runtime/release gate remain authoritative; `Scaffold` Properties, unreviewed Palette definitions and unreviewed object graphs stay disabled.

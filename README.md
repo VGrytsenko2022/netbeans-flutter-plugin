@@ -798,8 +798,11 @@ mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 The command uses the installed Apache NetBeans IDE 31 runtime at `G:/netbeans`.
 The development instance uses `target/userdir`, so it does not reuse the
 settings of the NetBeans instance in which the project is open. The current
-development package is `netbeans-plugin/target/netbeans-plugin-0.1.3-SNAPSHOT.nbm`;
-the latest stable package remains `netbeans-plugin/target/netbeans-plugin-0.1.2.nbm`.
+development package is `netbeans-plugin/target/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm`,
+with the matching `netbeans-flutter-plugin-0.1.3-SNAPSHOT.jar` beside it.
+The output base name is `netbeans-flutter-plugin`; the Maven artifactId and NetBeans
+module identity are unchanged. The previously published stable 0.1.2 package retains
+its historical name `netbeans-plugin/target/netbeans-plugin-0.1.2.nbm`.
 
 ## License
 

@@ -89,7 +89,7 @@ final class FlutterPropertyEditorComponents {
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
             case BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
-            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NUMBER_WITH_INFINITY -> Optional.of(
+            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NULLABLE_NUMBER, NUMBER_WITH_INFINITY -> Optional.of(
                     () -> new NumericInplaceEditor(binding));
             default -> Optional.empty();
         };
@@ -98,7 +98,7 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER,
+            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER,
                     EDGE_INSETS, COLOR,
                     THEME_COLOR, COLOR_ANIMATION, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
@@ -124,6 +124,7 @@ final class FlutterPropertyEditorComponents {
                     editor, binding, environment);
             case NULLABLE_INTEGER -> new NullableIntegerCustomEditor(
                     editor, binding, environment);
+            case NULLABLE_NUMBER -> FlutterNullableNumberEditorComponent.customEditor(editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
             case COLOR -> new ColorCustomEditor(editor, binding, environment);

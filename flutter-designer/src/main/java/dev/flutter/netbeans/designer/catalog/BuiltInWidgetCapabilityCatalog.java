@@ -203,6 +203,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.CircleAvatar", STATIC_EDITABLE),
             Map.entry("flutter.material.LinearProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.material.CircularProgressIndicator", STATIC_EDITABLE),
+            Map.entry("flutter.material.RefreshProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -600,6 +601,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.CircleAvatar", circleAvatarProjection()),
             Map.entry("flutter.material.LinearProgressIndicator", linearProgressIndicatorProjection()),
             Map.entry("flutter.material.CircularProgressIndicator", circularProgressIndicatorProjection()),
+            Map.entry("flutter.material.RefreshProgressIndicator", refreshProgressIndicatorProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1943,6 +1945,23 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection refreshProgressIndicatorProjection() {
+        CanvasPropertyContract signed = cardNumberSchema(null, null);
+        Map<PropertyValueKind, String> widthConstraints = new java.util.EnumMap<>(PropertyValueKind.class);
+        widthConstraints.putAll(signed.constraintFingerprints());
+        widthConstraints.put(PropertyValueKind.NULL, "any");
+        CanvasPropertyContract width = new CanvasPropertyContract(widthConstraints.keySet(), false,
+                Optional.empty(), signed.numericBounds(), widthConstraints);
+        return projection(Map.ofEntries(
+                Map.entry("value", signed), colorOrThemeProperty("backgroundColor"), colorOrThemeProperty("color"),
+                Map.entry("valueColor", linearProgressIndicatorProjection().propertyContracts().get(new PropertyName("valueColor"))),
+                Map.entry("strokeWidth", width), Map.entry("strokeAlign", signed),
+                property("semanticsLabel", PropertyValueKind.STRING), property("semanticsValue", PropertyValueKind.STRING),
+                enumProperty("strokeCap", "StrokeCap", "butt", "round", "square"),
+                numericProperty("elevation", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
+                edgeInsetsProperty("indicatorMargin", true), edgeInsetsProperty("indicatorPadding", true)), Map.of());
     }
 
     private static CanvasProjection circularProgressIndicatorProjection() {

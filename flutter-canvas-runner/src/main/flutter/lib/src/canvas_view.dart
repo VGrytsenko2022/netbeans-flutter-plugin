@@ -32,6 +32,15 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.RefreshProgressIndicator') {
+    return context == null
+        ? null
+        : _refreshProgressUnavailableMessage(
+            node,
+            context,
+            constraints: constraints,
+          );
+  }
   if (node.type == 'flutter.material.CircularProgressIndicator') {
     return context == null
         ? null
@@ -100,6 +109,120 @@ String? _progressSemanticsUnavailableMessage(
           'This explicit string fails SDK semantics validation. Indeterminate loadingSpinner accepts free text. '
           'The stored properties and generated Dart remain unchanged.';
     }
+  }
+  return null;
+}
+
+String? _refreshProgressUnavailableMessage(
+  CanvasNode node,
+  BuildContext context, {
+  BoxConstraints? constraints,
+}) {
+  if (node.properties['valueColor']?.kind == 'dartObjectReferencePresence') {
+    return 'RefreshProgressIndicator.valueColor preview unavailable: generated Dart uses the configured '
+        'Animation<Color?> reference; isolated Canvas does not execute project or dependency Dart '
+        'or substitute an unrelated animation. Properties remain editable.';
+  }
+  final semanticFailure = _progressSemanticsUnavailableMessage(
+    node,
+    'RefreshProgressIndicator',
+  );
+  if (semanticFailure != null) return semanticFailure;
+  if (constraints == null) return null;
+  EdgeInsets insets(String name, double fallback) {
+    final value = node.properties[name]?.value;
+    final geometry = switch (value) {
+      CanvasEdgeInsets p => EdgeInsets.fromLTRB(
+        p.left,
+        p.top,
+        p.right,
+        p.bottom,
+      ),
+      CanvasEdgeInsetsDirectional p => EdgeInsetsDirectional.fromSTEB(
+        p.start,
+        p.top,
+        p.end,
+        p.bottom,
+      ),
+      _ => EdgeInsets.all(fallback),
+    };
+    return geometry.resolve(Directionality.of(context));
+  }
+
+  final margin = insets('indicatorMargin', 4);
+  final padding = insets('indicatorPadding', 12);
+  if (!margin.horizontal.isFinite ||
+      !margin.vertical.isFinite ||
+      !padding.horizontal.isFinite ||
+      !padding.vertical.isFinite) {
+    return 'RefreshProgressIndicator.indicatorMargin/indicatorPadding preview unavailable: inset sums '
+        'overflow finite SDK layout geometry. The stored properties and generated Dart remain unchanged.';
+  }
+  final materialSize = const BoxConstraints.tightFor(
+    width: 41,
+    height: 41,
+  ).enforce(constraints.deflate(margin)).constrain(Size.zero);
+  final paintSize = BoxConstraints.tight(
+    materialSize,
+  ).deflate(padding).constrain(Size.zero);
+  if (!materialSize.isFinite || !paintSize.isFinite) {
+    return 'RefreshProgressIndicator preview unavailable: resolved parent constraints exceed finite '
+        'SDK indicator geometry. The stored properties and generated Dart remain unchanged.';
+  }
+  final material = Theme.of(context);
+  final theme = ProgressIndicatorTheme.of(context);
+  Color? color(String name) {
+    final value = node.properties[name]?.value;
+    if (value is int) return Color(value);
+    if (value is CanvasThemeToken) {
+      return _colorSchemeRole(
+        material.colorScheme,
+        value.wireId.split('.').last,
+      );
+    }
+    return null;
+  }
+
+  // Opacity wraps only the arrow/arc, not Material. With alpha zero the real
+  // SDK skips painting: do not diagnose geometry that it never paints.
+  final activeColor =
+      color('valueColor') ??
+      color('color') ??
+      theme.color ??
+      material.colorScheme.primary;
+  // Refresh uses the pinned SDK's byte-quantized Color.opacity getter.
+  // ignore: deprecated_member_use
+  if (Color.getAlphaFromOpacity(activeColor.opacity) == 0) return null;
+  double? number(String name) =>
+      (node.properties[name]?.value as num?)?.toDouble();
+  final effectiveValue = number('value')?.clamp(0, 1);
+  final arrowVisible = effectiveValue != null && effectiveValue > 0.1;
+  if (arrowVisible && paintSize.width != paintSize.height) {
+    return 'RefreshProgressIndicator.indicatorPadding preview unavailable: a visible SDK arrow requires '
+        'a square inner paint area, but the parent constraints and insets produce ${paintSize.width} × ${paintSize.height}. '
+        'Adjust the parent size or indicator insets. The stored properties and generated Dart remain unchanged.';
+  }
+  final width = node.properties.containsKey('strokeWidth')
+      ? number('strokeWidth') ?? theme.strokeWidth ?? 4
+      : RefreshProgressIndicator.defaultStrokeWidth;
+  final align = number('strokeAlign') ?? theme.strokeAlign ?? 0;
+  final offset = width / 2 * -align;
+  final arcWidth = paintSize.width - offset * 2;
+  final arcHeight = paintSize.height - offset * 2;
+  final arrowRadius = arrowVisible
+      ? width * 2 * ((effectiveValue - 0.1) / (.33 - .1)).clamp(0, 1)
+      : 0.0;
+  if (!offset.isFinite ||
+      !(offset * 2).isFinite ||
+      !arcWidth.isFinite ||
+      !arcHeight.isFinite ||
+      !(offset + arcWidth).isFinite ||
+      !(offset + arcHeight).isFinite ||
+      !arrowRadius.isFinite ||
+      !(paintSize.width / 2 + arrowRadius).isFinite ||
+      !(paintSize.width / 2 - arrowRadius).isFinite) {
+    return 'RefreshProgressIndicator.strokeWidth/strokeAlign preview unavailable: resolved arc or arrow '
+        'coordinates overflow finite SDK geometry. The stored signed values and generated Dart remain unchanged.';
   }
   return null;
 }
@@ -875,6 +998,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.material.CircularProgressIndicator' ||
+        node.type == 'flutter.material.RefreshProgressIndicator' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2781,6 +2905,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'flutter.material.CircularProgressIndicator' =>
         _circularProgressIndicator(context),
+      'flutter.material.RefreshProgressIndicator' => _refreshProgressIndicator(
+        context,
+      ),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4848,6 +4975,55 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       child: _single('child'),
     );
   }
+
+  Widget _refreshProgressIndicator(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) {
+      final failure = _refreshProgressUnavailableMessage(
+        node,
+        context,
+        constraints: constraints,
+      );
+      if (failure != null) {
+        return _customClipperPreviewUnavailable(
+          widgetName: 'RefreshProgressIndicator',
+          expectedType: 'Animation<Color?>',
+          previewLabel: 'Refresh preview\nunavailable',
+          messageOverride: failure,
+        );
+      }
+      final color = node.properties['valueColor'];
+      final animation = color == null
+          ? null
+          : AlwaysStoppedAnimation<Color?>(
+              color.kind == 'null'
+                  ? null
+                  : _resolvedColor(context, 'valueColor'),
+            );
+      final cap = _enum('strokeCap');
+      return RefreshProgressIndicator(
+        value: _number('value'),
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        color: _resolvedColor(context, 'color'),
+        valueColor: animation,
+        // Explicit null inherits strokeWidth; omission retains the SDK's distinct
+        // constructor default. Neither creates an explicit model property.
+        strokeWidth: node.properties.containsKey('strokeWidth')
+            ? _number('strokeWidth')
+            : RefreshProgressIndicator.defaultStrokeWidth,
+        strokeAlign: _number('strokeAlign'),
+        strokeCap: cap == null
+            ? null
+            : StrokeCap.values.firstWhere((v) => v.name == cap),
+        semanticsLabel: _string('semanticsLabel'),
+        semanticsValue: _string('semanticsValue'),
+        elevation: _number('elevation') ?? 2,
+        indicatorMargin:
+            _edgeInsetsGeometry('indicatorMargin') ?? const EdgeInsets.all(4),
+        indicatorPadding:
+            _edgeInsetsGeometry('indicatorPadding') ?? const EdgeInsets.all(12),
+      );
+    },
+  );
 
   Widget _circularProgressIndicator(BuildContext context) {
     Widget unavailable(String message) => _customClipperPreviewUnavailable(

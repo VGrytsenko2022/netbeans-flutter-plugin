@@ -932,6 +932,143 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteRefreshProgressAllTwelveFieldsWidthModesSaveReopenHistoryAndRollback() throws Exception {
+        StableId progressId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9c");
+        WidgetTypeId type = new WidgetTypeId("flutter.material.RefreshProgressIndicator");
+        ExactPair pair;
+        try (MutationFixture fixture = fixture("refresh_progress_palette_append", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, FlutterImageAssetChoices.empty(), () -> progressId));
+            var added = applyRefreshProgressMutation(fixture, ready, plan.command(), progressId);
+            var widget = findModelWidget(added.document().orElseThrow().root(), progressId);
+            assertTrue(widget.properties().isEmpty()); assertTrue(widget.slots().isEmpty());
+            String dart = new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8);
+            assertTrue(dart.contains("const RefreshProgressIndicator(")); assertFalse(dart.contains("strokeWidth:"));
+            pair = savePhysicalModelPair(fixture);
+        }
+        Map<PropertyName, PropertyValue> configured;
+        try (MutationFixture fixture = fixture("refresh_progress_reopened_twelve", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var initial = findModelWidget(current.document().orElseThrow().root(), progressId);
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets(); var states = new ArrayList<WidgetNode>(); states.add(initial);
+            for (var field : definition.properties()) {
+                String name = field.name().value(); var value = dev.flutter.netbeans.plugin.designer.properties.RefreshProgressIndicatorPropertyContractTest.value(name);
+                var cell = cellProperty(properties, name); commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(List.of(new SetProperty(progressId, field.name(), value)), commands);
+                current = applyRefreshProgressMutation(fixture, current, commands.getFirst(), progressId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), progressId); assertEquals(value, edited.properties().get(field.name()));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, name)); assertEquals(List.of(sets), List.of(properties.getPropertySets())); states.add(edited);
+            }
+            assertEquals(13, states.size()); var history = fixture.dataObject().getCombinedUndoRedo();
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] exactFd = fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes();
+            assertTrue(new String(exactDart, StandardCharsets.UTF_8).contains("strokeWidth: null"));
+            for (int index = states.size() - 2; index >= 0; index--) {
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), progressId));
+            }
+            for (int index = 1; index < states.size(); index++) {
+                var token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(states.get(index), findModelWidget(current.document().orElseThrow().root(), progressId));
+            }
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            var complete = states.getLast(); configured = complete.properties(); String undoName = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new SetProperty(progressId, new PropertyName("elevation"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(-1))),
+                    new SetProperty(progressId, new PropertyName("strokeWidth"), new PropertyValue.EnumValue("double", "infinity")),
+                    new SetProperty(progressId, new PropertyName("strokeAlign"), new PropertyValue.NullValue()))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "RefreshProgressIndicator invalid edit").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(complete, findModelWidget(current.document().orElseThrow().root(), progressId)); assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes()); assertEquals(undoName, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "refresh_width_refused", "RefreshProgressIndicator width rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new ResetProperty(progressId, new PropertyName("strokeWidth")), "RefreshProgressIndicator null to omission").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+            assertEquals(complete, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), progressId));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, fixture.coordinator().stagedEvidence().preparedPairIdentity().prospectiveFdBytes());
+            assertEquals(undoName, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_progress_configured_null_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var restored = findModelWidget(current.document().orElseThrow().root(), progressId); assertEquals(configured, restored.properties());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("strokeWidth: null"));
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, restored, definition, commands::add);
+            var widthCell = cellProperty(properties, "strokeWidth"); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (var width : List.of(FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new java.math.BigDecimal("2.5"))),
+                    FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                    FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new java.math.BigDecimal("-2.5"))))) {
+                var before = findModelWidget(current.document().orElseThrow().root(), progressId); commands.clear(); widthCell.setValue(width);
+                assertEquals(1, commands.size()); current = applyRefreshProgressMutation(fixture, current, commands.getFirst(), progressId);
+                var edited = findModelWidget(current.document().orElseThrow().root(), progressId);
+                assertEquals(width.explicitValue(), Optional.ofNullable(edited.properties().get(new PropertyName("strokeWidth"))));
+                String dart = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+                assertEquals(width.explicitValue().isPresent(), dart.contains("strokeWidth:"));
+                assertEquals(width.explicitValue().orElse(null) instanceof PropertyValue.NullValue, dart.contains("strokeWidth: null"));
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), progressId));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, progressId));
+                assertEquals(edited, findModelWidget(current.document().orElseThrow().root(), progressId));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty()); assertSame(widthCell, cellProperty(properties, "strokeWidth"));
+            }
+            for (PropertyValue value : List.of(new PropertyValue.ColorValue(0x80112233L),
+                    new PropertyValue.ThemeTokenValue(new dev.flutter.netbeans.designer.model.ThemeToken("material.colorScheme.tertiary")),
+                    dev.flutter.netbeans.plugin.designer.properties.LinearProgressIndicatorPropertyContractTest.reference("_animatedColor"), new PropertyValue.NullValue())) {
+                current = applyRefreshProgressMutation(fixture, current, new SetProperty(progressId, new PropertyName("valueColor"), value), progressId);
+                assertEquals(value, findModelWidget(current.document().orElseThrow().root(), progressId).properties().get(new PropertyName("valueColor")));
+            }
+            properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), progressId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            for (var field : definition.properties().reversed()) {
+                var cell = cellProperty(properties, field.name().value()); if (cell.isDefaultValue()) continue;
+                commands.clear(); cell.restoreDefaultValue(); assertEquals(1, commands.size()); current = applyRefreshProgressMutation(fixture, current, commands.getFirst(), progressId);
+                properties.refreshPresentation(findModelWidget(current.document().orElseThrow().root(), progressId), definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, field.name().value()));
+            }
+            assertTrue(findModelWidget(current.document().orElseThrow().root(), progressId).properties().isEmpty()); assertSame(widthCell, cellProperty(properties, "strokeWidth")); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_progress_omitted_width_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("strokeWidth:"));
+            var current = applyRefreshProgressMutation(fixture, fixture.ready(), new SetProperty(progressId, new PropertyName("strokeWidth"), new PropertyValue.NullValue()), progressId);
+            current = applyRefreshProgressMutation(fixture, current, new SetProperty(progressId, new PropertyName("indicatorPadding"), dev.flutter.netbeans.plugin.designer.properties.RefreshProgressIndicatorPropertyContractTest.value("indicatorPadding")), progressId);
+            assertEquals(new PropertyValue.NullValue(), findModelWidget(current.document().orElseThrow().root(), progressId).properties().get(new PropertyName("strokeWidth"))); pair = savePhysicalModelPair(fixture);
+        }
+        try (MutationFixture fixture = fixture("refresh_progress_explicit_null_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("strokeWidth: null"));
+            var current = applyRefreshProgressMutation(fixture, fixture.ready(), new SetProperty(progressId, new PropertyName("strokeWidth"), new PropertyValue.DoubleValue(new java.math.BigDecimal("3.25"))), progressId);
+            assertEquals(new PropertyValue.DoubleValue(new java.math.BigDecimal("3.25")), findModelWidget(current.document().orElseThrow().root(), progressId).properties().get(new PropertyName("strokeWidth")));
+            assertTrue(new String(fixture.coordinator().stagedEvidence().candidateDartBytes(), StandardCharsets.UTF_8).contains("strokeWidth: 3.25"));
+        }
+    }
+
+    private static byte[] refreshProgressFdBytes(MutationFixture fixture) throws IOException {
+        var evidence = fixture.coordinator().stagedEvidence();
+        // Returning to the exact saved null-width model clears staging; durable bytes are then authoritative.
+        return evidence == null ? Files.readAllBytes(fixture.fdPath()) : evidence.preparedPairIdentity().prospectiveFdBytes();
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyRefreshProgressMutation(
+            MutationFixture fixture, FlutterDesignerMutationController.Snapshot before,
+            DesignerCommand command, StableId progressId) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "RefreshProgressIndicator property editing").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, progressId));
+    }
+
+    @Test
     void paletteCircularProgressAllFifteenFieldsSaveReopenAnimationBranchesHistoryAndRollback() throws Exception {
         StableId progressId = StableId.parse("8e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9b");
         WidgetTypeId type = new WidgetTypeId("flutter.material.CircularProgressIndicator");

@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -441,7 +442,8 @@ public final class DartRegionGenerator {
                         property.name().value(),
                         false,
                         (node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
-                                || node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE))
+                                || node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
+                                || node.type().equals(RefreshProgressIndicatorWidgetPropertySchema.REFRESH_PROGRESS_INDICATOR_TYPE))
                                 && property.name().value().equals("valueColor")
                                 && !(value instanceof PropertyValue.DartObjectReferenceValue)
                                 ? renderProgressValueColor(value, property, propertyPath, node.id(), context)

@@ -81,6 +81,9 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(
                 PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE))) {
             editorKind = EditorKind.NUMBER;
+        } else if (kinds.equals(EnumSet.of(
+                PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.NULL))) {
+            editorKind = EditorKind.NULLABLE_NUMBER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER,
                 PropertyValueKind.DOUBLE, PropertyValueKind.ENUM))
                 && definition.constraints().stream().anyMatch(value ->
@@ -195,6 +198,7 @@ final class FlutterTypedPropertyEditors {
         NULLABLE_INTEGER,
         DOUBLE,
         NUMBER,
+        NULLABLE_NUMBER,
         NUMBER_WITH_INFINITY,
         ENUM,
         EDGE_INSETS,
@@ -326,7 +330,7 @@ final class FlutterTypedPropertyEditors {
                 case INTEGER -> new IntegerEditor(this);
                 case NULLABLE_INTEGER -> new NullableIntegerEditor(this);
                 case DOUBLE -> new DoubleEditor(this);
-                case NUMBER, NUMBER_WITH_INFINITY -> new NumberEditor(this);
+                case NUMBER, NULLABLE_NUMBER, NUMBER_WITH_INFINITY -> new NumberEditor(this);
                 case ENUM -> new CatalogEnumEditor(this);
                 case EDGE_INSETS -> new EdgeInsetsEditor(this);
                 case COLOR -> new ColorEditor(this);
@@ -702,6 +706,7 @@ final class FlutterTypedPropertyEditors {
                 case PropertyValue.IntegerValue integer -> integer.value().toString();
                 case PropertyValue.DoubleValue decimal -> decimal.value().toPlainString();
                 case PropertyValue.EnumValue infinity -> "Infinity";
+                case PropertyValue.NullValue ignored -> FlutterNullableNumberEditorComponent.INHERITED_TEXT;
                 default -> throw new IllegalStateException(
                         "Unexpected numeric value " + value.kind());
             }).orElseGet(this::unsetText);
@@ -713,6 +718,12 @@ final class FlutterTypedPropertyEditors {
                 return;
             }
             String normalized = text.strip();
+            if (binding.editorKind() == EditorKind.NULLABLE_NUMBER
+                    && (normalized.equalsIgnoreCase("null")
+                    || normalized.equalsIgnoreCase(FlutterNullableNumberEditorComponent.INHERITED_TEXT))) {
+                setExplicit(new PropertyValue.NullValue());
+                return;
+            }
             if (binding.editorKind() == EditorKind.NUMBER_WITH_INFINITY
                     && normalized.equalsIgnoreCase("infinity")) {
                 setExplicit(new PropertyValue.EnumValue("double", "infinity"));

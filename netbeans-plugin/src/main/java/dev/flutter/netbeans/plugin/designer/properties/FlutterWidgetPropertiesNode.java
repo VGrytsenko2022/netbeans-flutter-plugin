@@ -32,6 +32,7 @@ import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -574,6 +575,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addLinearProgressIndicatorPropertySets(sheet, hasSlotTab);
         } else if (CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
             addCircularProgressIndicatorPropertySets(sheet, hasSlotTab);
+        } else if (RefreshProgressIndicatorWidgetPropertySchema.REFRESH_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
+            addRefreshProgressIndicatorPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -2568,6 +2571,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "reflects ancestor exclusion. Layout, paint and pointer hits remain available; "
                             + "Designer selection and editing are not disabled. "
                             + "Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addRefreshProgressIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<RefreshProgressIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(RefreshProgressIndicatorWidgetPropertySchema.Group.class);
+        for (var group : RefreshProgressIndicatorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = RefreshProgressIndicatorWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Restore Default omits this optional field; no defaults are stored. Stroke width has three distinct modes: omitted uses the constructor default 2.5; inherited (explicit null) uses the theme or SDK fallback 4; a signed finite number is retained exactly. "
+                    + "Value color accepts stopped literal/theme colors, explicit stopped null, or typed project Animation<Color?>. Project animations generate Dart but cannot execute in isolated Canvas. "
+                    + "This is the progress visual, not the RefreshIndicator pull-to-refresh wrapper."));
         }
     }
 

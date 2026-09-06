@@ -87,6 +87,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.material.CircleAvatar",
                 "flutter.material.LinearProgressIndicator",
                 "flutter.material.CircularProgressIndicator",
+                "flutter.material.RefreshProgressIndicator",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3333,6 +3334,68 @@ class CanvasModelPayloadCodecTest {
             merged.putAll(properties);
             var node = new WidgetNode(StableId.random(), type("flutter.material.CircularProgressIndicator"),
                     merged, Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+    }
+
+    @Test
+    void refreshProgressPayloadPreservesAllTwelveFieldsAndNeverLeaksAnimationReferences() throws Exception {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_refresh/values.dart"),
+                "privateAnimation", Optional.of("privateMember"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        for (PropertyValue color : List.of(new PropertyValue.NullValue(), new PropertyValue.ColorValue(0x80123456L),
+                new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")), reference)) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            properties.put(new PropertyName("value"), new PropertyValue.DoubleValue(new BigDecimal("1.5")));
+            properties.put(new PropertyName("valueColor"), color);
+            properties.put(new PropertyName("backgroundColor"), new PropertyValue.ColorValue(0xff123456L));
+            properties.put(new PropertyName("color"), new PropertyValue.ColorValue(0x8000ff00L));
+            properties.put(new PropertyName("strokeWidth"), new PropertyValue.NullValue());
+            properties.put(new PropertyName("strokeAlign"), new PropertyValue.DoubleValue(new BigDecimal("-4")));
+            properties.put(new PropertyName("strokeCap"), new PropertyValue.EnumValue("StrokeCap", "square"));
+            properties.put(new PropertyName("elevation"), new PropertyValue.DoubleValue(BigDecimal.ZERO));
+            properties.put(new PropertyName("indicatorMargin"), new PropertyValue.EdgeInsetsDirectionalValue(BigDecimal.ONE, BigDecimal.TEN, BigDecimal.ZERO, BigDecimal.ONE));
+            properties.put(new PropertyName("indicatorPadding"), new PropertyValue.EdgeInsetsValue(BigDecimal.ONE, BigDecimal.ZERO, BigDecimal.TEN, BigDecimal.ONE));
+            properties.put(new PropertyName("semanticsLabel"), new PropertyValue.StringValue("Refreshing"));
+            properties.put(new PropertyName("semanticsValue"), new PropertyValue.StringValue("45%"));
+            assertEquals(12, properties.size());
+            var node = new WidgetNode(StableId.random(), type("flutter.material.RefreshProgressIndicator"), properties, Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"strokeWidth\":{\"kind\":\"null\"}"), json);
+            assertEquals(color instanceof PropertyValue.NullValue, json.contains("\"valueColor\":{\"kind\":\"null\"}"), json);
+            assertEquals(color instanceof PropertyValue.DartObjectReferenceValue, json.contains("\"valueColor\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            for (String forbidden : List.of("privateAnimation", "privateMember", "private_refresh", "MaterialIcons", "imageProvider")) assertFalse(json.contains(forbidden), json);
+        }
+    }
+
+    @Test
+    void refreshProgressPayloadDistinguishesOmittedExplicitNullZeroAndDefaultWidth() throws Exception {
+        var encodings = new java.util.HashSet<String>();
+        for (PropertyValue width : java.util.Arrays.asList(null, new PropertyValue.NullValue(),
+                new PropertyValue.DoubleValue(BigDecimal.ZERO), new PropertyValue.DoubleValue(new BigDecimal("2.5")))) {
+            var properties = width == null ? Map.<PropertyName, PropertyValue>of() : Map.of(new PropertyName("strokeWidth"), width);
+            var node = new WidgetNode(DOCUMENT_ID, type("flutter.material.RefreshProgressIndicator"), properties, Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(encodings.add(json));
+            assertEquals(width != null, json.contains("\"strokeWidth\":"), json);
+            assertFalse(json.contains("\"valueColor\":"), json);
+            assertFalse(json.contains("\"value\":{\"kind\":"), json);
+        }
+    }
+
+    @Test
+    void refreshProgressPayloadRejectsInheritedArgumentsAndUnsupportedNullsWithoutBroaderTypes() {
+        var invalid = new java.util.ArrayList<Map<PropertyName, PropertyValue>>();
+        for (String name : List.of("controller", "variant", "constraints", "padding", "trackGap", "year2023")) {
+            invalid.add(Map.of(new PropertyName(name), new PropertyValue.DoubleValue(BigDecimal.ONE)));
+        }
+        for (String name : List.of("value", "strokeAlign", "elevation", "indicatorMargin", "indicatorPadding", "strokeCap")) {
+            invalid.add(Map.of(new PropertyName(name), new PropertyValue.NullValue()));
+        }
+        invalid.add(Map.of(new PropertyName("elevation"), new PropertyValue.DoubleValue(BigDecimal.ONE.negate())));
+        invalid.add(Map.of(new PropertyName("strokeWidth"), new PropertyValue.EnumValue("double", "infinity")));
+        invalid.add(Map.of(new PropertyName("valueColor"), new PropertyValue.DartExpressionValue("Animation<Color?>()")));
+        for (var properties : invalid) {
+            var node = new WidgetNode(StableId.random(), type("flutter.material.RefreshProgressIndicator"), properties, Map.of());
             assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
         }
     }

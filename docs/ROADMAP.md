@@ -1805,11 +1805,24 @@ accepted architecture is documented in
   gap Infinity, StrokeCap, constraints, directional padding, semantics and year2023.
   Preserve actual Cupertino adaptive behavior and ignored Material fields, report
   isolated-code/resolved-geometry limits, and cover stable editors, save/reopen,
-  continued edits, history, rejection, DnD and SVGs. Current totals: 74 widgets,
+  continued edits, history, rejection, DnD and SVGs. At that milestone: 74 widgets,
   68 const definitions, 918 rows (901 outside Scaffold), 71 scalar plus three
   structural definitions, 136 Boolean fields, nine wrappers/61 destinations,
   4,514 placements (4,197 accepted / 317 rejected), Material 11/Basic 23.
   Historical target 74/92 with 18 remaining; formats stay 13/14/18.
+- [x] Add RefreshProgressIndicator at Material/order 120 with all 12 optional
+  constructor fields, no defaults/slots, a const constructor and four SVGs. Cover
+  stopped nullable/project color animation, signed finite stroke geometry/caps,
+  nonnegative elevation, independent physical/directional margin/padding and both
+  semantics fields. Distinguish omitted strokeWidth/default 2.5 from explicit
+  null/theme inheritance with a cancel-safe three-mode numeric editor. Preserve
+  SDK refresh-arrow animation, foreground alpha and Material appearance; diagnose
+  project-code and resolved-geometry limits without model mutation. Include stable
+  editors, save/reopen/further editing, Undo/Redo, rejection, DnD and accessibility.
+  Current totals: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
+  72 scalar plus three structural definitions, 136 Boolean fields, nine wrappers/
+  61 destinations, 4,575 placements (4,256 accepted / 319 rejected), Material 12/
+  Basic 23. Historical target 75/92 leaves 17; formats stay 13/14/18.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1827,8 +1840,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all seventy-four admitted built-ins.
-  The 71 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all seventy-five admitted built-ins.
+  The 72 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

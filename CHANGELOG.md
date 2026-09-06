@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `RefreshProgressIndicator` at Material/order 120 with all 12 optional constructor
+  fields, no child slots/defaults and a const constructor. Includes stopped
+  literal/theme/null and typed project color animations, signed finite stroke
+  geometry, StrokeCap, elevation, separate physical/directional margin and padding,
+  and both semantics fields. Stroke width now has a narrowly bound three-mode
+  numeric editor: omit/default 2.5, explicit null/theme inheritance, or finite number.
+  Real SDK Canvas preserves the arrow, determinate/indeterminate transitions,
+  foreground opacity and Material appearance, with explicit project-code and
+  resolved-geometry limitations. Stable Properties, persistence/history, DnD,
+  accessibility and four SVGs cover the full slice.
+  Current totals: 75 widgets, 69 const definitions, 930 rows (913 outside Scaffold),
+  4,575 placements (4,256 accepted / 319 rejected), 136 Boolean fields, Material 12.
+  Historical target 75/92 with 17 remaining; formats stay 13/14/18.
+
 - `CircularProgressIndicator` at Material/order 110, with both const constructors
   in one Palette item. Fifteen Properties cover all 14 optional Material fields
   plus a material/adaptive variant. The adaptive constructor excludes color;
@@ -16,7 +30,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   adaptive Cupertino behavior and ignored fields without executing project code;
   nonfinite resolved geometry receives an explicit diagnostic. Includes full
   persistence/history, stable editors, DnD, accessibility and four SVGs.
-  Current totals: 74 widgets, 68 const definitions, 918 rows (901 outside Scaffold),
+  At that milestone: 74 widgets, 68 const definitions, 918 rows (901 outside Scaffold),
   4,514 placements (4,197 accepted / 317 rejected), 136 Boolean fields, Material 11.
   Historical target 74/92 with 18 remaining; formats stay 13/14/18.
 

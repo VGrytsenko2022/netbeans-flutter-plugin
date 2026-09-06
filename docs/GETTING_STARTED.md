@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly seventy-four
+The current capability-gated Palette and native Canvas admit exactly seventy-five
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator` and `CircularProgressIndicator`.
-Sixty-eight definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 918 typed writable rows: 901 across the seventy-three
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator` and `RefreshProgressIndicator`.
+Sixty-nine definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 930 typed writable rows: 913 across the seventy-four
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -866,9 +866,25 @@ Save, reopen, edit another field and Undo/Redo across variant changes to exercis
 the complete lifecycle. This widget behavior does not require a native OS-provider
 change or the deferred global desktop acceptance test.
 
-The practical backlog is now 74/92 complete with 18 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 11 and Accessibility 6. The aggregate
-is 68 reviewed const definitions and 918 writable rows, including 901 outside
+Add **Material → RefreshProgressIndicator** for the SDK refresh arrow/arc. Its 12
+Properties include Value, Background color, Color, Value color, Stroke width,
+Stroke alignment, Stroke cap, Elevation, Indicator margin, Indicator padding and both
+semantics fields. This leaf is separate from the pull-to-refresh wrapper.
+
+For **Stroke width**, `<not set>` means the constructor default 2.5; select
+**Use inherited value (null)** to use the theme width or SDK fallback 4, or enter a finite
+number. The inactive row shows **Inherited (null)**. Restore Default removes the
+argument. The custom editor commits only on
+OK. Save, reopen and edit again to exercise all three distinct states. Margin and
+padding have independent physical/directional editors. Negative elevation/insets
+are rejected; signed finite width/alignment are retained. Value color uses the
+same stopped-color and typed project-animation choices as the other indicators.
+Canvas preserves SDK animation/arrow behavior and reports exact project-code or
+resolved-layout limitations, including a visible arrow in a non-square paint area.
+
+The practical backlog is now 75/92 complete with 17 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 12 and Accessibility 6. The aggregate
+is 69 reviewed const definitions and 930 writable rows, including 913 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -934,8 +950,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Seventy-three sources across fifty-nine insertable any-widget and two trait-bound
-slots produce 4,514 compatibility candidates: 4,197 accepted and 317
+Seventy-five sources across fifty-nine insertable any-widget and two trait-bound
+slots produce 4,575 compatibility candidates: 4,256 accepted and 319
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are

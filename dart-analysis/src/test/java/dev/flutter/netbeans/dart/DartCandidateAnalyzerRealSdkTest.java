@@ -2871,6 +2871,160 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesRefreshProgressAllFieldsNullableStrokeWidthAndColorAnimationProofs() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("refresh_progress_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLibrary = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedFile = dependencyLibrary.resolve("refresh.dart");
+        String importedSource = """
+                import 'package:flutter/widgets.dart';
+                const Animation<Color?> importedColor = AlwaysStoppedAnimation<Color?>(null);
+                """;
+        Files.writeString(importedFile, importedSource, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String prelude = """
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/refresh.dart' as project_progress;
+                String unchangedCoreScope(String value, Object object) => value;
+                const Animation<Color?> localColor = AlwaysStoppedAnimation<Color?>(null);
+                Animation<Color?> colorFactory() => localColor;
+                dynamic dynamicColor = localColor;
+                Animation<Color?>? nullableColor = localColor;
+                Object objectColor = localColor;
+                const Animation<Object?> wideColor = AlwaysStoppedAnimation<Object?>(null);
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        StringBuilder valid = new StringBuilder(prelude).append("""
+                Widget complete() => const RefreshProgressIndicator(
+                  value: 0.45, backgroundColor: Color(0xFF123456), color: Color(0xFF234567),
+                  valueColor: AlwaysStoppedAnimation<Color>(Color(0x80ABCDEF)), strokeWidth: 6, strokeAlign: -2,
+                  semanticsLabel: 'Refresh', semanticsValue: '45%', strokeCap: StrokeCap.round, elevation: 3,
+                  indicatorMargin: EdgeInsets.fromLTRB(1, 2, 3, 4),
+                  indicatorPadding: EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4));
+                Widget themeColor(BuildContext context) => RefreshProgressIndicator(
+                  backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.secondary));
+                List<Widget> inheritedWidths() => const <Widget>[
+                  ProgressIndicatorTheme(data: ProgressIndicatorThemeData(strokeWidth: 7),
+                    child: RefreshProgressIndicator()),
+                  ProgressIndicatorTheme(data: ProgressIndicatorThemeData(strokeWidth: 7),
+                    child: RefreshProgressIndicator(strokeWidth: null)),
+                  RefreshProgressIndicator(strokeWidth: RefreshProgressIndicator.defaultStrokeWidth),
+                ];
+                List<Widget> materialThemes() => <Widget>[
+                  Theme(data: ThemeData(useMaterial3: false), child: const RefreshProgressIndicator()),
+                  Theme(data: ThemeData(useMaterial3: true), child: const RefreshProgressIndicator()),
+                ];
+                """);
+        List<String[]> references = List.of(
+                new String[]{"localColor", "localColor"},
+                new String[]{"colorFactory()", "colorFactory"},
+                new String[]{"project_progress.importedColor", "importedColor"});
+        for (String[] spec : references) {
+            valid.append("Widget reference").append(spec[1]).append("() => RefreshProgressIndicator(valueColor: ")
+                    .append(spec[0]).append(");\n");
+        }
+        valid.append("List<Widget> boundaries() => const <Widget>[\n");
+        for (String args : List.of("", "value: 0", "value: 1", "value: -2", "value: 3",
+                "valueColor: AlwaysStoppedAnimation<Color?>(null)",
+                "strokeWidth: null", "strokeWidth: -3, strokeAlign: 3", "strokeWidth: 0, strokeAlign: 0",
+                "strokeWidth: 1e308, strokeAlign: -1e308", "elevation: 0",
+                "strokeCap: StrokeCap.butt, indicatorMargin: EdgeInsets.zero, indicatorPadding: EdgeInsets.zero",
+                "strokeCap: StrokeCap.square, indicatorMargin: EdgeInsetsDirectional.only(start: 2), "
+                        + "indicatorPadding: EdgeInsets.only(left: 2)",
+                "value: null, backgroundColor: null, color: null, valueColor: null, strokeWidth: null, "
+                        + "strokeAlign: null, semanticsLabel: null, semanticsValue: null, strokeCap: null")) {
+            valid.append("RefreshProgressIndicator(").append(args).append("),\n");
+        }
+        valid.append("];\n");
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("RefreshProgressIndicator", "AlwaysStoppedAnimation", "Animation", "Color",
+                "StrokeCap", "EdgeInsets", "EdgeInsetsDirectional", "Theme", "ThemeData", "ProgressIndicatorTheme",
+                "ProgressIndicatorThemeData")) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("refresh-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        probes.add(probe("refresh-defaultStrokeWidth", candidate.indexOf("RefreshProgressIndicator.defaultStrokeWidth")
+                + "RefreshProgressIndicator.".length(), "defaultStrokeWidth", "package:flutter/material.dart", flutterSdk));
+        for (String[] spec : references) {
+            String expression = spec[0];
+            int methodOffset = candidate.indexOf("Widget reference" + spec[1] + "()");
+            int offset = candidate.indexOf("valueColor: " + expression, methodOffset) + "valueColor: ".length();
+            boolean imported = expression.startsWith("project_progress.");
+            probes.add(typedProbe("refresh-reference-" + spec[1],
+                    offset + (imported ? "project_progress.".length() : 0), spec[1],
+                    imported ? "package:clipper_dependency/refresh.dart" : "project:current",
+                    imported ? dependencyLibrary : lib, offset, expression.length(), candidate, "Animation<Color?>"));
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2600, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(15, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(3, passed.symbolEvidence().stream().filter(e -> e.staticTypeEvidence().isPresent()).count());
+        long version = 2601;
+        for (String symbol : List.of("dynamicColor", "nullableColor", "objectColor", "wideColor")) {
+            String invalid = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n" + prelude
+                    + "Widget invalid() => RefreshProgressIndicator(valueColor: " + symbol + ");\n";
+            int offset = invalid.indexOf(symbol, invalid.indexOf("Widget invalid()"));
+            DartSymbolProbe typeProbe = typedProbe("refresh-invalid-" + symbol, offset, symbol,
+                    "project:current", lib, offset, symbol.length(), invalid, "Animation<Color?>");
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                    projectRoot, file, invalid, version++, List.of(typeProbe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> symbol + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        for (String invalid : List.of(
+                "RefreshProgressIndicator(value: true)", "RefreshProgressIndicator(backgroundColor: 'red')",
+                "RefreshProgressIndicator(color: true)", "RefreshProgressIndicator(valueColor: Color(0xFF000000))",
+                "RefreshProgressIndicator(strokeWidth: '4')", "RefreshProgressIndicator(strokeAlign: false)",
+                "RefreshProgressIndicator(semanticsLabel: 1)", "RefreshProgressIndicator(semanticsValue: false)",
+                "RefreshProgressIndicator(strokeCap: Clip.none)", "RefreshProgressIndicator(elevation: null)",
+                "RefreshProgressIndicator(indicatorMargin: null)", "RefreshProgressIndicator(indicatorPadding: null)",
+                "RefreshProgressIndicator(indicatorMargin: 4)", "RefreshProgressIndicator(indicatorPadding: Radius.circular(2))",
+                "RefreshProgressIndicator(controller: null)", "RefreshProgressIndicator(year2023: null)",
+                "RefreshProgressIndicator(padding: null)", "RefreshProgressIndicator(constraints: null)",
+                "RefreshProgressIndicator(trackGap: null)", "RefreshProgressIndicator(variant: 'adaptive')",
+                "RefreshProgressIndicator.adaptive()", "RefreshProgressIndicator(child: Text('No child'))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => const " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+        }
+        // Source analysis alone cannot prove downstream Material/paint/layout
+        // assertions. These are accepted Dart, but need model or Canvas guards.
+        String runtimeOnly = prelude + """
+                Widget invalidSemantics() => const RefreshProgressIndicator(value: 0.5, semanticsValue: 'Half done');
+                Widget negativeElevation() => const RefreshProgressIndicator(elevation: -1);
+                Widget negativeMargin() => const RefreshProgressIndicator(indicatorMargin: EdgeInsets.all(-1));
+                Widget negativePadding() => const RefreshProgressIndicator(indicatorPadding: EdgeInsets.all(-1));
+                Widget paintOverflow() => const RefreshProgressIndicator(strokeWidth: 1e308, strokeAlign: 1e308);
+                Widget nonFinitePaint() => const RefreshProgressIndicator(strokeWidth: double.infinity);
+                Widget rectangularArrow() => const RefreshProgressIndicator(value: 0.5,
+                  indicatorPadding: EdgeInsets.only(left: 2));
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(projectRoot, file, runtimeOnly, version, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(importedSource, Files.readString(importedFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

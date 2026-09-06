@@ -75,6 +75,71 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void refreshNullableWidthInactiveAndInlinePresentationRoundTripWithoutLeakingNull() throws Exception {
+        var binding = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")); var editor = binding.createEditor();
+        var initial = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); editor.setValue(initial);
+        assertEquals("Inherited (null)", editor.getAsText());
+        var inplace = FlutterPropertyEditorComponents.inplaceFactory(binding).orElseThrow().getInplaceEditor();
+        var environment = PropertyEnv.create(descriptor("Stroke width", "Omitted 2.5 versus explicit null inherited theme/4."));
+        var commits = new AtomicInteger();
+        onEdt(() -> {
+            inplace.addActionListener(ignored -> { editor.setAsText((String) inplace.getValue()); commits.incrementAndGet(); });
+            inplace.connect(editor, environment); var field = assertInstanceOf(JTextField.class, inplace.getComponent());
+            assertEquals("Inherited (null)", field.getText()); field.postActionEvent(); assertEquals(initial, editor.getValue());
+            field.setText("-2.5"); field.postActionEvent(); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new BigDecimal("-2.5"))), editor.getValue());
+            field.setText("null"); field.postActionEvent(); assertEquals(initial, editor.getValue());
+            field.setText(""); field.postActionEvent(); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals("<not set>", editor.getAsText());
+            assertEquals(4, commits.get());
+            for (String invalid : List.of("Infinity", "NaN", "null ?? 4")) { field.setText(invalid); field.postActionEvent(); assertEquals(PropertyEnv.STATE_INVALID, environment.getState()); }
+            assertEquals(4, commits.get()); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); inplace.clear(); return null;
+        });
+        for (String type : List.of("flutter.material.RefreshProgressIndicator", "flutter.material.CircularProgressIndicator", "flutter.material.LinearProgressIndicator")) {
+            var value = binding(property(type, "value")).createEditor(); assertThrows(IllegalArgumentException.class, () -> value.setAsText("null"));
+        }
+        for (String type : List.of("flutter.material.CircularProgressIndicator")) {
+            var width = binding(property(type, "strokeWidth")).createEditor(); assertThrows(IllegalArgumentException.class, () -> width.setAsText("null"));
+        }
+    }
+
+    @Test
+    void refreshNullableWidthThreeModesCommitOncePreserveReopenedModeAndRejectNumericEscapeHatches() throws Exception {
+        for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new BigDecimal("2.5"))))) {
+            for (String target : List.of(FlutterNullableNumberEditorComponent.OMIT, FlutterNullableNumberEditorComponent.INHERITED, FlutterNullableNumberEditorComponent.NUMBER)) {
+                var editor = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")).createEditor(); editor.setValue(initial);
+                var environment = PropertyEnv.create(descriptor("Stroke width", "Nullable number.")); ((ExPropertyEditor) editor).attachEnv(environment);
+                var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "strokewidth", "nullable number");
+                    var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME); assertEquals(3, mode.getItemCount());
+                    var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+                    mode.setSelectedItem(target); assertEquals(target.equals(FlutterNullableNumberEditorComponent.NUMBER), number.isEnabled());
+                    if (target.equals(FlutterNullableNumberEditorComponent.NUMBER)) {
+                        for (String invalid : List.of("", "null", "Inherited (null)", "Infinity", "NaN", "1 + 2", "1e999")) {
+                            number.setText(invalid); environment.setState(PropertyEnv.STATE_VALID);
+                            assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                        }
+                        number.setText("-3.25");
+                    }
+                    assertEquals(initial, editor.getValue(), "Cancel preserves the original number/null/omission despite local mode changes");
+                    assertEquals(0, commits.get()); environment.setState(PropertyEnv.STATE_VALID);
+                    var expected = target.equals(FlutterNullableNumberEditorComponent.OMIT) ? FlutterPropertyCellValue.unset()
+                            : target.equals(FlutterNullableNumberEditorComponent.INHERITED) ? FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())
+                            : FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new BigDecimal("-3.25")));
+                    assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                    environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION); environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                    var reopenedEnvironment = PropertyEnv.create(descriptor("Stroke width", "Reopened nullable number.")); ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment);
+                    var reopened = editor.getCustomEditor(); assertEquals(target, findNamed(reopened, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME).getSelectedItem());
+                    findNamed(reopened, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME).setSelectedItem(FlutterNullableNumberEditorComponent.NUMBER);
+                    findNamed(reopened, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME).setText("99");
+                    assertEquals(expected, editor.getValue()); return null;
+                });
+            }
+        }
+    }
+
+    @Test
     void circularProgressOptionalConstraintsRejectInvalidDraftAndCommitExpansionOrUnsetOnce() throws Exception {
         var initial = FlutterPropertyCellValue.explicit(CircularProgressIndicatorPropertyContractTest.value("constraints"));
         var editor = binding(property("flutter.material.CircularProgressIndicator", "constraints")).createEditor(); editor.setValue(initial);
@@ -100,6 +165,38 @@ class FlutterPropertyEditorComponentsTest {
             reopenedEnvironment.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(2, commits.get());
             return null;
         });
+    }
+
+    @Test
+    void refreshProgressMarginAndPaddingRetainAllModesAndCancelledDrafts() throws Exception {
+        for (String propertyName : List.of("indicatorMargin", "indicatorPadding")) {
+            for (String modeLabel : List.of("All sides", "Symmetric", "Physical (left/right)", "Directional (start/end)")) {
+                var editor = binding(property("flutter.material.RefreshProgressIndicator", propertyName)).createEditor();
+                var initial = FlutterPropertyCellValue.explicit(RefreshProgressIndicatorPropertyContractTest.value(propertyName)); editor.setValue(initial);
+                var environment = PropertyEnv.create(descriptor("Padding", "Optional circular padding.")); ((ExPropertyEditor) editor).attachEnv(environment);
+                var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor(); selectLabel(findNamed(panel, JComboBox.class, "flutter.edgeInsets.mode"), modeLabel);
+                    String fieldName = switch (modeLabel) {
+                        case "All sides" -> FlutterPropertyEditorComponents.EDGE_ALL_NAME;
+                        case "Symmetric" -> "flutter.edgeInsets.horizontal";
+                        case "Physical (left/right)" -> "flutter.edgeInsets.left";
+                        default -> "flutter.edgeInsets.directional.start";
+                    };
+                    var field = findNamed(panel, JTextField.class, fieldName); field.setText("-1");
+                    assertEquals(PropertyEnv.STATE_INVALID, environment.getState()); assertEquals(initial, editor.getValue());
+                    field.setText("9.5"); assertEquals(initial, editor.getValue(), "Cancel never publishes the repaired draft");
+                    environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                    var accepted = editor.getValue(); var reopenedEnvironment = PropertyEnv.create(descriptor("Padding", "Reopened padding."));
+                    ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment); var reopened = editor.getCustomEditor();
+                    assertEquals(modeLabel, String.valueOf(findNamed(reopened, JComboBox.class, "flutter.edgeInsets.mode").getSelectedItem()));
+                    var omit = findByText(reopened, JCheckBox.class, "Use inherited/default value (omit argument)");
+                    assertNotNull(omit); omit.doClick(); assertEquals(accepted, editor.getValue());
+                    reopenedEnvironment.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(2, commits.get());
+                    return null;
+                });
+            }
+        }
     }
 
     @Test
@@ -134,7 +231,7 @@ class FlutterPropertyEditorComponentsTest {
 
     @Test
     void bothProgressColorAnimationUnionCommitsEachBranchOnceAndReopensWithoutLosingMode() throws Exception {
-        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator")) {
+        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator", "flutter.material.RefreshProgressIndicator")) {
             var initial = FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff102030L));
             for (String branch : List.of("literal", "theme", "null", "project", "unset")) {
                 var editor = binding(property(type, "valueColor")).createEditor(); editor.setValue(initial);
@@ -186,7 +283,7 @@ class FlutterPropertyEditorComponentsTest {
 
     @Test
     void bothProgressAnimationNestedReferenceRejectsExpressionsAndSupportsImportedFactories() throws Exception {
-        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator")) {
+        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator", "flutter.material.RefreshProgressIndicator")) {
             var editor = binding(property(type, "valueColor")).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
             var environment = PropertyEnv.create(descriptor("Value color", "Typed animation reference.")); ((ExPropertyEditor) editor).attachEnv(environment);
             onEdt(() -> {

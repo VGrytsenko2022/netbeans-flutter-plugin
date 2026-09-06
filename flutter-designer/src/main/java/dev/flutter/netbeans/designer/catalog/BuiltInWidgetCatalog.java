@@ -98,6 +98,7 @@ public final class BuiltInWidgetCatalog {
             circleAvatar(),
             linearProgressIndicator(),
             circularProgressIndicator(),
+            refreshProgressIndicator(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -605,6 +606,29 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition refreshProgressIndicator() {
+        List<PropertyValueConstraint> width = new ArrayList<>(cardNumbers(null, null));
+        width.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        List<PropertyValueConstraint> valueColor = new ArrayList<>(colorOrTheme());
+        valueColor.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        valueColor.add(new PropertyValueConstraint.DartObjectReferenceValues("Animation<Color?>"));
+        return widget(RefreshProgressIndicatorWidgetPropertySchema.REFRESH_PROGRESS_INDICATOR_TYPE.value(),
+                "RefreshProgressIndicator", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 120, "RefreshProgressIndicator"),
+                List.of(namedProperty("value", 0, false, cardNumbers(null, null)),
+                        namedProperty("backgroundColor", 1, false, colorOrTheme()),
+                        namedProperty("color", 2, false, colorOrTheme()),
+                        namedProperty("valueColor", 3, false, valueColor),
+                        namedProperty("strokeWidth", 4, false, width),
+                        namedProperty("strokeAlign", 5, false, cardNumbers(null, null)),
+                        namedProperty("semanticsLabel", 6, false, any(PropertyValueKind.STRING)),
+                        namedProperty("semanticsValue", 7, false, any(PropertyValueKind.STRING)),
+                        namedProperty("strokeCap", 8, false, enumValues("StrokeCap", "butt", "round", "square")),
+                        namedProperty("elevation", 9, false, nonNegativeNumbers()),
+                        namedProperty("indicatorMargin", 10, false, List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                        namedProperty("indicatorPadding", 11, false, List.of(new PropertyValueConstraint.EdgeInsetsValues(true)))), List.of());
     }
 
     private static WidgetDefinition circularProgressIndicator() {

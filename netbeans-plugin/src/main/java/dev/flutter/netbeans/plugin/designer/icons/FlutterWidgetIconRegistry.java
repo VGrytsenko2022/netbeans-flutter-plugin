@@ -78,6 +78,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.CircleAvatar", ICON_ROOT + "circleavatar.svg"),
             Map.entry("flutter.material.LinearProgressIndicator", ICON_ROOT + "linearprogressindicator.svg"),
             Map.entry("flutter.material.CircularProgressIndicator", ICON_ROOT + "circularprogressindicator.svg"),
+            Map.entry("flutter.material.RefreshProgressIndicator", ICON_ROOT + "refreshprogressindicator.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

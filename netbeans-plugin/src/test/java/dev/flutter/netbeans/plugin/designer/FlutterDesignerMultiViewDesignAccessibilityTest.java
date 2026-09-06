@@ -758,6 +758,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.CircleAvatar",
                     "flutter.material.LinearProgressIndicator",
                     "flutter.material.CircularProgressIndicator",
+                    "flutter.material.RefreshProgressIndicator",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -1037,6 +1038,16 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void refreshProgressSlotReplacementCreatesOnceWithoutStoredDefaultsOrChildSlots() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.RefreshProgressIndicator")).orElseThrow();
+        var expectedId = StableId.parse("23655e27-aa73-430f-9967-5344076c4fa3"); var allocations = new AtomicInteger();
+        var replacement = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(),
+                () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
+        assertTrue(replacement.properties().isEmpty()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
     }
 
     @Test

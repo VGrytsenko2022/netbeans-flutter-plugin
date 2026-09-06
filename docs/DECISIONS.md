@@ -38,10 +38,10 @@ ADR-084 adds `AbsorbPointer`, ADR-085 adds `BlockSemantics`, ADR-086 adds
 `MergeSemantics`, ADR-087 adds `IndexedSemantics`, ADR-088 adds `ExcludeFocus`,
 ADR-089 adds `ExcludeFocusTraversal`, ADR-090 adds `Visibility`, ADR-091 adds
 `TickerMode`, ADR-092 adds `DefaultTextHeightBehavior`, ADR-093 adds
-`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, ADR-100 adds `CircleAvatar`, and ADR-101 establishes the current `LinearProgressIndicator`
-surface: 903 typed rows across seventy-three widgets, sixty-seven const-constructor
-definitions and 4,453 Palette/DnD candidates, including 4,138 accepted and 315
-rejected cells. The 886-field
+`DefaultSelectionStyle`, ADR-094 adds `IconTheme`, ADR-095 adds `ImageIcon`, ADR-096 adds `Divider`, ADR-097 adds `VerticalDivider`, ADR-098 adds `Card`, ADR-099 adds `Badge`, ADR-100 adds `CircleAvatar`, ADR-101 adds `LinearProgressIndicator`, and ADR-102 establishes the current `CircularProgressIndicator`
+surface: 918 typed rows across seventy-four widgets, sixty-eight const-constructor
+definitions and 4,514 Palette/DnD candidates, including 4,197 accepted and 317
+rejected cells. The 901-field
 non-`Scaffold` total still
 sits beside the 17 closed
 scalar `Scaffold` fields. ADR-036
@@ -51,7 +51,7 @@ is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
 same-tree movement of an existing non-root widget, and ADR-029 authorizes the
 first exact named-slot management slice.
 None authorizes cross-form movement, arbitrary native Canvas mutation,
-unreviewed slots or Palette/DnD types outside the ADR-101 catalog.
+unreviewed slots or Palette/DnD types outside the ADR-102 catalog.
 
 ## ADR-001 — IDE support before Designer
 
@@ -303,7 +303,7 @@ The implemented surface contains the standard context-sensitive NetBeans
 Palette, selected-Node Properties, the pure lifecycle/admission identities, the
 exact version 1 hello/close/failure handshake and fail-stop bounded process
 framing. ADR-024, ADR-027, ADR-030, ADR-031, ADR-032, ADR-033, ADR-037,
-ADR-038, ADR-039 and ADR-040 through ADR-101 make 886 catalog-backed
+ADR-038, ADR-039 and ADR-040 through ADR-102 make 901 catalog-backed
 non-`Scaffold` Properties
 fields writable, including the 59-leaf Text projection, two `SizedBox`
 dimensions, 13 typed Icon constructor properties,
@@ -361,7 +361,9 @@ CircleAvatar adds all nine optional scalar fields and one optional Child slot,
 including both image layers, error callbacks and fixed/bounded/infinite radii.
 LinearProgressIndicator adds all 13 optional scalar fields, including full stopped
 color and project animation/controller branches, without slots or stored defaults.
-Scaffold separately contributes 17 rows, giving 903 overall.
+CircularProgressIndicator adds all 14 optional Material fields and one required
+variant, covering both constructors with typed animation, constraints and padding.
+Scaffold separately contributes 17 rows, giving 918 overall.
 ADR-025 historically made only built-in `Text` publicly draggable and later
 admitted six sources; ADR-030 records the seven-source stage and ADR-031 records
 the eight-source stage. ADR-032 supersedes those surface counts with the
@@ -441,7 +443,7 @@ ADR-093 establishes the historical sixty-five-source, 3,705-candidate matrix
 (3,418 accepted / 287 rejected).
 ADR-094 establishes the historical sixty-six-source, 3,762-candidate matrix
 (3,473 accepted / 289 rejected).
-ADR-095 establishes the historical sixty-seven-source, 3,819-candidate matrix
+ADR-095 establishes the historical sixty-eight-source, 3,819-candidate matrix
 (3,528 accepted / 291 rejected).
 ADR-096 establishes the historical sixty-eight-source, 3,876-candidate matrix
 (3,583 accepted / 293 rejected).
@@ -453,8 +455,10 @@ ADR-099 establishes the historical seventy-one-source, 4,260-candidate matrix
 (3,952 accepted / 308 rejected).
 ADR-100 establishes the historical seventy-two-source, 4,392-candidate matrix
 (4,079 accepted / 313 rejected).
-ADR-101 establishes the current seventy-three-source, 4,453-candidate matrix
+ADR-101 establishes the historical seventy-three-source, 4,453-candidate matrix
 (4,138 accepted / 315 rejected).
+ADR-102 establishes the current seventy-four-source, 4,514-candidate matrix
+(4,197 accepted / 317 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -465,7 +469,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -479,12 +483,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated seventy-three-widget model for Mobile, Tablet,
+Canvas now renders the validated seventy-four-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those seventy-three Create-capable definitions, and the DnD-capable set uses the
-reviewed 4,453-cell candidate matrix across fifty-nine insertable any-widget and two
-trait-bound destination slots; 4,138 cells are accepted and 315 rejected.
+those seventy-four Create-capable definitions, and the DnD-capable set uses the
+reviewed 4,514-cell candidate matrix across fifty-nine insertable any-widget and two
+trait-bound destination slots; 4,197 cells are accepted and 317 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -5649,3 +5653,139 @@ confirms that all 49 frozen non-documentation inputs remained unchanged.
 Plugin basename, developer contacts, donation link and corrected description
 spacing remain unchanged. No installed userdir was modified and no user IDE
 was launched; global interactive physical acceptance remains deferred.
+
+## ADR-102 — Complete material and adaptive CircularProgressIndicator slice
+
+Accepted. Admit one `flutter.material.CircularProgressIndicator` definition at
+Material/order 110 against Flutter 3.44.8. Its 15 Properties comprise all 14 optional
+Material constructor fields plus required Designer-only variant material/adaptive.
+Creation stores only variant=material; there are no child slots, traits or fabricated
+progress/size defaults. Both constructors are const-capable. The selector chooses
+the constructor symbol and is never emitted as a named Dart argument. Adaptive
+exposes 13 SDK fields because it has no color parameter, even when color would be
+null. Strict loaded-model validation rejects adaptive/color and value/controller
+conflicts. Properties switches to adaptive by removing color, or to material when
+setting color in adaptive mode; value/controller transitions remove only the other
+field. Each is one atomic undoable patch, preserving unrelated values and node IDs.
+
+Reuse the existing typed algebra: literal/theme colors, stopped Color or stopped
+null via AlwaysStoppedAnimation, project Animation<Color?> and AnimationController
+references, StrokeCap, normalized finite/infinite BoxConstraints, and nonnegative
+physical/directional EdgeInsetsGeometry. All explicit values remain separate from
+omission. The closed nullable-inner generic proof, strict-casts negative control,
+collision-free import aliases and accepted symbol provenance already introduced
+by ADR-101 cover both constructors. No raw expressions, project code execution or
+new wire kinds are admitted. Project values/members and zero-argument calls retain
+the existing invocation-constness contract.
+
+Value, strokeWidth and strokeAlign retain signed finite numbers exactly. The SDK
+clamps effective progress to 0..1, admits negative/zero stroke widths and explicitly
+allows alignment outside -1..1. TrackGap also accepts positive Infinity through
+the exact double/infinity enum and fixed `(1.0 / 0.0)` lowering. Nonpositive gaps,
+zero/tiny paint sizes and infinite gaps are not arbitrarily rejected. Infinity
+stroke width/alignment are not admitted: the actual SDK can produce NaN rectangle
+coordinates. Very large finite values remain valid model/source values, while
+nonfinite resolved geometry, padding sums or unbounded infinite minimum constraints
+produce an isolated-Canvas diagnostic without rewriting those values or inventing
+a size. Restore Default and the centered optional year2023 checkbox remain shared.
+
+Render the actual SDK constructor with ProgressIndicatorTheme, M2/M3 and appearance
+precedence, caps, directional padding, constraints, determinate/indeterminate modes,
+TickerMode and Material progress semantics. Resolve adaptive from Theme.platform,
+not a replacement painter or assumed host platform. On iOS/macOS the pinned SDK
+creates CupertinoActivityIndicator, forwarding only backgroundColor/value/key;
+backgroundColor becomes the tick color, finite Value is clamped before partial
+reveal, and omission gives the actual Cupertino animation. It ignores Material
+valueColor/stroke/constraints/padding/semantics/year2023/controller fields there,
+including more fields than the public constructor comment lists. Retain those
+fields in the model and generated adaptive call; do not execute project animation
+or controller references and do not falsely block the Apple path for ignored
+values. Material paths still explicitly report project-reference preview as
+unavailable. This widget-level platform behavior does not implement native OS
+Canvas providers or advance the deferred global physical acceptance work.
+
+Stable grouped Properties, all-field editing, cancel-safe nested animation editors,
+variant switches, save/reopen/continued editing, reset, exact Undo/Redo, rejected-edit
+rollback, Palette/tree/Canvas DnD, existing-widget moves, accessibility and four SVGs
+belong to the same slice. Current totals are 74 widgets, 68 const definitions,
+918 writable rows (901 outside Scaffold), 71 scalar plus three structural
+definitions and 136 Boolean fields. Nine required-child wrappers and 59 any-widget
+plus two trait-bound destinations produce 74x61 = 4,514 placements: 4,197 accepted
+and 317 rejected. Categories are Layout 31, Scrolling 3, Basic 23, Material 11 and
+Accessibility 6. Historical target 74/92 leaves 18; no missing ordered inventory is
+claimed recovered. FD 13, Catalog API 14, Canvas model 18 and NBFC 1 stay unchanged.
+
+The focused real-SDK candidate test passes in 72.07 seconds at 15:58:31 +03:00 on
+2026-09-06. It covers both constructors' complete fields, defaults/all-null values,
+theme/platform branches, three stroke caps, both padding coordinate systems,
+constraints and numeric boundaries. All 27 symbol probes are accepted, including
+the adaptive constructor member and 12 current/imported animation/controller
+static-type proofs. Fourteen dynamic/nullable-outer/wrong-type references are
+rejected despite source diagnostic suppression; 19 invalid constructor/field types
+are rejected, including adaptive color=null. Analysis alone accepts non-const
+value/controller assertions and contextual geometry/semantics failures, confirming
+the need for strict model and resolved Canvas guards. Original source, imported
+dependency, pubspec and analysis-options files remain untouched.
+
+The complete core install passes 1,417 tests with zero failures/errors/skips at
+16:06:18 +03:00 in 9.877 seconds: 1,395 baseline plus 13 constructor-contract,
+six command/history and three payload tests. It covers both const variants,
+48 typed-reference combinations, all constructor fields and strict conflicts,
+required variant reset rejection, signed numeric/Infinity domains, structured
+constraints/padding/caps, import aliases and exact constructor/type provenance.
+The shared StrokeCap metadata explicitly retains its widgets.dart import root;
+positive Infinity does not introduce a new dart:core import. Payload tests prove
+project identifiers and source expressions do not enter the isolated runner.
+All current catalog counts and the full 4,514-placement matrix pass executable
+assertions. Core production/tests are frozen for the final reactor.
+
+The focused NetBeans UI suite passes 700 tests with zero failures/errors/skips at
+16:08:15 +03:00 in 23.536 seconds. Coverage includes all 15 rows through live
+save/reopen/further editing, both atomic dependency pairs, exact Undo/Redo and failed
+analysis rollback, required Constructor lifecycle, all padding modes, expanding
+constraints, cancel-safe nested drafts and shared LinearProgressIndicator/CircleAvatar
+regressions. The constructor is displayed first in Progress without changing the
+model's Dart argument ordering. Production/test sources are frozen except the final
+Web artifact pins. A read-only cross-layer review found no functional mismatch;
+two stale current non-flex source counts in documentation were corrected to 71.
+
+The complete Flutter suite passes 1,086 tests, including 23 new focused Circular
+cases, and analyze is clean. Raw SDK experiments separately verify signed widths,
+unbounded finite alignment, positive infinite gaps and zero/tiny arcs before those
+domains are admitted. The permanent suite covers both constructors, theme/platform
+branches, ignored project references on Apple, real painting, RTL padding,
+animation/TickerMode, semantics, constraints/overflow diagnostics and Palette DnD.
+
+The offline Web release succeeds in 15.4 seconds. Its final main.dart.js is
+2,940,725 bytes, SHA-256
+`71bc79878ee9855664038b017e3f2618e345e7d37ad64101fd30d17be281e719`.
+The runner source and Web manifests and Java artifact-contract pins identify these
+exact final bytes. All 42 changed non-documentation inputs are frozen before the
+full reactor reaches runner packaging and NetBeans compilation/tests.
+
+All 27 real-SDK candidate-analyzer tests pass in 570.814 seconds during the final
+reactor (report written at 16:18:51 +03:00). Independent filesystem verification
+matches all 40 source-bundle and 35 Web-artifact entries to their declared sizes
+and SHA-256 hashes with zero mismatches.
+
+The final 11-module Maven install succeeds at 16:22:15 +03:00 on 2026-09-06
+in 12 minutes 57 seconds. Fresh reports contain 3,892 Surefire tests (six allowed
+optional skips) and 15 Failsafe tests (one allowed optional skip), with zero
+failures/errors: 3,900 executed tests pass. All 365 XML reports were written
+during this full run. The NetBeans fork repeats the known 30-second exit timeout
+after System.exit(0), with ToolkitShutdown in native WToolkit.shutdown. This is a
+test-process shutdown warning, not a passed physical-desktop acceptance check;
+Maven exits zero.
+
+Development nbm:cluster and release metadata/freshness verification pass at
+16:22:35 +03:00. The final package is
+netbeans-plugin/target/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm,
+7,450,591 bytes, SHA-256
+`3BF10C6DC464BFE1120620F94ABE5AC6E79503AFE3706F9BE41587D4E9CB36E7`.
+Packaged and development-cluster module JARs share SHA-256
+`AFB571F70D1C6EEF84B7DE97B5E9CDA3584F675BB8BAF3394498AE746F5927CE`,
+and all four CircularProgressIndicator SVGs are present. All 42 frozen changed
+non-documentation inputs remain byte-identical after the final build. Plugin
+basename, developer contacts, donation link and corrected description spacing
+remain unchanged. No installed userdir was modified or user IDE launched;
+global interactive physical acceptance remains deferred until palette completion.

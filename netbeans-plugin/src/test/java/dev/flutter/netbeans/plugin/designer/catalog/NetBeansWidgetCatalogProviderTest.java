@@ -98,6 +98,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.material.Badge"));
         assertTrue(typeIds(result).contains("flutter.material.CircleAvatar"));
         assertTrue(typeIds(result).contains("flutter.material.LinearProgressIndicator"));
+        assertTrue(typeIds(result).contains("flutter.material.CircularProgressIndicator"));
     }
 
     @Test
@@ -185,7 +186,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(73, result.catalog().definitions().size());
+        assertEquals(74, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -218,7 +219,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(73, result.catalog().definitions().size());
+        assertEquals(74, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

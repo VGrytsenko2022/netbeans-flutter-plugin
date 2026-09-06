@@ -48,6 +48,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.Badge",
             "flutter.material.CircleAvatar",
             "flutter.material.LinearProgressIndicator",
+            "flutter.material.CircularProgressIndicator",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -113,6 +114,18 @@ class FlutterDesignerPaletteTest {
             SingleChildScrollViewWidgetPropertySchema
                     .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
+
+    @Test
+    void circularProgressPaletteExposesBothConstructorsFullOptionalSurfaceAndDedicatedIcon() throws ReflectiveOperationException {
+        String type = "flutter.material.CircularProgressIndicator";
+        var controller = FlutterDesignerPalette.create(CATALOG, definition -> type.equals(definition.typeId().value()));
+        var node = itemNode(controller, type); var definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 110, "CircularProgressIndicator"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals(15, definition.properties().size()); assertTrue(definition.slots().isEmpty());
+        assertEquals(1, definition.properties().stream().filter(p -> p.parameter().required()).count());
+        for (String hint : List.of("material and adaptive", "14 optional", "no child slots", "Animation<Color?>", "one undoable edit", "Year 2023", "cannot execute", "constructor selector cannot be unset")) assertTrue(node.getShortDescription().contains(hint), hint);
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node));
+    }
 
     @Test
     void linearProgressPaletteExposesThirteenOptionalFieldsAndNoChildrenOrDefaults() throws ReflectiveOperationException {
@@ -326,8 +339,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(73, CATALOG.definitions().size());
-        assertEquals(67, CATALOG.definitions().stream()
+        assertEquals(74, CATALOG.definitions().size());
+        assertEquals(68, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -338,9 +351,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator"),
                 itemLabels(categories[0]));
-        assertEquals(10, itemLabels(categories[0]).size());
+        assertEquals(11, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
@@ -381,7 +394,7 @@ class FlutterDesignerPaletteTest {
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
                         "flutter.basic", "flutter.accessibility"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -2045,7 +2058,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(73, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(74, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

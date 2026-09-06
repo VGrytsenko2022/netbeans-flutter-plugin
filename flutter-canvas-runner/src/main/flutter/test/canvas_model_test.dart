@@ -1906,7 +1906,7 @@ void main() {
         r'^P\|constraints\|boxConstraints\|',
         multiLine: true,
       ).allMatches(contract),
-      hasLength(2),
+      hasLength(3), // ConstrainedBox, Container, CircularProgressIndicator.
     );
   });
 

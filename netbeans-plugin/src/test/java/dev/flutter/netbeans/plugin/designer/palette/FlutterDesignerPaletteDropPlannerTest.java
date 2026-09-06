@@ -162,8 +162,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void linearProgressCompletes4453CellMatrixAndCreatesWithoutAssetsOrDefaults() {
-        var type = new WidgetTypeId("flutter.material.LinearProgressIndicator");
+    void circularProgressCompletes4514CellMatrixAndCreatesOnlyRequiredSelectorWithoutAssets() {
+        var type = new WidgetTypeId("flutter.material.CircularProgressIndicator");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
@@ -175,7 +175,30 @@ class FlutterDesignerPaletteDropPlannerTest {
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
         }
-        assertEquals(73, BUILT_INS.definitions().size()); assertEquals(61, targets.size());
+        assertEquals(74, BUILT_INS.definitions().size()); assertEquals(61, targets.size());
+        assertEquals(4514, accepted + rejected); assertEquals(4197, accepted); assertEquals(317, rejected);
+        for (var target : targets) {
+            var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
+            if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
+            else { var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class, result).command().widget(); assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), created.properties()); assertTrue(created.slots().isEmpty()); }
+        }
+    }
+
+    @Test
+    void linearProgressCompletes4453CellMatrixAndCreatesWithoutAssetsOrDefaults() {
+        var type = new WidgetTypeId("flutter.material.LinearProgressIndicator");
+        var targets = preCircularProgressIndicatorDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0;
+        for (var definition : preCircularProgressIndicatorDefinitions().toList()) for (var target : targets) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+            var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+            if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+        }
+        assertEquals(73, preCircularProgressIndicatorDefinitions().count()); assertEquals(61, targets.size());
         assertEquals(4453, accepted + rejected); assertEquals(4138, accepted); assertEquals(315, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
@@ -5749,8 +5772,13 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preLinearProgressIndicatorDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition ->
+        return preCircularProgressIndicatorDefinitions().filter(definition ->
                 !definition.typeId().value().equals("flutter.material.LinearProgressIndicator"));
+    }
+
+    private static Stream<WidgetDefinition> preCircularProgressIndicatorDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition ->
+                !definition.typeId().value().equals("flutter.material.CircularProgressIndicator"));
     }
 
     private static Stream<WidgetDefinition> preCardDefinitions() {

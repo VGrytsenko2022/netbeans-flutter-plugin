@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -372,6 +373,8 @@ public final class DartRegionGenerator {
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
+                    && property.name().value().equals("variant")) continue;
             if (node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)
                     && BadgeWidgetPropertySchema.isTextStyleProperty(property.name())) continue;
             if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
@@ -437,7 +440,8 @@ public final class DartRegionGenerator {
                         property.parameter(),
                         property.name().value(),
                         false,
-                        node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
+                        (node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
+                                || node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE))
                                 && property.name().value().equals("valueColor")
                                 && !(value instanceof PropertyValue.DartObjectReferenceValue)
                                 ? renderProgressValueColor(value, property, propertyPath, node.id(), context)
@@ -585,6 +589,14 @@ public final class DartRegionGenerator {
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":badgeCountConstructor", constructor.length() + 1,
                     "count", renderedClass.libraryUri(), path + "/properties/count", Optional.of(node.id())));
             constructor += ".count";
+        } else if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)) {
+            String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
+            if (variant.equals("adaptive")) {
+                constructorOccurrences.add(occurrence("widget:" + node.id() + ":circularAdaptiveConstructor",
+                        constructor.length() + 1, "adaptive", renderedClass.libraryUri(),
+                        path + "/properties/variant", Optional.of(node.id())));
+                constructor += ".adaptive";
+            }
         } else if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
             String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
             if (!variant.equals("elevated")) {
@@ -6408,7 +6420,8 @@ public final class DartRegionGenerator {
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
                     if ((definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
-                            || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE))
+                            || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
+                            || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

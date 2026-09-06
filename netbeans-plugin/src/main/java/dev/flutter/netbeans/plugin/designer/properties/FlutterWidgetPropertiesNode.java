@@ -31,6 +31,7 @@ import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -571,6 +572,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addCircleAvatarPropertySets(sheet, hasSlotTab);
         } else if (LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
             addLinearProgressIndicatorPropertySets(sheet, hasSlotTab);
+        } else if (CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type())) {
+            addCircularProgressIndicatorPropertySets(sheet, hasSlotTab);
         } else if (IndexedSemanticsWidgetPropertySchema.INDEXED_SEMANTICS_TYPE.equals(widget.type())) {
             addIndexedSemanticsPropertySets(sheet, hasSlotTab);
         } else if (BlockSemanticsWidgetPropertySchema.BLOCK_SEMANTICS_TYPE.equals(widget.type())) {
@@ -2568,6 +2571,29 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addCircularProgressIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<CircularProgressIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(CircularProgressIndicatorWidgetPropertySchema.Group.class);
+        for (var group : CircularProgressIndicatorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        var orderedProperties = definition.properties().stream().sorted(java.util.Comparator.comparingInt(
+                (PropertyDefinition property) -> property.name().value().equals("variant") ? -1
+                        : CircularProgressIndicatorWidgetPropertySchema.find(property.name()).orElseThrow().dartOrder())).toList();
+        for (var property : orderedProperties) {
+            var schema = CircularProgressIndicatorWidgetPropertySchema.find(property.name()).orElseThrow();
+            boolean variant = property.name().value().equals("variant");
+            String hint = variant
+                    ? " Required Designer constructor selector: material uses CircularProgressIndicator(), adaptive uses CircularProgressIndicator.adaptive(). Cannot be unset or reset. Switching to adaptive atomically removes Color, which that constructor does not accept."
+                    : " Restore Default omits this optional field; SDK defaults are not stored. Setting Color in adaptive mode atomically selects material. Setting Value or Controller atomically clears the other. "
+                            + "Value color supports stopped literal/theme colors, explicit stopped null and a typed project Animation<Color?>. Project animation/controller references are emitted to Dart but cannot execute in isolated Canvas. "
+                            + "Explicit Year 2023 values use a centered checkbox; unset remains distinct.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint, false, variant ? java.util.List.of("material", "adaptive") : java.util.List.of()));
+        }
+    }
+
     private void addLinearProgressIndicatorPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<LinearProgressIndicatorWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(LinearProgressIndicatorWidgetPropertySchema.Group.class);
@@ -3617,7 +3643,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
-        if (LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type())
+        if ((LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type())
+                || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type()))
                 && accepted.explicitValue().isPresent()
                 && java.util.List.of("value", "controller").contains(propertyName.value())) {
             PropertyName opposite = new PropertyName(propertyName.value().equals("value") ? "controller" : "value");
@@ -3625,6 +3652,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 return new PatchProperties(currentWidget.id(), java.util.List.of(
                         new PatchProperties.ResetPatch(opposite),
                         new PatchProperties.SetPatch(propertyName, accepted.explicitValue().orElseThrow())));
+            }
+        }
+        if (CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type())
+                && accepted.explicitValue().isPresent()) {
+            PropertyName variant = new PropertyName("variant");
+            PropertyName color = new PropertyName("color");
+            var adaptive = new PropertyValue.StringValue("adaptive");
+            if (propertyName.equals(variant) && accepted.explicitValue().filter(adaptive::equals).isPresent()
+                    && currentWidget.properties().containsKey(color)) {
+                return new PatchProperties(currentWidget.id(), java.util.List.of(
+                        new PatchProperties.ResetPatch(color), new PatchProperties.SetPatch(variant, adaptive)));
+            }
+            if (propertyName.equals(color) && adaptive.equals(currentWidget.properties().get(variant))) {
+                return new PatchProperties(currentWidget.id(), java.util.List.of(
+                        new PatchProperties.SetPatch(variant, new PropertyValue.StringValue("material")),
+                        new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
         if (CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE.equals(currentWidget.type())) {
@@ -3940,7 +3983,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 && "merge".equals(property.name().value())) {
             reset = " This required Designer-only selector cannot be unset or reset; "
                     + "no merge argument is emitted.";
-        } else if (CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
+        } else if ((CardWidgetPropertySchema.CARD_TYPE.equals(widget.type())
+                || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(widget.type()))
                 && "variant".equals(property.name().value())) {
             reset = " This required Designer constructor selector cannot be unset or reset; "
                     + "no variant argument is emitted.";

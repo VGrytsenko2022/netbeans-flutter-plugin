@@ -137,6 +137,19 @@ class FlutterDesignerWidgetMovePlannerTest {
             new FlutterDesignerWidgetMovePlanner();
 
     @Test
+    void circularProgressMovesAsALeafPreservingExactScalarConfiguration() {
+        var progress = new WidgetNode(A_ID, type("flutter.material.CircularProgressIndicator"), Map.of(
+                new PropertyName("variant"), new PropertyValue.StringValue("adaptive"),
+                new PropertyName("value"), new PropertyValue.DoubleValue(new BigDecimal("1.5")),
+                new PropertyName("valueColor"), new PropertyValue.NullValue(),
+                new PropertyName("year2023"), new PropertyValue.BooleanValue(false)), Map.of());
+        var stack = listParent(B_ID, STACK, CHILDREN, List.of());
+        var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(progress, stack)));
+        assertAcceptedCommandApplies(document, BUILT_INS, progress,
+                planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+    }
+
+    @Test
     void linearProgressMovesAsALeafPreservingExactScalarConfiguration() {
         var progress = new WidgetNode(A_ID, type("flutter.material.LinearProgressIndicator"), Map.of(
                 new PropertyName("value"), new PropertyValue.DoubleValue(new BigDecimal("1.5")),

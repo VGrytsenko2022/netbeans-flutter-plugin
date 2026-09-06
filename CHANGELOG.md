@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- `CircularProgressIndicator` at Material/order 110, with both const constructors
+  in one Palette item. Fifteen Properties cover all 14 optional Material fields
+  plus a material/adaptive variant. The adaptive constructor excludes color;
+  variant/color and value/controller transitions are atomic and undoable.
+  Includes stopped nullable colors, typed animation/controller references, signed
+  stroke width/alignment, Infinity track gap, StrokeCap, BoxConstraints, directional
+  padding, theme/semantics and optional year2023. The real SDK Canvas preserves
+  adaptive Cupertino behavior and ignored fields without executing project code;
+  nonfinite resolved geometry receives an explicit diagnostic. Includes full
+  persistence/history, stable editors, DnD, accessibility and four SVGs.
+  Current totals: 74 widgets, 68 const definitions, 918 rows (901 outside Scaffold),
+  4,514 placements (4,197 accepted / 317 rejected), 136 Boolean fields, Material 11.
+  Historical target 74/92 with 18 remaining; formats stay 13/14/18.
+
 - `LinearProgressIndicator` at Material/order 100 with all 13 optional constructor
   fields, no slots and no stored defaults. Includes determinate/indeterminate modes,
   literal/theme/nullable-stopped/project-animation valueColor, typed controller
@@ -14,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   Height/stop radius/track gap accept reviewed Infinity. Real SDK Canvas honors
   theme/RTL/animation/semantics, with explicit isolated-code and layout diagnostics.
   Stable editors, save/reopen, further editing, Undo/Redo, DnD and four SVGs apply.
-  Current totals: 73 widgets, 67 const definitions, 903 rows (886 outside Scaffold),
+  At that milestone: 73 widgets, 67 const definitions, 903 rows (886 outside Scaffold),
   4,453 placements (4,138 accepted / 315 rejected), 135 Boolean fields and Material 10.
   Historical target 73/92 with 19 remaining; formats stay 13/14/18.
 

@@ -5051,6 +5051,51 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     const {'child': _optionalSingleSlot},
   ),
+  'flutter.material.CircularProgressIndicator': _WidgetSpec({
+    'variant': _PropertySpec(
+      {'string'},
+      required: true,
+      creationDefaultFingerprint: 'string:bWF0ZXJpYWw',
+      stringPattern: r'(?:material|adaptive)',
+    ),
+    for (final name in const ['value', 'strokeWidth', 'strokeAlign'])
+      name: _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _unboundedNumberBounds),
+    'backgroundColor': _themeAwareColorProperty,
+    'color': _themeAwareColorProperty,
+    'valueColor': _PropertySpec(
+      {'color', 'themeToken', 'null', 'dartObjectReference'},
+      themeTokens: canvasColorSchemeThemeTokens,
+      dartObjectExpectedType: 'Animation<Color?>',
+    ),
+    'semanticsLabel': _PropertySpec({'string'}),
+    'semanticsValue': _PropertySpec({'string'}),
+    'strokeCap': _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _widgetsLibraryUri,
+      enumType: 'StrokeCap',
+      enumValues: {'butt', 'round', 'square'},
+    ),
+    'constraints': _PropertySpec({'boxConstraints'}),
+    'trackGap': _PropertySpec(
+      {'integer', 'double', 'enum'},
+      numericBounds: _unboundedNumberBounds,
+      enumLibraryUri: 'dart:core',
+      enumType: 'double',
+      enumValues: {'infinity'},
+    ),
+    'year2023': _PropertySpec({'boolean'}),
+    'padding': _PropertySpec(
+      {'edgeInsets', 'edgeInsetsDirectional'},
+      numericBounds: _nonNegativeEdgeInsetsBounds,
+      edgeInsetsNonNegative: true,
+    ),
+    'controller': _PropertySpec({
+      'dartObjectReference',
+    }, dartObjectExpectedType: 'AnimationController'),
+  }, {}),
   'flutter.material.LinearProgressIndicator': _WidgetSpec({
     'value': _PropertySpec({
       'integer',
@@ -5734,6 +5779,22 @@ P|onBackgroundImageError|callback|0|-|-|callback:callbackReference
 P|onForegroundImageError|callback|0|-|-|callback:callbackReference
 P|radius|double,enum,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.material.CircularProgressIndicator
+P|backgroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|constraints|boxConstraints|0|-|-|boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity
+P|controller|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:AnimationController:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|padding|edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:0:1:*:1;edgeInsetsDirectional:0:1:*:1|edgeInsets:edgeInsets:1:0:1:*:1;edgeInsetsDirectional:edgeInsets:1:0:1:*:1
+P|semanticsLabel|string|0|-|-|string:any
+P|semanticsValue|string|0|-|-|string:any
+P|strokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|strokeCap|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:StrokeCap:butt,round,square
+P|strokeWidth|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|trackGap|double,enum,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity;integer:range:-9007199254740991:1:9007199254740991:1
+P|value|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|valueColor|color,dartObjectReference,null,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Animation<Color?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|variant|string|1|string:bWF0ZXJpYWw|-|string:pattern:KD86bWF0ZXJpYWx8YWRhcHRpdmUp
+P|year2023|boolean|0|-|-|boolean:any
 W|flutter.material.Divider
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|endIndent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -6841,6 +6902,18 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.material.CircularProgressIndicator') {
+    _expect(
+      properties['variant']?.value != 'adaptive' ||
+          !properties.containsKey('color'),
+      'Canvas CircularProgressIndicator.adaptive has no color argument: $path/properties/color',
+    );
+    _expect(
+      !properties.containsKey('value') || !properties.containsKey('controller'),
+      'Canvas CircularProgressIndicator value and controller are mutually exclusive: $path/properties',
+    );
+    return;
+  }
   if (type == 'flutter.material.LinearProgressIndicator') {
     _expect(
       !properties.containsKey('value') || !properties.containsKey('controller'),

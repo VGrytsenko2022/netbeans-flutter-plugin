@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar` and `LinearProgressIndicator`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator` and `CircularProgressIndicator`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-73 reviewed Canvas widgets. Palette insertion evaluates 4,453 exact
-source/destination cells across 73 draggable sources and 61 insertable reviewed
-slots; 4,138 are accepted and 315 cells are rejected. Expanded and Flexible are
+74 reviewed Canvas widgets. Palette insertion evaluates 4,514 exact
+source/destination cells across 74 draggable sources and 61 insertable reviewed
+slots; 4,197 are accepted and 317 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1195,10 +1195,24 @@ Unbounded width, unbounded infinite minimum height and the pinned M2 stop-color 
 determinate semantics-value failure paths receive transparent diagnostics. No
 diagnostic rewrites stored Dart values or supplies an invented size/color/string.
 
-The aggregate catalog now has 73 widgets and 67 reviewed const definitions,
-with 903 writable rows (886 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, ten Material and six Accessibility items; the
-backlog is 73/92 complete with 19 remaining. The 73 sources across 61
-insertable destinations form 4,453 cells, with 4,138 accepted and 315 rejected.
+CircularProgressIndicator renders both material and adaptive constructors from a
+single Material/order 110 model type. Its required variant plus 14 optional Material
+fields reuse existing wire values; adaptive/color and value/controller conflicts
+are rejected rather than repaired during decoding. Stroke width and alignment
+accept signed finite numbers; gap additionally accepts positive Infinity. Actual
+SDK paint/layout, M2/M3/theme precedence, stroke caps, directional padding,
+constraints, semantics and TickerMode are retained. Computed nonfinite geometry,
+overflowing padding or unbounded infinite minima produce explicit diagnostics.
+Zero-sized arcs, signed strokes and infinite gaps are not arbitrarily rejected.
+On Theme.platform iOS/macOS, adaptive uses real CupertinoActivityIndicator and
+passes only backgroundColor/value/key as the pinned implementation does. Ignored
+Material fields and project references are preserved without false preview errors;
+on Material paths, project animation/controller code remains explicitly unavailable.
+
+The aggregate catalog now has 74 widgets and 68 reviewed const definitions,
+with 918 writable rows (901 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, eleven Material and six Accessibility items; the
+backlog is 74/92 complete with 18 remaining. The 74 sources across 61
+insertable destinations form 4,514 cells, with 4,197 accepted and 317 rejected.
 The structured clipper advances Catalog API to 14, `.fd` schema to v13 and Canvas
 model protocol to v18. NBFC framing, control and wire remain v1.

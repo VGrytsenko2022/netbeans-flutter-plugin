@@ -97,6 +97,7 @@ public final class BuiltInWidgetCatalog {
             badge(),
             circleAvatar(),
             linearProgressIndicator(),
+            circularProgressIndicator(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -604,6 +605,36 @@ public final class BuiltInWidgetCatalog {
                                 enumValues("FontWeight", "w100", "w200", "w300", "w400",
                                         "w500", "w600", "w700", "w800", "w900"))),
                 List.of());
+    }
+
+    private static WidgetDefinition circularProgressIndicator() {
+        List<PropertyValueConstraint> gap = new ArrayList<>(cardNumbers(null, null));
+        gap.add(new PropertyValueConstraint.EnumValues(
+                new DartSymbolReference("dart:core", "double"), List.of("infinity")));
+        List<PropertyValueConstraint> valueColor = new ArrayList<>(colorOrTheme());
+        valueColor.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        valueColor.add(new PropertyValueConstraint.DartObjectReferenceValues("Animation<Color?>"));
+        return widget(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.value(),
+                "CircularProgressIndicator", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 110, "CircularProgressIndicator"),
+                List.of(namedProperty("value", 0, false, cardNumbers(null, null)),
+                        namedProperty("backgroundColor", 1, false, colorOrTheme()),
+                        namedProperty("color", 2, false, colorOrTheme()),
+                        namedProperty("valueColor", 3, false, valueColor),
+                        namedProperty("strokeWidth", 4, false, cardNumbers(null, null)),
+                        namedProperty("strokeAlign", 5, false, cardNumbers(null, null)),
+                        namedProperty("semanticsLabel", 6, false, any(PropertyValueKind.STRING)),
+                        namedProperty("semanticsValue", 7, false, any(PropertyValueKind.STRING)),
+                        namedProperty("strokeCap", 8, false, enumValues("StrokeCap", "butt", "round", "square")),
+                        namedProperty("constraints", 9, false, List.of(new PropertyValueConstraint.BoxConstraintsValues())),
+                        namedProperty("trackGap", 10, false, gap),
+                        namedProperty("year2023", 11, false, any(PropertyValueKind.BOOLEAN)),
+                        namedProperty("padding", 12, false, List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                        namedProperty("controller", 13, false,
+                                List.of(new PropertyValueConstraint.DartObjectReferenceValues("AnimationController"))),
+                        namedProperty("variant", 14, true,
+                                stringPattern("(?:material|adaptive)", "CircularProgressIndicator constructor variant"),
+                                new PropertyValue.StringValue("material"))), List.of());
     }
 
     private static WidgetDefinition linearProgressIndicator() {

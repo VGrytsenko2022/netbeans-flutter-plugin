@@ -38,7 +38,10 @@ void main() {
       final start = contract.indexOf('W|$_type\n');
       final block = contract.substring(
         start,
-        contract.indexOf('W|flutter.material.Divider\n', start),
+        contract.indexOf(
+          'W|flutter.material.CircularProgressIndicator\n',
+          start,
+        ),
       );
       expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(9));
       expect(block, contains('S|child|single|0|0|1|any\n'));

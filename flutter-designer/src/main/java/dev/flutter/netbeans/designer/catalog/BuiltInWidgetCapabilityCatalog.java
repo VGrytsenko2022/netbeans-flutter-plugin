@@ -202,6 +202,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Badge", STATIC_EDITABLE),
             Map.entry("flutter.material.CircleAvatar", STATIC_EDITABLE),
             Map.entry("flutter.material.LinearProgressIndicator", STATIC_EDITABLE),
+            Map.entry("flutter.material.CircularProgressIndicator", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColoredBox", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Placeholder", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Directionality", STATIC_EDITABLE),
@@ -598,6 +599,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Badge", badgeProjection()),
             Map.entry("flutter.material.CircleAvatar", circleAvatarProjection()),
             Map.entry("flutter.material.LinearProgressIndicator", linearProgressIndicatorProjection()),
+            Map.entry("flutter.material.CircularProgressIndicator", circularProgressIndicatorProjection()),
             Map.entry("flutter.material.Divider", projection(Map.ofEntries(
                     numericProperty("height", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
                     numericProperty("thickness", NON_NEGATIVE_NUMBER_BOUNDS, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE),
@@ -1941,6 +1943,27 @@ public final class BuiltInWidgetCapabilityCatalog {
                 Optional.empty(),
                 Map.of(),
                 anyConstraintFingerprints(kinds));
+    }
+
+    private static CanvasProjection circularProgressIndicatorProjection() {
+        CanvasPropertyContract signed = cardNumberSchema(null, null);
+        CanvasPropertyContract valueColor = linearProgressIndicatorProjection().propertyContracts()
+                .get(new PropertyName("valueColor"));
+        return projection(Map.ofEntries(
+                Map.entry("value", signed), colorOrThemeProperty("backgroundColor"), colorOrThemeProperty("color"),
+                Map.entry("valueColor", valueColor), Map.entry("strokeWidth", signed), Map.entry("strokeAlign", signed),
+                property("semanticsLabel", PropertyValueKind.STRING), property("semanticsValue", PropertyValueKind.STRING),
+                enumProperty("strokeCap", "StrokeCap", "butt", "round", "square"),
+                Map.entry("constraints", constrainedSchema(PropertyValueKind.BOX_CONSTRAINTS,
+                        "boxConstraints:v2:finiteOrPositiveInfinity")),
+                Map.entry("trackGap", withPositiveInfinity(signed)), property("year2023", PropertyValueKind.BOOLEAN),
+                edgeInsetsProperty("padding", true),
+                Map.entry("controller", constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE,
+                        DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                        + "AnimationController:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)")),
+                Map.entry("variant", new CanvasPropertyContract(Set.of(PropertyValueKind.STRING), true,
+                        Optional.of("string:" + base64("material")), Map.of(),
+                        Map.of(PropertyValueKind.STRING, "pattern:" + base64("(?:material|adaptive)"))))), Map.of());
     }
 
     private static CanvasProjection linearProgressIndicatorProjection() {

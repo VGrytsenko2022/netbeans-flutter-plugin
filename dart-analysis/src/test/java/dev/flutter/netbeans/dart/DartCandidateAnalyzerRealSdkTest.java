@@ -2693,6 +2693,184 @@ class DartCandidateAnalyzerRealSdkTest {
         assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
     }
 
+    @Test
+    void validatesCircularProgressBothConstructorsAllFieldsAndAnimationProofs() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("circular_progress_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Path dependencyLibrary = Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path importedFile = dependencyLibrary.resolve("circular.dart");
+        String importedSource = """
+                import 'package:flutter/widgets.dart';
+                const Animation<Color?> importedColor = AlwaysStoppedAnimation<Color?>(null);
+                late AnimationController importedController;
+                """;
+        Files.writeString(importedFile, importedSource, StandardCharsets.UTF_8);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        List<String> stderr = new ArrayList<>();
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable,
+                line -> { synchronized (stderr) { stderr.add(line); } });
+        String prelude = """
+                import 'package:flutter/material.dart';
+                import 'package:clipper_dependency/circular.dart' as project_progress;
+                String unchangedCoreScope(String value, Object object) => value;
+                const Animation<Color?> localColor = AlwaysStoppedAnimation<Color?>(null);
+                Animation<Color?> colorFactory() => localColor;
+                late AnimationController localController;
+                AnimationController controllerFactory() => localController;
+                dynamic dynamicColor = localColor;
+                Animation<Color?>? nullableColor = localColor;
+                Object objectColor = localColor;
+                const Animation<Object?> wideColor = AlwaysStoppedAnimation<Object?>(null);
+                dynamic dynamicController = null;
+                AnimationController? nullableController;
+                Object objectController = Object();
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        List<String[]> references = List.of(
+                new String[]{"localColor", "localColor", "valueColor", "Animation<Color?>"},
+                new String[]{"colorFactory()", "colorFactory", "valueColor", "Animation<Color?>"},
+                new String[]{"localController", "localController", "controller", "AnimationController"},
+                new String[]{"controllerFactory()", "controllerFactory", "controller", "AnimationController"},
+                new String[]{"project_progress.importedColor", "importedColor", "valueColor", "Animation<Color?>"},
+                new String[]{"project_progress.importedController", "importedController", "controller", "AnimationController"});
+        StringBuilder valid = new StringBuilder(prelude);
+        for (String variant : List.of("material", "adaptive")) {
+            String constructor = variant.equals("material") ? "CircularProgressIndicator" : "CircularProgressIndicator.adaptive";
+            String color = variant.equals("material") ? "color: Color(0xFF234567), " : "";
+            valid.append("Widget ").append(variant).append("Complete() => const ").append(constructor)
+                    .append("(value: 0.45, backgroundColor: Color(0xFF123456), ").append(color)
+                    .append("valueColor: AlwaysStoppedAnimation<Color>(Color(0xFFABCDEF)), strokeWidth: 6, strokeAlign: -2, ")
+                    .append("semanticsLabel: 'Upload', semanticsValue: '45%', strokeCap: StrokeCap.round, ")
+                    .append("constraints: BoxConstraints(minWidth: 36, maxWidth: 80, minHeight: 40, maxHeight: 90), ")
+                    .append("trackGap: 4, year2023: false, padding: EdgeInsetsDirectional.fromSTEB(1, 2, 3, 4));\n");
+            for (String[] spec : references) {
+                valid.append("Widget ").append(variant).append(spec[1]).append("() => ").append(constructor)
+                        .append('(').append(spec[2]).append(": ").append(spec[0]).append(");\n");
+            }
+            valid.append("Widget ").append(variant).append("Theme(BuildContext context) => ").append(constructor)
+                    .append("(backgroundColor: Theme.of(context).colorScheme.surfaceContainerHighest, ")
+                    .append("valueColor: AlwaysStoppedAnimation<Color>(Theme.of(context).colorScheme.secondary));\n");
+            valid.append("List<Widget> ").append(variant).append("Boundaries() => <Widget>[\n");
+            for (String args : List.of("", "value: 0", "value: 1", "value: -2", "value: 3",
+                    "valueColor: AlwaysStoppedAnimation<Color?>(null)",
+                    "strokeWidth: -3, strokeAlign: 3, trackGap: -2", "strokeWidth: 0, strokeAlign: 0, trackGap: 0",
+                    "strokeWidth: 1e308, strokeAlign: -1e308, trackGap: (1.0 / 0.0)",
+                    "strokeCap: StrokeCap.butt, padding: EdgeInsets.fromLTRB(0, 2, 3, 4)",
+                    "strokeCap: StrokeCap.square, constraints: BoxConstraints()",
+                    "constraints: BoxConstraints(minWidth: (1.0 / 0.0), maxWidth: (1.0 / 0.0))")) {
+                valid.append("const ").append(constructor).append('(').append(args).append("),\n");
+            }
+            valid.append("const ").append(constructor).append("(value: null, backgroundColor: null, ")
+                    .append(variant.equals("material") ? "color: null, " : "")
+                    .append("valueColor: null, strokeWidth: null, strokeAlign: null, semanticsLabel: null, semanticsValue: null, ")
+                    .append("strokeCap: null, constraints: null, trackGap: null, year2023: null, padding: null, controller: null),\n");
+            for (String platform : List.of("iOS", "macOS", "android", "windows")) {
+                valid.append("Theme(data: ThemeData(platform: TargetPlatform.").append(platform)
+                        .append(", useMaterial3: false), child: const ").append(constructor).append("(year2023: false)),\n");
+            }
+            valid.append("];\n");
+        }
+        valid.append("""
+                Widget inherited() => const ProgressIndicatorTheme(
+                  data: ProgressIndicatorThemeData(color: Color(0xFF123456), circularTrackColor: Color(0xFF234567),
+                    strokeWidth: 3, strokeAlign: -2, strokeCap: StrokeCap.square, trackGap: 2, year2023: false,
+                    constraints: BoxConstraints(minWidth: 40, minHeight: 40),
+                    circularTrackPadding: EdgeInsetsDirectional.only(start: 2)),
+                  child: CircularProgressIndicator());
+                """);
+        String candidate = valid.toString();
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        for (String symbol : List.of("CircularProgressIndicator", "AlwaysStoppedAnimation", "Animation", "AnimationController",
+                "Color", "StrokeCap", "BoxConstraints", "EdgeInsets", "EdgeInsetsDirectional", "Theme", "ThemeData",
+                "TargetPlatform", "ProgressIndicatorTheme", "ProgressIndicatorThemeData")) {
+            var occurrence = Pattern.compile("\\b" + symbol + "\\b").matcher(candidate);
+            assertTrue(occurrence.find(), symbol);
+            probes.add(probe("circular-" + symbol, occurrence.start(), symbol, "package:flutter/material.dart", flutterSdk));
+        }
+        probes.add(probe("circular-adaptive", candidate.indexOf("CircularProgressIndicator.adaptive")
+                + "CircularProgressIndicator.".length(), "adaptive", "package:flutter/material.dart", flutterSdk));
+        for (String variant : List.of("material", "adaptive")) {
+            for (String[] spec : references) {
+                String expression = spec[0];
+                int methodOffset = candidate.indexOf("Widget " + variant + spec[1] + "()");
+                int offset = candidate.indexOf(spec[2] + ": " + expression, methodOffset) + spec[2].length() + 2;
+                boolean imported = expression.startsWith("project_progress.");
+                probes.add(typedProbe("circular-" + variant + '-' + spec[1],
+                        offset + (imported ? "project_progress.".length() : 0), spec[1],
+                        imported ? "package:clipper_dependency/circular.dart" : "project:current",
+                        imported ? dependencyLibrary : lib, offset, expression.length(), candidate, spec[3]));
+            }
+        }
+        DartCandidateAnalysisResult passed = await(analyzer.analyze(request(projectRoot, file, candidate, 2500, probes)));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, passed.status(), () -> passed + " stderr=" + stderr);
+        assertEquals(27, passed.symbolEvidence().size());
+        assertTrue(passed.symbolEvidence().stream().allMatch(DartSymbolEvidence::accepted));
+        assertEquals(12, passed.symbolEvidence().stream().filter(e -> e.staticTypeEvidence().isPresent()).count());
+        long version = 2501;
+        for (String constructor : List.of("CircularProgressIndicator", "CircularProgressIndicator.adaptive")) {
+            for (String[] spec : List.of(
+                    new String[]{"dynamicColor", "valueColor", "Animation<Color?>"},
+                    new String[]{"nullableColor", "valueColor", "Animation<Color?>"},
+                    new String[]{"objectColor", "valueColor", "Animation<Color?>"},
+                    new String[]{"wideColor", "valueColor", "Animation<Color?>"},
+                    new String[]{"dynamicController", "controller", "AnimationController"},
+                    new String[]{"nullableController", "controller", "AnimationController"},
+                    new String[]{"objectController", "controller", "AnimationController"})) {
+                String invalid = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n" + prelude
+                        + "Widget invalid() => " + constructor + '(' + spec[1] + ": " + spec[0] + ");\n";
+                int offset = invalid.indexOf(spec[0], invalid.indexOf("Widget invalid()"));
+                DartSymbolProbe typeProbe = typedProbe("circular-invalid-" + spec[0], offset, spec[0],
+                        "project:current", lib, offset, spec[0].length(), invalid, spec[2]);
+                DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(
+                        projectRoot, file, invalid, version++, List.of(typeProbe))));
+                assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> constructor + ' ' + spec[0] + ": " + rejected);
+                assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+            }
+        }
+        for (String invalid : List.of(
+                "const CircularProgressIndicator(value: true)", "const CircularProgressIndicator(backgroundColor: 'red')",
+                "const CircularProgressIndicator(color: true)", "const CircularProgressIndicator(valueColor: Color(0xFF000000))",
+                "const CircularProgressIndicator(strokeWidth: '4')", "const CircularProgressIndicator(strokeAlign: false)",
+                "const CircularProgressIndicator(semanticsLabel: 1)", "const CircularProgressIndicator(semanticsValue: false)",
+                "const CircularProgressIndicator(strokeCap: Clip.none)", "const CircularProgressIndicator(constraints: Size(20, 20))",
+                "const CircularProgressIndicator(trackGap: true)", "const CircularProgressIndicator(year2023: 2023)",
+                "const CircularProgressIndicator(padding: 4)",
+                "const CircularProgressIndicator(controller: AlwaysStoppedAnimation<double>(0))",
+                "const CircularProgressIndicator.adaptive(color: Color(0xFF000000))",
+                "const CircularProgressIndicator.adaptive(color: null)",
+                "const CircularProgressIndicator(variant: 'adaptive')", "const CircularProgressIndicator.material()",
+                "const CircularProgressIndicator(child: Text('No child'))")) {
+            String content = "import 'package:flutter/material.dart';\nWidget invalid() => " + invalid + ";\n";
+            DartCandidateAnalysisResult rejected = await(analyzer.analyze(request(projectRoot, file, content, version++, List.of())));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> invalid + ": " + rejected);
+        }
+        // Static analysis cannot prove contextual layout, semantics or non-const
+        // constructor assertions; the model and resolved Canvas guards remain necessary.
+        String runtimeOnly = prelude + """
+                Widget conflict() => CircularProgressIndicator(value: 0.5, controller: localController);
+                Widget adaptiveConflict() => CircularProgressIndicator.adaptive(value: 0.5, controller: localController);
+                Widget materialSemantics() => const CircularProgressIndicator(value: 0.5, semanticsValue: 'Half done');
+                Widget adaptiveSemantics() => const CircularProgressIndicator.adaptive(value: 0.5, semanticsValue: 'Half done');
+                Widget paintOverflow() => const CircularProgressIndicator(strokeWidth: 1e308, strokeAlign: 1e308);
+                """;
+        DartCandidateAnalysisResult runtimePassed = await(analyzer.analyze(request(projectRoot, file, runtimeOnly, version, List.of())));
+        assertEquals(DartCandidateAnalysisStatus.PASSED, runtimePassed.status(), () -> runtimePassed.toString());
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(importedSource, Files.readString(importedFile, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
     private static String superellipseCandidate(String methods) {
         return clipperCandidate("""
                 class CurrentSuperellipseClipper extends CustomClipper<RSuperellipse> {

@@ -50,7 +50,7 @@ final class FlutterColorAnimationEditorComponent {
             super(editor, binding, environment);
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(720, 610));
             setName("flutter.colorAnimation.editor");
-            getAccessibleContext().setAccessibleName("LinearProgressIndicator valueColor animation editor");
+            getAccessibleContext().setAccessibleName("Progress indicator valueColor animation editor");
             getAccessibleContext().setAccessibleDescription("Optional stopped nullable color or analyzer-verified Animation<Color?>. All drafts remain local until OK; cancel preserves the original value.");
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Color animation source");
             mode.getAccessibleContext().setAccessibleDescription("Choose omission, stopped literal/theme color, explicit stopped null, or a project animation reference.");

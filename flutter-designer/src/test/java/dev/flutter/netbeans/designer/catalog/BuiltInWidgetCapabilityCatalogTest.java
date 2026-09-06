@@ -33,6 +33,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Badge",
             "flutter.material.CircleAvatar",
             "flutter.material.LinearProgressIndicator",
+            "flutter.material.CircularProgressIndicator",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -108,6 +109,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Badge",
             "flutter.material.CircleAvatar",
             "flutter.material.LinearProgressIndicator",
+            "flutter.material.CircularProgressIndicator",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -178,7 +180,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasSixtyFourSourcesAndFiftySevenInsertableDestinations() {
+    void exactDndCapabilityMatrixHasSeventyFourSourcesAndSixtyOneInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -201,7 +203,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(73, sources.size());
+        assertEquals(74, sources.size());
         assertEquals(61, destinations.size());
         assertEquals(59, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -211,9 +213,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(4453, candidates);
-        assertEquals(4138, accepted);
-        assertEquals(315, candidates - accepted);
+        assertEquals(4514, candidates);
+        assertEquals(4197, accepted);
+        assertEquals(317, candidates - accepted);
     }
 
     @Test

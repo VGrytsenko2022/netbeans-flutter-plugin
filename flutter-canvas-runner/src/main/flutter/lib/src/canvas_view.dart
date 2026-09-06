@@ -32,6 +32,15 @@ String? _customClipperPreviewUnavailableMessageForNode(
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.CircularProgressIndicator') {
+    return context == null
+        ? null
+        : _circularProgressUnavailableMessage(
+            node,
+            context,
+            constraints: constraints,
+          );
+  }
   if (node.type == 'flutter.material.LinearProgressIndicator') {
     return _linearProgressUnavailableMessage(
       node,
@@ -71,6 +80,136 @@ String? _customClipperPreviewUnavailableMessageForNode(
 
 // This is an isolated-preview complexity budget, not an SDK/source domain limit.
 const _maximumCanvasCardShapePoints = 4096;
+
+String? _progressSemanticsUnavailableMessage(
+  CanvasNode node,
+  String widgetName,
+) {
+  final semanticValue = node.properties['semanticsValue']?.value as String?;
+  // Exact Flutter 3.44.8 progressBar validator: fixed 0/100 range, including
+  // its parsed NaN acceptance. LoadingSpinner has no corresponding check.
+  if (node.properties.containsKey('value') && semanticValue != null) {
+    final numeric = double.tryParse(semanticValue);
+    final percent = semanticValue.endsWith('%')
+        ? double.tryParse(semanticValue.substring(0, semanticValue.length - 1))
+        : null;
+    final parsed = numeric ?? percent;
+    if (semanticValue.isEmpty || parsed == null || parsed < 0 || parsed > 100) {
+      return '$widgetName.semanticsValue preview unavailable: the pinned SDK progressBar '
+          'role requires a numeric value from 0 to 100, or a percentage from 0% to 100%. '
+          'This explicit string fails SDK semantics validation. Indeterminate loadingSpinner accepts free text. '
+          'The stored properties and generated Dart remain unchanged.';
+    }
+  }
+  return null;
+}
+
+String? _circularProgressUnavailableMessage(
+  CanvasNode node,
+  BuildContext context, {
+  BoxConstraints? constraints,
+}) {
+  final material = Theme.of(context);
+  final apple =
+      material.platform == TargetPlatform.iOS ||
+      material.platform == TargetPlatform.macOS;
+  // The SDK's Cupertino branch reads ONLY backgroundColor and effective value.
+  // In particular it does not use the external controller or color animation.
+  if (node.properties['variant']?.value == 'adaptive' && apple) return null;
+  final unresolved = [
+    for (final name in ['controller', 'valueColor'])
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') name,
+  ];
+  if (unresolved.isNotEmpty) {
+    return 'CircularProgressIndicator preview unavailable for ${unresolved.join(' and ')}. '
+        'Generated Dart uses the configured project references; isolated Canvas does not execute project '
+        'or dependency Dart or substitute an unrelated animation. Properties remain editable.';
+  }
+  final semanticFailure = _progressSemanticsUnavailableMessage(
+    node,
+    'CircularProgressIndicator',
+  );
+  if (semanticFailure != null) return semanticFailure;
+  final theme = ProgressIndicatorTheme.of(context);
+  final year2023 =
+      node.properties['year2023']?.value as bool? ??
+      // ignore: deprecated_member_use
+      theme.year2023 ??
+      true;
+  double? number(String name) {
+    final value = node.properties[name]?.value;
+    return value is CanvasEnumValue
+        ? double.infinity
+        : (value as num?)?.toDouble();
+  }
+
+  final width = number('strokeWidth') ?? theme.strokeWidth ?? 4;
+  final align =
+      number('strokeAlign') ??
+      theme.strokeAlign ??
+      (material.useMaterial3 && !year2023 ? -1 : 0);
+  final offset = width / 2 * -align;
+  if (!offset.isFinite || !(offset * 2).isFinite) {
+    return 'CircularProgressIndicator.strokeWidth/strokeAlign preview unavailable: '
+        'the resolved stroke offset overflows finite SDK arc geometry. '
+        'The stored signed values and generated Dart remain unchanged.';
+  }
+  if (constraints == null) return null;
+  final geometry = node.properties['padding']?.value;
+  final EdgeInsetsGeometry? localPadding = switch (geometry) {
+    CanvasEdgeInsets p => EdgeInsets.fromLTRB(p.left, p.top, p.right, p.bottom),
+    CanvasEdgeInsetsDirectional p => EdgeInsetsDirectional.fromSTEB(
+      p.start,
+      p.top,
+      p.end,
+      p.bottom,
+    ),
+    _ => null,
+  };
+  final padding =
+      (localPadding ??
+              theme.circularTrackPadding ??
+              (material.useMaterial3 && !year2023
+                  ? const EdgeInsets.all(4)
+                  : EdgeInsets.zero))
+          .resolve(Directionality.of(context));
+  if (!padding.horizontal.isFinite || !padding.vertical.isFinite) {
+    return 'CircularProgressIndicator.padding preview unavailable: resolved padding sums '
+        'overflow finite layout geometry. The stored properties and generated Dart remain unchanged.';
+  }
+  final box = node.properties['constraints']?.value;
+  final sdkConstraints = box is CanvasBoxConstraintsValue
+      ? BoxConstraints(
+          minWidth: box.minWidth ?? double.infinity,
+          maxWidth: box.maxWidth ?? double.infinity,
+          minHeight: box.minHeight ?? double.infinity,
+          maxHeight: box.maxHeight ?? double.infinity,
+        )
+      : theme.constraints ??
+            BoxConstraints(
+              minWidth: material.useMaterial3 && !year2023 ? 40 : 36,
+              minHeight: material.useMaterial3 && !year2023 ? 40 : 36,
+            );
+  final paintSize = sdkConstraints
+      .enforce(constraints.deflate(padding))
+      .constrain(Size.zero);
+  if (!paintSize.isFinite) {
+    return 'CircularProgressIndicator.constraints preview unavailable: infinite minimum size '
+        'requires bounded parent constraints. The stored properties and generated Dart remain unchanged.';
+  }
+  final arcWidth = paintSize.width - offset * 2;
+  final arcHeight = paintSize.height - offset * 2;
+  if (!arcWidth.isFinite ||
+      !arcHeight.isFinite ||
+      !(offset + arcWidth).isFinite ||
+      !(offset + arcHeight).isFinite) {
+    return 'CircularProgressIndicator.constraints/strokeWidth/strokeAlign preview unavailable: '
+        'the resolved size and stroke offset overflow finite SDK arc bounds. '
+        'The stored properties and generated Dart remain unchanged.';
+  }
+  return null;
+}
+
 String? _linearProgressUnavailableMessage(
   CanvasNode node, {
   BuildContext? context,
@@ -89,24 +228,11 @@ String? _linearProgressUnavailableMessage(
         'Generated Dart uses the configured project references; isolated Canvas does not execute project '
         'or dependency Dart or substitute an unrelated animation. Properties remain editable.';
   }
-  final semanticValue = node.properties['semanticsValue']?.value as String?;
-  // Mirror Flutter 3.44.8 SemanticsRole.progressBar validation: the SDK fixes
-  // min/max to 0/100, accepts a parsed number or a trailing-% parsed number,
-  // and tests only < / > (including its acceptance of the parsed NaN token).
-  // LoadingSpinner has no corresponding validation. Never rewrite the string.
-  if (node.properties.containsKey('value') && semanticValue != null) {
-    final numeric = double.tryParse(semanticValue);
-    final percent = semanticValue.endsWith('%')
-        ? double.tryParse(semanticValue.substring(0, semanticValue.length - 1))
-        : null;
-    final parsed = numeric ?? percent;
-    if (semanticValue.isEmpty || parsed == null || parsed < 0 || parsed > 100) {
-      return 'LinearProgressIndicator.semanticsValue preview unavailable: the pinned SDK progressBar '
-          'role requires a numeric value from 0 to 100, or a percentage from 0% to 100%. '
-          'This explicit string fails SDK semantics validation. Indeterminate loadingSpinner accepts free text. '
-          'The stored properties and generated Dart remain unchanged.';
-    }
-  }
+  final semanticFailure = _progressSemanticsUnavailableMessage(
+    node,
+    'LinearProgressIndicator',
+  );
+  if (semanticFailure != null) return semanticFailure;
   if (context == null) return null;
   final theme = ProgressIndicatorTheme.of(context);
   double? number(String name) {
@@ -748,6 +874,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
+        node.type == 'flutter.material.CircularProgressIndicator' ||
         node.type == 'flutter.widgets.Icon') {
       yield node;
     }
@@ -2652,6 +2779,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.LinearProgressIndicator' => _linearProgressIndicator(
         context,
       ),
+      'flutter.material.CircularProgressIndicator' =>
+        _circularProgressIndicator(context),
       'flutter.material.Divider' => Divider(
         height: _number('height'),
         thickness: _number('thickness'),
@@ -4717,6 +4846,80 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return ClipPath(
       clipBehavior: _clipBehavior() ?? Clip.antiAlias,
       child: _single('child'),
+    );
+  }
+
+  Widget _circularProgressIndicator(BuildContext context) {
+    Widget unavailable(String message) => _customClipperPreviewUnavailable(
+      widgetName: 'CircularProgressIndicator',
+      expectedType: 'Animation',
+      previewLabel: 'Progress preview\nunavailable',
+      messageOverride: message,
+    );
+    double? number(String name) {
+      final value = node.properties[name]?.value;
+      return value is CanvasEnumValue
+          ? double.infinity
+          : (value as num?)?.toDouble();
+    }
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final failure = _circularProgressUnavailableMessage(
+          node,
+          context,
+          constraints: constraints,
+        );
+        if (failure != null) return unavailable(failure);
+        final property = node.properties['valueColor'];
+        final Animation<Color?>? animation =
+            property == null || property.kind == 'dartObjectReferencePresence'
+            ? null
+            : AlwaysStoppedAnimation<Color?>(
+                property.kind == 'null'
+                    ? null
+                    : _resolvedColor(context, 'valueColor'),
+              );
+        final cap = _enum('strokeCap');
+        final strokeCap = cap == null
+            ? null
+            : StrokeCap.values.firstWhere((value) => value.name == cap);
+        // Cupertino ignores references; do not execute them or supply fake live
+        // objects. The actual adaptive SDK constructor chooses the platform branch.
+        if (_string('variant') == 'adaptive') {
+          return CircularProgressIndicator.adaptive(
+            value: _number('value'),
+            backgroundColor: _resolvedColor(context, 'backgroundColor'),
+            valueColor: animation,
+            strokeWidth: number('strokeWidth'),
+            strokeAlign: number('strokeAlign'),
+            semanticsLabel: _string('semanticsLabel'),
+            semanticsValue: _string('semanticsValue'),
+            strokeCap: strokeCap,
+            constraints: _boxConstraints('constraints'),
+            trackGap: number('trackGap'),
+            // ignore: deprecated_member_use
+            year2023: _boolean('year2023'),
+            padding: _edgeInsetsGeometry('padding'),
+          );
+        }
+        return CircularProgressIndicator(
+          value: _number('value'),
+          backgroundColor: _resolvedColor(context, 'backgroundColor'),
+          color: _resolvedColor(context, 'color'),
+          valueColor: animation,
+          strokeWidth: number('strokeWidth'),
+          strokeAlign: number('strokeAlign'),
+          semanticsLabel: _string('semanticsLabel'),
+          semanticsValue: _string('semanticsValue'),
+          strokeCap: strokeCap,
+          constraints: _boxConstraints('constraints'),
+          trackGap: number('trackGap'),
+          // ignore: deprecated_member_use
+          year2023: _boolean('year2023'),
+          padding: _edgeInsetsGeometry('padding'),
+        );
+      },
     );
   }
 

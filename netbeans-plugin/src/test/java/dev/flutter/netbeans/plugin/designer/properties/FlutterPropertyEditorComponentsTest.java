@@ -75,75 +75,137 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
-    void linearProgressColorAnimationUnionCommitsEachBranchOnceAndReopensWithoutLosingMode() throws Exception {
-        var initial = FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff102030L));
-        for (String branch : List.of("literal", "theme", "null", "project", "unset")) {
-            var editor = binding(property("flutter.material.LinearProgressIndicator", "valueColor")).createEditor(); editor.setValue(initial);
-            var environment = PropertyEnv.create(descriptor("Value color", "Stopped or project animation."));
-            ((ExPropertyEditor) editor).attachEnv(environment); var commits = new AtomicInteger();
-            editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+    void circularProgressOptionalConstraintsRejectInvalidDraftAndCommitExpansionOrUnsetOnce() throws Exception {
+        var initial = FlutterPropertyCellValue.explicit(CircularProgressIndicatorPropertyContractTest.value("constraints"));
+        var editor = binding(property("flutter.material.CircularProgressIndicator", "constraints")).createEditor(); editor.setValue(initial);
+        var environment = PropertyEnv.create(descriptor("Constraints", "Optional circular progress constraints."));
+        ((ExPropertyEditor) editor).attachEnv(environment); var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "box constraints");
+            var minimum = findNamed(panel, JTextField.class, FlutterContainerPropertyEditorComponents.CONSTRAINTS_MIN_WIDTH_NAME);
+            minimum.setText("1000"); assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+            environment.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+            minimum.setText("20");
+            findNamed(panel, JCheckBox.class, FlutterContainerPropertyEditorComponents.CONSTRAINTS_EXPANDING_HEIGHT_NAME).doClick();
+            assertEquals(initial, editor.getValue(), "Cancel keeps all four original bounds");
+            environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+            var accepted = assertInstanceOf(PropertyValue.BoxConstraintsValue.class, ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+            assertTrue(accepted.expandingHeight()); assertEquals(0, new BigDecimal("20").compareTo(accepted.minWidth().finiteValue().orElseThrow()));
+            var acceptedCell = editor.getValue();
+            var reopenedEnvironment = PropertyEnv.create(descriptor("Constraints", "Reopened circular constraints."));
+            ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment); var reopened = editor.getCustomEditor();
+            assertTrue(findNamed(reopened, JCheckBox.class, FlutterContainerPropertyEditorComponents.CONSTRAINTS_EXPANDING_HEIGHT_NAME).isSelected());
+            var omit = findByText(reopened, JCheckBox.class, "Use inherited/default value (omit argument)");
+            assertNotNull(omit); omit.doClick(); assertEquals(acceptedCell, editor.getValue());
+            reopenedEnvironment.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(2, commits.get());
+            return null;
+        });
+    }
+
+    @Test
+    void circularProgressOptionalPaddingRetainsAllFourModesAndCancelledDrafts() throws Exception {
+        for (String modeLabel : List.of("All sides", "Symmetric", "Physical (left/right)", "Directional (start/end)")) {
+            var editor = binding(property("flutter.material.CircularProgressIndicator", "padding")).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(CircularProgressIndicatorPropertyContractTest.value("padding")); editor.setValue(initial);
+            var environment = PropertyEnv.create(descriptor("Padding", "Optional circular padding.")); ((ExPropertyEditor) editor).attachEnv(environment);
+            var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
             onEdt(() -> {
-                var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "linearprogressindicator", "valuecolor");
-                var mode = findNamed(panel, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME);
-                assertEquals(4, mode.getItemCount());
-                FlutterPropertyCellValue expected;
-                String selected;
-                switch (branch) {
-                    case "literal", "theme" -> {
-                        selected = FlutterColorAnimationEditorComponent.STOPPED_COLOR; mode.setSelectedItem(selected);
-                        var colorMode = findNamed(panel, JComboBox.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_MODE_NAME);
-                        if (branch.equals("literal")) {
-                            colorMode.setSelectedItem("Literal ARGB");
-                            findNamed(panel, JTextField.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_ARGB_NAME).setText("0x80445566");
-                            expected = FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0x80445566L));
-                        } else {
-                            colorMode.setSelectedItem("Theme role");
-                            findNamed(panel, JComboBox.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_ROLE_NAME).setSelectedItem("Primary");
-                            expected = FlutterPropertyCellValue.explicit(new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")));
-                        }
-                    }
-                    case "null" -> { selected = FlutterColorAnimationEditorComponent.STOPPED_NULL; mode.setSelectedItem(selected); expected = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); }
-                    case "project" -> {
-                        selected = FlutterColorAnimationEditorComponent.PROJECT; mode.setSelectedItem(selected);
-                        assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
-                        var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
-                        root.setText("_animatedColor"); expected = FlutterPropertyCellValue.explicit(LinearProgressIndicatorPropertyContractTest.reference("_animatedColor"));
-                        assertTrue(findNamed(panel, JTextArea.class, FlutterColorAnimationEditorComponent.NOTE_NAME).getText().contains("not executed"));
-                    }
-                    default -> { selected = FlutterColorAnimationEditorComponent.UNSET; mode.setSelectedItem(selected); expected = FlutterPropertyCellValue.unset(); }
-                }
-                assertEquals(initial, editor.getValue(), "all nested drafts, including valid ones, remain unpublished"); assertEquals(0, commits.get());
-                environment.setState(PropertyEnv.STATE_VALID); assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
-                environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION); environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
-                var reopenedEnv = PropertyEnv.create(descriptor("Value color", "Reopened valueColor.")); ((ExPropertyEditor) editor).attachEnv(reopenedEnv);
-                var reopened = editor.getCustomEditor(); assertEquals(selected, findNamed(reopened, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME).getSelectedItem());
-                findNamed(reopened, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME).setSelectedItem(FlutterColorAnimationEditorComponent.STOPPED_NULL);
-                assertEquals(expected, editor.getValue(), "Cancel after switching the reopened mode preserves the original typed value");
+                var panel = editor.getCustomEditor(); selectLabel(findNamed(panel, JComboBox.class, "flutter.edgeInsets.mode"), modeLabel);
+                String fieldName = switch (modeLabel) {
+                    case "All sides" -> FlutterPropertyEditorComponents.EDGE_ALL_NAME;
+                    case "Symmetric" -> "flutter.edgeInsets.horizontal";
+                    case "Physical (left/right)" -> "flutter.edgeInsets.left";
+                    default -> "flutter.edgeInsets.directional.start";
+                };
+                var field = findNamed(panel, JTextField.class, fieldName); field.setText("-1");
+                assertEquals(PropertyEnv.STATE_INVALID, environment.getState()); assertEquals(initial, editor.getValue());
+                field.setText("9.5"); assertEquals(initial, editor.getValue(), "Cancel never publishes the repaired draft");
+                environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                var accepted = editor.getValue(); var reopenedEnvironment = PropertyEnv.create(descriptor("Padding", "Reopened padding."));
+                ((ExPropertyEditor) editor).attachEnv(reopenedEnvironment); var reopened = editor.getCustomEditor();
+                assertEquals(modeLabel, String.valueOf(findNamed(reopened, JComboBox.class, "flutter.edgeInsets.mode").getSelectedItem()));
+                var omit = findByText(reopened, JCheckBox.class, "Use inherited/default value (omit argument)");
+                assertNotNull(omit); omit.doClick(); assertEquals(accepted, editor.getValue());
+                reopenedEnvironment.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); assertEquals(2, commits.get());
                 return null;
             });
         }
     }
 
     @Test
-    void linearProgressAnimationNestedReferenceRejectsExpressionsAndSupportsImportedFactories() throws Exception {
-        var editor = binding(property("flutter.material.LinearProgressIndicator", "valueColor")).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
-        var environment = PropertyEnv.create(descriptor("Value color", "Typed animation reference.")); ((ExPropertyEditor) editor).attachEnv(environment);
-        onEdt(() -> {
-            var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME);
-            mode.setSelectedItem(FlutterColorAnimationEditorComponent.PROJECT);
-            var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
-            root.setText("Colors.red + Colors.blue"); assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
-            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
-            var scope = findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME); scope.setSelectedIndex(1);
-            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:progress_ui/animations.dart");
-            root.setText("Animations"); findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("progressColor");
-            findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
-            assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
-            var reference = assertInstanceOf(PropertyValue.DartObjectReferenceValue.class, ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
-            assertEquals(Optional.of("package:progress_ui/animations.dart"), reference.libraryUri()); assertEquals("Animations", reference.rootSymbol());
-            assertEquals(Optional.of("progressColor"), reference.member()); assertEquals(PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, reference.access());
-            assertEquals(Optional.of(false), reference.constant()); return null;
-        });
+    void bothProgressColorAnimationUnionCommitsEachBranchOnceAndReopensWithoutLosingMode() throws Exception {
+        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator")) {
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff102030L));
+            for (String branch : List.of("literal", "theme", "null", "project", "unset")) {
+                var editor = binding(property(type, "valueColor")).createEditor(); editor.setValue(initial);
+                var environment = PropertyEnv.create(descriptor("Value color", "Stopped or project animation."));
+                ((ExPropertyEditor) editor).attachEnv(environment); var commits = new AtomicInteger();
+                editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "progress indicator", "valuecolor");
+                    var mode = findNamed(panel, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME);
+                    assertEquals(4, mode.getItemCount());
+                    FlutterPropertyCellValue expected;
+                    String selected;
+                    switch (branch) {
+                        case "literal", "theme" -> {
+                            selected = FlutterColorAnimationEditorComponent.STOPPED_COLOR; mode.setSelectedItem(selected);
+                            var colorMode = findNamed(panel, JComboBox.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_MODE_NAME);
+                            if (branch.equals("literal")) {
+                                colorMode.setSelectedItem("Literal ARGB");
+                                findNamed(panel, JTextField.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_ARGB_NAME).setText("0x80445566");
+                                expected = FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0x80445566L));
+                            } else {
+                                colorMode.setSelectedItem("Theme role");
+                                findNamed(panel, JComboBox.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_ROLE_NAME).setSelectedItem("Primary");
+                                expected = FlutterPropertyCellValue.explicit(new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary")));
+                            }
+                        }
+                        case "null" -> { selected = FlutterColorAnimationEditorComponent.STOPPED_NULL; mode.setSelectedItem(selected); expected = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); }
+                        case "project" -> {
+                            selected = FlutterColorAnimationEditorComponent.PROJECT; mode.setSelectedItem(selected);
+                            assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                            var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                            root.setText("_animatedColor"); expected = FlutterPropertyCellValue.explicit(LinearProgressIndicatorPropertyContractTest.reference("_animatedColor"));
+                            assertTrue(findNamed(panel, JTextArea.class, FlutterColorAnimationEditorComponent.NOTE_NAME).getText().contains("not executed"));
+                        }
+                        default -> { selected = FlutterColorAnimationEditorComponent.UNSET; mode.setSelectedItem(selected); expected = FlutterPropertyCellValue.unset(); }
+                    }
+                    assertEquals(initial, editor.getValue(), "all nested drafts, including valid ones, remain unpublished"); assertEquals(0, commits.get());
+                    environment.setState(PropertyEnv.STATE_VALID); assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                    environment.setState(PropertyEnv.STATE_NEEDS_VALIDATION); environment.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                    var reopenedEnv = PropertyEnv.create(descriptor("Value color", "Reopened valueColor.")); ((ExPropertyEditor) editor).attachEnv(reopenedEnv);
+                    var reopened = editor.getCustomEditor(); assertEquals(selected, findNamed(reopened, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME).getSelectedItem());
+                    findNamed(reopened, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME).setSelectedItem(FlutterColorAnimationEditorComponent.STOPPED_NULL);
+                    assertEquals(expected, editor.getValue(), "Cancel after switching the reopened mode preserves the original typed value");
+                    return null;
+                });
+            }
+        }
+    }
+
+    @Test
+    void bothProgressAnimationNestedReferenceRejectsExpressionsAndSupportsImportedFactories() throws Exception {
+        for (String type : List.of("flutter.material.LinearProgressIndicator", "flutter.material.CircularProgressIndicator")) {
+            var editor = binding(property(type, "valueColor")).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var environment = PropertyEnv.create(descriptor("Value color", "Typed animation reference.")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterColorAnimationEditorComponent.MODE_NAME);
+                mode.setSelectedItem(FlutterColorAnimationEditorComponent.PROJECT);
+                var root = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                root.setText("Colors.red + Colors.blue"); assertEquals(PropertyEnv.STATE_INVALID, environment.getState());
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                var scope = findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME); scope.setSelectedIndex(1);
+                findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:progress_ui/animations.dart");
+                root.setText("Animations"); findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("progressColor");
+                findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+                var reference = assertInstanceOf(PropertyValue.DartObjectReferenceValue.class, ((FlutterPropertyCellValue) editor.getValue()).explicitValue().orElseThrow());
+                assertEquals(Optional.of("package:progress_ui/animations.dart"), reference.libraryUri()); assertEquals("Animations", reference.rootSymbol());
+                assertEquals(Optional.of("progressColor"), reference.member()); assertEquals(PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, reference.access());
+                assertEquals(Optional.of(false), reference.constant()); return null;
+            });
+        }
     }
 
     @Test
@@ -3031,7 +3093,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(135, booleanProperties.size(),
+        assertEquals(136, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

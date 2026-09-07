@@ -28,6 +28,7 @@ final class FlutterPresetDartReferenceEditorComponent {
     static final String OMIT = "Use SDK default (omit argument)";
     static final String PRESET = "Built-in preset";
     static final String PROJECT = "Project reference";
+    static final String NULL = "Inherit (null)";
 
     private FlutterPresetDartReferenceEditorComponent() { }
 
@@ -55,7 +56,11 @@ final class FlutterPresetDartReferenceEditorComponent {
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(710, 500)); setName("flutter.presetReference.editor");
             getAccessibleContext().setAccessibleName(binding.definition().name().value() + " preset or Dart reference editor");
             getAccessibleContext().setAccessibleDescription("Choose omission, a reviewed preset, or an analyzer-verified " + expectedType + ". All drafts remain local until OK.");
-            mode = new JComboBox<>(binding.optional() ? new String[]{OMIT, PRESET, PROJECT} : new String[]{PRESET, PROJECT});
+            var modes = new java.util.ArrayList<String>();
+            if (binding.optional()) modes.add(OMIT);
+            if (binding.definition().acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL)) modes.add(NULL);
+            modes.add(PRESET); modes.add(PROJECT);
+            mode = new JComboBox<>(modes.toArray(String[]::new));
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Value source");
             mode.getAccessibleContext().setAccessibleDescription("An explicit preset, including default, is distinct from omission.");
             var heading = new JPanel(new BorderLayout(8, 0)); var sourceLabel = new JLabel("Source:"); sourceLabel.setLabelFor(mode);
@@ -81,10 +86,10 @@ final class FlutterPresetDartReferenceEditorComponent {
             referencePanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
                     FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
             if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearRoot(referencePanel);
-            cards.add(referencePanel, PROJECT); cards.add(new JPanel(), OMIT); add(cards, BorderLayout.CENTER);
+            cards.add(referencePanel, PROJECT); cards.add(new JPanel(), OMIT); cards.add(new JPanel(), NULL); add(cards, BorderLayout.CENTER);
             note.setName(NOTE_NAME); note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
             note.getAccessibleContext().setAccessibleName("Preset and project reference behavior"); add(note, BorderLayout.SOUTH);
-            mode.setSelectedItem(initial == null ? binding.optional() ? OMIT : PRESET : initial instanceof PropertyValue.StringValue ? PRESET : PROJECT);
+            mode.setSelectedItem(initial == null ? binding.optional() ? OMIT : PRESET : initial instanceof PropertyValue.NullValue ? NULL : initial instanceof PropertyValue.StringValue ? PRESET : PROJECT);
             mode.addActionListener(ignored -> refresh(true)); preset.addActionListener(ignored -> refresh(true));
             referenceEnvironment.addPropertyChangeListener(ignored -> refresh(true)); activate(); refresh(true);
         }
@@ -103,11 +108,12 @@ final class FlutterPresetDartReferenceEditorComponent {
                                         : "Isolated Canvas does not execute project code and reports any preview limitation explicitly. ")
                                 + "Use a typed getter or zero-argument factory for configured functions."
                         : PRESET.equals(selected) ? "Stores the selected reviewed preset explicitly. The default preset is retained as a value; it is not omission."
-                        : "Omits this argument and preserves the SDK constructor default. Other property values are unchanged.";
+                        : NULL.equals(selected) ? "Explicit null stops lower-priority local state entries and lets the SDK resolve its theme/default cursor. It is distinct from an omitted local entry."
+                        : "Omits this argument or local entry. Other property values are unchanged; lower-priority local states may still apply.";
                 note.setText(description); note.getAccessibleContext().setAccessibleDescription(description);
                 var candidate = PROJECT.equals(selected) ? requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue()
                         : PRESET.equals(selected) ? FlutterPropertyCellValue.explicit(new PropertyValue.StringValue((String) preset.getSelectedItem()))
-                        : FlutterPropertyCellValue.unset();
+                        : NULL.equals(selected) ? FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()) : FlutterPropertyCellValue.unset();
                 clearInvalid(note, description);
                 if (requestValidation) markValid(candidate); else stageValid(candidate);
                 return true;

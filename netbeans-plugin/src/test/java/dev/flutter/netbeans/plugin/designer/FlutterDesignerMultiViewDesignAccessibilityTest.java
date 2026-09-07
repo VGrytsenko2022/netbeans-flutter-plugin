@@ -768,6 +768,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.Checkbox",
                     "flutter.material.Switch",
                     "flutter.material.Slider",
+                    "flutter.material.RangeSlider",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -1047,6 +1048,17 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void rangeSliderReplacementPrototypeKeepsThreeRequiredDefaultsWithoutChildOrAssets() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.RangeSlider")).orElseThrow();
+        var expectedId = StableId.parse("dabc453b-e6cc-4e45-87e9-48e77436f859"); var allocations = new AtomicInteger();
+        var prototype = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(), () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, prototype.id()); assertEquals(definition.typeId(), prototype.type()); assertEquals(1, allocations.get());
+        assertEquals(Map.of(new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), new PropertyName("valuesEnd"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE), new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), prototype.properties());
+        assertTrue(prototype.slots().isEmpty()); assertTrue(definition.slots().isEmpty());
+        assertTrue(dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition).isEmpty());
     }
 
     @Test

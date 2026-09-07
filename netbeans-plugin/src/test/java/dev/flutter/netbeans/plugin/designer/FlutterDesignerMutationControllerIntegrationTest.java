@@ -1219,6 +1219,284 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteRangeSliderAll37FieldsSingleConstructorSaveReopenHistoryAndRollback() throws Exception {
+        var id = StableId.parse("fac00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.RangeSlider");
+        ExactPair pair;
+        try (var fixture = fixture("range_slider_palette_insert", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyRangeSliderMutation(fixture, ready, plan.command(), id);
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(Map.of(new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
+                    new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                    new PropertyName("valuesEnd"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE)), widget.properties());
+            assertTrue(widget.slots().isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow();
+            onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            pair = savePhysicalModelPair(fixture);
+        }
+        ExactPair sparsePair = pair;
+        var visited = new java.util.HashSet<String>();
+        try (var fixture = fixture("range_slider_reopened_dense_families", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var history = fixture.dataObject().getCombinedUndoRedo(); int index = 0;
+            for (String family : List.of("local")) {
+                    var before = findModelWidget(current.document().orElseThrow().root(), id);
+                    var target = dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.full();
+                    index++;
+                    target.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+                    var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>();
+                    for (var name : before.properties().keySet()) if (!target.containsKey(name)) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name));
+                    target.forEach((name, value) -> { if (!value.equals(before.properties().get(name))) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(name, value)); });
+                    current = applyRangeSliderMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(id, patches), id);
+                    byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                    var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                    token = current.token().orElseThrow(); onEdt(history::redo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                    pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                    try (var reopened = fixture("range_slider_dense_family_" + index, pair)) {
+                        assertEquals(target, findModelWidget(reopened.ready().document().orElseThrow().root(), id).properties());
+                        assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+                    }
+            }
+            try (var sparse = fixture("range_slider_all_sparse_live_cells", sparsePair)) {
+                sparse.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, sparse.frameworkFile())));
+                var currentSparse = sparse.ready(); var sparseHistory = sparse.dataObject().getCombinedUndoRedo();
+                var initial = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+                var sets = properties.getPropertySets();
+                for (var field : definition.properties()) {
+                    String name = field.name().value();
+                    var prerequisites = dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.sparsePrerequisites(name);
+                    byte[] initialDart = sparse.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(sparse);
+                    int prerequisiteEdits = 0;
+                    for (var prerequisite : prerequisites.entrySet()) {
+                        var widget = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                        if (prerequisite.getValue().equals(widget.properties().get(prerequisite.getKey()))) continue;
+                        currentSparse = applyRangeSliderMutation(sparse, currentSparse, new SetProperty(id, prerequisite.getKey(), prerequisite.getValue()), id);
+                        prerequisiteEdits++;
+                    }
+                    var before = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var cell = cellProperty(properties, name); var editor = cell.getPropertyEditor().getClass();
+                    byte[] beforeDart = sparse.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(sparse);
+                    var value = dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.value(field);
+                    commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                    currentSparse = applyRangeSliderMutation(sparse, currentSparse, commands.getFirst(), id);
+                    var edited = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    assertEquals(value, edited.properties().get(field.name()), name); assertTrue(edited.slots().isEmpty());
+                    properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                    currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(currentSparse.document().orElseThrow().root(), id), name);
+                    assertArrayEquals(beforeDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(beforeFd, refreshProgressFdBytes(sparse));
+                    for (int i = 0; i < prerequisiteEdits; i++) {
+                        token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                        currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    }
+                    assertEquals(initial, findModelWidget(currentSparse.document().orElseThrow().root(), id));
+                    assertArrayEquals(initialDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(initialFd, refreshProgressFdBytes(sparse));
+                    properties.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    assertSame(cell, cellProperty(properties, name)); assertEquals(editor, cell.getPropertyEditor().getClass());
+                    assertEquals(List.of(sets), List.of(properties.getPropertySets())); assertTrue(visited.add(name));
+                }
+            }
+            assertEquals(37, visited.size());
+        }
+        try (var fixture = fixture("range_slider_whole_families_and_rollback", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("overlayColor", "mouseCursor", "labels")) {
+                var before = widget;
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(
+                        dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.reference("_" + name)));
+                current = applyRangeSliderMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertTrue(widget.properties().keySet().stream().noneMatch(key -> key.value().startsWith(name) && !key.value().equals(name)), name);
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, new PropertyName("valuesStart")),
+                    new ResetProperty(id, new PropertyName("valuesEnd")), new ResetProperty(id, new PropertyName("enabled")),
+                    new SetProperty(id, new PropertyName("valuesStart"), new PropertyValue.NullValue()),
+                    new SetProperty(id, new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(100))),
+                    new SetProperty(id, new PropertyName("divisions"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)),
+                    new SetProperty(id, new PropertyName("min"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(100))),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.CallbackValue("rawCallback")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "RangeSlider rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                assertEquals(undo, history.getUndoPresentationName());
+            }
+            commands.clear(); cellProperty(properties, "overlayColorDefault").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff556677L)));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "range_slider_color_refused", "RangeSlider color replacement rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "RangeSlider atomic family rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(widget, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undo, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("range_slider_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyRangeSliderMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)), id);
+            assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("valuesStart")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+
+    @Test
+    void paletteRangeSliderLabelsStateNullsAndInvalidRangeAreAtomicAcrossHistoryAndReopen() throws Exception {
+        var id = StableId.parse("fcc00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.RangeSlider"); ExactPair pair;
+        try (var fixture = fixture("range_slider_atomic_dependencies", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyRangeSliderMutation(fixture, ready, plan.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            var edits = new ArrayList<java.util.Map.Entry<String, PropertyValue>>();
+            edits.add(Map.entry("labels", new PropertyValue.NullValue()));
+            edits.add(Map.entry("labelsStart", new PropertyValue.StringValue("Low")));
+            edits.add(Map.entry("labelsEnd", new PropertyValue.StringValue("High")));
+            edits.add(Map.entry("labels", dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.reference("_labels")));
+            edits.add(Map.entry("labels", new PropertyValue.NullValue()));
+            edits.add(Map.entry("labelsEnd", new PropertyValue.StringValue("")));
+            edits.add(Map.entry("mouseCursor", dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.reference("_cursor")));
+            edits.add(Map.entry("mouseCursorHovered", new PropertyValue.NullValue()));
+            for (String name : List.of("divisions", "year2023")) edits.add(Map.entry(name, new PropertyValue.NullValue()));
+            edits.add(Map.entry("overlayColorPressed", new PropertyValue.NullValue()));
+            edits.add(Map.entry("overlayColorDefault", new PropertyValue.ColorValue(0xff112233L)));
+            for (var edit : edits) {
+                var before = widget; commands.clear();
+                cellProperty(properties, edit.getKey()).setValue(FlutterPropertyCellValue.explicit(edit.getValue()));
+                assertEquals(1, commands.size(), edit.getKey());
+                current = applyRangeSliderMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(edit.getValue(), widget.properties().get(new PropertyName(edit.getKey())));
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            for (String name : List.of("divisions", "year2023", "labelsEnd", "mouseCursorHovered", "overlayColorPressed")) {
+                var before = widget; commands.clear(); cellProperty(properties, name).restoreDefaultValue();
+                current = applyRangeSliderMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertFalse(widget.properties().containsKey(new PropertyName(name)));
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                widget = before;
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            // Range transitions change all constrained peers atomically; equal infinities are legal source/model.
+            for (String bound : List.of("infinity", "negativeInfinity")) {
+                var before = widget;
+                var patches = new ArrayList<PatchProperties.Patch>();
+                for (String name : List.of("min", "max", "valuesStart", "valuesEnd"))
+                    patches.add(new PatchProperties.SetPatch(new PropertyName(name), new PropertyValue.EnumValue("double", bound)));
+                current = applyRangeSliderMutation(fixture, current, new PatchProperties(id, patches), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+            }
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("range_slider_dependencies_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), id);
+            assertEquals(new PropertyValue.EnumValue("double", "negativeInfinity"), widget.properties().get(new PropertyName("valuesStart")));
+            var current = applyRangeSliderMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), id);
+            assertEquals(new PropertyValue.BooleanValue(false), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("enabled")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteRangeSliderInactiveCallbackEditWhilePairedChangesAreUnsavedKeepsHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("fbc00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.RangeSlider"); var callback = new PropertyName("onChanged");
+        ExactPair pair;
+        try (var fixture = fixture("range_slider_inactive_unsaved", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var accepted = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> buttonId));
+            var current = applyRangeSliderMutation(fixture, ready, accepted.command(), buttonId);
+            current = applyRangeSliderMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            current = applyRangeSliderMutation(fixture, current, new SetProperty(buttonId, callback,
+                    dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.reference("_disabledCallback")), buttonId);
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8(), "Inactive callback changes only FD while paired source remains unsaved");
+            assertFalse(Arrays.equals(beforeFd, refreshProgressFdBytes(fixture)));
+            var after = findModelWidget(current.document().orElseThrow().root(), buttonId); var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(after, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+            // Saving must retain the same-source predecessor as an exact undoable FD-only endpoint.
+            token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId));
+            if (fixture.coordinator().stagedEvidence() != null) pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("range_slider_inactive_saved_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertEquals(dev.flutter.netbeans.plugin.designer.properties.RangeSliderPropertyContractTest.reference("_disabledCallback"),
+                    findModelWidget(fixture.ready().document().orElseThrow().root(), buttonId).properties().get(callback));
+            var current = applyRangeSliderMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), buttonId);
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_disabledCallback"));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyRangeSliderMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "RangeSlider complete property contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
+    }
+
+    @Test
     void paletteSliderAll33FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
         var id = StableId.parse("fa900004-e530-4b9b-92fa-49e3c491f094");
         var type = new WidgetTypeId("flutter.material.Slider");

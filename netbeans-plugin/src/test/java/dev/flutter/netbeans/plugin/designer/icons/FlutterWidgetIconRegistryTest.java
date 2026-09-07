@@ -53,6 +53,15 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void rangeSliderFamilyUsesReviewedRailAndTwoThumbsGeometryAndThemePaint() throws Exception {
+        String base = ICON_ROOT + "rangeslider.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16); var large = readSvg(variant(base, true, false), 32);
+        assertEquals(List.of("g[transform=scale(1)]", "rect[height=1.5, rx=.75, width=13, x=1.5, y=7.25]", "circle[cx=4.5, cy=8, r=2.5]", "circle[cx=11.5, cy=8, r=2.5]"), light.geometry());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(light.topology(), large.topology());
+        assertTrue(light.paint().toString().contains("#146FA8")); assertTrue(dark.paint().toString().contains("#9BD6FF"));
+    }
+
+    @Test
     void sliderFamilyUsesReviewedRailAndThumbGeometryAndThemePaint() throws Exception {
         String base = ICON_ROOT + "slider.svg";
         var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16); var large = readSvg(variant(base, true, false), 32);
@@ -1907,6 +1916,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Checkbox", ICON_ROOT + "checkbox.svg");
         expected.put("flutter.material.Switch", ICON_ROOT + "switch.svg");
         expected.put("flutter.material.Slider", ICON_ROOT + "slider.svg");
+        expected.put("flutter.material.RangeSlider", ICON_ROOT + "rangeslider.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

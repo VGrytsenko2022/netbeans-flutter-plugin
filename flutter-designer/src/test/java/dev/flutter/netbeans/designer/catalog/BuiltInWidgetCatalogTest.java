@@ -48,6 +48,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.IconButton",
                 "flutter.material.LinearProgressIndicator",
                 "flutter.material.OutlinedButton",
+                "flutter.material.RangeSlider",
                 "flutter.material.RefreshIndicator",
                 "flutter.material.RefreshProgressIndicator",
                 "flutter.material.Scaffold",
@@ -123,11 +124,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(84, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(85, BuiltInWidgetCatalog.getDefault().definitions().size());
         assertEquals(78, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(81, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(82, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics",
                 "flutter.widgets.RepaintBoundary"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -135,6 +136,7 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(
                         "flutter.material.AppBar",
                         "flutter.material.ElevatedButton",
+                        "flutter.material.RangeSlider",
                         "flutter.widgets.ConstrainedBox",
                         "flutter.widgets.Container",
                         "flutter.widgets.GridView",
@@ -143,10 +145,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(3416, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(3453, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(3399, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(3436, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -165,6 +167,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.Checkbox", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Switch", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Slider", MATERIAL_IMPORT),
+                Map.entry("flutter.material.RangeSlider", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Badge", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Card", MATERIAL_IMPORT),
                 Map.entry("flutter.material.CircleAvatar", MATERIAL_IMPORT),
@@ -360,6 +363,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.Checkbox",
                 "flutter.material.Switch",
                 "flutter.material.Slider",
+                "flutter.material.RangeSlider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -423,7 +427,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IndexedSemantics",
                 "flutter.widgets.ExcludeFocus",
                 "flutter.widgets.ExcludeFocusTraversal"), typeIds(palette));
-        assertEquals(21, palette.stream()
+        assertEquals(22, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

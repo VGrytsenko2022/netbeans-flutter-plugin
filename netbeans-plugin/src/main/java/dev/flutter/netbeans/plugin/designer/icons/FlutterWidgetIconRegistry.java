@@ -88,6 +88,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.Checkbox", ICON_ROOT + "checkbox.svg"),
             Map.entry("flutter.material.Switch", ICON_ROOT + "switch.svg"),
             Map.entry("flutter.material.Slider", ICON_ROOT + "slider.svg"),
+            Map.entry("flutter.material.RangeSlider", ICON_ROOT + "rangeslider.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

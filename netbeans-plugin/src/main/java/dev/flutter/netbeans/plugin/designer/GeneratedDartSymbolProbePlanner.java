@@ -151,6 +151,8 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("ValueChanged<RefreshIndicatorStatus?>")
                         || type.equals("ButtonStyle")
                         || type.equals("SemanticFormatterCallback")
+                        || type.equals("ValueChanged<RangeValues>")
+                        || type.equals("RangeLabels")
                         || type.equals("ButtonLayerBuilder"))
                 ? MATERIAL_LIBRARY_URI : WIDGETS_LIBRARY_URI;
 

@@ -108,6 +108,7 @@ public final class BuiltInWidgetCatalog {
             checkbox(),
             switchWidget(),
             slider(),
+            rangeSlider(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -772,6 +773,53 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition rangeSlider() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (var entry : RangeSliderWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (RangeSliderWidgetPropertySchema.overlayColorStateProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (RangeSliderWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                constraints = new ArrayList<>(checkbox().property(new PropertyName("mouseCursor")).orElseThrow().constraints());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (RangeSliderWidgetPropertySchema.rangeProperties().contains(name)) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"),
+                        List.of("infinity", "negativeInfinity")));
+            } else {
+                constraints = switch (name) {
+                    case "onChanged", "onChangeStart", "onChangeEnd" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<RangeValues>"));
+                    case "semanticFormatterCallback" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("SemanticFormatterCallback"));
+                    case "overlayColor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"));
+                    case "mouseCursor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<MouseCursor?>"));
+                    case "labels" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("RangeLabels"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "activeColor", "inactiveColor" -> colorOrTheme();
+                    case "divisions" -> List.of(new PropertyValueConstraint.IntegerRange(BigInteger.ONE,
+                            BigInteger.valueOf(9_007_199_254_740_991L)), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "labelsStart", "labelsEnd" -> any(PropertyValueKind.STRING);
+                    case "padding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                    case "year2023" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "valuesStart" -> new PropertyValue.IntegerValue(BigInteger.ZERO);
+                case "valuesEnd" -> new PropertyValue.IntegerValue(BigInteger.ONE);
+                case "enabled" -> new PropertyValue.BooleanValue(true);
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.value(), "RangeSlider", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 220, "RangeSlider"), properties, List.of());
     }
 
     private static WidgetDefinition slider() {

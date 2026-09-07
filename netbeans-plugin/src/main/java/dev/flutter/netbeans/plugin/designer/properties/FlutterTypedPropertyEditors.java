@@ -69,7 +69,8 @@ final class FlutterTypedPropertyEditors {
                     .orElse(newlineStringList
                             ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
             }
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && !presets.isEmpty() && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
             editorKind = EditorKind.PRESET_DART_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.NULL, PropertyValueKind.STRING, PropertyValueKind.INTEGER,
@@ -199,6 +200,9 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.SHAPE_BORDER_CLIPPER,
                 PropertyValueKind.DART_OBJECT_REFERENCE))) {
             editorKind = EditorKind.SHAPE_BORDER_CLIPPER;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
+            editorKind = EditorKind.NULLABLE_DART_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
@@ -249,6 +253,7 @@ final class FlutterTypedPropertyEditors {
         BOX_DECORATION,
         BORDER_RADIUS,
         DART_OBJECT_REFERENCE,
+        NULLABLE_DART_REFERENCE,
         SHAPE_BORDER_CLIPPER
     }
 
@@ -367,7 +372,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG ->
+                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG ->
                     new StructuredEditor(this);
             };
         }
@@ -1054,9 +1059,13 @@ final class FlutterTypedPropertyEditors {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue
                         ? "Inherit (null)" : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
+            if (binding.editorKind() == EditorKind.NULLABLE_DART_REFERENCE) {
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue
+                        ? FlutterNullableDartReferenceEditorComponent.nullText(binding) : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
+            }
             if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
-                return explicitValue().map(value -> value instanceof PropertyValue.StringValue preset
-                        ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue ? "Inherit (null)"
+                        : value instanceof PropertyValue.StringValue preset ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue

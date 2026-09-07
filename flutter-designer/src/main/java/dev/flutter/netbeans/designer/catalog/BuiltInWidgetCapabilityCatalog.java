@@ -165,6 +165,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.Slider", STATIC_EDITABLE),
+            Map.entry("flutter.material.RangeSlider", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -335,6 +336,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.Slider", sliderProjection()),
+            Map.entry("flutter.material.RangeSlider", rangeSliderProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2154,6 +2156,52 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection rangeSliderProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection slider = sliderProjection();
+        CanvasProjection checkbox = checkboxProjection();
+        for (String name : RangeSliderWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            if (RangeSliderWidgetPropertySchema.overlayColorStateProperties().contains(name)) {
+                value = slider.propertyContracts().get(new PropertyName(name));
+            } else if (RangeSliderWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                var cursor = checkbox.propertyContracts().get(new PropertyName("mouseCursor"));
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(cursor.constraintFingerprints());
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+            } else if (RangeSliderWidgetPropertySchema.rangeProperties().contains(name)) {
+                var number = cardNumberSchema(null, null);
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,negativeInfinity");
+                boolean required = name.startsWith("values");
+                value = new CanvasPropertyContract(constraints.keySet(), required,
+                        required ? Optional.of(name.equals("valuesStart") ? "integer:0" : "integer:1") : Optional.empty(),
+                        number.numericBounds(), constraints);
+            } else if (List.of("onChanged", "onChangeStart", "onChangeEnd", "labels", "mouseCursor").contains(name)) {
+                String type = switch (name) {
+                    case "labels" -> "RangeLabels";
+                    case "mouseCursor" -> "WidgetStateProperty<MouseCursor?>";
+                    default -> "ValueChanged<RangeValues>";
+                };
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.put(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                        + type + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                if (name.equals("labels")) {
+                    constraints.put(PropertyValueKind.NULL, "any");
+                }
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+            } else if (RangeSliderWidgetPropertySchema.labelProperties().contains(name)) {
+                value = propertySchema(PropertyValueKind.STRING);
+            } else {
+                value = slider.propertyContracts().get(new PropertyName(name));
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of());
     }
 
     private static CanvasProjection sliderProjection() {

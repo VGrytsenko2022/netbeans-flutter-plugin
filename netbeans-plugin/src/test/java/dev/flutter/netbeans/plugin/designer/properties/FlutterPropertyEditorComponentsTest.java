@@ -75,6 +75,115 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void rangeSliderNullableLabelsPreserveOmitNullReferencesAndCancelSafeSingleCommit() throws Exception {
+        var binding = binding(RangeSliderPropertyContractTest.field("labels"));
+        for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
+                FlutterPropertyCellValue.explicit(RangeSliderPropertyContractTest.reference("_labels")))) {
+            var editor = binding.createEditor(); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor("Labels", "Omission, null, or strict RangeLabels.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableDartReferenceEditorComponent.MODE_NAME);
+                assertEquals(List.of(FlutterNullableDartReferenceEditorComponent.OMIT, "No labels (null)", FlutterNullableDartReferenceEditorComponent.PROJECT), comboLabels(mode));
+                assertAccessibleNameContains(panel, "labels", "nullable", "reference");
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); return null;
+            });
+        }
+        for (String branch : List.of("omit", "null", "current", "factory")) {
+            var initial = FlutterPropertyCellValue.explicit(RangeSliderPropertyContractTest.reference("_oldLabels"));
+            var editor = binding.createEditor(); editor.setValue(initial); var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            var env = PropertyEnv.create(descriptor("Labels", "Exact typed labels.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableDartReferenceEditorComponent.MODE_NAME);
+                mode.setSelectedItem(FlutterNullableDartReferenceEditorComponent.PROJECT);
+                var symbol = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                for (String invalid : List.of("", "() => RangeLabels('', '')", "factory(1)")) {
+                    symbol.setText(invalid); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                }
+                FlutterPropertyCellValue expected;
+                if (branch.equals("omit")) { mode.setSelectedItem(FlutterNullableDartReferenceEditorComponent.OMIT); expected = FlutterPropertyCellValue.unset(); }
+                else if (branch.equals("null")) { mode.setSelectedItem("No labels (null)"); expected = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()); }
+                else if (branch.equals("current")) { symbol.setText("_labels"); expected = FlutterPropertyCellValue.explicit(RangeSliderPropertyContractTest.reference("_labels")); }
+                else {
+                    findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+                    findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:demo/labels.dart");
+                    symbol.setText("Labels"); findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("create");
+                    findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                    expected = FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:demo/labels.dart"), "Labels", Optional.of("create"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+                }
+                assertEquals(initial, editor.getValue()); assertEquals(0, commits.get()); env.setState(PropertyEnv.STATE_VALID);
+                assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                if (branch.equals("null")) assertEquals("No labels (null)", editor.getAsText());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void rangeSliderCursorNullablePresetReferenceStatesKeepExactLocalDraftsAndOldCursorModes() throws Exception {
+        var definition = RangeSliderPropertyContractTest.field("mouseCursorHovered");
+        var binding = FlutterTypedPropertyEditors.binding(definition, Optional.empty(), false,
+                dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema.mouseCursorPresets()).orElseThrow();
+        for (String branch : List.of("null", "omit", "preset", "current", "factory")) {
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("click")); var editor = binding.createEditor(); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor("Hovered cursor", "State cursor.")); ((ExPropertyEditor) editor).attachEnv(env);
+            var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME);
+                assertEquals(List.of(FlutterPresetDartReferenceEditorComponent.OMIT, FlutterPresetDartReferenceEditorComponent.NULL, FlutterPresetDartReferenceEditorComponent.PRESET, FlutterPresetDartReferenceEditorComponent.PROJECT), comboLabels(mode));
+                assertEquals(41, findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME).getItemCount());
+                mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PROJECT);
+                var symbol = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME); symbol.setText("factory(1)");
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue());
+                FlutterPropertyCellValue expected;
+                if (branch.equals("null")) {
+                    mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.NULL); expected = FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
+                    var note = findNamed(panel, JTextArea.class, FlutterPresetDartReferenceEditorComponent.NOTE_NAME);
+                    assertTrue(note.getText().contains("stops lower-priority")); assertTrue(note.getText().contains("theme/default"));
+                } else if (branch.equals("omit")) { mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.OMIT); expected = FlutterPropertyCellValue.unset(); }
+                else if (branch.equals("preset")) { mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET); findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME).setSelectedItem("grab"); expected = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("grab")); }
+                else if (branch.equals("current")) { symbol.setText("_localCursor"); expected = FlutterPropertyCellValue.explicit(RangeSliderPropertyContractTest.reference("_localCursor")); }
+                else {
+                    findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+                    findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:demo/cursors.dart");
+                    symbol.setText("Cursors"); findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("create");
+                    findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                    expected = FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:demo/cursors.dart"), "Cursors", Optional.of("create"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+                }
+                assertEquals(initial, editor.getValue()); assertEquals(0, commits.get()); env.setState(PropertyEnv.STATE_VALID); assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                if (branch.equals("null")) assertEquals("Inherit (null)", editor.getAsText());
+                return null;
+            });
+        }
+        var oldBinding = FlutterTypedPropertyEditors.binding(SliderPropertyContractTest.field("mouseCursor"), Optional.empty(), false,
+                dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema.mouseCursorPresets()).orElseThrow();
+        var oldEditor = oldBinding.createEditor(); oldEditor.setValue(FlutterPropertyCellValue.unset()); var oldEnv = PropertyEnv.create(descriptor("Cursor", "Old non-null cursor."));
+        ((ExPropertyEditor) oldEditor).attachEnv(oldEnv);
+        onEdt(() -> { assertFalse(comboLabels(findNamed(oldEditor.getCustomEditor(), JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME)).contains(FlutterPresetDartReferenceEditorComponent.NULL)); return null; });
+        assertThrows(IllegalArgumentException.class, () -> oldEditor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())));
+    }
+
+    @Test
+    void rangeSliderCallbacksRetainActivationPolicyWhileExactLabelTextAndNullableAppearanceRoundTrip() throws Exception {
+        for (String name : List.of("onChanged", "onChangeStart", "onChangeEnd", "semanticFormatterCallback")) {
+            var editor = binding(RangeSliderPropertyContractTest.field(name)).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "Strict reference.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var omit = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                assertEquals(name.equals("onChanged") ? "Use Designer activation default" : "Use Flutter default (omit " + name + ")", omit.getText());
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+        for (String name : List.of("labelsStart", "labelsEnd")) for (String value : List.of("", "line one\nline two\r\nline three")) {
+            var editor = binding(RangeSliderPropertyContractTest.field(name)).createEditor(); var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(value)); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor(name, "Exact label text.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> { editor.getCustomEditor(); env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); return null; });
+        }
+        var editor = binding(RangeSliderPropertyContractTest.field("year2023")).createEditor();
+        for (String value : List.of("true", "false", "null", FlutterPropertyCellValue.NOT_SET_TEXT)) { editor.setAsText(value); assertTrue(editor.isPaintable()); }
+    }
+
+
+    @Test
     void sliderDivisionsDialogHasContinuousNullAndPositiveCountWithoutChildIndexWordingOrCaps() throws Exception {
         var editor = binding(SliderPropertyContractTest.field("divisions")).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
         var env = PropertyEnv.create(descriptor("Divisions", "Continuous or discrete.")); ((ExPropertyEditor) editor).attachEnv(env);
@@ -4015,7 +4124,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(321, booleanProperties.size(),
+        assertEquals(322, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

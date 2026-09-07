@@ -151,7 +151,8 @@ final class FlutterDartObjectReferenceEditorComponent {
             noOpRefreshBranch = "onRefresh".equals(argumentName) && "RefreshCallback".equals(expectedDartType);
             buttonActivationBranch = "onPressed".equals(argumentName) && "VoidCallback".equals(expectedDartType)
                     || "onChanged".equals(argumentName) && ("ValueChanged<bool?>".equals(expectedDartType)
-                            || "ValueChanged<bool>".equals(expectedDartType) || "ValueChanged<double>".equals(expectedDartType));
+                            || "ValueChanged<bool>".equals(expectedDartType) || "ValueChanged<double>".equals(expectedDartType)
+                            || "ValueChanged<RangeValues>".equals(expectedDartType));
             useDefault = new JCheckBox(noOpRefreshBranch ? "Use generated no-op refresh callback"
                     : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default (omit " + argumentName + ")");
 

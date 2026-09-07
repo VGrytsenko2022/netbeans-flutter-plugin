@@ -7281,3 +7281,190 @@ The embedded analyzer is the unchanged 87439-byte baseline JAR, SHA-256
 All 1631 frozen non-Markdown inputs, including the 40 analyzer/core/root-POM
 inputs, remain unchanged after packaging. All 75 source/Web manifest entries were
 reverified. No interactive IDE or installed-userdir acceptance is claimed.
+
+## ADR-113 — RangeSlider paired values, labels and stateful cursor
+
+Date: 2026-09-07. Scope: the next complete palette slice after Slider (397ba49),
+in the canonical G: checkout. Pinned Flutter 3.44.8 source and the
+[public RangeSlider constructor](https://api.flutter.dev/flutter/material/RangeSlider/RangeSlider.html)
+define one non-const constructor with 15 non-key arguments. There is no adaptive
+constructor or direct focus/autofocus/interaction/value-indicator argument.
+Stable widget identity remains the shared key policy.
+
+### Complete closed projection
+
+Material/order 220 adds a scalar leaf with no slots, 37 rows and no version bump:
+19 direct rows, nine local nullable overlay colors and nine local nullable cursors.
+Creation stores exactly valuesStart INTEGER 0, valuesEnd INTEGER 1 and enabled true.
+SDK defaults for Min/Max and other optional arguments remain unstored.
+
+Values splits the constant RangeValues pair into required Start/End, preserving
+signed finite values and explicit positive/negative infinity. Exact Dart-double
+comparisons require min<=max, start<=end and both endpoints within the bounds.
+An invalid prospective edit/reset is rejected without clamping any peer.
+Equal signed infinities are constructor-legal; contextual preview safety is a
+separate concern. Divisions accepts null or positive integers through the existing
+portable limit 9007199254740991. No model span or arbitrary tick-count cap is added.
+
+Labels accepts explicit null or a strict non-null RangeLabels project reference
+or zero-argument factory. Its alternative local labelsStart/labelsEnd strings
+emit a const RangeLabels pair whenever either is present; a missing peer becomes
+empty. Missing, explicit null and an explicit empty pair remain distinct. Setting
+the whole value clears local labels; setting a local label clears the whole value,
+in one undoable patch. Reset removes only the selected optional property.
+
+All three callbacks require ValueChanged<RangeValues>. Enabled=false suppresses
+only onChanged generation/import/proof while preserving its FD metadata.
+onChangeStart/onChangeEnd and SemanticFormatterCallback remain source-visible.
+Enabled=true without a callback emits a benign no-op; application code still owns
+updates to controlled values. References never use untyped Dart-expression text.
+
+Whole overlay and cursor require WidgetStateProperty<Color?> and
+WidgetStateProperty<MouseCursor?> respectively. Cursor is not Slider's plain
+MouseCursor argument. Local cursor entries accept all 41 reviewed presets,
+strict non-null MouseCursor references/factories or explicit null. Each local
+family resolves the first present matching state: disabled, error, dragged,
+pressed, selected, scrolledUnder, hovered, focused, default. Explicit null stops
+lower local entries, then the SDK resolves its theme/default fallback. Whole/local
+families are mutually exclusive and switch atomically.
+
+Literal/theme colors, physical/directional nonnegative padding and deprecated
+nullable year2023 complete the constructor. The nullable typed-reference panel
+is restricted to the exact NULL|DART_OBJECT_REFERENCE union; cursor null extends
+only the exact STRING|DART_OBJECT_REFERENCE|NULL preset union. Existing editors
+retain their domains, and nested reference drafts remain local until OK.
+
+### Proof, persistence and preview boundary
+
+Candidates containing ValueChanged<RangeValues>, RangeLabels or the existing
+Material-only formatter use one Material static-type umbrella for all witnesses.
+Material reexports Widgets; original symbol navigation roots remain separately
+trusted. Dynamic, wrong generics, nullable outer references, factories and local
+cursor types are independently tested without weakening limits.
+
+All 37 Properties cells follow stable refresh, admission, Save/reopen/further edit
+and native Undo/Redo. Whole/local/null transitions and rejected mutations retain
+exact FD/Dart history. The isolated Canvas uses the actual SDK RangeSlider and
+does not execute project callbacks, labels or state resolvers, nor write gesture
+values into the model. Unavailable project branches receive explicit diagnostics.
+M2 and M3/year2023=true use the legacy RangeSlider defaults; only M3 with false
+selects the new appearance. The SDK owns both semantic thumbs and internal focus.
+Its overlay/cursor resolvers receive disabled, hovered and dragged; stored other
+states are not artificially activated by preview.
+
+Totals: 85 widgets, 78 const definitions, 3453 writable rows (3436 outside
+Scaffold), 82 scalar plus three structural definitions; 322 Boolean-only fields,
+six nullable-Boolean unions and one separate Object-tag union. Material 22,
+Layout 31, Scrolling 3, Basic 23, Accessibility 6. The unchanged 68 destinations
+(66 ANY plus two trait-bound) yield 5780 cells: 5420 accepted and 360 rejected.
+Thirteen generic/fifteen total creation wrappers, .fd 13/Catalog 14/Canvas 18,
+NBFC 1, metadata 1024/values 512/patch 512/probes 2048, 2 MiB and 45 seconds remain.
+The historical 92 target has 7 remaining; the full fixed ordered inventory is not
+preserved. Deferred global physical acceptance/platform-provider work is unchanged.
+
+### Focused verification and contextual Canvas guards
+
+Full core install passed 1663 tests (20 new), no failures/errors/skips, at
+10:33:55 UTC. The 26-class UI gate passed 902 tests, no failures/errors/skips,
+at 10:34:52 UTC. All 37 live cells and whole/local/null changes retain their
+objects and exact history endpoints; the three live mutation methods passed.
+
+The five real-SDK methods cover 50 candidates: 26 accepted and 24 deliberately
+rejected. The initial run found a test expectation mismatch only: a bad local
+cursor is a map value, so the SDK correctly emits map_value_type_not_assignable,
+not argument_type_not_assignable. The corrected test still requires the exact
+diagnostic code, source span, rejection status and empty symbol evidence. All
+eight SDK/live methods passed on rerun at 10:40:07 UTC; no production or safety
+limit was changed to accommodate that fixture. The first core test likewise
+needed its expected provenance path corrected to the existing rootSymbol/member
+suffix, without changing production provenance.
+
+The final Flutter run passed 1559 visible tests (34 new; 47 loader records are
+not counted as tests), exited zero in 27.301 seconds; analysis is clean and the
+format check changes no files. New controls include 48 actual-SDK pixel branches,
+all 256 state combinations, all 41 cursors, 20 numeric and 16 narrow-layout/drag
+controls. All 3598 prior W/P/S/C records remain unchanged; 38 new records match
+Java exactly, bringing the complete contract to 3636 records.
+
+Canvas guards reject nonfinite normalization, enabled nonfinite inverse endpoints
+and padding-sum overflow on an unbounded axis. Equal finite/infinite bounds and
+finite-overflow spans remain supported whenever the SDK's actual normalization
+is finite; RangeSlider uses stable ui.lerpDouble for inverse interpolation.
+Above 10000 divisions, the resolved tick width/geometry must guarantee density
+suppression. An unknown exact track-shape type is also guarded in that case;
+only default/exact SDK Rectangular, RoundedRect and Gapped range tracks use the
+known geometry bound. Custom tracks at or below the budget still render normally.
+These are isolated preview diagnostics, not model/source changes or a global
+division limit. The existing Slider implementation was not changed by this guard.
+
+A local cursor bucket returning WidgetStateMouseCursor.clickable is not recursively
+resolved by the SDK: on a disabled control its cursor session still uses the
+empty-state clickable cursor. A whole clickable state property instead resolves
+disabled to basic. Canvas preserves and tests this actual distinction. Both
+semantic thumbs and internal focus survive ordinary edits; no remount workaround
+or private SDK state mutation is introduced for RangeSlider.
+
+The analyzer implementation, core API and root POM retain the same 40 input hashes
+as the documented Switch/Slider baseline. Their 65 analyzer tests are retained
+evidence, not a claimed new analyzer run. Fresh RangeSlider SDK proofs exercise
+the only new plugin-level Material umbrella cases.
+
+The offline Web build passed in 15.1 seconds. main.dart.js is 3202013 bytes,
+SHA-256 c9a0f68dfeebecbbf2f94f5787e8fb8b3673a8175d1361d697bb0303bdb271c7.
+Source manifest SHA-256:
+f6cb53fb07e02c25135fdd7f7fbc64c0c165d38250d9c7e93e721c7d1e9e60bb.
+Web manifest SHA-256:
+0196e1a4988ac7eec36960350be7b8a1b6a5d2b1b7734bddd81e57c3d5320d54.
+All 40 source and 35 Web records were independently verified. The fresh Java
+contract/Web gate passed all 26 tests at 10:45:43 UTC; all 1644 non-Markdown
+source inputs were then frozen for the final ten-module reactor and packaging.
+
+### Final reactor and package verification
+
+The unfiltered ten-module reactor (only the hash-matched analyzer module omitted)
+started at 10:45:52 UTC and completed with exit zero at 11:02:48 UTC, in
+16 minutes 55 seconds. All 2521 plugin Surefire cases had zero failures/errors
+and four optional skips; all 132 live mutation/history cases passed. The previously
+intermittent 38-case file-move dependency guard passed unchanged in 1.357 seconds.
+All nine package metadata tests and six runtime cases (one optional skip) passed.
+No failed test or retry was needed in this final reactor.
+
+After the Surefire tests completed, the test JVM's shutdown Thread-1 reported a
+NetBeans MasterFS LockForFile.hardUnlockAll NullPointerException at line177, then
+Surefire killed the fork after its 30-second post-System.exit(0) timeout. This is
+an observed test-JVM shutdown anomaly, not a clean-log claim or a diagnosed/fixed
+RangeSlider defect. Maven continued through packaging and fresh runtime gates and
+returned zero. No lock behavior, timeout or production source was changed for it.
+
+A bounded shutdown audit found the fresh dump waiting in ApplicationShutdownHooks:
+ToolkitShutdown is inside native WToolkit.shutdown, while the AWT event thread
+remains in a preexisting FlutterToolingController.showMessage modal dialog. The
+prior run has the same modal/toolkit stack. Separately, RELEASE300 MasterFS
+hardUnlockAll dereferences Reference.get() without checking the referent for null,
+consistent with the reported cleanup exception. That thread is absent from the
+30-second dump, so the exception is not established as the cause of the toolkit
+delay. Guard/tooling production sources are unchanged from the Slider baseline.
+The successful tests and subsequent package/runtime gates reveal no RangeSlider
+release blocker; no production workaround or timeout relaxation was introduced.
+
+The final 406 XML reports record 4424 tests: 4417 executed, seven permitted
+optional skips, zero failures/errors. Of the executed tests, 4352 are fresh in
+this slice and 65 are the explicitly retained, hash-matched analyzer baseline.
+Every non-analyzer report meets the 10:45:52 UTC cutoff; retained analyzer reports
+meet the documented 08:27:56 UTC baseline cutoff. Freshness checks remain enabled.
+
+Both root and module nbm:cluster succeeded. tools/verify-release.ps1 passed with
+source/report/package freshness, metadata and licensing checks. NBM: 7719654 bytes,
+SHA-256 55C0B8E36190508752359BC6F0474125C646D6BAC5EC9991D803E0200CA364A5.
+Its embedded module matches all four package/development/runtime module copies:
+3446263 bytes, SHA-256
+D300192CCCE1744471F2242C02858B8F5B667505CDC1E26D5F5B024FBD6C7A83.
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
+RangeSlider SVGs are present. The embedded Canvas matches its built JAR:
+346914 bytes, SHA-256
+ACD0C9A82EC203D77544702CAEEF6A9E48616145E5CB4630461C20EE31565AF2.
+The embedded analyzer matches the unchanged 87439-byte baseline JAR, SHA-256
+466C88A04BCE84A2C31B52E177AC995BADA0055E6E67C37D07027FD792DA02F7.
+All 1644 frozen non-Markdown inputs remain unchanged after packaging, and all
+75 source/Web manifest entries were reverified. No interactive IDE launch,
+installed-userdir verification or global physical acceptance is claimed.

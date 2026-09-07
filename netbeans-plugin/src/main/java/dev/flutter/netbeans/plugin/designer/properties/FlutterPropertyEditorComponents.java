@@ -104,7 +104,7 @@ final class FlutterPropertyEditorComponents {
                     THEME_COLOR, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
-                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
+                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE,
                     SHAPE_BORDER_CLIPPER, PRESET_DART_REFERENCE, OBJECT_TAG -> true;
             default -> false;
         };
@@ -122,6 +122,7 @@ final class FlutterPropertyEditorComponents {
             case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_THEME_COLOR -> FlutterNullableColorEditorComponent.customEditor(editor, binding, environment);
             case PRESET_DART_REFERENCE -> FlutterPresetDartReferenceEditorComponent.customEditor(editor, binding, environment);
+            case NULLABLE_DART_REFERENCE -> FlutterNullableDartReferenceEditorComponent.customEditor(editor, binding, environment);
             case OBJECT_TAG -> FlutterObjectTagEditorComponent.customEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(

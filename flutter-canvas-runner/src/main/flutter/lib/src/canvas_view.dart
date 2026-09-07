@@ -91,6 +91,129 @@ double? _sliderNumber(CanvasNode node, String name) =>
       _ => null,
     };
 
+String? _rangeSliderGeometryMessage(
+  CanvasNode node,
+  BuildContext? context, [
+  BoxConstraints? constraints,
+]) {
+  final min = _sliderNumber(node, 'min') ?? 0;
+  final max = _sliderNumber(node, 'max') ?? 1;
+  double normalize(String name) =>
+      max > min ? (_sliderNumber(node, name)! - min) / (max - min) : 0;
+  String? reason;
+  if (!normalize('valuesStart').isFinite || !normalize('valuesEnd').isFinite) {
+    reason =
+        'valuesStart/valuesEnd/min/max: Flutter 3.44.8 range normalization produces NaN or infinity';
+  } else if (node.properties['enabled']?.value != false &&
+      max > min &&
+      (!min.isFinite || !max.isFinite)) {
+    reason =
+        'min/max: the SDK inverse range interpolation cannot safely convert gesture values between nonfinite endpoints';
+  }
+  if (reason == null && context != null) {
+    final theme = SliderTheme.of(context);
+    final localPadding = node.properties['padding']?.value;
+    final (horizontal, vertical) = switch (localPadding) {
+      CanvasEdgeInsets() => (
+        localPadding.left + localPadding.right,
+        localPadding.top + localPadding.bottom,
+      ),
+      CanvasEdgeInsetsDirectional() => (
+        localPadding.start + localPadding.end,
+        localPadding.top + localPadding.bottom,
+      ),
+      _ => (theme.padding?.horizontal ?? 0.0, theme.padding?.vertical ?? 0.0),
+    };
+    if (constraints != null &&
+        ((horizontal.isInfinite && !constraints.hasBoundedWidth) ||
+            (vertical.isInfinite && !constraints.hasBoundedHeight))) {
+      reason =
+          'padding: the resolved padding sum overflows on an unbounded parent axis';
+    }
+    final divisions = node.properties['divisions']?.value as int?;
+    if (reason == null &&
+        divisions != null &&
+        divisions > 10000 &&
+        theme.rangeTrackShape != null &&
+        !{
+          RectangularRangeSliderTrackShape,
+          RoundedRectRangeSliderTrackShape,
+          GappedRangeSliderTrackShape,
+        }.contains(theme.rangeTrackShape.runtimeType)) {
+      reason =
+          'divisions/SliderTheme.rangeTrackShape: an unreviewed track geometry cannot guarantee SDK tick density suppression within the isolated Canvas 10,000-division paint budget';
+    }
+    if (reason == null && divisions != null && divisions > 10000) {
+      final year2023 =
+          (node.properties['year2023']?.value as bool?) ??
+          // The pinned SDK still resolves this constructor/theme flag.
+          // ignore: deprecated_member_use
+          theme.year2023 ??
+          true;
+      final modern = Theme.of(context).useMaterial3 && !year2023;
+      final resolved = theme.copyWith(
+        trackHeight: theme.trackHeight ?? (modern ? 16 : 4),
+      );
+      final ticks =
+          theme.rangeTickMarkShape ??
+          (modern
+              ? const RoundRangeSliderTickMarkShape(tickMarkRadius: 2)
+              : const RoundRangeSliderTickMarkShape());
+      final interactive =
+          node.properties['enabled']?.value != false && max > min;
+      final tickWidth = ticks
+          .getPreferredSize(isEnabled: interactive, sliderTheme: resolved)
+          .width;
+      final thumb =
+          theme.rangeThumbShape ??
+          (modern
+              ? const HandleRangeSliderThumbShape()
+              : const RoundRangeSliderThumbShape());
+      final overlay = theme.overlayShape ?? const RoundSliderOverlayShape();
+      final largestPart = [
+        tickWidth,
+        for (final enabled in {false, interactive}) ...[
+          thumb.getPreferredSize(enabled, true).width,
+          overlay.getPreferredSize(enabled, true).width,
+        ],
+      ].reduce(math.max);
+      // BaseRangeSliderTrackShape may swap endpoints for a narrow parent.
+      // Keep both its part extent and intrinsic width in this conservative
+      // bound; never enter an unbounded SDK tick painting loop to measure it.
+      final renderWidth = constraints?.hasBoundedWidth == true
+          ? constraints!.maxWidth
+          : 144 + largestPart;
+      if (math.max(renderWidth, largestPart) / divisions >= 3 * tickWidth) {
+        reason =
+            'divisions/SliderTheme.rangeTickMarkShape: the resolved tick width and parent geometry cannot guarantee SDK density suppression within the isolated Canvas 10,000-division paint budget';
+      }
+    }
+  }
+  return reason == null
+      ? null
+      : 'Render RangeSlider ${node.id}: preview unavailable. $reason. Stored values and generated Dart are unchanged.';
+}
+
+String? _rangeSliderReferenceMessage(CanvasNode node) {
+  final refs = node.properties.entries
+      .where(
+        (entry) =>
+            entry.value.kind == 'dartObjectReferencePresence' &&
+            !(entry.key == 'onChanged' &&
+                node.properties['enabled']?.value == false),
+      )
+      .map((entry) => entry.key)
+      .toSet();
+  if (refs.isEmpty) return null;
+  return 'RangeSlider ${node.id} preview limitation: isolated Canvas never executes project or dependency Dart. '
+      '${refs.any((name) => {'onChanged', 'onChangeStart', 'onChangeEnd'}.contains(name)) ? 'Project value callbacks are not invoked; benign local callbacks retain controlled SDK interaction without changing stored values. ' : ''}'
+      '${refs.contains('labels') ? 'Project RangeLabels are unavailable; omitted value-indicator labels are an explicit preview approximation. ' : ''}'
+      '${refs.contains('overlayColor') ? 'Project overlay appearance is unavailable; the actual SDK direct color/theme/default overlay is an explicit preview approximation. ' : ''}'
+      '${refs.any((name) => name.startsWith('mouseCursor')) ? 'Project cursors are unavailable; the SDK theme/default cursor is an explicit preview approximation. ' : ''}'
+      '${refs.contains('semanticFormatterCallback') ? 'Project semantics formatter is not invoked; the SDK default percentages are an explicit preview approximation. ' : ''}'
+      'Stored values and generated Dart are unchanged.';
+}
+
 String? _sliderGeometryMessage(
   CanvasNode node,
   BuildContext? context, [
@@ -734,6 +857,10 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? _switchPaddingMessage(node, context, constraints) ??
               _switchPreviewMessage(node, context)
         : _switchPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.RangeSlider') {
+    return _rangeSliderGeometryMessage(node, context, constraints) ??
+        _rangeSliderReferenceMessage(node);
   }
   if (node.type == 'flutter.material.Slider') {
     return _sliderGeometryMessage(node, context, constraints) ??
@@ -1753,6 +1880,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
+        node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.material.CircularProgressIndicator' ||
@@ -3724,6 +3852,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
+      'flutter.material.RangeSlider' => _rangeSlider(context),
       'flutter.material.Slider' => _slider(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
@@ -4286,6 +4415,78 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     }
     return entries.isEmpty ? null : WidgetStateProperty<Icon?>.fromMap(entries);
   }
+
+  Widget _rangeSlider(BuildContext context) => _TextButtonPreview(
+    message: _rangeSliderReferenceMessage(node) ?? '',
+    child: _RefreshLayoutObserver(
+      builder: (context, constraints) {
+        final geometry = _rangeSliderGeometryMessage(
+          node,
+          context,
+          constraints,
+        );
+        if (geometry != null) {
+          return _customClipperPreviewUnavailable(
+            widgetName: 'RangeSlider',
+            expectedType: 'safe SDK range slider geometry',
+            previewLabel: 'RangeSlider\npreview unavailable',
+            messageOverride: geometry,
+          );
+        }
+        final cursorEntries = <WidgetStatesConstraint, MouseCursor?>{};
+        for (final entry in _checkboxStateLayers.entries) {
+          final name = 'mouseCursor${entry.value}';
+          if (node.properties.containsKey(name)) {
+            cursorEntries[entry.key] = _mouseCursor(name);
+          }
+        }
+        if (node.properties.containsKey('mouseCursorDefault')) {
+          cursorEntries[WidgetState.any] = _mouseCursor('mouseCursorDefault');
+        }
+        // Resolve only the outer property. Returned WidgetStateMouseCursor
+        // presets retain the SDK's own cursor-session semantics.
+        return Listener(
+          behavior: HitTestBehavior.translucent,
+          onPointerDown: (_) => onSelected(node.id),
+          child: RangeSlider(
+            values: RangeValues(
+              _sliderNumber(node, 'valuesStart')!,
+              _sliderNumber(node, 'valuesEnd')!,
+            ),
+            onChanged: _boolean('enabled') == false
+                ? null
+                : (_) => onSelected(node.id),
+            onChangeStart: node.properties.containsKey('onChangeStart')
+                ? (_) {}
+                : null,
+            onChangeEnd: node.properties.containsKey('onChangeEnd')
+                ? (_) {}
+                : null,
+            min: _sliderNumber(node, 'min') ?? 0,
+            max: _sliderNumber(node, 'max') ?? 1,
+            divisions: _integer('divisions'),
+            labels:
+                node.properties.containsKey('labelsStart') ||
+                    node.properties.containsKey('labelsEnd')
+                ? RangeLabels(
+                    _string('labelsStart') ?? '',
+                    _string('labelsEnd') ?? '',
+                  )
+                : null,
+            activeColor: _resolvedColor(context, 'activeColor'),
+            inactiveColor: _resolvedColor(context, 'inactiveColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            mouseCursor: cursorEntries.isEmpty
+                ? null
+                : WidgetStateProperty<MouseCursor?>.fromMap(cursorEntries),
+            padding: _edgeInsetsGeometry('padding'),
+            // ignore: deprecated_member_use
+            year2023: _boolean('year2023'),
+          ),
+        );
+      },
+    ),
+  );
 
   Widget _slider(BuildContext context) => _SliderPreview(
     cupertino: _checkboxUsesCupertino(node, context),

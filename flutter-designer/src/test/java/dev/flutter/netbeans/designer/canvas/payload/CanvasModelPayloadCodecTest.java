@@ -97,6 +97,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.Checkbox",
             "flutter.material.Switch",
             "flutter.material.Slider",
+            "flutter.material.RangeSlider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3689,6 +3690,61 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void rangeSliderDenseLocalAndWholeFamiliesPreserveAll37FieldsWithoutProjectCodeOrResources() throws Exception {
+        var fields = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.full();
+        var node = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(fields);
+        var codec = new CanvasModelPayloadCodec();
+        var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+        String json = new String(codec.encode(candidate), StandardCharsets.UTF_8);
+        assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
+        for (var name : fields.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+        for (String name : List.of("onChanged", "onChangeStart", "onChangeEnd", "semanticFormatterCallback")) {
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), name);
+        }
+        for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "imageProvider", "resources")) assertFalse(json.contains(absent), absent);
+        assertTrue(json.contains("\"protocolVersion\":18"));
+        for (String family : List.of("labels", "overlayColor", "mouseCursor", "mouseCursorPressed")) {
+            var whole = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(Map.of(new PropertyName(family),
+                    dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.reference("projectValue")));
+            String referenceJson = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), whole))), StandardCharsets.UTF_8);
+            assertTrue(referenceJson.contains("\"" + family + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            assertFalse(referenceJson.contains("projectValue"));
+        }
+    }
+
+    @Test
+    void rangeSliderSignedInfinitiesExplicitNullAndEmptyLabelsRemainDifferentWireValues() throws Exception {
+        for (boolean negative : List.of(false, true)) {
+            var infinity = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.infinity(negative);
+            var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+            for (String name : dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema.rangeProperties()) fields.put(new PropertyName(name), infinity);
+            for (String name : List.of("labels", "divisions", "year2023", "mouseCursorPressed", "overlayColorPressed")) fields.put(new PropertyName(name), new PropertyValue.NullValue());
+            var node = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(fields);
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"type\":\"double\",\"value\":\"" + (negative ? "negativeInfinity" : "infinity") + "\""));
+            for (String name : List.of("labels", "divisions", "year2023", "mouseCursorPressed", "overlayColorPressed")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+        }
+        var empty = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(Map.of(new PropertyName("labelsEnd"), new PropertyValue.StringValue("")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"labelsEnd\":{\"kind\":\"string\",\"value\":\"\"}"));
+        assertFalse(json.contains("\"labels\":"));
+        assertFalse(json.contains("\"labelsStart\":"));
+    }
+
+    @Test
+    void rangeSliderMalformedRangesWholeLocalConflictsAndRawCallbacksFailBeforeEncoding() {
+        for (var fields : List.of(Map.of(new PropertyName("valuesStart"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("min"), new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                Map.of(new PropertyName("valuesStart"), new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                Map.of(new PropertyName("labels"), new PropertyValue.NullValue(), new PropertyName("labelsStart"), new PropertyValue.StringValue("")),
+                Map.of(new PropertyName("mouseCursor"), dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.reference("cursor"), new PropertyName("mouseCursorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.CallbackValue("legacy")))) {
+            var node = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     @Test

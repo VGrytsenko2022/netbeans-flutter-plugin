@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -458,6 +459,26 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.value())) {
+            RangeSliderWidgetPropertySchema.rangeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/valuesStart", node.id(), message)));
+            for (String family : List.of("labels", "overlayColor", "mouseCursor")) {
+                List<String> locals = switch (family) {
+                    case "labels" -> RangeSliderWidgetPropertySchema.labelProperties();
+                    case "overlayColor" -> RangeSliderWidgetPropertySchema.overlayColorStateProperties();
+                    default -> RangeSliderWidgetPropertySchema.mouseCursorStateProperties();
+                };
+                if (node.properties().containsKey(new PropertyName(family))) {
+                    for (String name : locals) {
+                        if (node.properties().containsKey(new PropertyName(name))) {
+                            issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/" + name, node.id(),
+                                    "RangeSlider " + family + " whole value and local entries are mutually exclusive."));
+                        }
+                    }
+                }
+            }
+            return;
+        }
         if (type.equals(SliderWidgetPropertySchema.SLIDER_TYPE.value())) {
             SliderWidgetPropertySchema.rangeError(node).ifPresent(message ->
                     issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/value", node.id(), message)));

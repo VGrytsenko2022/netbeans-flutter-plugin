@@ -18,6 +18,7 @@ import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -337,7 +338,8 @@ public final class DartRegionGenerator {
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                 || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
-                || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)) {
+                || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
+                || node.type().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE)) {
             return !name.value().equals("onChanged") || !new PropertyValue.BooleanValue(false).equals(
                     node.properties().get(new PropertyName("enabled")));
         }
@@ -413,6 +415,9 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE)
+                    && (property.parameter().order() >= 18
+                    || Set.of("valuesStart", "valuesEnd", "labelsStart", "labelsEnd", "onChanged").contains(property.name().value()))) continue;
             if (node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
                     && (property.parameter().order() >= 22 || property.name().value().equals("onChanged")
                     || property.name().value().equals("mouseCursor")
@@ -575,6 +580,9 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)) {
             appendSliderArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE)) {
+            appendRangeSliderArguments(node, definition, path, context, arguments);
         }
         if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             PropertyDefinition pressed = definition.property(new PropertyName("onPressed")).orElseThrow();
@@ -2098,6 +2106,82 @@ public final class DartRegionGenerator {
             previous = symbols.end();
         }
         rendered.append(source, previous, source.length());
+    }
+
+    private void appendRangeSliderArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
+        PropertyValue reference = node.properties().get(changed.name());
+        boolean enabled = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("enabled")));
+        RenderedValue callback = !enabled
+                ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                : reference == null ? scalar("(_) {}", false, path + "/properties/onChanged", node.id(), context)
+                : renderProperty(reference, changed, path + "/properties/onChanged", node.id(), context);
+        arguments.add(new ConstructorArgument(changed.parameter(), "onChanged", false, callback));
+        arguments.add(new ConstructorArgument(definition.property(new PropertyName("valuesStart")).orElseThrow().parameter(),
+                "values", false, renderRangeSliderPair(node, definition, "values", "RangeValues", path, context)));
+        if (RangeSliderWidgetPropertySchema.labelProperties().stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))) {
+            arguments.add(new ConstructorArgument(definition.property(new PropertyName("labels")).orElseThrow().parameter(),
+                    "labels", false, renderRangeSliderPair(node, definition, "labels", "RangeLabels", path, context)));
+        }
+        for (String family : List.of("overlayColor", "mouseCursor")) {
+            ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : RangeSliderWidgetPropertySchema.statePriority()) {
+                String name = family + Character.toUpperCase(state.charAt(0)) + state.substring(1);
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value != null) {
+                    PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+                    String fieldPath = path + "/properties/" + name;
+                    RenderedValue rendered = family.equals("mouseCursor") && value instanceof PropertyValue.StringValue preset
+                            ? renderRangeSliderCursor(preset, fieldPath, node.id(), context)
+                            : renderProperty(value, property, fieldPath, node.id(), context);
+                    entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state, rendered));
+                }
+            }
+            if (!entries.isEmpty()) {
+                arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),
+                        family, false, renderCheckboxStateMap("WidgetStateProperty", family.equals("overlayColor") ? "Color" : "MouseCursor",
+                                entries, path + "/properties/" + family, node.id(), context)));
+            }
+        }
+    }
+
+    private RenderedValue renderRangeSliderPair(WidgetNode node, WidgetDefinition definition, String family,
+            String type, String path, GenerationContext context) {
+        String firstPath = path + "/properties/" + family + "Start";
+        if (family.equals("labels") && !node.properties().containsKey(new PropertyName("labelsStart"))) {
+            firstPath = path + "/properties/labelsEnd";
+        }
+        RenderedSymbol symbol = context.planner().renderedSymbol(MATERIAL_IMPORT, type);
+        StringBuilder rendered = new StringBuilder("const ");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(rendered, occurrences, symbol, "widget:" + node.id() + ":range-pair:" + family,
+                firstPath, node.id());
+        rendered.append('(');
+        for (String suffix : List.of("Start", "End")) {
+            if (suffix.equals("End")) rendered.append(", ");
+            PropertyName name = new PropertyName(family + suffix);
+            PropertyValue value = node.properties().get(name);
+            RenderedValue part = value == null
+                    ? scalar("''", true, firstPath, node.id(), context)
+                    : renderProperty(value, definition.property(name).orElseThrow(), path + "/properties/" + name.value(), node.id(), context);
+            appendRendered(rendered, occurrences, part);
+        }
+        rendered.append(')');
+        return scalar(rendered.toString(), true, firstPath, node.id(), context, occurrences);
+    }
+
+    private RenderedValue renderRangeSliderCursor(PropertyValue.StringValue preset, String path,
+            StableId widgetId, GenerationContext context) {
+        String owner = preset.value().equals("defer") || preset.value().equals("uncontrolled")
+                ? "MouseCursor" : Set.of("clickable", "adaptiveClickable", "textable").contains(preset.value())
+                        ? "WidgetStateMouseCursor" : "SystemMouseCursors";
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, owner);
+        return scalar(type.text() + '.' + preset.value(), true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":range-cursor:" + path, type.nameOffset(),
+                        type.name(), type.libraryUri(), path, Optional.of(widgetId)),
+                        occurrence("widget:" + widgetId + ":range-cursor-member:" + path, type.text().length() + 1,
+                                preset.value(), type.libraryUri(), path, Optional.of(widgetId))));
     }
 
     private void appendSliderArguments(WidgetNode node, WidgetDefinition definition, String path,
@@ -7015,7 +7099,8 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                             || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
-                            || definition.typeId().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
+                            || definition.typeId().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
+                            || definition.typeId().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

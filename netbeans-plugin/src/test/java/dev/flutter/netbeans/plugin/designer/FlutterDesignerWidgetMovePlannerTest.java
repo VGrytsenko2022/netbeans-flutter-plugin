@@ -518,6 +518,21 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void completedRadioGroupMovesAsOneSubtreeAndCannotLoseItsRequiredChild() {
+        var requiredChild = validText(D_ID, "refresh child");
+        var wrapper = new WidgetNode(A_ID, type("flutter.widgets.RadioGroup"),
+                dev.flutter.netbeans.plugin.designer.properties.RadioGroupPropertyContractTest.full(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(requiredChild)));
+        var destination = listParent(B_ID, STACK, CHILDREN, List.of());
+        var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(wrapper, destination)));
+        var result = planner.plan(document, BUILT_INS, wrapper.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id()));
+        assertEquals(new WidgetPlacement(destination.id(), CHILDREN, 0), accepted(result).command().destination());
+        assertAcceptedCommandApplies(document, BUILT_INS, wrapper, result);
+        assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(document, BUILT_INS, requiredChild.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id())));
+    }
+
+    @Test
     void completedRefreshIndicatorMovesAsOneSubtreeAndCannotLoseItsRequiredChild() {
         var requiredChild = validText(D_ID, "refresh child");
         var wrapper = new WidgetNode(A_ID, type("flutter.material.RefreshIndicator"),

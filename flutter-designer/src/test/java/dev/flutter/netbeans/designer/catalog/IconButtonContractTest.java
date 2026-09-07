@@ -45,7 +45,7 @@ class IconButtonContractTest {
         assertFalse(valid(prototype));
         assertEquals("icon", WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).orElseThrow().name().value());
         assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD, WidgetPlacementRules.creationMode(definition()));
-        assertEquals(15, CATALOG.definitions().stream().filter(d -> WidgetPlacementRules.creationMode(d)
+        assertEquals(16, CATALOG.definitions().stream().filter(d -> WidgetPlacementRules.creationMode(d)
                 == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
         assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
         assertEquals(512, ValidationLimits.defaults().maxPropertiesPerWidget());

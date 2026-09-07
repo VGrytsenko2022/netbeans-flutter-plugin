@@ -1218,6 +1218,204 @@ class FlutterDesignerMutationControllerIntegrationTest {
         return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
     }
 
+
+    @Test
+    void paletteRadioGroupAllFourStableFieldsRequiredChildSaveReopenAndRollback() throws Exception {
+        var id = StableId.parse("fdd00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.widgets.RadioGroup");
+        ExactPair pair;
+        try (var fixture = fixture("radio_group_wrapper_sparse_fields", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var originalChild = findModelWidget(ready.document().orElseThrow().root(), FIRST_ID);
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 0, () -> id));
+            var current = applyRadioGroupMutation(fixture, ready, plan.command(), id);
+            var initial = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(originalChild, findModelWidget(initial, FIRST_ID), "Wrap preserves the exact existing subtree");
+            assertEquals(java.util.Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("String"),
+                    new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), initial.properties());
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+            var sets = properties.getPropertySets();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var cell = cellProperty(properties, name); var editorClass = cell.getPropertyEditor().getClass();
+                byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+                var value = dev.flutter.netbeans.plugin.designer.properties.RadioGroupPropertyContractTest.value(field);
+                commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                current = applyRadioGroupMutation(fixture, current, commands.getFirst(), id);
+                var changed = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(value, changed.properties().get(field.name()), name);
+                assertEquals(initial.slots(), changed.slots());
+                properties.refreshPresentation(changed, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(cell, cellProperty(properties, name));
+                assertEquals(editorClass, cell.getPropertyEditor().getClass());
+                assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+                byte[] editedDart = fixture.editor().liveSnapshot().markerBearingUtf8(), editedFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(id, SECOND_ID));
+                assertEquals(initial, findModelWidget(current.document().orElseThrow().root(), id), name);
+                assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(beforeFd, refreshProgressFdBytes(fixture));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(id, SECOND_ID));
+                assertArrayEquals(editedDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(editedFd, refreshProgressFdBytes(fixture));
+                pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                try (var reopened = fixture("radio_group_reopened_field_" + name, pair)) {
+                    assertEquals(changed, findModelWidget(reopened.ready().document().orElseThrow().root(), id));
+                }
+                token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(id, SECOND_ID));
+                properties.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            assertEquals(4, definition.properties().size());
+            for (PropertyValue selected : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("chosen"))) {
+                current = applyRadioGroupMutation(fixture, current, new SetProperty(id, new PropertyName("groupValue"), selected), id);
+                current = applyRadioGroupMutation(fixture, current, new ResetProperty(id, new PropertyName("groupValue")), id);
+                assertFalse(findModelWidget(current.document().orElseThrow().root(), id).properties().containsKey(new PropertyName("groupValue")));
+            }
+            current = applyRadioGroupMutation(fixture, current, new SetProperty(id, new PropertyName("nullableValueType"), new PropertyValue.BooleanValue(false)), id);
+            current = applyRadioGroupMutation(fixture, current, new ResetProperty(id, new PropertyName("nullableValueType")), id);
+            var exact = findModelWidget(current.document().orElseThrow().root(), id);
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, new PropertyName("onChanged")),
+                    new ResetProperty(id, new PropertyName("valueType")),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.NullValue()),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.CallbackValue("rawCallback")),
+                    new SetProperty(id, new PropertyName("groupValue"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE)),
+                    new dev.flutter.netbeans.designer.command.RemoveWidget(FIRST_ID))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "RadioGroup rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason);
+                current = awaitReady(fixture.mutations());
+                assertEquals(exact, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                assertEquals(undo, history.getUndoPresentationName());
+            }
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "radio_group_refused", "Selection rejected")));
+            var refused = fixture.mutations().submit(current.token().orElseThrow(),
+                    new SetProperty(id, new PropertyName("groupValue"), new PropertyValue.StringValue("refused")), "RadioGroup rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, refused.outcome());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undo, history.getUndoPresentationName());
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("radio_group_reopened_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyRadioGroupMutation(fixture, fixture.ready(),
+                    new SetProperty(id, new PropertyName("groupValue"), new PropertyValue.StringValue("saved")), id);
+            assertEquals(new PropertyValue.StringValue("saved"), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("groupValue")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteRadioGroupCompoundTypeDraftIsOneGuardedHistoryStepAndSurvivesReopen() throws Exception {
+        StableId id = StableId.parse("fde00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.widgets.RadioGroup");
+        java.util.Map<String, Optional<PropertyValue>> expectedTuple = java.util.Map.of(
+                "valueType", Optional.of(new PropertyValue.StringValue("int")),
+                "nullableValueType", Optional.of(new PropertyValue.BooleanValue(false)),
+                "groupValue", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))));
+        ExactPair pair;
+        try (var fixture = fixture("radio_group_atomic_generic_type", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var insertion = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    new FlutterDesignerPaletteDropPlanner().planWrapTarget(ready.document().orElseThrow(),
+                            ready.catalog().orElseThrow(), type, FIRST_ID, () -> id));
+            var current = applyRadioGroupMutation(fixture, ready, insertion.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var before = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, before, definition, commands::add);
+            var typeCell = cellProperty(properties, "valueType");
+            var valueCell = cellProperty(properties, "groupValue");
+            var sets = properties.getPropertySets();
+            var requested = new java.util.LinkedHashMap<>(FlutterPropertyCellValue.RadioTypeEdit.snapshot(before));
+            var nextType = new PropertyValue.StringValue("int");
+            requested.put("valueType", Optional.of(nextType));
+            requested.put("nullableValueType", Optional.of(new PropertyValue.BooleanValue(false)));
+            requested.put("groupValue", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))));
+            var edit = new FlutterPropertyCellValue(Optional.of(nextType),
+                    Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(type, id, FlutterPropertyCellValue.RadioTypeEdit.snapshot(before), requested)));
+            typeCell.setValue(edit);
+            assertEquals(1, commands.size());
+            assertInstanceOf(PatchProperties.class, commands.getFirst());
+            current = applyRadioGroupMutation(fixture, current, commands.getFirst(), id);
+            var after = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(expectedTuple, FlutterPropertyCellValue.RadioTypeEdit.snapshot(after), "All three requested fields must be applied, including explicit false versus unset");
+            assertEquals(nextType, after.properties().get(new PropertyName("valueType")));
+            assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7)), after.properties().get(new PropertyName("groupValue")));
+            assertEquals(before.properties().get(new PropertyName("onChanged")), after.properties().get(new PropertyName("onChanged")));
+            assertEquals(before.slots(), after.slots());
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            assertTrue(new String(exactDart, StandardCharsets.UTF_8).contains("RadioGroup<int>"), "Selected T must be explicit in source");
+            properties.refreshPresentation(after, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            assertSame(typeCell, cellProperty(properties, "valueType"));
+            assertSame(valueCell, cellProperty(properties, "groupValue"));
+            assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+            commands.clear();
+            assertThrows(IllegalArgumentException.class, () -> typeCell.setValue(edit), "Stale three-field baseline cannot overwrite current values");
+            assertThrows(IllegalArgumentException.class, () -> valueCell.setValue(edit), "Dependent payload cannot be injected into another property");
+            assertTrue(commands.isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow();
+            onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(id, SECOND_ID));
+            assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id), "One Undo restores all three fields");
+            token = current.token().orElseThrow();
+            onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(id, SECOND_ID));
+            assertEquals(after, findModelWidget(current.document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            // A rejected analyzer result must roll back the entire dependent tuple, not only the displayed type.
+            properties.refreshPresentation(after, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            var rollback = new java.util.LinkedHashMap<>(FlutterPropertyCellValue.RadioTypeEdit.snapshot(after));
+            rollback.put("valueType", Optional.of(new PropertyValue.StringValue("String")));
+            rollback.put("groupValue", Optional.empty());
+            var backEdit = new FlutterPropertyCellValue(rollback.get("valueType"),
+                    Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(type, id, FlutterPropertyCellValue.RadioTypeEdit.snapshot(after), rollback)));
+            commands.clear();
+            typeCell.setValue(backEdit);
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request,
+                    "radio_group_type_refused", "RadioGroup dependent generic edit refused")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "RadioGroup atomic type rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(after, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("radio_group_generic_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), id);
+            assertEquals(expectedTuple, FlutterPropertyCellValue.RadioTypeEdit.snapshot(widget), "Save/reopen must retain the complete requested type tuple");
+            assertEquals(new PropertyValue.StringValue("int"), widget.properties().get(new PropertyName("valueType")));
+            var current = applyRadioGroupMutation(fixture, fixture.ready(),
+                    new SetProperty(id, new PropertyName("groupValue"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(8))), id);
+            assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(8)),
+                    findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("groupValue")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyRadioGroupMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "RadioGroup complete property contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(id, SECOND_ID));
+    }
+
     @Test
     void paletteRadioAll107FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
         var id = StableId.parse("fad00004-e530-4b9b-92fa-49e3c491f094");

@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
@@ -416,6 +417,7 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) continue;
             if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
                     && (property.parameter().order() >= 23
                     || Set.of("value", "groupValue", "onChanged", "groupRegistry", "visualDensityHorizontal", "visualDensityVertical").contains(property.name().value())
@@ -584,6 +586,9 @@ public final class DartRegionGenerator {
         if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
             appendRadioArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
+        if (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) {
+            appendRadioIdentityArguments(node, definition, path, context, arguments, List.of("groupValue", "onChanged"));
+        }
         if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
             appendSwitchArguments(node, definition, path, context, arguments);
         }
@@ -713,14 +718,16 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
-        if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
+        if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
+                || node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) {
             RenderedSymbol type = radioTypeSymbol(node, context);
             String selectedType = type.text() + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
             int typeStart = constructor.length() + 1;
             boolean projectType = node.properties().get(new PropertyName("valueType")) instanceof PropertyValue.DartObjectReferenceValue;
             constructorOccurrences.add(occurrence(projectType
                             ? "widget:" + node.id() + ":property-reference:" + path + "/properties/valueType:root"
-                            : "widget:" + node.id() + ":radio-core-value-type",
+                            : "widget:" + node.id() + (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
+                                    ? ":radio-group-core-value-type" : ":radio-core-value-type"),
                     typeStart + type.nameOffset(), type.name(), type.libraryUri(),
                     path + "/properties/valueType" + (projectType ? "/rootSymbol" : ""), Optional.of(node.id()),
                     Optional.of(new GeneratedDartStaticTypeRequirement(typeStart, type.text().length(), "Type", Optional.of(selectedType)))));
@@ -2344,11 +2351,11 @@ public final class DartRegionGenerator {
                 : new RenderedSymbol(reference.rootSymbol(), reference.rootSymbol(), CURRENT_PROJECT_LIBRARY_URI, 0);
     }
 
-    private void appendRadioArguments(WidgetNode node, WidgetDefinition definition, String path,
-            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+    private void appendRadioIdentityArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments, List<String> names) {
         String selectedType = radioTypeSymbol(node, context).text()
                 + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
-        for (String name : List.of("value", "groupValue", "onChanged", "groupRegistry")) {
+        for (String name : names) {
             PropertyName key = new PropertyName(name);
             PropertyValue value = node.properties().get(key);
             if (value == null) continue;
@@ -2378,6 +2385,12 @@ public final class DartRegionGenerator {
             }
             arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
         }
+    }
+
+    private void appendRadioArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        appendRadioIdentityArguments(node, definition, path, context, arguments,
+                List.of("value", "groupValue", "onChanged", "groupRegistry"));
         if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
             appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
         }
@@ -7202,6 +7215,7 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                             || definition.typeId().equals(RadioWidgetPropertySchema.RADIO_TYPE)
+                            || definition.typeId().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
                             || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                             || definition.typeId().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
                             || definition.typeId().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE))

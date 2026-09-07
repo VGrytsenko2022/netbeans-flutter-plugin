@@ -164,6 +164,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
             Map.entry("flutter.material.Radio", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.RadioGroup", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.Slider", STATIC_EDITABLE),
             Map.entry("flutter.material.RangeSlider", STATIC_EDITABLE),
@@ -336,6 +337,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.IconButton", iconButtonProjection()),
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
             Map.entry("flutter.material.Radio", radioProjection()),
+            Map.entry("flutter.widgets.RadioGroup", radioGroupProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.Slider", sliderProjection()),
             Map.entry("flutter.material.RangeSlider", rangeSliderProjection()),
@@ -2383,6 +2385,23 @@ public final class BuiltInWidgetCapabilityCatalog {
             properties.put(name, value);
         }
         return projection(properties, Map.of());
+    }
+
+    private static CanvasProjection radioGroupProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection shared = radioProjection();
+        for (String name : RadioGroupWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value = shared.propertyContracts().get(new PropertyName(name));
+            if (name.equals("onChanged")) {
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(value.constraintFingerprints());
+                constraints.remove(PropertyValueKind.NULL);
+                value = new CanvasPropertyContract(constraints.keySet(), true,
+                        Optional.of("string:" + base64("noop")), Map.of(), constraints);
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of("child", singleSlotSchema(true, 1)));
     }
 
     private static CanvasProjection checkboxProjection() {

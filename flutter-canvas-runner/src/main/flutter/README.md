@@ -389,7 +389,7 @@ aggregate catalog had 26 widgets, 21 reviewed const constructors and 659
 writable properties, including 642 outside Scaffold. Twenty-six sources across
 25 any-widget and two trait destinations formed 702 candidates: 629 accepted
 and 73 rejected. The practical Material/Base Designer backlog was 26/92
-complete with 66 remaining, and the Palette Layout category contained 18
+complete with 65 remaining, and the Palette Layout category contained 18
 items. `.fd` schema v7, Catalog API 6, Canvas model v12 and NBFC
 framing/control/wire v1 remain unchanged.
 
@@ -608,7 +608,7 @@ instance exposes only its visual terminal append edge, resolved from main axis,
 reversal and ambient `Directionality`. At that milestone the aggregate catalog had 36 widgets;
 36 sources across 35 insertable destinations form 1,260 cells, with 1,097
 accepted and 163 rejected. The practical Material/Base backlog was 36/92
-complete with 56 remaining, and Layout contains 28 items. Canvas model protocol
+complete with 55 remaining, and Layout contains 28 items. Canvas model protocol
 remains v14; NBFC framing, control and wire remain v1.
 
 [`flutter.widgets.OverflowBar`](https://api.flutter.dev/flutter/widgets/OverflowBar/OverflowBar.html)
@@ -838,7 +838,7 @@ an empty zero-size node retains only the bounded transient Designer target.
 At that milestone the aggregate catalog had 46 widgets and 40 reviewed const definitions,
 with 735 writable rows (718 outside Scaffold). Palette contained 31 Layout,
 three Scrolling, seven Basic, four Material and one Accessibility item; the
-backlog was 46/92 complete with 46 remaining. The 46 sources across 43
+backlog was 46/92 complete with 45 remaining. The 46 sources across 43
 insertable destinations formed 1,978 cells, with 1,771 accepted and 207 rejected.
 Exact typed null advances `.fd` to v10, Canvas model protocol to v15 and Catalog
 API to v10; NBFC framing, control and wire remain v1.
@@ -1357,15 +1357,29 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 86 widgets and 79 reviewed const definitions,
-with 3560 writable rows (3543 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, twenty-three Material and six Accessibility items.
-Against the historical 92-widget target, 86 are complete and six remain; a fixed
-ordered inventory has not been recovered. The 86 sources across 68 insertable
-destinations form 5,848 cells, with 5,486 accepted and 362 rejected.
+The aggregate catalog now has 87 widgets and 80 reviewed const definitions,
+with 3564 writable rows (3547 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, twenty-four Material and six Accessibility items.
+Against the historical 92-widget target, 87 are complete and five remain; a fixed
+ordered inventory has not been recovered. The 87 sources across 68 insertable
+destinations form 5,916 cells, with 5,552 accepted and 364 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
+
+## RadioGroup typed Canvas
+
+The protocol-v18 projection adds `flutter.widgets.RadioGroup` with four property
+rows and one required child; there are no new value kinds or wire versions.
+Built-in String/int/double/num/bool/Object and their nullable forms dispatch
+actual `RadioGroup<T>` SDK widgets. Controlled callbacks never persist a new
+selection or execute project code. Exact-type inherited scope, nested groups,
+keyboard behavior and SDK focus/semantics remain authoritative for valid groups.
+
+Runtime-invalid selected-client conflicts and unresolved project identity are
+reported locally, without clamping values, rewriting descendants, editing the
+model/source or treating project equality as known. See ADR-115 for the precise
+mounted-client and semantic-scope policy and its verified recovery behavior.
 
 ## Radio standard/adaptive Canvas
 

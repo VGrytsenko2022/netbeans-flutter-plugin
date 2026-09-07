@@ -154,6 +154,59 @@ class FlutterRadioEditorComponentsTest {
         });
     }
 
+    @Test void radioGroupTypeDraftHasOnlyThreeFieldsAndCancelInvalidAndSingleCommitStayIsolated() throws Exception {
+        onEdt(() -> {
+            var widget = new WidgetNode(StableId.random(), RadioGroupPropertyContractTest.DEF.typeId(), RadioGroupPropertyContractTest.full(), Map.of());
+            var descriptor = new FeatureDescriptor(); descriptor.setValue(FlutterRadioTypeEditorComponent.CONTEXT_ATTRIBUTE, (java.util.function.Supplier<WidgetNode>) () -> widget);
+            var binding = FlutterTypedPropertyEditors.binding(RadioGroupPropertyContractTest.DEF.property(new PropertyName("valueType")).orElseThrow()).orElseThrow();
+            var editor = binding.createEditor(); var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("String")); editor.setValue(initial);
+            var env = environment(editor, descriptor); var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            var panel = editor.getCustomEditor(); assertTrue(panel.getAccessibleContext().getAccessibleName().contains("RadioGroup"));
+            var tabs = find(panel, JTabbedPane.class, "flutter.radioType.tabs"); assertEquals(2, tabs.getTabCount()); assertEquals("Group value", tabs.getTitleAt(1));
+            assertTrue(text(panel).contains("all three")); assertTrue(text(panel).contains("Descendant Radio types are never changed"));
+            find(panel, JComboBox.class, FlutterRadioTypeEditorComponent.PRESET_NAME).setSelectedItem("int");
+            env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+            var group = find(panel, JPanel.class, "flutter.radioType.groupValue");
+            find(group, JComboBox.class, FlutterRadioValueEditorComponent.MODE_NAME).setSelectedItem(FlutterRadioValueEditorComponent.PROJECT);
+            find(group, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("invalid()");
+            env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue());
+            find(group, JComboBox.class, FlutterRadioValueEditorComponent.MODE_NAME).setSelectedItem(FlutterRadioValueEditorComponent.INTEGER);
+            find(group, JTextField.class, FlutterRadioValueEditorComponent.INTEGER_NAME).setText("2");
+            find(panel, JComboBox.class, FlutterRadioTypeEditorComponent.NULLABILITY_NAME).setSelectedIndex(1);
+            assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+            env.setState(PropertyEnv.STATE_VALID); var result = (FlutterPropertyCellValue) editor.getValue(); var draft = result.radioTypeEdit().orElseThrow();
+            assertEquals(widget.type(), draft.widgetType()); assertEquals(widget.id(), draft.widgetId()); assertEquals(FlutterPropertyCellValue.RadioTypeEdit.snapshot(widget), draft.baseline());
+            assertEquals(Map.of("valueType", Optional.of(new PropertyValue.StringValue("int")), "nullableValueType", Optional.of(new PropertyValue.BooleanValue(false)),
+                    "groupValue", Optional.of(new PropertyValue.IntegerValue(BigInteger.TWO))), draft.requested());
+            assertEquals(1, commits.get()); env.setState(PropertyEnv.STATE_NEEDS_VALIDATION); env.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+            assertEquals(RadioGroupPropertyContractTest.full(), widget.properties());
+            var canceledEditor = binding.createEditor(); canceledEditor.setValue(initial); environment(canceledEditor, descriptor);
+            var canceledPanel = canceledEditor.getCustomEditor(); find(canceledPanel, JComboBox.class, FlutterRadioTypeEditorComponent.PRESET_NAME).setSelectedItem("Object");
+            assertEquals(initial, canceledEditor.getValue()); assertEquals(RadioGroupPropertyContractTest.full(), widget.properties());
+            return null;
+        });
+    }
+
+    @Test void radioGroupRequiredCallbackOffersOnlyNoopOrValidatedReferenceWithAccurateHelp() throws Exception {
+        onEdt(() -> {
+            var binding = FlutterTypedPropertyEditors.binding(RadioGroupPropertyContractTest.DEF.property(new PropertyName("onChanged")).orElseThrow(),
+                    Optional.empty(), false, List.of("noop")).orElseThrow();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("noop")); var editor = binding.createEditor(); editor.setValue(initial);
+            var env = environment(editor, new FeatureDescriptor()); var panel = editor.getCustomEditor(); var mode = find(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME);
+            assertEquals(List.of(FlutterPresetDartReferenceEditorComponent.PRESET, FlutterPresetDartReferenceEditorComponent.PROJECT),
+                    java.util.stream.IntStream.range(0, mode.getItemCount()).mapToObj(mode::getItemAt).toList());
+            mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PROJECT);
+            assertTrue(text(panel).contains("required RadioGroup callback")); assertTrue(text(panel).contains("null and omission are not accepted"));
+            assertFalse(text(panel).contains("Enabled false preserves"));
+            find(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("bad()");
+            env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue());
+            find(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("_onChanged");
+            assertEquals(initial, editor.getValue()); env.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(RadioGroupPropertyContractTest.reference("_onChanged")), editor.getValue());
+            return null;
+        });
+    }
+
     private static String text(Component component) {
         String result = component instanceof JTextArea area ? area.getText() : "";
         if (component instanceof Container container) for (Component child : container.getComponents()) result += text(child);

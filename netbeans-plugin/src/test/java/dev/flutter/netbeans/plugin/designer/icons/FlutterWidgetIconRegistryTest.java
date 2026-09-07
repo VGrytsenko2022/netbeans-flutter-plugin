@@ -53,6 +53,17 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void radioGroupFamilyUsesGroupedSelectionGeometryInAllFourSvgs() throws Exception {
+        String base = ICON_ROOT + "radio_group.svg";
+        var small = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertTrue(small.geometry().stream().anyMatch(shape -> shape.startsWith("rect[") && shape.contains("rx=2")));
+        assertEquals(3, small.geometry().stream().filter(shape -> shape.startsWith("circle[")).count());
+        assertEquals(small.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry()); assertEquals(small.topology(), large.topology());
+        assertNotEquals(small.paint(), dark.paint());
+    }
+
+    @Test
     void radioFamilyUsesReviewedRingAndSelectionDotGeometryInAllFourSvgs() throws Exception {
         String base = ICON_ROOT + "radio.svg";
         var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
@@ -1929,6 +1940,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Slider", ICON_ROOT + "slider.svg");
         expected.put("flutter.material.RangeSlider", ICON_ROOT + "rangeslider.svg");
         expected.put("flutter.material.Radio", ICON_ROOT + "radio.svg");
+        expected.put("flutter.widgets.RadioGroup", ICON_ROOT + "radio_group.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
@@ -504,6 +505,11 @@ public final class WidgetTreeValidator {
         }
         if (type.equals(RadioWidgetPropertySchema.RADIO_TYPE.value())) {
             validateRadio(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.value())) {
+            RadioGroupWidgetPropertySchema.valueTypeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/valueType", node.id(), message)));
             return;
         }
         if (type.equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value())) {

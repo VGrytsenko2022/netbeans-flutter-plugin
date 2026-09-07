@@ -107,6 +107,7 @@ public final class BuiltInWidgetCatalog {
             iconButton(),
             checkbox(),
             radio(),
+            radioGroup(),
             switchWidget(),
             slider(),
             rangeSlider(),
@@ -989,6 +990,26 @@ public final class BuiltInWidgetCatalog {
         return widget(RadioWidgetPropertySchema.RADIO_TYPE.value(), "Radio", true,
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
                 palette("flutter.material", 100, 230, "Radio"), properties, List.of());
+    }
+
+    private static WidgetDefinition radioGroup() {
+        WidgetDefinition shared = radio();
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (var entry : RadioGroupWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints = shared.property(new PropertyName(name)).orElseThrow()
+                    .constraints().stream().filter(value -> !name.equals("onChanged")
+                            || value.kind() != PropertyValueKind.NULL).toList();
+            boolean required = name.equals("valueType") || name.equals("onChanged");
+            PropertyValue creation = name.equals("valueType") ? new PropertyValue.StringValue("String")
+                    : name.equals("onChanged") ? new PropertyValue.StringValue("noop") : null;
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), required, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), required, constraints, creation));
+        }
+        return widget(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.value(), "RadioGroup", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 240, "RadioGroup"), properties,
+                List.of(singleSlot("child", 2, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition checkbox() {

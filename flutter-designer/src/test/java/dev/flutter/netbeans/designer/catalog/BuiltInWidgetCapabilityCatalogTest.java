@@ -46,6 +46,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Slider",
             "flutter.material.RangeSlider",
             "flutter.material.Radio",
+            "flutter.widgets.RadioGroup",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -134,6 +135,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.Slider",
             "flutter.material.RangeSlider",
             "flutter.material.Radio",
+            "flutter.widgets.RadioGroup",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -227,7 +229,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(86, sources.size());
+        assertEquals(87, sources.size());
         assertEquals(68, destinations.size());
         assertEquals(66, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -237,9 +239,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(5848, candidates);
-        assertEquals(5486, accepted);
-        assertEquals(362, candidates - accepted);
+        assertEquals(5916, candidates);
+        assertEquals(5552, accepted);
+        assertEquals(364, candidates - accepted);
     }
 
     @Test

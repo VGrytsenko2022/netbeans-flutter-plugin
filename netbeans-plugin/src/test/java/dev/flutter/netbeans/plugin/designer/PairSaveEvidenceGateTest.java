@@ -700,11 +700,12 @@ class PairSaveEvidenceGateTest {
                 ticket, fixture.acceptedEvidence())).ready());
     }
 
-    @Test
-    void radioCoreTypesBindBothConstructorsAndNullableTypesFromEitherPinnedCoreLibrary() throws Exception {
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void radioCoreTypesBindBothConstructorsAndNullableTypesFromEitherPinnedCoreLibrary(boolean group) throws Exception {
         for (String type : List.of("String", "int", "double", "num", "bool", "Object")) {
             for (boolean nullable : List.of(false, true)) {
-                for (String variant : List.of("standard", "adaptive")) {
+                for (String variant : (group ? List.of("group") : List.of("standard", "adaptive"))) {
                     for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
                         RadioFixture radio = radioFixture(type, nullable, variant, tree);
                         var ticket = radioTicket(radio);
@@ -724,11 +725,12 @@ class PairSaveEvidenceGateTest {
         }
     }
 
-    @Test
-    void radioCoreAdmissionDoesNotAcceptOtherDartLibrariesOrForgedGeneratedTypeContracts() throws Exception {
-        RadioFixture radio = radioFixture("String", false, "standard", "bin/cache/dart-sdk/lib/core");
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void radioCoreAdmissionDoesNotAcceptOtherDartLibrariesOrForgedGeneratedTypeContracts(boolean group) throws Exception {
+        RadioFixture radio = radioFixture("String", false, group ? "group" : "standard", "bin/cache/dart-sdk/lib/core");
         for (String mutation : List.of("dart:async", "dart:io", "dart:core_evil", "id", "otherWidgetId",
-                "symbol", "type", "override", "missingOverride", "missingProof", "span", "library")) {
+                "family", "symbol", "type", "override", "missingOverride", "missingProof", "span", "library")) {
             var ticket = radioTicket(radio);
             var original = ticket.request().symbolProbes().stream()
                     .filter(probe -> probe.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
@@ -743,7 +745,8 @@ class PairSaveEvidenceGateTest {
                             mutation.equals("missingOverride") ? Optional.empty()
                                     : mutation.equals("override") ? Optional.of("Object") : type.sourceTypeOverride()));
             var forged = new DartSymbolProbe(
-                    mutation.equals("id") ? original.id() + ":other"
+                    mutation.equals("family") ? original.id().replace(group ? ":radio-group-" : ":radio-", group ? ":radio-" : ":radio-group-")
+                            : mutation.equals("id") ? original.id() + ":other"
                             : mutation.equals("otherWidgetId") ? original.id().replace("bbbbbbbb", "aaaaaaaa") : original.id(),
                     original.offset(), original.length(), mutation.equals("symbol") ? "Object" : original.expectedSymbolName(),
                     mutation.startsWith("dart:") ? mutation : original.expectedLibraryUri(),
@@ -765,9 +768,10 @@ class PairSaveEvidenceGateTest {
                 PairSaveEvidenceDiagnostic.Code.INVALID_FLUTTER_LIBRARY_URI);
     }
 
-    @Test
-    void radioCoreTargetMustBeItsOwnClassFileInsideTheExactTrustedSdk() throws Exception {
-        RadioFixture radio = radioFixture("String", false, "standard", "bin/cache/dart-sdk/lib/core");
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void radioCoreTargetMustBeItsOwnClassFileInsideTheExactTrustedSdk(boolean group) throws Exception {
+        RadioFixture radio = radioFixture("String", false, group ? "group" : "standard", "bin/cache/dart-sdk/lib/core");
         Path otherCore = radio.coreTarget().resolveSibling("object.dart");
         Files.writeString(otherCore, "class Object {}\n");
         Path outside = temporaryDirectory.resolve("outside/string.dart");
@@ -800,9 +804,10 @@ class PairSaveEvidenceGateTest {
                 PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
     }
 
-    @Test
-    void radioCoreStaticProofCannotBeMissingRejectedOrDetachedFromTheSelectedType() throws Exception {
-        RadioFixture radio = radioFixture("Object", true, "adaptive", "bin/cache/pkg/sky_engine/lib/core");
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void radioCoreStaticProofCannotBeMissingRejectedOrDetachedFromTheSelectedType(boolean group) throws Exception {
+        RadioFixture radio = radioFixture("Object", true, group ? "group" : "adaptive", "bin/cache/pkg/sky_engine/lib/core");
         for (boolean missing : List.of(false, true)) {
             var ticket = radioTicket(radio);
             var evidence = radioEvidence(radio, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
@@ -823,9 +828,10 @@ class PairSaveEvidenceGateTest {
                 true, Optional.empty(), Optional.of(new DartStaticTypeEvidence(detached, true, Optional.empty()))));
     }
 
-    @Test
-    void radioCoreNavigationIsRevalidatedAtPostCasBinding() throws Exception {
-        RadioFixture radio = radioFixture("bool", false, "standard", "bin/cache/dart-sdk/lib/core");
+    @org.junit.jupiter.params.ParameterizedTest
+    @org.junit.jupiter.params.provider.ValueSource(booleans = {false, true})
+    void radioCoreNavigationIsRevalidatedAtPostCasBinding(boolean group) throws Exception {
+        RadioFixture radio = radioFixture("bool", false, group ? "group" : "standard", "bin/cache/dart-sdk/lib/core");
         var ticket = radioTicket(radio);
         var analyzed = ticket.accept(analysis(ticket, radioEvidence(radio, ticket)));
         assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
@@ -843,11 +849,18 @@ class PairSaveEvidenceGateTest {
             case "bool" -> new PropertyValue.BooleanValue(false);
             default -> new PropertyValue.StringValue("option");
         };
-        Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.Radio", "",
-                Map.of(new PropertyName("value"), value, new PropertyName("valueType"), new PropertyValue.StringValue(type),
-                        new PropertyName("nullableValueType"), new PropertyValue.BooleanValue(nullable),
-                        new PropertyName("variant"), new PropertyValue.StringValue(variant),
-                        new PropertyName("onChanged"), new PropertyValue.StringValue("noop")));
+        var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+        properties.put(new PropertyName("valueType"), new PropertyValue.StringValue(type));
+        properties.put(new PropertyName("nullableValueType"), new PropertyValue.BooleanValue(nullable));
+        properties.put(new PropertyName("onChanged"), new PropertyValue.StringValue("noop"));
+        if (variant.equals("group")) {
+            properties.put(new PropertyName("groupValue"), value);
+        } else {
+            properties.put(new PropertyName("value"), value);
+            properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+        }
+        Fixture fixture = fixture(Optional.empty(), true, List.of(),
+                variant.equals("group") ? "flutter.widgets.RadioGroup" : "flutter.material.Radio", "", properties);
         Path sdk = fixture.flutterLib().getParent().getParent().getParent();
         Path target = sdk.resolve(tree).resolve(type.toLowerCase(java.util.Locale.ROOT) + ".dart");
         Files.createDirectories(target.getParent());
@@ -1997,10 +2010,16 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) {
-        if (widgetType.equals("flutter.material.Radio")) {
+        if (widgetType.equals("flutter.material.Radio") || widgetType.equals("flutter.widgets.RadioGroup")) {
+            var slots = widgetType.equals("flutter.widgets.RadioGroup")
+                    ? Map.of(new SlotName("child"), (WidgetSlot) new WidgetSlot.SingleSlot(Optional.of(
+                            new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                                    new WidgetTypeId("flutter.widgets.Text"),
+                                    Map.of(new PropertyName("data"), new PropertyValue.StringValue(text)), Map.of()))))
+                    : Map.<SlotName, WidgetSlot>of();
             return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
                     StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
-                    new WidgetTypeId(widgetType), radioProperties, Map.of()));
+                    new WidgetTypeId(widgetType), radioProperties, slots));
         }
         if (projectReference.isEmpty()) {
             return document(descriptor, text);

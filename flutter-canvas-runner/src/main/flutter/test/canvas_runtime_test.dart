@@ -5415,6 +5415,81 @@ void main() {
     }
   }
 
+  for (final profile in ['windows', 'web']) {
+    testWidgets(
+      'authoritative RadioGroup $profile wraps an existing child without admitting a second child',
+      (tester) async {
+        final input = StreamController<List<int>>();
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (_) {},
+          flush: () async {},
+          diagnostic: fail,
+        );
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+        );
+        final model =
+            jsonDecode(
+                  utf8.decode(
+                    fixture.elevatedButtonModelBytesForViewTest(
+                      properties: {
+                        'enabled': {'kind': 'boolean', 'value': true},
+                      },
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final control = (model['root'] as Map)['slots']['body']['child'] as Map;
+        control['type'] = 'flutter.widgets.RadioGroup';
+        control['properties'] = {
+          'valueType': {'kind': 'string', 'value': 'String'},
+          'onChanged': {'kind': 'string', 'value': 'noop'},
+        };
+        (model['profile'] as Map)['targetPlatform'] = profile;
+        _addRender(input, Uint8List.fromList(utf8.encode(jsonEncode(model))));
+        await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+        for (
+          var attempt = 0;
+          attempt < 20 && runtime.model == null;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        await tester.pump();
+        expect(find.byType(RadioGroup<String>), findsOneWidget);
+        runtime.setDropResolver(
+          (_, _, [_]) => CanvasDropTarget(
+            parentWidgetId: fixture.elevatedButtonWidgetIdForViewTest,
+            slotName: 'child',
+            insertionIndex: 0,
+          ),
+        );
+        for (final (type, accepted) in [
+          ('flutter.widgets.RadioGroup', true),
+          ('flutter.widgets.Text', false),
+        ]) {
+          expect(
+            await _sourceAwareHover(runtime, input, {
+              'token':
+                  'nbfdnd:v1:d40d59ed-9d9c-41b3-9bc7-9c7be768fc65:f6480d29-b8a4-4dc7-85f7-d517b6cdf368',
+              'xMicros': 500000,
+              'yMicros': 500000,
+              'generation': 0,
+              'probeId': 0,
+            }, widgetType: type),
+            accepted,
+          );
+        }
+        await input.close();
+        await running;
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
+
   for (final variant in ['standard', 'adaptive']) {
     testWidgets(
       'authoritative Slider $variant is a leaf and rejects fabricated child drop targets',

@@ -1968,6 +1968,12 @@ accepted architecture is documented in
   destinations form 5848 placements (5486 accepted / 362 rejected); Material has
   23 items. Historical target 86/92 leaves six; no recovered ordered inventory is
   claimed. Wire formats, safety budgets and deferred physical scope are unchanged.
+- [x] Add RadioGroup at Material/order240 as one complete const-constructor
+  slice: all three non-key arguments, four typed rows and one required child.
+  Keep exact T/T?, nullable selected references, required strict callback,
+  atomic three-field type editing, stable Properties, wrapping/history and
+  Save/reopen. Use actual SDK Canvas groups with bounded runtime conflict
+  diagnostics and no project-code execution. Final gate evidence: ADR-115.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1985,8 +1991,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty-six admitted built-ins.
-  The 83 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty-seven admitted built-ins.
+  The 84 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

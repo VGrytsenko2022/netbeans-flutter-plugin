@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly eighty-six
+The current capability-gated Palette and native Canvas admit exactly eighty-seven
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Slider`, `RangeSlider` and `Radio`.
-Seventy-nine definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 3560 typed writable rows: 3543 across the eighty-five
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Slider`, `RangeSlider`, `Radio` and `RadioGroup`.
+Eighty definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 3564 typed writable rows: 3547 across the eighty-six
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -222,7 +222,7 @@ Leaving alignment and fit unset preserves `Alignment.center` and
 overrides are outside this bounded contract. Generated Dart and Canvas build
 the real Flutter OverflowBox, preserving overflow, physical/directional
 alignment and both fit modes. At that milestone the practical Material/Base
-backlog was 26/92 complete with 66 remaining, and Layout contained 18 items.
+backlog was 26/92 complete with 65 remaining, and Layout contained 18 items.
 
 [`Flexible`](https://api.flutter.dev/flutter/widgets/Flexible/Flexible.html) is
 the seventh post-core Palette slice, at Layout order 130 immediately after
@@ -363,7 +363,7 @@ Dart contains the real bare `ListBody`. The Canvas alone supplies an
 axis-matched design-time viewport so the real widget receives the unbounded
 main-axis and bounded cross-axis constraints required by `RenderListBody`; that
 guard is not saved into the form or application source. The practical
-Material/Base backlog is now 36/92 complete with 56 remaining, and Layout
+Material/Base backlog is now 36/92 complete with 55 remaining, and Layout
 contains 28 items.
 
 [`OverflowBar`](https://api.flutter.dev/flutter/widgets/OverflowBar/OverflowBar.html)
@@ -509,7 +509,7 @@ effective index zero is still valid while the list is empty. The **children**
 Slots list remains fully ordered even though the real native/exact-Web widget
 paints, hits and exposes application semantics only for the selected child and
 sizes itself to the largest child. At that milestone the practical backlog was
-46/92 complete with 46 remaining; Layout contained 31 items, Scrolling 3, Basic 7, Material 4
+46/92 complete with 45 remaining; Layout contained 31 items, Scrolling 3, Basic 7, Material 4
 and Accessibility 1. Typed null advances `.fd` to v10, Catalog API to 10 and
 Canvas model to v15; NBFC framing and Canvas control/wire remain v1.
 
@@ -966,9 +966,9 @@ Side fields as well as its Shape; theme/default resolution is specific to
 OutlinedButton. Save/reopen, native history and the same explicit project-code
 preview limits apply.
 
-The practical backlog is now 86/92 complete with 6 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 23 and Accessibility 6. The aggregate
-is 79 reviewed const definitions and 3560 writable rows, including 3543 outside
+The practical backlog is now 87/92 complete with 5 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 24 and Accessibility 6. The aggregate
+is 80 reviewed const definitions and 3564 writable rows, including 3547 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -1034,13 +1034,13 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Eighty-six sources across sixty-six insertable any-widget and two trait-bound
-slots produce 5,848 compatibility candidates: 5,486 accepted and 362
+Eighty-seven sources across sixty-six insertable any-widget and two trait-bound
+slots produce 5,916 compatibility candidates: 5,552 accepted and 364
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea,
-Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton and IconButton use the
+Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton, IconButton and RadioGroup use the
 same generic atomic required-slot wrapper mode without a Row/Column-only outer
 placement rule; their required slots are also excluded, and none can wrap
 Expanded, Flexible or Spacer. Placeholder, DecoratedBox, ClipRect, ClipOval, ClipRRect, ClipPath, ClipRSuperellipse, PhysicalModel and ExcludeSemantics
@@ -1256,6 +1256,25 @@ choosing adaptive clears it atomically. Invalid range edits are rejected without
 clamping other fields. See [ADR-112](DECISIONS.md#adr-112--slider-ranges-interaction-and-adaptive-rendering)
 for the exact 33-field contract and isolated-preview limits.
 
+
+## RadioGroup
+
+Select Material → RadioGroup and drop it onto an existing widget/subtree to wrap
+that exact child. On Changed is required (No-op at creation); Child cannot be
+removed without replacing the wrapper or supplying another child. Group Value
+can be absent or explicitly null; both pass null, which can select a matching
+nullable Radio whose Value is null. Value Type selects a built-in or a named
+project type; Nullable Value Type defaults to false when unset.
+
+Place matching Radio types below the group. Nested same-type groups shadow outer
+groups; different types remain separate. Changing the group type does not
+automatically change any Radio. The dependent type/value dialog is one Undo step,
+and saved groups remain editable after reopening.
+
+Keyboard and semantics use the actual SDK. Preview callbacks do not write the
+selected value into the form, and project callbacks are not executed.
+Unresolved project values/types and conflicting selected clients are diagnosed
+without rewriting generated Dart. See ADR-115 for the exact preview boundaries.
 
 ## Radio
 

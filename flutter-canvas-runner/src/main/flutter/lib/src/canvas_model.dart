@@ -3994,6 +3994,18 @@ Map<String, _PropertySpec> _checkboxProperties() => {
   },
 };
 
+Map<String, _PropertySpec> _radioGroupProperties() => {
+  for (final name in ['valueType', 'nullableValueType', 'groupValue'])
+    name: _radioProperties()[name]!,
+  'onChanged': _PropertySpec(
+    {'string', 'dartObjectReference'},
+    required: true,
+    creationDefaultFingerprint: 'string:bm9vcA',
+    stringPattern: r'noop',
+    dartObjectExpectedType: 'ValueChanged<Object?>',
+  ),
+};
+
 Map<String, _PropertySpec> _radioProperties() => {
   for (final name in ['value', 'groupValue'])
     name: _PropertySpec(
@@ -6092,6 +6104,10 @@ final _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.material.Checkbox': _WidgetSpec(_checkboxProperties(), const {}),
   'flutter.material.Switch': _WidgetSpec(_switchProperties(), const {}),
   'flutter.material.Radio': _WidgetSpec(_radioProperties(), const {}),
+  'flutter.widgets.RadioGroup': _WidgetSpec(
+    _radioGroupProperties(),
+    const {'child': _requiredSingleSlot},
+  ),
   'flutter.material.RangeSlider': _WidgetSpec(
     _rangeSliderProperties(),
     const {},
@@ -10017,6 +10033,13 @@ P|fallbackHeight|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:
 P|fallbackWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 P|strokeWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.RadioGroup
+P|groupValue|boolean,dartObjectReference,double,enum,integer,null,string|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|boolean:any;dartObjectReference:dartObjectReference:v1:Object?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any;string:any
+P|nullableValueType|boolean|0|-|-|boolean:any
+P|onChanged|dartObjectReference,string|1|string:bm9vcA|-|dartObjectReference:dartObjectReference:v1:ValueChanged<Object?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:bm9vcA
+P|valueType|dartObjectReference,string|1|string:U3RyaW5n|-|dartObjectReference:dartObjectReference:v1:Type:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86U3RyaW5nfGludHxkb3VibGV8bnVtfGJvb2x8T2JqZWN0KQ
+S|child|single|1|1|1|any
+C|flutter.widgets.RadioGroup|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.RepaintBoundary
 S|child|single|0|0|1|any
 W|flutter.widgets.RotatedBox
@@ -10487,7 +10510,7 @@ void _validatePropertyRelationships(
     }
     return;
   }
-  if (type == 'flutter.material.Radio') {
+  if (type == 'flutter.material.Radio' || type == 'flutter.widgets.RadioGroup') {
     _expect(
       properties['value']?.kind != 'null' ||
           properties['nullableValueType']?.value == true,
@@ -10513,9 +10536,10 @@ void _validatePropertyRelationships(
       };
       _expect(
         allowed.contains(kind),
-        'Canvas Radio $name must match valueType: $path/properties/$name',
+        'Canvas $type $name must match valueType: $path/properties/$name',
       );
     }
+    if (type == 'flutter.widgets.RadioGroup') return;
     _expect(
       properties['variant']?.value == 'adaptive' ||
           !properties.containsKey('useCupertinoCheckmarkStyle'),

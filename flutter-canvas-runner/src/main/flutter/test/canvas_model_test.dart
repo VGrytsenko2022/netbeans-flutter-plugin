@@ -6546,7 +6546,7 @@ void main() {
   test('Placeholder reviewed schema is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Placeholder\n');
-    final end = contract.indexOf('W|flutter.widgets.RepaintBoundary\n', start);
+    final end = contract.indexOf('W|flutter.widgets.RadioGroup\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

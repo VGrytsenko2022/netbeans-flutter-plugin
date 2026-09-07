@@ -1274,6 +1274,67 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void radioGroupRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition radioGroupDefinition = definition("flutter.widgets.RadioGroup");
+        WidgetNode current = text(
+                id("90a2eafd-835d-44b5-9cb8-9fb2f3fbff39"), "current");
+        WidgetNode replacement = text(
+                id("04f98964-c16e-4464-b1f1-cee8c9e50b40"), "replacement");
+        WidgetNode radioGroup = new WidgetNode(
+                id("c5c07d66-4711-4511-b6b5-a489abfb65d7"),
+                radioGroupDefinition.typeId(),
+                dev.flutter.netbeans.plugin.designer.properties.RadioGroupPropertyContractTest.full(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("dd12692f-f736-48aa-a310-a356c58a3913"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(radioGroup, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"), type("flutter.widgets.RadioGroup")));
+
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                radioGroup,
+                radioGroupDefinition,
+                radioGroupDefinition.slot(CHILD).orElseThrow(),
+                context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "RadioGroup.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                radioGroup.id(), CHILD, current.id()))));
+    }
+
+    @Test
     void refreshIndicatorRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
             throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");

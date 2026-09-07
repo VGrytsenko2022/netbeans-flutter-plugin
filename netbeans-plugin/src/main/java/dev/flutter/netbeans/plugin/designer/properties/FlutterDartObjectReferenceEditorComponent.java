@@ -24,6 +24,7 @@ import org.openide.explorer.propertysheet.PropertyEnv;
 
 /** Transactional editor for one closed project-Dart object reference. */
 final class FlutterDartObjectReferenceEditorComponent {
+    static final String RADIO_GROUP_CALLBACK_ATTRIBUTE = "flutter.radioGroup.callback";
     static final String PANEL_NAME = "flutter.dartObjectReference.editor";
     static final String DEFAULT_NAME = "flutter.dartObjectReference.default";
     static final String SCOPE_NAME = "flutter.dartObjectReference.scope";
@@ -388,6 +389,12 @@ final class FlutterDartObjectReferenceEditorComponent {
         }
 
         private String description() {
+            if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(RADIO_GROUP_CALLBACK_ATTRIBUTE))
+                    && "onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
+                return "The analyzer checks the required RadioGroup callback against ValueChanged<T?> for the selected type. "
+                        + "Select the explicit No-op preset or a strict non-null project reference; null and omission are not accepted. "
+                        + "Isolated Canvas never executes project callbacks. Stored Group Value and descendant Radio values/types are not changed by a request.";
+            }
             String base = "The Dart analyzer validates that the selected Dart "
                     + "symbol is assignable to " + expectedDartType + ". ";
             if (("value".equals(argumentName) || "groupValue".equals(argumentName)) && "Object?".equals(expectedDartType)) {

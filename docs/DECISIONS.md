@@ -7693,3 +7693,271 @@ Embedded analyzer matches the final installed 90244-byte JAR and its recorded ha
 All 1659 final non-Markdown inputs remained unchanged after packaging, and all
 75 source/Web manifest entries were independently reverified. No interactive IDE
 launch, installed-userdir verification or global physical acceptance is claimed.
+
+## ADR-115 — RadioGroup typed shared selection and runtime scope
+
+Date: 2026-09-07
+Status: accepted; implemented and verified.
+
+### Pinned constructor and complete vertical contract
+
+The pinned Flutter 3.44.8 public widgets/radio_group.dart and the official
+[RadioGroup constructor](https://api.flutter.dev/flutter/widgets/RadioGroup/RadioGroup.html)
+define one const StatefulWidget constructor with exactly three non-key parameters:
+optional T? groupValue, required non-null ValueChanged<T?> onChanged, and required
+non-null Widget child. The Designer adds four typed rows: groupValue, onChanged,
+valueType and nullableValueType. Child is a required single ANY slot, minimum one.
+No adaptive variant, enabled flag, FocusNode, registry argument or extra appearance
+API is invented. Common key remains the existing identity policy.
+
+The authoritative type is flutter.widgets.RadioGroup, import widgets.dart,
+Palette Material/order240 adjacent Radio. Creation stores only String and No-op;
+an existing child is wrapped atomically without fabricating a placeholder.
+Required slots remain replacement-only, not additional empty insertion destinations.
+Changing a group's type or selection never rewrites Radio descendants.
+
+The selection union is exactly Radio's existing seven kinds: Boolean, String,
+integer, finite double, the fixed double infinity/negativeInfinity/NaN constants,
+explicit null and closed Dart object reference. Omission remains distinct from
+explicit null in FD/source; both pass null and may select a matching nullable
+Radio whose Value is null. Value Type admits the six built-ins String/int/double/
+num/bool/Object or a simple named current/package class, enum or typedef.
+Nullable Value Type distinguishes absent/false from true. The group value and
+callback argument remain nullable in both T and T? configurations.
+
+No-op is a controlled callback preset. On Changed cannot be omitted or null,
+and project references/zero-argument factories must independently prove a strict
+non-null ValueChanged<T?>. No project callback, initializer, factory or equality
+implementation is executed by Canvas. Named typedefs cover complex types without
+a raw Dart type/expression input.
+
+### Source and pair-save authority
+
+Generation emits exact RadioGroup<T> or RadioGroup<T?>, not a lossy Object? group.
+It reuses Radio's strict Type, nullable Object and callback source-type overrides.
+Built-in names do not broaden the user's implicit or explicit dart:core scope.
+A shadowed/hidden core type fails exact navigation proof; a named project typedef
+may supply an explicitly scoped alternative.
+
+The sole additional core-probe identity is the exact UUID-bearing
+widget:<id>:radio-group-core-value-type family. Pair-save still regenerates and
+compares the complete ordered prepared manifest. Admission is restricted to the
+six class names, exact occurrence/proof spans, Type expectation and matching
+T/T? override, and their exact class file in the configured real SDK Dart-core
+or sky_engine-core directory. Other dart:* URIs, forged widget/family IDs,
+untrusted roots, wrong files/kinds, missing/rejected/detached static evidence and
+post-analysis target deletion remain rejected. The source/FD pair binds only
+after this evidence is accepted and revalidated at post-CAS binding.
+
+Custom types use ordinary current/package root authority, never the SDK exception.
+Dynamic aliases and nullable aliases without the explicit nullable-type flag are
+rejected. As for Radio, a broad nullable context-generic factory can require a
+concrete-return factory to satisfy the independent proof. This is fail-closed
+source evidence, not execution of the factory.
+
+No analyzer implementation changes are needed. All 40 analyzer/API/POM input
+hashes match the verified ADR-114 baseline snapshot:
+ec61005b985918e9ca1daaf960804ac586182844cea6592361e5cc8c20488d7a.
+The installed analyzer JAR hash remains
+736ec66f61d65ef1f941de5aae35abf01f325d6deaac4c2ae082571c77df562e.
+The prior 68-case analyzer gate is reused explicitly, not represented as a
+new run. New RadioGroup candidates exercise that implementation through the
+actual pinned SDK and complete pair-save ticket in this slice.
+
+### Stable native Properties and history
+
+The existing Radio type dialog is reused through an explicit WidgetTypeId family
+discriminator. Radio retains its old constructor and exact four-field tuple;
+RadioGroup accepts only valueType/nullableValueType/groupValue. The dialog omits
+Radio's Value tab. Family, selected widget ID, captured baseline and receiving
+property are validated before emitting one PatchProperties command. Extra keys,
+wrong families/IDs, stale drafts and injection into a different property cannot
+submit a mutation. Callback and child are outside the dependent tuple and remain
+unchanged.
+
+Four stable cells support sparse edits, optional resets and required-reset
+rejection, nullable values, strict
+references, explicit false versus unset and saved-document reopening. Live
+DataObject tests cover wrapper insertion, preserved child IDs/slots, exact FD/Dart
+bytes across Undo/Redo and Save/reopen, further editing, source rejection and
+whole-tuple rollback. Boolean editing uses the existing centered checkbox without
+recreating the complete Properties tree. The slot editor uses the established
+required-child replacement path; removing the last required child is invalid.
+
+### Runtime preview scope
+
+Flutter's group membership is determined by mounted RadioClient<T> instances,
+not the stored FD descendant list. Disabled radios, Offstage and Visibility with
+maintainState may still register. Hidden Visibility without maintainState does
+not mount its child. The nearest same-T group shadows the outer one, a different-T
+group does not, and T versus T? are distinct scopes. An explicit project registry
+also overrides inherited lookup and is not executed in preview.
+
+The SDK rejects two registered clients whose values equal the current groupValue.
+Duplicate unselected values remain legal; NaN never equals itself. Independently,
+the radio-group semantic role rejects multiple checked semantic children without
+using generic type identity. These are separate runtime rules. A blanket
+duplicate-value or same-type-descendant model restriction would reject valid
+source and is therefore not added.
+
+The preview forwards actual mounted clients through public RadioGroupRegistry
+and RadioClient APIs to the real SDK group. Valid clients register unchanged.
+When multiple clients equal the current selection, only those conflicting
+selected clients are withheld from SDK registration. Their child controls,
+checked visuals, layout and state remain present, with a concrete unavailable
+group-navigation diagnostic. No stored values are clamped or reset.
+
+A public RenderProxyBox/SemanticsNode guard independently checks the assembled
+semantic subtree using the SDK's type-blind role boundary. It withholds an
+invalid group's semantic subtree before the SDK assertion; a registry-only
+conflict involving hidden clients does not unnecessarily suppress otherwise valid
+visible semantics. Repair automatically restores registrations/semantics without
+remounting the same generic group's state or child. T changes legitimately select
+another generic SDK state while retaining the child through its stable boundary.
+
+Unresolved custom types/selected references never execute project code or pretend
+to know project equality. Explicit typed uncertainty barriers prevent descendants
+from silently joining a wrong outer group. The unresolved inner group also
+withholds its semantics explicitly, preserving the role boundary and preventing
+its checked different-type descendants from causing a false outer-group conflict.
+Child layout/state remains editable; no model/source bytes change.
+
+### Aggregate contract and verification boundary
+
+Executable totals verified for this slice: 87 widgets, 80 const-capable
+definitions, 3564 writable rows (3547 outside Scaffold), 84 scalar-property
+definitions plus three structural-only definitions, 328 Boolean-only rows,
+seven nullable-Boolean unions and four separate scalar/Object unions.
+The unchanged 68 insertion destinations (66 ANY plus two trait-bound) form
+5916 candidate placements: 5552 accepted and 364 rejected. RadioGroup is the
+fourteenth generic required-child wrapper, sixteenth including the two flex
+wrappers. Palette categories are Material 24 / Layout 31 / Scrolling 3 / Basic 23 /
+Accessibility 6. Against the historical 92-widget target, five remain; the
+repository does not preserve an exact ordered 92-item inventory.
+
+The exact seven new W/P/S/C lines extend the prior 3744 to 3751 contract records;
+six runtime capability lines bring the full snapshot to 3757. Existing records,
+FD13/Catalog14/Canvas18/NBFC1, value/probe/patch/candidate/time budgets and user
+project/import authority remain unchanged. The final package and development
+clusters are built only from the canonical G: checkout. No installed IDE/userdir,
+interactive desktop or explicitly deferred platform acceptance is claimed.
+
+### Verification phases and unchanged-input reuse
+
+The full core gate passed 1700 tests in 197 classes with no skips, failures or
+errors. A subsequent one-line property-help correction explains that a null
+selection may select Radio<T?>(value: null); its current bytes were recompiled
+and installed before the authoritative Java regression phase. It changes no
+validation, generation, projection or runtime behavior.
+
+The focused native UI gate passed 981 cases in 30 classes, including all 45
+pair-save cases. Five parameterized core-admission methods cover 72 positive
+Radio/RadioGroup type/nullability/constructor/core-library combinations plus
+forged family/ID/library/span/static-evidence/root/target controls.
+Both new live DataObject methods passed. The new SDK class contains seven
+methods, including 47 actual candidates and a model-only required-field test.
+Its initial nullable-callback expectation incorrectly expected an independent
+proof rejection: the SDK rejects that nullable argument at compile time because
+RadioGroup.onChanged is required and non-null. The expectation was corrected
+and its complete nine-candidate negative method passed; production admission
+was already correct. The full first Java phase then passed all seven methods.
+
+Canvas's focused suite passed 28 tests, including 16 pixel comparisons with the
+raw SDK (M2/M3 × Android/iOS × LTR/RTL × standard/adaptive child Radio), all 12
+T/T? dispatches, mounted registration and independent semantics conflicts,
+null/NaN, nested/unknown groups, preserved focus/state and recovery. Two
+Windows/Web runtime wrapper-admission cases also passed. The first full Flutter
+run found only an existing Placeholder test's stale next-type boundary; changing
+that endpoint to RadioGroup fixed it. The final exact-byte full rerun passed
+1624 visible tests plus 50 loader entries, with analyzer clean. Offline Web built
+successfully. Its main.dart.js is 3242591 bytes, SHA-256
+0f66b707fe3f7192974e7bdd4d5255881760528751b7c55bb4cff7afd32ea67b.
+All 40 source and 35 Web manifest entries were independently reverified.
+
+For parallel latency, the broad plugin Java phase ran while isolated Canvas
+tests/builds finished. Only FlutterWidgetCapabilityParityTest and
+WebCanvasArtifactContractTest are reserved for the final new-artifact phase.
+The first phase uses the unchanged installed runner JAR, not mutable repository
+Dart files. No concurrent Maven runner install occurred. New/old widget SDK
+candidate tests use the frozen generator, native editor fixtures and actual
+Dart Analyzer in temporary projects; the live mutation suite inspects confirmed
+Java model snapshots, not Canvas render output.
+
+The frozen Java reuse snapshot covers 1567 non-Markdown source/resource/POM
+inputs, 2424 compiled classes (excluding only the reserved Web pin class),
+158 classpath JARs and 1639 pinned SDK/dependency files. Snapshot:
+netbeans-plugin/target/radio-group-phase1-input-hashes.json, SHA-256
+7bfe371ec74078f1e8c7170521a467dc0a2b306a0c7106d15c6cdcde2e0c0ac6.
+Its equality is checked again before/after final packaging. The final reactor
+reruns all core, UI, artifact/parity, package and runtime gates against the fresh
+Canvas bundle. It reuses only the already-passed nine SDK candidate classes and
+the full live mutation class when their source/classes and non-Canvas
+dependencies remain identical; the ten XML reports are retained separately.
+The unchanged analyzer baseline is accounted for separately as described above.
+Freshness checks and all original safety budgets remain enabled.
+
+The first plugin command used an overbroad `-Dtest=*` selector, which also
+ran all nine PluginPackageMetadataIT methods before packaging and outside their
+configured Failsafe phase. Those nine methods failed solely because `nbm.file`
+is supplied by Failsafe, not Surefire; that command was not a successful build.
+Its 2559 actual unit/integration-fixture cases had no failures or errors and
+four optional skips. The ten expensive suites passed all 183 methods (46 SDK
+methods plus 137 live mutation cases); their fresh XML reports were archived.
+The final command restores the default-compatible Surefire name patterns
+`Test*,*Test,*Tests,*TestCase` with only those ten explicit heavy-suite exclusions.
+Failsafe remains fully enabled, including all nine package methods.
+
+The first new-artifact reactor attempt passed the full 1700-case core gate but
+hit one unchanged filesystem concurrency test timeout among 2402 plugin cases:
+FlutterDesignerMoveDependencyGuardTest.exclusiveProofPreventsARelevantFolderFromBeingRenamed.
+The expected exclusion during admission passed; the subsequent rename did not
+complete within its unchanged five-second limit. The guard, move implementation
+and test match HEAD and the frozen inputs exactly, and the first phase passed
+this case. Two isolated unchanged 38-case class reruns passed. The later shutdown
+dump contains no rename-worker stack and does not establish the original wait
+cause. No production lock, test timeout or acceptance condition was weakened.
+The reactor was resumed at netbeans-plugin, repeating its complete selected
+plugin gate before packaging and runtime verification.
+
+### Final outcome and reproducible package
+
+The resumed install completed successfully in 3:06, including all 2402 selected
+plugin cases (zero failures/errors, four optional skips), all nine package
+Failsafe methods and five executed assembled-runtime methods (one optional
+physical-runtime method skipped). The unchanged folder-rename case also passed
+in that complete plugin rerun. The existing MasterFS hardUnlockAll shutdown
+exception and Surefire's 30-second post-System.exit cleanup warning recurred;
+they are recorded separately from test results and are not claimed fixed here.
+The final Maven exit code was zero. Both root and module nbm:cluster commands
+and tools/verify-release.ps1 passed with freshness checking enabled.
+
+The final deduplicated Java ledger contains 415 reports / 4528 cases, with
+4521 executed, zero failures/errors and seven explicitly allowed optional skips.
+Module totals are core Designer 1700, plugin Surefire 2585, plugin Failsafe 9,
+runtime 6, project 65, run 88, SDK 7 and unchanged analyzer baseline 68.
+Of this ledger, 183 methods use the preserved successful first-phase reports,
+68 use the separately verified unchanged analyzer baseline, and 4277 cases
+belong to the final new-artifact phase. This is not described as one fresh
+unfiltered reactor run. The Flutter analyzer/full suite/Web results above are
+additional, separate evidence rather than Java case counts.
+
+Post-package verification again matched all 1669 non-Markdown repository inputs,
+all 1567 Java reuse inputs, 2424 compiled-class hashes, 1639 SDK/dependency files,
+all ten archived report bytes and the 40 analyzer inputs. Of 158 phase-one
+classpath JARs, only the expected Canvas runner JAR changed; the other 157
+remained byte-identical. Package, fresh Canvas artifact/parity and all native
+UI gates ran against that new bundle rather than reusing their old-bundle results.
+
+NBM: netbeans-plugin/target/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm,
+7784218 bytes, SHA-256
+f96bcecb834becd9c405ac2729bd61b85ae75af5419058e4fe49e815c62df237.
+All four packaged/development/assembled-runtime module copies are 3483098 bytes,
+SHA-256 664164d185e4d30181805684f23a3cef85fbe2c88219692852756025a100351a.
+The ordinary Maven JAR differs from the NBM module only in META-INF/MANIFEST.MF;
+all four RadioGroup SVG resources are present. The NBM embedded module, Canvas
+runner and analyzer match their verified built counterparts byte-for-byte.
+Canvas runner: 354531 bytes, SHA-256
+147e28582bd753effbefbf8cc01b78303450adfb778b7bf6036d96dc63507df3.
+
+No installed IDE/userdir was modified or verified, and no interactive desktop,
+CJK IME or Linux/macOS Canvas-provider acceptance is included in this slice.

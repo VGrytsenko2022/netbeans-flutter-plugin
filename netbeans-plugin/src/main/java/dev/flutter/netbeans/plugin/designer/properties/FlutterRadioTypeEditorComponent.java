@@ -54,17 +54,17 @@ final class FlutterRadioTypeEditorComponent {
             super(editor, binding, environment);
             Object context = environment.getFeatureDescriptor().getValue(CONTEXT_ATTRIBUTE);
             captured = context instanceof java.util.function.Supplier<?> supplier && supplier.get() instanceof dev.flutter.netbeans.designer.model.WidgetNode node
-                    && dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.RADIO_TYPE.equals(node.type()) ? node : null;
+                    && FlutterPropertyCellValue.RadioTypeEdit.supports(node.type()) ? node : null;
             if (!binding.definition().name().value().equals("valueType") || binding.optional())
-                throw new IllegalArgumentException("Radio type editor requires the required valueType property.");
+                throw new IllegalArgumentException("Radio/RadioGroup type editor requires the required valueType property.");
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(690, 255)); setName("flutter.radioType.editor");
-            getAccessibleContext().setAccessibleName("Radio value type editor");
+            getAccessibleContext().setAccessibleName(familyName() + " value type editor");
             getAccessibleContext().setAccessibleDescription("Select a built-in type or a simple current-file/package type symbol. Nullability is a separate Radio property. Cancel preserves every property.");
-            mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Radio type source");
-            preset.setName(PRESET_NAME); preset.getAccessibleContext().setAccessibleName("Built-in Radio type");
+            mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName(familyName() + " type source");
+            preset.setName(PRESET_NAME); preset.getAccessibleContext().setAccessibleName("Built-in " + familyName() + " type");
             library.setName(LIBRARY_NAME); library.getAccessibleContext().setAccessibleName("Type package library");
             library.getAccessibleContext().setAccessibleDescription("A package: URI inside an admitted project package; no filesystem paths or network URLs.");
-            symbol.setName(SYMBOL_NAME); symbol.getAccessibleContext().setAccessibleName("Radio type symbol");
+            symbol.setName(SYMBOL_NAME); symbol.getAccessibleContext().setAccessibleName(familyName() + " type symbol");
             symbol.getAccessibleContext().setAccessibleDescription("A simple class, enum, or typedef identifier. Use a project typedef for a complex generic type; expressions, members and invocations are not accepted.");
             var form = new JPanel(new GridBagLayout());
             addRow(form, 0, "Source:", mode); addRow(form, 1, "Built-in:", preset);
@@ -72,16 +72,16 @@ final class FlutterRadioTypeEditorComponent {
             if (captured == null) add(form, BorderLayout.CENTER);
             else {
                 setPreferredSize(new Dimension(770, 710));
-                nullability.setName(NULLABILITY_NAME); nullability.getAccessibleContext().setAccessibleName("Radio nullable value type");
+                nullability.setName(NULLABILITY_NAME); nullability.getAccessibleContext().setAccessibleName(familyName() + " nullable value type");
                 var flag = captured.properties().get(new dev.flutter.netbeans.designer.model.PropertyName("nullableValueType"));
                 nullability.setSelectedIndex(flag instanceof PropertyValue.BooleanValue bool ? bool.value() ? 2 : 1 : 0);
                 addRow(form, 4, "Nullability:", nullability);
                 var tabs = new javax.swing.JTabbedPane(); tabs.setName("flutter.radioType.tabs");
-                tabs.getAccessibleContext().setAccessibleName("Atomic Radio type and dependent values");
+                tabs.getAccessibleContext().setAccessibleName("Atomic " + familyName() + " type and dependent values");
                 tabs.addTab("Type", form);
                 var definition = dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog.getDefault()
-                        .find(dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.RADIO_TYPE).orElseThrow();
-                for (String field : List.of("value", "groupValue")) {
+                        .find(captured.type()).orElseThrow();
+                for (String field : dependentFields()) {
                     var dependentBinding = FlutterTypedPropertyEditors.binding(definition.property(new dev.flutter.netbeans.designer.model.PropertyName(field)).orElseThrow()).orElseThrow();
                     var dependentEditor = dependentBinding.createEditor();
                     dependentEditor.setValue(new FlutterPropertyCellValue(Optional.ofNullable(captured.properties().get(new dev.flutter.netbeans.designer.model.PropertyName(field)))));
@@ -94,7 +94,7 @@ final class FlutterRadioTypeEditorComponent {
                 nullability.addActionListener(ignored -> refresh(true)); add(tabs, BorderLayout.CENTER);
             }
             note.setName(NOTE_NAME); note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
-            note.getAccessibleContext().setAccessibleName("Radio type safety and dependent values"); add(note, BorderLayout.SOUTH);
+            note.getAccessibleContext().setAccessibleName(familyName() + " type safety and dependent values"); add(note, BorderLayout.SOUTH);
             var initial = initialValue().explicitValue().orElse(null);
             if (initial instanceof PropertyValue.StringValue value) {
                 if (!BUILTIN_TYPES.contains(value.value())) throw new IllegalArgumentException("Stored Radio built-in type is not reviewed.");
@@ -127,7 +127,9 @@ final class FlutterRadioTypeEditorComponent {
             try {
                 String selected = (String) mode.getSelectedItem(); boolean builtin = BUILTIN.equals(selected); boolean imported = PACKAGE.equals(selected);
                 preset.setEnabled(builtin); library.setEnabled(imported); symbol.setEnabled(!builtin);
-                String description = "The selected type is verified by the Dart analyzer. Draft type, nullability, Value and Group value together using the tabs; OK applies one atomic edit and Undo restores all four. "
+                String description = "The selected type is verified by the Dart analyzer. Draft type, nullability, "
+                        + (isGroup() ? "and Group value together using the tabs; OK applies one atomic edit and Undo restores all three. Descendant Radio types are never changed. "
+                                : "Value and Group value together using the tabs; OK applies one atomic edit and Undo restores all four. ")
                         + "Callbacks and registry references remain unchanged and must be compatible. Cancel changes nothing. Complex generics can be named by a project typedef.";
                 note.setText(description); note.getAccessibleContext().setAccessibleDescription(description);
                 PropertyValue candidate;
@@ -139,7 +141,7 @@ final class FlutterRadioTypeEditorComponent {
                 }
                 clearInvalid(note, description);
                 FlutterPropertyCellValue result = FlutterPropertyCellValue.explicit(candidate);
-                if (captured != null && dependentPanels.size() == 2) {
+                if (captured != null && dependentPanels.size() == dependentFields().size()) {
                     var baseline = FlutterPropertyCellValue.RadioTypeEdit.snapshot(captured);
                     var requested = new java.util.LinkedHashMap<>(baseline);
                     requested.put("valueType", Optional.of(candidate));
@@ -147,15 +149,23 @@ final class FlutterRadioTypeEditorComponent {
                     for (var entry : dependentPanels.entrySet()) requested.put(entry.getKey(), (requestValidation ? entry.getValue().stagedDraftValue() : entry.getValue().validatedDraftValue()).explicitValue());
                     var properties = new java.util.LinkedHashMap<>(captured.properties());
                     requested.forEach((field, value) -> { var key = new dev.flutter.netbeans.designer.model.PropertyName(field); if (value.isPresent()) properties.put(key, value.orElseThrow()); else properties.remove(key); });
-                    dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.valueTypeError(new dev.flutter.netbeans.designer.model.WidgetNode(captured.id(), captured.type(), properties, captured.slots()))
+                    var prospective = new dev.flutter.netbeans.designer.model.WidgetNode(captured.id(), captured.type(), properties, captured.slots());
+                    (isGroup() ? dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.valueTypeError(prospective)
+                            : dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.valueTypeError(prospective))
                             .ifPresent(reason -> { throw new IllegalArgumentException(reason); });
-                    if (!requested.equals(baseline)) result = new FlutterPropertyCellValue(Optional.of(candidate), Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(captured.id(), baseline, requested)));
+                    if (!requested.equals(baseline)) result = new FlutterPropertyCellValue(Optional.of(candidate), Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(captured.type(), captured.id(), baseline, requested)));
                 }
                 if (requestValidation) markValid(result); else stageValid(result);
                 return true;
-            } catch (IllegalArgumentException failure) { markInvalid("Invalid Radio type: " + failure.getMessage(), note); return false; }
+            } catch (IllegalArgumentException failure) { markInvalid("Invalid " + familyName() + " type: " + failure.getMessage(), note); return false; }
             finally { refreshing = false; }
         }
+
+        private boolean isGroup() {
+            return captured != null && dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(captured.type());
+        }
+        private String familyName() { return isGroup() ? "RadioGroup" : "Radio"; }
+        private List<String> dependentFields() { return isGroup() ? List.of("groupValue") : List.of("value", "groupValue"); }
 
         private static void requireSimpleType(PropertyValue.DartObjectReferenceValue reference) {
             if (reference.member().isPresent() || reference.access() != PropertyValue.DartObjectReferenceValue.Access.REFERENCE || reference.constant().isPresent())

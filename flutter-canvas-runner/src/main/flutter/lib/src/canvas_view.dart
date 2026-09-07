@@ -1,7 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
-import 'dart:ui' as ui show BoxHeightStyle, BoxWidthStyle;
+import 'dart:ui'
+    as ui
+    show BoxHeightStyle, BoxWidthStyle, SemanticsRole, CheckedState;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -12,6 +14,7 @@ import 'package:flutter/rendering.dart'
         RenderProxyBox,
         RenderObjectWithLayoutCallbackMixin;
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/semantics.dart';
 import 'package:flutter/services.dart';
 
 import 'canvas_drop.dart';
@@ -91,7 +94,42 @@ double? _sliderNumber(CanvasNode node, String name) =>
       _ => null,
     };
 
+String? _radioTypeKey(CanvasNode node) {
+  final type = node.properties['valueType']?.value;
+  return type is String
+      ? '$type${node.properties['nullableValueType']?.value == true ? '?' : ''}'
+      : null;
+}
+
+Object? _radioIdentityValue(CanvasNode node, String name) {
+  final value = switch (node.properties[name]?.value) {
+    CanvasEnumValue(value: 'infinity') => double.infinity,
+    CanvasEnumValue(value: 'negativeInfinity') => double.negativeInfinity,
+    CanvasEnumValue(value: 'nan') => double.nan,
+    final value => value,
+  };
+  return node.properties['valueType']?.value == 'double' && value is num
+      ? value.toDouble()
+      : value;
+}
+
+_CanvasRadioGroupScope? _canvasRadioScope(
+  CanvasNode node,
+  BuildContext context,
+) {
+  final type = _radioTypeKey(node);
+  var scope = context
+      .dependOnInheritedWidgetOfExactType<_CanvasRadioGroupScope>();
+  while (scope != null) {
+    if (scope.typeKey == null || scope.typeKey == type) return scope;
+    scope = scope.parent;
+  }
+  return null;
+}
+
 bool _radioHasInheritedRegistry(CanvasNode node, BuildContext context) {
+  final scope = _canvasRadioScope(node, context);
+  if (scope != null) return scope.registry != null;
   final nullable = node.properties['nullableValueType']?.value == true;
   return switch (node.properties['valueType']?.value) {
     'String' =>
@@ -127,6 +165,11 @@ bool _radioHasCallback(CanvasNode node) =>
     node.properties['onChanged']?.kind == 'dartObjectReferencePresence';
 
 String? _radioUnavailableMessage(CanvasNode node, BuildContext? context) {
+  final barrier = context == null ? null : _canvasRadioScope(node, context);
+  if (barrier?.unavailableReason != null) {
+    return 'Render Radio ${node.id}: group selection preview unavailable. '
+        '${barrier!.unavailableReason} The radio is not allowed to join an outer group or invent legacy selection.';
+  }
   final unresolved = ['valueType', 'value', 'groupValue', 'groupRegistry']
       .where(
         (name) =>
@@ -900,6 +943,381 @@ String? _iconButtonMountedIconMessage(CanvasNode node, BuildContext context) {
   return 'Render Icon ${node.id} inside IconButton: iconSize preview unavailable because the actual mounted IconTheme resolves size $size; an Icon requires a finite nonnegative dimension. The SDK button remains active, and stored values and generated Dart are unchanged.';
 }
 
+class _CanvasRadioGroupScope extends InheritedWidget {
+  const _CanvasRadioGroupScope({
+    required this.typeKey,
+    required this.registry,
+    required this.unavailableReason,
+    required this.parent,
+    required super.child,
+  });
+  final String? typeKey;
+  final Object? registry;
+  final String? unavailableReason;
+  final _CanvasRadioGroupScope? parent;
+
+  @override
+  bool updateShouldNotify(_CanvasRadioGroupScope oldWidget) => true;
+}
+
+String? _radioGroupStaticMessage(CanvasNode node) {
+  final unknown = ['valueType', 'groupValue']
+      .where(
+        (name) => node.properties[name]?.kind == 'dartObjectReferencePresence',
+      )
+      .toList();
+  if (unknown.isNotEmpty) {
+    return 'Render RadioGroup ${node.id}: typed selection, navigation and group semantics preview unavailable for ${unknown.join(', ')}. '
+        'Isolated Canvas cannot execute project types, values or equality. The editable child is retained; stored values and generated Dart are unchanged.';
+  }
+  if (node.properties['onChanged']?.kind == 'dartObjectReferencePresence') {
+    return 'RadioGroup ${node.id} preview limitation for onChanged: isolated Canvas never executes the project callback. '
+        'The actual SDK group uses a benign controlled callback; groupValue and generated Dart are unchanged.';
+  }
+  return null;
+}
+
+String? _radioGroupPreviewMessage(CanvasNode node, BuildContext? context) {
+  _RadioGroupPreviewState? state;
+  void visit(Element element) {
+    if (element is StatefulElement &&
+        element.state is _RadioGroupPreviewState &&
+        (element.state as _RadioGroupPreviewState).widget.node.id == node.id) {
+      state = element.state as _RadioGroupPreviewState;
+      return;
+    }
+    if (state == null) element.visitChildElements(visit);
+  }
+
+  context?.visitChildElements(visit);
+  return state?.message ?? _radioGroupStaticMessage(node);
+}
+
+// Every registered SDK client is observed, including disabled/Offstage/retained
+// Visibility clients. No stored-tree visibility guess or private SDK State is used.
+class _RadioGroupForwardingRegistry<T> {
+  _RadioGroupForwardingRegistry(this.changed);
+  final VoidCallback changed;
+  RadioGroupRegistry<T>? _delegate;
+  final _clients = <RadioClient<T>, String>{};
+  final _forwarded = <RadioClient<T>>{};
+  final _members = <String, _RadioGroupMemberRegistry<T>>{};
+  Set<String> conflicts = {};
+  bool semanticsBlocked = false;
+  _RenderRadioGroupSemanticsGate? gate;
+  bool _disposed = false;
+
+  RadioGroupRegistry<T> forRadio(String id) =>
+      _members.putIfAbsent(id, () => _RadioGroupMemberRegistry(this, id));
+
+  void attach(RadioGroupRegistry<T> delegate) {
+    if (!identical(_delegate, delegate)) {
+      for (final client in _forwarded) {
+        _delegate?.unregisterClient(client);
+      }
+      _forwarded.clear();
+      _delegate = delegate;
+    }
+    _reconcile();
+  }
+
+  void register(RadioClient<T> client, String id) {
+    if (_disposed) return;
+    _clients[client] = id;
+    _reconcile();
+  }
+
+  void unregister(RadioClient<T> client) {
+    final id = _clients.remove(client);
+    if (_forwarded.remove(client)) _delegate?.unregisterClient(client);
+    if (id != null && !_clients.containsValue(id)) _members.remove(id);
+    if (!_disposed) _reconcile();
+  }
+
+  void _reconcile() {
+    final delegate = _delegate;
+    if (delegate == null || _disposed) return;
+    final selected = _clients.keys
+        .where((client) => client.radioValue == delegate.groupValue)
+        .toSet();
+    final blocked = selected.length > 1 ? selected : <RadioClient<T>>{};
+    conflicts = blocked.map((client) => _clients[client]!).toSet();
+    for (final client in _clients.keys) {
+      if (blocked.contains(client)) {
+        if (_forwarded.remove(client)) delegate.unregisterClient(client);
+      } else if (_forwarded.add(client)) {
+        delegate.registerClient(client);
+      }
+    }
+    gate?.markNeedsSemanticsUpdate();
+    changed();
+  }
+
+  void dispose() {
+    _disposed = true;
+    for (final client in _forwarded) {
+      _delegate?.unregisterClient(client);
+    }
+    _forwarded.clear();
+    _clients.clear();
+    _members.clear();
+    _delegate = null;
+    gate = null;
+  }
+}
+
+class _RadioGroupMemberRegistry<T> extends RadioGroupRegistry<T> {
+  _RadioGroupMemberRegistry(this.owner, this.id);
+  final _RadioGroupForwardingRegistry<T> owner;
+  final String id;
+  @override
+  T? get groupValue => owner._delegate?.groupValue;
+  @override
+  ValueChanged<T?> get onChanged => owner._delegate?.onChanged ?? (_) {};
+  @override
+  void registerClient(RadioClient<T> client) => owner.register(client, id);
+  @override
+  void unregisterClient(RadioClient<T> client) => owner.unregister(client);
+}
+
+class _RadioGroupSemanticsGate<T> extends SingleChildRenderObjectWidget {
+  const _RadioGroupSemanticsGate({
+    required this.registry,
+    required super.child,
+  });
+  final _RadioGroupForwardingRegistry<T> registry;
+  @override
+  _RenderRadioGroupSemanticsGate createRenderObject(BuildContext context) {
+    final render = _RenderRadioGroupSemanticsGate((blocked) {
+      registry.semanticsBlocked = blocked;
+      registry.changed();
+    }, () => registry.gate = null);
+    registry.gate = render;
+    return render;
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _RenderRadioGroupSemanticsGate renderObject,
+  ) {
+    registry.gate = renderObject;
+    renderObject.markNeedsSemanticsUpdate();
+  }
+}
+
+// This boundary checks the assembled public semantics tree, independently from
+// typed registry membership. The SDK role validator is type-blind and ignores
+// subtrees rooted at another radioGroup role. Mirror that exact rule, not values.
+class _RenderRadioGroupSemanticsGate extends RenderProxyBox {
+  _RenderRadioGroupSemanticsGate(this.changed, this.disposed);
+  final ValueChanged<bool> changed;
+  final VoidCallback disposed;
+  @override
+  void describeSemanticsConfiguration(SemanticsConfiguration config) {
+    super.describeSemanticsConfiguration(config);
+    config.isSemanticBoundary = true;
+  }
+
+  bool _invalid(SemanticsNode node) {
+    if (node.getSemanticsData().role == ui.SemanticsRole.radioGroup) {
+      var checked = 0;
+      bool visit(SemanticsNode child) {
+        final data = child.getSemanticsData();
+        if (data.role == ui.SemanticsRole.radioGroup) return true;
+        if (data.flagsCollection.isInMutuallyExclusiveGroup) {
+          if (data.flagsCollection.isChecked == ui.CheckedState.isTrue) {
+            checked++;
+          }
+        } else {
+          child.visitChildren(visit);
+        }
+        return true;
+      }
+
+      node.visitChildren(visit);
+      return checked > 1;
+    }
+    var invalid = false;
+    node.visitChildren((child) {
+      invalid |= _invalid(child);
+      return true;
+    });
+    return invalid;
+  }
+
+  @override
+  void assembleSemanticsNode(
+    SemanticsNode node,
+    SemanticsConfiguration config,
+    Iterable<SemanticsNode> children,
+  ) {
+    final blocked = children.any(_invalid);
+    changed(blocked);
+    node.updateWith(
+      config: config,
+      childrenInInversePaintOrder: blocked ? const [] : children.toList(),
+    );
+  }
+
+  @override
+  void dispose() {
+    disposed();
+    super.dispose();
+  }
+}
+
+class _RadioGroupPreview extends StatefulWidget {
+  const _RadioGroupPreview({required this.node, required this.child});
+  final CanvasNode node;
+  final Widget child;
+  @override
+  State<_RadioGroupPreview> createState() => _RadioGroupPreviewState();
+}
+
+class _RadioGroupPreviewState extends State<_RadioGroupPreview> {
+  final _childKey = GlobalKey();
+  String? _dynamicMessage;
+  String? get message =>
+      _dynamicMessage ?? _radioGroupStaticMessage(widget.node);
+
+  @override
+  void didUpdateWidget(_RadioGroupPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (_radioTypeKey(oldWidget.node) != _radioTypeKey(widget.node)) {
+      _dynamicMessage = null;
+    }
+  }
+
+  void _messageChanged(String? value) {
+    if (!mounted || _dynamicMessage == value) return;
+    setState(() => _dynamicMessage = value);
+    context
+        .findAncestorStateOfType<_CanvasDocumentViewState>()
+        ?._refreshZeroSizedWidgetTargetsAfterFrame();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    final child = KeyedSubtree(key: _childKey, child: widget.child);
+    final type = _radioTypeKey(node);
+    final unknown =
+        type == null ||
+        node.properties['groupValue']?.kind == 'dartObjectReferencePresence';
+    if (unknown) {
+      _dynamicMessage = null;
+      return _TextButtonPreview(
+        message: _radioGroupStaticMessage(node)!,
+        child: _CanvasRadioGroupScope(
+          typeKey: type,
+          registry: null,
+          unavailableReason: _radioGroupStaticMessage(node),
+          parent: context
+              .dependOnInheritedWidgetOfExactType<_CanvasRadioGroupScope>(),
+          child: ExcludeSemantics(child: child),
+        ),
+      );
+    }
+    Widget host<T>() => _RadioGroupHost<T>(
+      node: node,
+      messageChanged: _messageChanged,
+      child: child,
+    );
+    return switch (type) {
+      'String' => host<String>(),
+      'String?' => host<String?>(),
+      'int' => host<int>(),
+      'int?' => host<int?>(),
+      'double' => host<double>(),
+      'double?' => host<double?>(),
+      'num' => host<num>(),
+      'num?' => host<num?>(),
+      'bool' => host<bool>(),
+      'bool?' => host<bool?>(),
+      'Object?' => host<Object?>(),
+      _ => host<Object>(),
+    };
+  }
+}
+
+class _RadioGroupHost<T> extends StatefulWidget {
+  const _RadioGroupHost({
+    required this.node,
+    required this.child,
+    required this.messageChanged,
+  });
+  final CanvasNode node;
+  final Widget child;
+  final ValueChanged<String?> messageChanged;
+  @override
+  State<_RadioGroupHost<T>> createState() => _RadioGroupHostState<T>();
+}
+
+class _RadioGroupHostState<T> extends State<_RadioGroupHost<T>> {
+  late final _registry = _RadioGroupForwardingRegistry<T>(_scheduleMessage);
+  bool _scheduled = false;
+  String? _message;
+  void _scheduleMessage() {
+    if (_scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted) return;
+      final ids = _registry.conflicts.toList()..sort();
+      final parts = <String>[
+        if (ids.isNotEmpty)
+          'RadioGroup ${widget.node.id}: group navigation preview unavailable because mounted Radio clients ${ids.join(', ')} equal groupValue. Disabled and offstage clients count in the SDK registry. Conflicting clients are withheld only from group navigation; their controlled appearance is retained.',
+        if (_registry.semanticsBlocked)
+          'RadioGroup ${widget.node.id}: group semantics preview unavailable because the actual semantics subtree contains multiple checked mutually-exclusive controls. The invalid group semantics subtree is withheld; visual children and their state remain.',
+        if (ids.isNotEmpty || _registry.semanticsBlocked)
+          'Stored values and generated Dart are unchanged. Normal SDK navigation/semantics recover automatically when the conflict is resolved.',
+        if (_radioGroupStaticMessage(widget.node) case final String message)
+          message,
+      ];
+      final message = parts.isEmpty ? null : parts.join(' ');
+      if (_message != message) {
+        setState(() => _message = message);
+        widget.messageChanged(message);
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    _registry.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final parent = context
+        .dependOnInheritedWidgetOfExactType<_CanvasRadioGroupScope>();
+    return _TextButtonPreview(
+      message: _message ?? _radioGroupStaticMessage(widget.node) ?? '',
+      child: _RadioGroupSemanticsGate<T>(
+        registry: _registry,
+        child: RadioGroup<T>(
+          groupValue: _radioIdentityValue(widget.node, 'groupValue') as T?,
+          onChanged: (_) {},
+          child: Builder(
+            builder: (context) {
+              _registry.attach(RadioGroup.maybeOf<T>(context)!);
+              return _CanvasRadioGroupScope(
+                typeKey: _radioTypeKey(widget.node),
+                registry: _registry,
+                unavailableReason: null,
+                parent: parent,
+                child: widget.child,
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _TextButtonPreview extends StatefulWidget {
   const _TextButtonPreview({required this.message, required this.child});
   final String message;
@@ -964,6 +1382,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if (node.type == 'flutter.material.Radio') {
     return _radioUnavailableMessage(node, context) ??
         _radioReferenceMessage(node, context);
+  }
+  if (node.type == 'flutter.widgets.RadioGroup') {
+    return _radioGroupPreviewMessage(node, context);
   }
   if (node.type == 'flutter.material.RangeSlider') {
     return _rangeSliderGeometryMessage(node, context, constraints) ??
@@ -1988,6 +2409,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
         node.type == 'flutter.material.Radio' ||
+        node.type == 'flutter.widgets.RadioGroup' ||
         node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
@@ -3961,6 +4383,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
       'flutter.material.Radio' => _radio(context),
+      'flutter.widgets.RadioGroup' => _RadioGroupPreview(
+        node: node,
+        child: _single('child')!,
+      ),
       'flutter.material.RangeSlider' => _rangeSlider(context),
       'flutter.material.Slider' => _slider(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
@@ -4561,22 +4987,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _typedRadio<T>(BuildContext context) {
-    Object? literal(String name) {
-      final value = switch (node.properties[name]?.value) {
-        CanvasEnumValue(value: 'infinity') => double.infinity,
-        CanvasEnumValue(value: 'negativeInfinity') => double.negativeInfinity,
-        CanvasEnumValue(value: 'nan') => double.nan,
-        final value => value,
-      };
-      return _string('valueType') == 'double' && value is num
-          ? value.toDouble()
-          : value;
-    }
-
-    final value = literal('value') as T;
+    final value = _radioIdentityValue(node, 'value') as T;
+    final scoped = _canvasRadioScope(node, context)?.registry;
+    final registry = scoped == null
+        ? null
+        : (scoped as _RadioGroupForwardingRegistry<T>).forRadio(node.id);
     final groupValue = _radioHasInheritedRegistry(node, context)
         ? null
-        : literal('groupValue') as T?;
+        : _radioIdentityValue(node, 'groupValue') as T?;
     final ValueChanged<T?>? onChanged = _radioHasCallback(node)
         ? (_) => onSelected(node.id)
         : null;
@@ -4606,6 +5024,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return _string('variant') == 'adaptive'
         ? Radio<T>.adaptive(
             value: value,
+            groupRegistry: registry,
             // These still-existing SDK arguments preserve the full legacy branch.
             // ignore: deprecated_member_use
             groupValue: groupValue,
@@ -4631,6 +5050,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           )
         : Radio<T>(
             value: value,
+            groupRegistry: registry,
             // ignore: deprecated_member_use
             groupValue: groupValue,
             // ignore: deprecated_member_use

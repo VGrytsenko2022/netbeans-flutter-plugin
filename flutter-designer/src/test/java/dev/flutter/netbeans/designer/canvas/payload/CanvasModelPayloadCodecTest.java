@@ -99,6 +99,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.Slider",
             "flutter.material.RangeSlider",
             "flutter.material.Radio",
+            "flutter.widgets.RadioGroup",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3714,6 +3715,70 @@ class CanvasModelPayloadCodecTest {
         String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
         for (var name : fields.keySet()) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
         assertFalse(json.contains("ProjectValue"));
+    }
+
+    @Test
+    void radioGroupPayloadRetainsRequiredChildAndOnlyPresenceOfGenericProjectReferences() throws Exception {
+        var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("valueType", "groupValue", "onChanged")) fields.put(new PropertyName(name),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:radio_types/values.dart"),
+                        "ProjectChoice", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()));
+        fields.put(new PropertyName("nullableValueType"), new PropertyValue.BooleanValue(true));
+        var root = radioGroupPayloadNode(fields);
+        var codec = new CanvasModelPayloadCodec();
+        var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+        String json = new String(codec.encode(candidate), StandardCharsets.UTF_8);
+        assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
+        for (String name : List.of("valueType", "groupValue", "onChanged")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertTrue(json.contains("RadioGroup child retained"));
+        assertTrue(json.contains("\"protocolVersion\":18"));
+        for (String hidden : List.of("ProjectChoice", "radio_types", "libraryUri", "resources")) assertFalse(json.contains(hidden), hidden);
+    }
+
+    @Test
+    void radioGroupPayloadDistinguishesOmittedNullAndAllLiteralIdentityKindsWithoutStoredDefaults() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        String omitted = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), radioGroupPayloadNode(Map.of())))), StandardCharsets.UTF_8);
+        assertFalse(omitted.contains("\"groupValue\":"));
+        assertFalse(omitted.contains("\"nullableValueType\":"));
+        assertTrue(omitted.contains("\"onChanged\":{\"kind\":\"string\",\"value\":\"noop\"}"));
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("line1\r\nline2"),
+                new PropertyValue.BooleanValue(true), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(9007199254740991L)),
+                new PropertyValue.DoubleValue(new BigDecimal("1.5")), new PropertyValue.EnumValue("double", "infinity"),
+                new PropertyValue.EnumValue("double", "negativeInfinity"), new PropertyValue.EnumValue("double", "nan"))) {
+            var root = radioGroupPayloadNode(Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("Object"), new PropertyName("groupValue"), value));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"groupValue\":{\"kind\":\"" + value.kind().wireName() + "\""));
+        }
+    }
+
+    @Test
+    void radioGroupInvalidRequiredValuesSlotsAndRawCodeFailBeforePayloadAdmission() {
+        var root = radioGroupPayloadNode(Map.of());
+        var codec = new CanvasModelPayloadCodec();
+        for (String name : List.of("valueType", "onChanged")) {
+            var values = new LinkedHashMap<>(root.properties());
+            values.remove(new PropertyName(name));
+            var invalid = new WidgetNode(root.id(), root.type(), values, root.slots());
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.DartExpressionValue("runProjectCode()"))) {
+            var invalid = radioGroupPayloadNode(Map.of(new PropertyName("onChanged"), value));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+        }
+        var missing = new WidgetNode(root.id(), root.type(), root.properties(), Map.of());
+        var empty = new WidgetNode(root.id(), root.type(), root.properties(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        for (var invalid : List.of(missing, empty)) assertThrows(IllegalArgumentException.class,
+                () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+    }
+
+    private static WidgetNode radioGroupPayloadNode(Map<PropertyName, PropertyValue> fields) {
+        var type = dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE;
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), StableId.random());
+        var values = new LinkedHashMap<>(prototype.properties());
+        values.putAll(fields);
+        return new WidgetNode(prototype.id(), type, values, Map.of(new SlotName("child"),
+                new WidgetSlot.SingleSlot(Optional.of(text("2785bdda-2834-4d34-9cc3-ed6b530a8b10", "RadioGroup child retained")))));
     }
 
     @Test

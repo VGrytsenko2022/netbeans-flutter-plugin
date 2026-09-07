@@ -84,7 +84,9 @@ final class FlutterPresetDartReferenceEditorComponent {
             referenceEditor.setValue(FlutterPropertyCellValue.explicit(initial instanceof PropertyValue.DartObjectReferenceValue ? initial
                     : new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_reference", Optional.empty(),
                             PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())));
-            var referenceEnvironment = PropertyEnv.create(new FeatureDescriptor());
+            var referenceDescriptor = new FeatureDescriptor();
+            referenceDescriptor.setValue(FlutterDartObjectReferenceEditorComponent.RADIO_GROUP_CALLBACK_ATTRIBUTE, isRadioCallback() && !binding.optional());
+            var referenceEnvironment = PropertyEnv.create(referenceDescriptor);
             referencePanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
                     FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
             if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearRoot(referencePanel);

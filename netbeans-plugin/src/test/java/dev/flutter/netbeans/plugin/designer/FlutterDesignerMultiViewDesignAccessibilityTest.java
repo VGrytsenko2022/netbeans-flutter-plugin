@@ -770,6 +770,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.Slider",
                     "flutter.material.RangeSlider",
                     "flutter.material.Radio",
+                    "flutter.widgets.RadioGroup",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -1049,6 +1050,17 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void radioGroupReplacementPrototypePreservesRequiredChildHoleAndTwoDefaultsWithoutInventingWidgets() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.widgets.RadioGroup")).orElseThrow();
+        var expectedId = StableId.parse("dabc453b-e6cc-4e45-87e9-48e77436f859"); var allocations = new AtomicInteger();
+        var prototype = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(), () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, prototype.id()); assertEquals(definition.typeId(), prototype.type()); assertEquals(1, allocations.get());
+        assertEquals(Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("String"), new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), prototype.properties());
+        assertEquals(Map.of(new dev.flutter.netbeans.designer.model.SlotName("child"), dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot.empty()), prototype.slots());
+        assertEquals("child", dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition).orElseThrow().name().value());
     }
 
     @Test

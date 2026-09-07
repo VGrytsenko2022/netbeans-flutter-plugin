@@ -90,6 +90,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.Slider", ICON_ROOT + "slider.svg"),
             Map.entry("flutter.material.RangeSlider", ICON_ROOT + "rangeslider.svg"),
             Map.entry("flutter.material.Radio", ICON_ROOT + "radio.svg"),
+            Map.entry("flutter.widgets.RadioGroup", ICON_ROOT + "radio_group.svg"),
             Map.entry("flutter.widgets.ColoredBox", ICON_ROOT + "coloredbox.svg"),
             Map.entry("flutter.widgets.Placeholder", ICON_ROOT + "placeholder.svg"),
             Map.entry("flutter.widgets.Directionality", ICON_ROOT + "directionality.svg"),

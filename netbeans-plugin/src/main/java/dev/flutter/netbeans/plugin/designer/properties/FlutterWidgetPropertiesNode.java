@@ -44,6 +44,7 @@ import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -535,6 +536,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIconButtonPropertySets(sheet, hasSlotTab);
         } else if (RadioWidgetPropertySchema.RADIO_TYPE.equals(widget.type())) {
             addRadioPropertySets(sheet, hasSlotTab);
+        } else if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) {
+            addRadioGroupPropertySets(sheet, hasSlotTab);
         } else if (RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.equals(widget.type())) {
             addRangeSliderPropertySets(sheet, hasSlotTab);
         } else if (SliderWidgetPropertySchema.SLIDER_TYPE.equals(widget.type())) {
@@ -2416,6 +2419,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addRadioGroupPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var group = RadioGroupWidgetPropertySchema.Group.BEHAVIOR;
+        var set = propertySet(group.setName(), group.displayName(), group.description());
+        assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); sheet.put(set);
+        for (var property : definition.properties()) {
+            var schema = RadioGroupWidgetPropertySchema.find(property.name()).orElseThrow();
+            var presets = property.name().value().equals("onChanged") ? java.util.List.of("noop") : java.util.List.<String>of();
+            set.put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " The Value Type dialog edits type, nullability and Group Value in one transaction; one Undo restores all three. "
+                    + "The callback and descendant Radio types/values are preserved. Value Type and On Changed cannot be unset. "
+                    + "Project references are analyzed but never executed in isolated Canvas.", false, presets));
+        }
+    }
+
     private void addRadioPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<RadioWidgetPropertySchema.Group, Sheet.Set>(RadioWidgetPropertySchema.Group.class);
         for (var group : RadioWidgetPropertySchema.Group.values()) {
@@ -3838,8 +3855,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             @Override
             public void setValue(FlutterPropertyCellValue value)
                     throws IllegalAccessException {
-                if (value.radioTypeEdit().isPresent() && (!RadioWidgetPropertySchema.RADIO_TYPE.equals(presentation.widget().type()) || !propertyName.value().equals("valueType"))) {
-                    throw new IllegalArgumentException("Dependent type edits are accepted only on Radio.valueType.");
+                if (value.radioTypeEdit().isPresent() && (!FlutterPropertyCellValue.RadioTypeEdit.supports(presentation.widget().type()) || !propertyName.value().equals("valueType")
+                        || !value.radioTypeEdit().orElseThrow().widgetType().equals(presentation.widget().type()))) {
+                    throw new IllegalArgumentException("Dependent type edits are accepted only on the matching Radio/RadioGroup.valueType.");
                 }
                 FlutterPropertyCellValue accepted = binding.validate(value);
                 Presentation current = presentation;
@@ -3904,7 +3922,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         // spinner, or text area's intermediate events can never consume the
         // designer's one-shot mutation lease.
         result.setValue("changeImmediate", Boolean.FALSE);
-        if (RadioWidgetPropertySchema.RADIO_TYPE.equals(widget.type()) && propertyName.value().equals("valueType")) {
+        if (FlutterPropertyCellValue.RadioTypeEdit.supports(widget.type()) && propertyName.value().equals("valueType")) {
             result.setValue(FlutterRadioTypeEditorComponent.CONTEXT_ATTRIBUTE, (java.util.function.Supplier<WidgetNode>) () -> presentation.widget());
         }
         result.setValue(
@@ -3989,7 +4007,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
             return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
-        if (RadioWidgetPropertySchema.RADIO_TYPE.equals(currentWidget.type())) {
+        if (FlutterPropertyCellValue.RadioTypeEdit.supports(currentWidget.type())) {
             return radioPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.equals(currentWidget.type())) {
@@ -4274,7 +4292,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 
+    private static Optional<String> radioTypeError(WidgetNode widget) {
+        return RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())
+                ? RadioGroupWidgetPropertySchema.valueTypeError(widget) : RadioWidgetPropertySchema.valueTypeError(widget);
+    }
+
     private DesignerCommand radioPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String radioFamily = RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type()) ? "RadioGroup" : "Radio";
         String edited = name.value();
         boolean setting = accepted.explicitValue().isPresent();
         var resets = new java.util.LinkedHashSet<PropertyName>();
@@ -4282,9 +4306,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         var explicit = accepted.explicitValue().orElse(null);
         if (accepted.radioTypeEdit().isPresent()) {
             var draft = accepted.radioTypeEdit().orElseThrow();
-            if (!edited.equals("valueType") || !widget.id().equals(draft.widgetId())
+            if (!edited.equals("valueType") || !widget.type().equals(draft.widgetType()) || !widget.id().equals(draft.widgetId())
                     || !FlutterPropertyCellValue.RadioTypeEdit.snapshot(widget).equals(draft.baseline())) {
-                throw new IllegalArgumentException("Cannot apply Radio type edit: the selected widget or dependent values changed after the dialog opened. Reopen the editor.");
+                throw new IllegalArgumentException("Cannot apply " + radioFamily + " type edit: the selected widget or dependent values changed after the dialog opened. Reopen the editor.");
             }
             var requested = new java.util.LinkedHashMap<>(widget.properties());
             var patches = new java.util.ArrayList<PatchProperties.Patch>();
@@ -4297,19 +4321,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     else { requested.remove(key); patches.add(new PatchProperties.ResetPatch(key)); }
                 }
             });
-            RadioWidgetPropertySchema.valueTypeError(new WidgetNode(widget.id(), widget.type(), requested, widget.slots())).ifPresent(reason -> {
-                throw new IllegalArgumentException("Cannot edit Radio type: " + reason);
+            radioTypeError(new WidgetNode(widget.id(), widget.type(), requested, widget.slots())).ifPresent(reason -> {
+                throw new IllegalArgumentException("Cannot edit " + radioFamily + " type: " + reason);
             });
             if (patches.isEmpty()) return ordinaryPropertyCommand(widget, name, FlutterPropertyCellValue.explicit(explicit));
             return new PatchProperties(widget.id(), patches);
         }
-        if (java.util.List.of("valueType", "nullableValueType", "value", "groupValue").contains(edited)) {
+        if (FlutterPropertyCellValue.RadioTypeEdit.fields(widget.type()).contains(edited)) {
             var prospective = new java.util.LinkedHashMap<>(widget.properties());
             if (setting) prospective.put(name, explicit); else prospective.remove(name);
-            RadioWidgetPropertySchema.valueTypeError(new WidgetNode(widget.id(), widget.type(), prospective, widget.slots())).ifPresent(reason -> {
-                throw new IllegalArgumentException("Cannot edit Radio " + edited + ": " + reason + " Use the Value type dialog to change dependent values together.");
+            radioTypeError(new WidgetNode(widget.id(), widget.type(), prospective, widget.slots())).ifPresent(reason -> {
+                throw new IllegalArgumentException("Cannot edit " + radioFamily + " " + edited + ": " + reason + " Use the Value type dialog to change dependent values together.");
             });
         }
+        if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) return ordinaryPropertyCommand(widget, name, accepted);
         if (setting && edited.equals("useCupertinoCheckmarkStyle")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
         if (edited.equals("variant") && new PropertyValue.StringValue("standard").equals(explicit)) resets.add(new PropertyName("useCupertinoCheckmarkStyle"));
         var density = java.util.List.of("visualDensityHorizontal", "visualDensityVertical");

@@ -8163,7 +8163,7 @@ void main() {
   test('Scaffold reviewed contract is exact and closed at 17 leaves', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.Scaffold\n');
-    final end = contract.indexOf('W|flutter.material.TextButton\n', start);
+    final end = contract.indexOf('W|flutter.material.Switch\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final section = contract.substring(start, end);

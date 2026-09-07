@@ -2811,8 +2811,12 @@ Iterable<
   })
 >
 _canvasImageUses(CanvasNode node) sync* {
-  if (node.type == 'flutter.material.CircleAvatar') {
-    for (final name in const ['backgroundImage', 'foregroundImage']) {
+  if (node.type == 'flutter.material.CircleAvatar' ||
+      node.type == 'flutter.material.Switch') {
+    for (final name
+        in node.type == 'flutter.material.Switch'
+            ? const ['activeThumbImage', 'inactiveThumbImage']
+            : const ['backgroundImage', 'foregroundImage']) {
       final provider = node.properties[name]?.value;
       if (provider is CanvasImageProviderValue) {
         yield (provider: provider, centerSlice: null, scale: 1);

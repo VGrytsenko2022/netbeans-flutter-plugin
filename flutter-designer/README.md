@@ -31,7 +31,7 @@ may move exact pair bytes between mirrored directories. It now also owns
 the bounded pure Add/Remove/Move/Wrap/Set/Reset command session, immutable
 revision candidates, exact inverse history, saved cursor, branch semantics and
 paired versus `.fd`-only persistence classification, plus Canvas identities,
-responsive render profiles and the bounded canonical eighty-two-widget Canvas
+responsive render profiles and the bounded canonical eighty-three-widget Canvas
 model projection. It deliberately has no dependency on NetBeans APIs
 or Swing.
 
@@ -40,19 +40,19 @@ Design/status surface, Explorer widget tree, exact viewport/adaptive-
 target preview toolbar and a real embedded native `FlutterView`, together with the
 transactional pair-save edge. Stable widget IDs synchronize selection between
 the tree and Flutter surface. The standard Properties window now exposes a
-bounded catalog-backed presentation for all eighty-two canonical widgets: `Scaffold`,
+bounded catalog-backed presentation for all eighty-three canonical widgets: `Scaffold`,
 `ElevatedButton`, `AppBar`, `TextField`, `Column`, `Row`, `Wrap`, `Padding`, `Center`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton` and `Checkbox`. Seventy-six
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox` and `Switch`. Seventy-seven
 definitions use reviewed const constructors. IntrinsicHeight, RepaintBoundary and MergeSemantics
 have no scalar constructor properties; identity and child-slot editing remain
-available. The exact catalog currently contains 3182 writable property
+available. The exact catalog currently contains 3383 writable property
 rows. The historical first mutating Palette vertical slice admitted
 only a terminal `Text` append. It is superseded by the current catalog-driven
-5,576-cell candidate matrix: eighty-two exact capability-reviewed sources target
+5,644-cell candidate matrix: eighty-three exact capability-reviewed sources target
 sixty-six insertable any-widget and two `PreferredSizeWidget` destinations,
-with exactly 5,222 accepted and 354 rejected cells, subject to
+with exactly 5,288 accepted and 356 rejected cells, subject to
 empty-single or terminal-list admission. Existing-widget
 reparenting and list reordering use the same catalog compatibility planner and
 transactional command path; catalog-incompatible and non-reviewed operations remain
@@ -116,7 +116,7 @@ and carries callback presence without callback identifiers.
 The payload admits exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Wrap`, `Padding`, `Center`, `Align`, `FractionallySizedBox`,
 `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton` and `Checkbox` from the reviewed
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Container`, `Opacity`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox` and `Switch` from the reviewed
 built-in catalog and excludes project paths, Dart source, callback identifiers,
 extensions and persistence authority. The frame-kind whitelist is control JSON,
 model JSON, negotiated NBFC kind 4 `IMAGE_BYTES`, and reserved catalog JSON.
@@ -134,7 +134,7 @@ per-view isolated process lifecycle. Each open `.fd` Design view owns its host
 and process independently; cache reuse is accepted only after a bounded runtime
 SHA-256 manifest matches all launch artifacts. Resize/peer-loss and late
 build/launch/exit races are fenced and covered together with simultaneous-view
-tests. The isolated runner decodes the canonical eighty-two-widget model, renders it
+tests. The isolated runner decodes the canonical eighty-three-widget model, renders it
 directly in Flutter for the compatible native adaptive targets, acknowledges the
 exact layout identity and exchanges only revision-bound stable-ID selection.
 Android/iOS/macOS/Linux appearance uses `ThemeData.platform` while the physical
@@ -258,8 +258,8 @@ OverflowBox six, Flexible two, Spacer one, Baseline two, IntrinsicHeight zero,
 IntrinsicWidth two, Offstage one, SizedOverflowBox two, Transform five,
 RotatedBox one, ListBody two, OverflowBar six, SafeArea six, GridView.count 21,
 SingleChildScrollView 10, ColoredBox two, Placeholder four, Directionality one,
-DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three, PhysicalModel six, PhysicalShape five, RepaintBoundary zero, IgnorePointer two, AbsorbPointer two, ExcludeSemantics one, BlockSemantics one, MergeSemantics zero, IndexedSemantics one, ExcludeFocus one, ExcludeFocusTraversal one, Visibility seven, TickerMode two, DefaultTextHeightBehavior three, DefaultSelectionStyle four, IconTheme ten, ImageIcon four, Divider six, VerticalDivider six, Card 31, Badge 41, CircleAvatar nine, LinearProgressIndicator 13, CircularProgressIndicator 15, RefreshProgressIndicator 12, RefreshIndicator 13, TextButton 511, OutlinedButton 510, FilledButton 510, FloatingActionButton 78, IconButton 524 and Checkbox 106, bringing the non-`Scaffold` total to
-3165; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 3182 writable rows across eighty-two
+DecoratedBox two, ClipRect two, ClipOval two, ClipRRect three, ClipPath three, ClipRSuperellipse three, PhysicalModel six, PhysicalShape five, RepaintBoundary zero, IgnorePointer two, AbsorbPointer two, ExcludeSemantics one, BlockSemantics one, MergeSemantics zero, IndexedSemantics one, ExcludeFocus one, ExcludeFocusTraversal one, Visibility seven, TickerMode two, DefaultTextHeightBehavior three, DefaultSelectionStyle four, IconTheme ten, ImageIcon four, Divider six, VerticalDivider six, Card 31, Badge 41, CircleAvatar nine, LinearProgressIndicator 13, CircularProgressIndicator 15, RefreshProgressIndicator 12, RefreshIndicator 13, TextButton 511, OutlinedButton 510, FilledButton 510, FloatingActionButton 78, IconButton 524, Checkbox 106 and Switch 201, bringing the non-`Scaffold` total to
+3366; `Scaffold` adds 17 reviewed scalar rows, so the current exact total is 3383 writable rows across eighty-three
 canonical widgets. `AspectRatio` requires one
 finite positive double,
 uses a creation value of `1.0`, owns one optional `child` slot and has no theme
@@ -1298,12 +1298,12 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The current practical backlog is 82/92 complete with 10 remaining.
-The catalog contains 82 widgets and 76 reviewed const definitions,
-with 3182 writable rows (3165 outside Scaffold); Palette categories contain 31
-Layout, three Scrolling, twenty-three Basic, nineteen Material and six Accessibility items.
-The 82 sources and 68 insertable destinations form 5,576 cells, with 5,222
-admitted and 354 rejected. PhysicalShape's ShapeBorderClipper value previously
+The current practical backlog is 83/92 complete with 9 remaining.
+The catalog contains 83 widgets and 77 reviewed const definitions,
+with 3383 writable rows (3366 outside Scaffold); Palette categories contain 31
+Layout, three Scrolling, twenty-three Basic, twenty Material and six Accessibility items.
+The 83 sources and 68 insertable destinations form 5,644 cells, with 5,288
+admitted and 356 rejected. PhysicalShape's ShapeBorderClipper value previously
 established Catalog API 14, `.fd` v13 and Canvas model v18; these versions remain
 unchanged. NBFC framing/control/wire remain v1.
 
@@ -1676,7 +1676,7 @@ durable C2/S2, replaces the obsolete redo suffix with the exact
 
 These command and pair-save paths originally served only the bounded typed
 Properties UI; at that historical stage Palette insertion/DnD was still
-disconnected. That stage is superseded by the eighty-two-source insertion matrix
+disconnected. That stage is superseded by the eighty-three-source insertion matrix
 described above. Pre-persistence loss of exact
 staged authority now clears only semantic Designer state while retaining live
 Source content and native Undo/Redo. The assembled Apache NetBeans IDE 31 runtime,
@@ -1684,19 +1684,19 @@ strict NBM verifier and isolated install lifecycle have an established passing
 baseline; this does not imply physical acceptance of every new palette widget.
 The global physical gate remains deferred until the palette target is complete.
 The accepted ADR-021
-Windows native read-only `FlutterView`, eighty-two-widget projection, responsive
-profiles, stable-ID tree selection, exact eighty-two-item context Palette and
+Windows native read-only `FlutterView`, eighty-three-widget projection, responsive
+profiles, stable-ID tree selection, exact eighty-three-item context Palette and
 selected-node typed Properties are implemented. Properties expose exactly
-3182 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
+3383 catalog-backed writable fields across `Scaffold`, `ElevatedButton`,
 `AppBar`, `TextField`, `Column`, `Row`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Container`, `Opacity`, `Text`, `Icon` and `Image`,
 including the Scaffold, ElevatedButton, AppBar, Text and Icon projections
 above.
-Palette DnD is enabled for the eighty-two exact capability-reviewed source
-definitions and sixty-eight insertable catalog-authorized slots, for 5,576
-candidate cells: 5,222 admitted and 354 rejected. Expanded and Flexible each
+Palette DnD is enabled for the eighty-three exact capability-reviewed source
+definitions and sixty-eight insertable catalog-authorized slots, for 5,644
+candidate cells: 5,288 admitted and 356 rejected. Expanded and Flexible each
 admit only direct `Row.children` or `Column.children` wrapping, while Spacer is
 inserted only into those two slots; the wrappers' required child slots are
 replacement-only and excluded from the destination matrix. SafeArea,
@@ -1736,6 +1736,22 @@ PhysicalShape's typed ShapeBorderClipper value and constraint.
 
 The accepted contract and module boundaries are documented in
 `docs/FLUTTER_DESIGNER_ARCHITECTURE.md`.
+
+## Switch standard/adaptive
+
+The scalar Switch catalog definition contains 201 rows, both const-capable public
+constructors and all 27/28 non-key SDK arguments. Four color maps, one nullable
+signed/infinite number map and one complete state-Icon map reuse existing typed
+values and strict whole-property references. Numeric maps infer double? from the
+SDK constructor context; no new value kind, type grammar, import or budget is added.
+
+Nine Icon buckets distinguish null resolver from Icon(null), retaining every Icon
+field and the current closed asset/font/shadow domains. Image-error references
+require the matching provider. Local/whole map replacements, icon Mode changes,
+provider resets and adaptive-only flag changes remain atomic history operations.
+Generation preserves deprecated activeColor with newer fields and isolates disabled
+onChanged references. See [ADR-111](../docs/DECISIONS.md#adr-111--switch-state-icons-images-and-adaptive-styling)
+for the SDK contract, preview limitations and verification evidence.
 
 ## Checkbox standard/adaptive
 

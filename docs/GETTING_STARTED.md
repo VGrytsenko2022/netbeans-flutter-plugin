@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly eighty-two
+The current capability-gated Palette and native Canvas admit exactly eighty-three
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton` and `Checkbox`.
-Seventy-six definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 3182 typed writable rows: 3165 across the eighty-one
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox` and `Switch`.
+Seventy-seven definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 3383 typed writable rows: 3366 across the eighty-two
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -966,9 +966,9 @@ Side fields as well as its Shape; theme/default resolution is specific to
 OutlinedButton. Save/reopen, native history and the same explicit project-code
 preview limits apply.
 
-The practical backlog is now 82/92 complete with 10 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 19 and Accessibility 6. The aggregate
-is 76 reviewed const definitions and 3182 writable rows, including 3165 outside
+The practical backlog is now 83/92 complete with 9 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 20 and Accessibility 6. The aggregate
+is 77 reviewed const definitions and 3383 writable rows, including 3366 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -1034,8 +1034,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Eighty-two sources across sixty-six insertable any-widget and two trait-bound
-slots produce 5,576 compatibility candidates: 5,222 accepted and 354
+Eighty-three sources across sixty-six insertable any-widget and two trait-bound
+slots produce 5,644 compatibility candidates: 5,288 accepted and 356
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -1172,6 +1172,32 @@ mvn nbm:run-ide -Dnetbeans.installation=G:/netbeans
 ```
 
 The launched IDE uses `target/userdir`, so its imported SDK settings are separate from those of the development NetBeans instance.
+
+## Editing Switch
+
+Add **Material → Switch** and choose Standard or Adaptive. Value is a non-nullable
+checkbox and starts false; Enabled starts true. Canvas tap/drag selects the
+control without writing Value or invoking application code.
+
+The 201 stable property rows include every non-key argument of both constructors,
+four local nullable color-state maps, one numeric-state map and all thirteen Icon
+fields for each of nine states. A missing state continues lookup; explicit null
+uses SDK fallback. For an icon bucket, Inherit is a null resolver, while Icon with
+None or omitted Data creates an actual Icon(null). Resetting Mode clears its bucket.
+Switching between a whole state-property reference and local entries is atomic.
+
+Outline widths accept signed finite numbers, positive infinity and explicit null.
+Whole references retain strict Color?, double? or Icon? inner types; callback and
+image-error references are type-checked as ValueChanged<bool> and ImageErrorListener.
+Both thumb images use declared assets, scale and ResizeImage. Resetting an image
+also resets only its error handler. Apply Cupertino theme selects Adaptive;
+returning to Standard clears that argument in the same undoable edit.
+
+Flutter's Switch painter ignores some retained Icon fields, including semantics,
+text direction and text scaling; these remain correctly emitted to Dart.
+Canvas diagnoses unequal infinite outline endpoints and previews width two only
+for that unsafe SDK combination. See [ADR-111](DECISIONS.md#adr-111--switch-state-icons-images-and-adaptive-styling)
+for exact preview boundaries and upstream lifecycle behavior.
 
 ## Editing Checkbox
 

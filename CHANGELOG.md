@@ -6,6 +6,19 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- Switch at Material/order 200 with both standard and adaptive constructors and
+  201 typed rows: every direct SDK parameter, four nullable state-color families,
+  nullable state outline widths and nine complete local Icon buckets. Preserve
+  omitted/null/Icon(null) distinctions, declared image providers and strict
+  callback/state-property references. Constructor, icon-family and image-handler
+  dependencies are atomic; stable editors, save/reopen, history, Canvas and four
+  SVG assets are included. Optional icon-data editors retain omission separately
+  from None without changing required Icon.icon. Current totals: 83 widgets,
+  77 const definitions, 3383 rows (3366 outside Scaffold), 319 Boolean-only fields
+  and four nullable-Boolean unions plus the Object-tag union. The unchanged 68
+  destinations form 5644 placements (5288 accepted / 356 rejected); Material has
+  20 items. Historical target 83/92 leaves nine. Formats and budgets are unchanged.
+
 - Checkbox at Material/order 190 with standard and adaptive const constructors,
   all 19 SDK parameters and 106 typed rows: nullable controlled value, strict
   ValueChanged<bool?>, full outlined shape families, nullable fill/overlay state
@@ -14,7 +27,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   one Undo step. Both real SDK branches retain their exact defaults and ignored
   fields; isolated Canvas never executes project code. Stable editors, SVGs,
   insertion, save/reopen/further edits and history belong to the slice.
-  Current totals: 82 widgets, 76 const definitions, 3182 rows (3165 outside
+  At that milestone: 82 widgets, 76 const definitions, 3182 rows (3165 outside
   Scaffold), 307 Boolean-only fields, three nullable-Boolean unions and the
   Object-tag union; 68 destinations, 5576 placements (5222 accepted / 354
   rejected), Material 19. Historical target 82/92 leaves 10; no recovered fixed

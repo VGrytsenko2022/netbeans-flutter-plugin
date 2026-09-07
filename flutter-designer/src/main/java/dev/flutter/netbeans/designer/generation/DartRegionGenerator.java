@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -333,7 +334,8 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
-        if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
+        if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
             return !name.value().equals("onChanged") || !new PropertyValue.BooleanValue(false).equals(
                     node.properties().get(new PropertyName("enabled")));
         }
@@ -409,6 +411,10 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
+                    && (property.parameter().order() >= 28 || property.name().value().equals("onChanged")
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
             if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                     && (property.parameter().order() >= 20
                     || Set.of("onChanged", "visualDensityHorizontal", "visualDensityVertical").contains(property.name().value())
@@ -558,6 +564,9 @@ public final class DartRegionGenerator {
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
             appendCheckboxArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
+        if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
+            appendSwitchArguments(node, definition, path, context, arguments);
+        }
         if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             PropertyDefinition pressed = definition.property(new PropertyName("onPressed")).orElseThrow();
             PropertyValue reference = node.properties().get(pressed.name());
@@ -685,7 +694,8 @@ public final class DartRegionGenerator {
                     constructor.length() + 1, member, renderedClass.libraryUri(),
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += "." + member;
-        } else if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+        } else if ((node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE))
                 && new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":checkboxConstructor",
                     constructor.length() + 1, "adaptive", renderedClass.libraryUri(),
@@ -2080,6 +2090,100 @@ public final class DartRegionGenerator {
         rendered.append(source, previous, source.length());
     }
 
+    private void appendSwitchArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
+        PropertyValue reference = node.properties().get(changed.name());
+        boolean enabled = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("enabled")));
+        RenderedValue callback = !enabled
+                ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                : reference == null ? scalar("(_) {}", false, path + "/properties/onChanged", node.id(), context)
+                : renderProperty(reference, changed, path + "/properties/onChanged", node.id(), context);
+        arguments.add(new ConstructorArgument(changed.parameter(), "onChanged", false, callback));
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        List<String> families = new ArrayList<>(SwitchWidgetPropertySchema.colorFamilies());
+        families.add("trackOutlineWidth");
+        families.add("thumbIcon");
+        for (String family : families) {
+            ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : SwitchWidgetPropertySchema.statePriority()) {
+                String suffix = Character.toUpperCase(state.charAt(0)) + state.substring(1);
+                String name = family + suffix;
+                RenderedValue rendered;
+                if (family.equals("thumbIcon")) {
+                    rendered = renderSwitchThumbIcon(node, definition, suffix, path, context);
+                } else {
+                    PropertyValue value = node.properties().get(new PropertyName(name));
+                    rendered = value == null ? null : renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(),
+                            path + "/properties/" + name, node.id(), context);
+                }
+                if (rendered != null) {
+                    entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state, rendered));
+                }
+            }
+            if (!entries.isEmpty()) {
+                arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),
+                        family, false, renderCheckboxStateMap("WidgetStateProperty",
+                                family.equals("thumbIcon") ? "Icon" : family.equals("trackOutlineWidth") ? "double" : "Color",
+                                entries, path + "/properties/" + family, node.id(), context)));
+            }
+        }
+    }
+
+    private RenderedValue renderSwitchThumbIcon(WidgetNode node, WidgetDefinition definition,
+            String state, String path, GenerationContext context) {
+        List<String> bucket = SwitchWidgetPropertySchema.thumbIconBucketProperties(state);
+        String modeName = bucket.getFirst();
+        PropertyValue mode = node.properties().get(new PropertyName(modeName));
+        if (new PropertyValue.StringValue("inherit").equals(mode)) {
+            return scalar("null", true, path + "/properties/" + modeName, node.id(), context);
+        }
+        if (mode == null && bucket.stream().noneMatch(name -> node.properties().containsKey(new PropertyName(name)))) {
+            return null;
+        }
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        for (String name : bucket.subList(1, bucket.size())) {
+            PropertyValue value = node.properties().get(new PropertyName(name));
+            if (value != null) {
+                RenderedValue field = renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(),
+                        path + "/properties/" + name, node.id(), context);
+                // The shared IconData renderer historically has one data occurrence per widget.
+                // Here nine independent Icon values share a widget id; preserve every model path
+                // while assigning distinct proof identities to each emitted field occurrence.
+                field = new RenderedValue(field.lines(), field.constant(), field.utf8Size(),
+                        field.symbolOccurrences().stream().map(symbol -> new GeneratedDartSymbolOccurrence(
+                                symbol.id() + ":switch-icon-field:" + name, symbol.region(), symbol.offset(), symbol.length(),
+                                symbol.symbolName(), symbol.libraryUri(), symbol.modelPath(), symbol.widgetId(),
+                                symbol.staticTypeRequirement())).toList());
+                members.add(new CompositeMember(SwitchWidgetPropertySchema.iconSourceName(name).orElseThrow(), members.size(),
+                        field));
+            }
+        }
+        boolean constant = members.stream().allMatch(member -> member.rendered().constant());
+        RenderedSymbol icon = context.planner().renderedSymbol(WIDGETS_IMPORT, "Icon");
+        String iconPath = path + "/properties/thumbIcon" + state;
+        StringBuilder rendered = new StringBuilder(constant ? "const " : "");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        appendElevatedSymbol(rendered, occurrences, icon, "widget:" + node.id() + ":switch-icon:" + state, iconPath, node.id());
+        rendered.append('(');
+        CompositeMember data = members.stream().filter(member -> member.name().equals("icon")).findFirst().orElse(null);
+        if (data == null) {
+            rendered.append("null");
+        } else {
+            appendRendered(rendered, occurrences, data.rendered());
+        }
+        for (CompositeMember member : members) {
+            if (!member.name().equals("icon")) {
+                rendered.append(", ").append(member.name()).append(": ");
+                appendRendered(rendered, occurrences, member.rendered());
+            }
+        }
+        rendered.append(')');
+        return scalar(rendered.toString(), constant, iconPath, node.id(), context, occurrences);
+    }
+
     private void appendCheckboxArguments(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
         PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
@@ -2157,7 +2261,10 @@ public final class DartRegionGenerator {
     private RenderedValue renderCheckboxStateMap(String owner, String valueType,
             List<ElevatedButtonStateEntry> entries, String path, StableId widgetId, GenerationContext context) {
         RenderedSymbol propertyType = context.planner().renderedSymbol(MATERIAL_IMPORT, owner);
-        RenderedSymbol valueSymbol = context.planner().renderedSymbol(WIDGETS_IMPORT, valueType);
+        // Downward inference from Switch.trackOutlineWidth supplies double? without changing
+        // the user's implicit dart:core import or depending on an unqualified core type name.
+        boolean inferredNumericType = valueType.equals("double");
+        RenderedSymbol valueSymbol = inferredNumericType ? null : context.planner().renderedSymbol(WIDGETS_IMPORT, valueType);
         RenderedSymbol constraintType = context.planner().renderedSymbol(MATERIAL_IMPORT, "WidgetStatesConstraint");
         RenderedSymbol stateType = context.planner().renderedSymbol(MATERIAL_IMPORT, "WidgetState");
         boolean constant = entries.stream().allMatch(entry -> entry.value().constant());
@@ -2165,18 +2272,22 @@ public final class DartRegionGenerator {
         ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
         String id = "widget:" + widgetId + ":checkbox-map:" + path;
         appendElevatedSymbol(rendered, occurrences, propertyType, id + ":owner", path, widgetId);
-        if (owner.equals("WidgetStateProperty")) {
+        if (owner.equals("WidgetStateProperty") && !inferredNumericType) {
             rendered.append('<');
             appendElevatedSymbol(rendered, occurrences, valueSymbol, id + ":value-type", path, widgetId);
             rendered.append("?>");
         }
         rendered.append('.');
         occurrences.add(occurrence(id + ":factory", rendered.length(), "fromMap", propertyType.libraryUri(), path, Optional.of(widgetId)));
-        rendered.append("fromMap(<");
-        appendElevatedSymbol(rendered, occurrences, constraintType, id + ":constraint-type", path, widgetId);
-        rendered.append(", ");
-        appendElevatedSymbol(rendered, occurrences, valueSymbol, id + ":map-value-type", path, widgetId);
-        rendered.append("?>{");
+        rendered.append("fromMap(");
+        if (!inferredNumericType) {
+            rendered.append('<');
+            appendElevatedSymbol(rendered, occurrences, constraintType, id + ":constraint-type", path, widgetId);
+            rendered.append(", ");
+            appendElevatedSymbol(rendered, occurrences, valueSymbol, id + ":map-value-type", path, widgetId);
+            rendered.append("?>");
+        }
+        rendered.append('{');
         for (int i = 0; i < entries.size(); i++) {
             if (i > 0) {
                 rendered.append(", ");
@@ -6860,7 +6971,8 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
-                            || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE))
+                            || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                            || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

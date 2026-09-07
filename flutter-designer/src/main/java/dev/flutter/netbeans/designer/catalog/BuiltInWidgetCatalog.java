@@ -106,6 +106,7 @@ public final class BuiltInWidgetCatalog {
             floatingActionButton(),
             iconButton(),
             checkbox(),
+            switchWidget(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -770,6 +771,57 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition switchWidget() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition iconDefinition = icon();
+        WidgetDefinition checkboxDefinition = checkbox();
+        for (var entry : SwitchWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            Optional<String> iconName = SwitchWidgetPropertySchema.iconSourceName(name);
+            if (iconName.isPresent()) {
+                constraints = iconDefinition.property(new PropertyName(iconName.orElseThrow())).orElseThrow().constraints();
+            } else if (SwitchWidgetPropertySchema.thumbIconLocalProperties().contains(name)) {
+                constraints = stringPattern("(?:icon|inherit)", "Switch thumb icon state mode");
+            } else if (SwitchWidgetPropertySchema.colorFamilies().stream()
+                    .anyMatch(family -> SwitchWidgetPropertySchema.colorStateProperties(family).contains(name))) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (SwitchWidgetPropertySchema.outlineWidthStateProperties().contains(name)) {
+                constraints = new ArrayList<>(checkboxDefinition.property(new PropertyName("splashRadius")).orElseThrow().constraints());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (name) {
+                    case "onChanged", "onFocusChange" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool>"));
+                    case "onActiveThumbImageError", "onInactiveThumbImageError" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ImageErrorListener"));
+                    case "thumbColor", "trackColor", "trackOutlineColor", "overlayColor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"));
+                    case "trackOutlineWidth" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<double?>"));
+                    case "thumbIcon" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Icon?>"));
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "activeThumbImage", "inactiveThumbImage" -> List.of(new PropertyValueConstraint.ImageProviderValues());
+                    case "activeColor", "activeThumbColor", "activeTrackColor", "inactiveThumbColor", "inactiveTrackColor", "focusColor", "hoverColor" -> colorOrTheme();
+                    case "splashRadius", "mouseCursor", "materialTapTargetSize" -> checkboxDefinition.property(new PropertyName(name)).orElseThrow().constraints();
+                    case "dragStartBehavior" -> gesturesEnumValues("DragStartBehavior", "down", "start");
+                    case "padding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                    case "applyCupertinoTheme" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "Switch constructor");
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.BooleanValue(false);
+                case "enabled" -> new PropertyValue.BooleanValue(true);
+                case "variant" -> new PropertyValue.StringValue("standard");
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(SwitchWidgetPropertySchema.SWITCH_TYPE.value(), "Switch", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, GESTURES_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 200, "Switch"), properties, List.of());
     }
 
     private static WidgetDefinition checkbox() {

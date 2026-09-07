@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(82, javaTypes.size(),
+        assertEquals(83, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -105,6 +105,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.material.FloatingActionButton"));
         assertTrue(javaTypes.contains("flutter.material.IconButton"));
         assertTrue(javaTypes.contains("flutter.material.Checkbox"));
+        assertTrue(javaTypes.contains("flutter.material.Switch"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
 
         assertEquals(18, CanvasModelPayloadCodec.VERSION);
@@ -165,6 +166,7 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(dartContract.contains("W|flutter.material.FloatingActionButton\n"));
         assertTrue(dartContract.contains("W|flutter.material.IconButton\n"));
         assertTrue(dartContract.contains("W|flutter.material.Checkbox\n"));
+        assertTrue(dartContract.contains("W|flutter.material.Switch\n"));
         assertTrue(dartContract.contains(
                 "borderRadius:borderRadius:v1:physical:finiteNonNegative\n"));
         assertTrue(dartContract.contains(

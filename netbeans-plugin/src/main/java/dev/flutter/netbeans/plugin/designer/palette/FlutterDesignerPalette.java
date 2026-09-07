@@ -354,6 +354,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.Card".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Card.Name"));
                 setShortDescription(message("Widget.Card.Description"));
+            } else if ("flutter.material.Switch".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.Switch.Name"));
+                setShortDescription(message("Widget.Switch.Description"));
             } else if ("flutter.material.Checkbox".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Checkbox.Name"));
                 setShortDescription(message("Widget.Checkbox.Description"));

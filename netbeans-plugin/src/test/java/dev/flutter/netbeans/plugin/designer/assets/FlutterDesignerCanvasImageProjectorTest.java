@@ -44,6 +44,33 @@ class FlutterDesignerCanvasImageProjectorTest {
             new FlutterDesignerCanvasImageProjector();
 
     @Test
+    void switchProjectsBothThumbProvidersWithoutExecutingErrorCallbacksAndEmptyCreationNeedsNoAssets() throws Exception {
+        Path project = newProject("switch", "switch_app", """
+                  assets:
+                    - assets/active.png
+                    - assets/inactive.png
+                """);
+        write(project, "assets/active.png", png(10, 10)); write(project, "assets/2x/active.png", png(20, 20));
+        write(project, "assets/inactive.png", png(13, 17)); writePackageConfig(project, List.of(new PackageEntry("switch_app", "../")));
+        var inventory = resolver.resolve(project);
+        var def = dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.Switch")).orElseThrow();
+        var seed = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(def, StableId.random());
+        assertFalse(projector.referencesImages(document(seed)));
+        for (String variant : List.of("standard", "adaptive")) {
+            var values = new LinkedHashMap<>(seed.properties()); values.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            values.put(new PropertyName("activeThumbImage"), PropertyValue.ImageProviderValue.asset("assets/active.png"));
+            values.put(new PropertyName("inactiveThumbImage"), PropertyValue.ImageProviderValue.exactAsset("assets/inactive.png", new BigDecimal("2")));
+            values.put(new PropertyName("onActiveThumbImageError"), dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_onActiveThumbImageError"));
+            values.put(new PropertyName("onInactiveThumbImageError"), dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_onInactiveThumbImageError"));
+            var document = document(new WidgetNode(seed.id(), def.typeId(), values, Map.of()));
+            assertTrue(projector.referencesImages(document)); var result = projector.project(document, inventory, 2);
+            assertTrue(result.bundle().issues().isEmpty()); assertEquals(2, result.bundle().assets().size()); assertEquals(2, result.bundle().resources().size());
+            assertEquals(java.util.Set.of("app:assets/active.png", "app:assets/inactive.png"), result.bundle().assets().stream().map(asset -> asset.assetId().externalName()).collect(Collectors.toSet()));
+            assertEquals(java.util.Set.of(20, 13), result.bundle().resources().stream().map(CanvasImageResource::pixelWidth).collect(Collectors.toSet()));
+        }
+    }
+
+    @Test
     void imageIconNullHasNoResourcesWhileProvidersUseExactSharedProjection() throws Exception {
         Path project = newProject("imageicon", "imageicon_app", """
                   assets:

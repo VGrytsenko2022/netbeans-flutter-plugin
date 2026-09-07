@@ -78,6 +78,7 @@ final class FlutterPropertyEditorComponents {
     static final String MATERIAL_ICON_SEARCH_NAME = "flutter.materialIcon.search";
     static final String MATERIAL_ICON_RESULTS_NAME = "flutter.materialIcon.results";
     static final String MATERIAL_ICON_NONE_NAME = "flutter.materialIcon.none";
+    static final String MATERIAL_ICON_OMIT_NAME = "flutter.materialIcon.omit";
     static final String MATERIAL_ICON_STATUS_NAME = "flutter.materialIcon.status";
     static final String MATERIAL_ICON_REQUIREMENT_NAME =
             "flutter.materialIcon.requirement";
@@ -89,7 +90,7 @@ final class FlutterPropertyEditorComponents {
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
             case BOOLEAN, NULLABLE_BOOLEAN -> Optional.of(() -> new BooleanInplaceEditor(binding));
-            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NULLABLE_NUMBER, NUMBER_WITH_INFINITY -> Optional.of(
+            case INTEGER, NULLABLE_INTEGER, DOUBLE, NUMBER, NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY, NUMBER_WITH_INFINITY -> Optional.of(
                     () -> new NumericInplaceEditor(binding));
             default -> Optional.empty();
         };
@@ -98,7 +99,7 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_BOOLEAN, NULLABLE_ENUM,
+            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY, NULLABLE_BOOLEAN, NULLABLE_ENUM,
                     EDGE_INSETS, COLOR,
                     THEME_COLOR, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
@@ -127,7 +128,7 @@ final class FlutterPropertyEditorComponents {
                     editor, binding, environment);
             case NULLABLE_INTEGER -> new NullableIntegerCustomEditor(
                     editor, binding, environment);
-            case NULLABLE_NUMBER -> FlutterNullableNumberEditorComponent.customEditor(editor, binding, environment);
+            case NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY -> FlutterNullableNumberEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_BOOLEAN, NULLABLE_ENUM -> FlutterNullableChoiceEditorComponent.customEditor(editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
@@ -993,6 +994,7 @@ final class FlutterPropertyEditorComponents {
                 MaterialIconRegistry.bundled();
 
         private final JCheckBox none = new JCheckBox("None (empty icon)");
+        private final JCheckBox omit = new JCheckBox("Not set (omit glyph)");
         private final JTextField search = new JTextField(28);
         private final DefaultListModel<MaterialIconRegistry.MaterialIcon> resultModel =
                 new DefaultListModel<>();
@@ -1021,6 +1023,10 @@ final class FlutterPropertyEditorComponents {
             none.getAccessibleContext().setAccessibleName("No icon");
             none.getAccessibleContext().setAccessibleDescription(
                     "Stores the explicit nullable IconData value None.");
+            omit.setName(MATERIAL_ICON_OMIT_NAME);
+            omit.getAccessibleContext().setAccessibleName("Omit optional icon data");
+            omit.getAccessibleContext().setAccessibleDescription(
+                    "Removes only this optional glyph value. It is distinct from explicit None and from an inherited thumb-icon state.");
 
             search.setName(MATERIAL_ICON_SEARCH_NAME);
             search.getAccessibleContext().setAccessibleName("Search Material icons");
@@ -1029,7 +1035,12 @@ final class FlutterPropertyEditorComponents {
             JLabel searchLabel = new JLabel("Search:");
             searchLabel.setLabelFor(search);
             JPanel controls = new JPanel(new BorderLayout(8, 4));
-            controls.add(none, BorderLayout.NORTH);
+            if (binding.optional()) {
+                var choices = new JPanel(new java.awt.GridLayout(0, 1));
+                choices.add(omit); choices.add(none); controls.add(choices, BorderLayout.NORTH);
+            } else {
+                controls.add(none, BorderLayout.NORTH);
+            }
             JPanel searchRow = new JPanel(new BorderLayout(8, 0));
             searchRow.add(searchLabel, BorderLayout.WEST);
             searchRow.add(search, BorderLayout.CENTER);
@@ -1081,10 +1092,14 @@ final class FlutterPropertyEditorComponents {
 
             PropertyValue.IconDataValue initial = initialValue().explicitValue()
                     .map(PropertyValue.IconDataValue.class::cast)
-                    .orElseThrow();
+                    .orElse(null);
             updating = true;
             try {
-                if (initial.equals(PropertyValue.IconDataValue.none())) {
+                if (initial == null) {
+                    if (!binding.optional()) throw new IllegalArgumentException("Required IconData cannot be unset.");
+                    omit.setSelected(true); none.setEnabled(false); setRegistryEnabled(false);
+                    stageValid(FlutterPropertyCellValue.unset());
+                } else if (initial.equals(PropertyValue.IconDataValue.none())) {
                     none.setSelected(true);
                     setRegistryEnabled(false);
                     stageValid(FlutterPropertyCellValue.explicit(initial));
@@ -1108,14 +1123,31 @@ final class FlutterPropertyEditorComponents {
             updateStatus();
 
             none.addActionListener(ignored -> noneChanged());
+            omit.addActionListener(ignored -> omitChanged());
             search.getDocument().addDocumentListener(
                     documentListener(() -> refreshResults(null)));
             results.addListSelectionListener(ignored -> selectionChanged());
             activate();
         }
 
+        private void omitChanged() {
+            if (updating || !binding.optional()) return;
+            none.setEnabled(!omit.isSelected());
+            setRegistryEnabled(!omit.isSelected() && !none.isSelected());
+            if (omit.isSelected()) {
+                markValid(FlutterPropertyCellValue.unset());
+            } else if (none.isSelected()) {
+                markValid(FlutterPropertyCellValue.explicit(PropertyValue.IconDataValue.none()));
+            } else if (results.getSelectedValue() != null) {
+                markValid(FlutterPropertyCellValue.explicit(toValue(results.getSelectedValue())));
+            } else {
+                refreshResults(null);
+                environment.setState(PropertyEnv.STATE_INVALID);
+            }
+        }
+
         private void noneChanged() {
-            if (updating) {
+            if (updating || omit.isSelected()) {
                 return;
             }
             setRegistryEnabled(!none.isSelected());
@@ -1130,6 +1162,7 @@ final class FlutterPropertyEditorComponents {
         }
 
         private void refreshResults(MaterialIconRegistry.MaterialIcon preferred) {
+            if (omit.isSelected()) return;
             if (updating || none.isSelected()) {
                 return;
             }
@@ -1161,7 +1194,7 @@ final class FlutterPropertyEditorComponents {
         }
 
         private void selectionChanged() {
-            if (updating || none.isSelected() || results.getValueIsAdjusting()) {
+            if (updating || omit.isSelected() || none.isSelected() || results.getValueIsAdjusting()) {
                 return;
             }
             MaterialIconRegistry.MaterialIcon selected = results.getSelectedValue();

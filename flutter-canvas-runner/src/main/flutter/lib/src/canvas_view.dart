@@ -83,6 +83,165 @@ const _checkboxStateLayers = <WidgetState, String>{
   WidgetState.focused: 'Focused',
 };
 
+class _SwitchPreview extends StatefulWidget {
+  const _SwitchPreview({
+    required this.cupertino,
+    required this.message,
+    required this.builder,
+  });
+  final bool cupertino;
+  final String message;
+  final Widget Function(FocusNode) builder;
+  @override
+  State<_SwitchPreview> createState() => _SwitchPreviewState();
+}
+
+class _SwitchPreviewState extends State<_SwitchPreview> {
+  final _focus = FocusNode(debugLabel: 'Isolated Canvas Switch');
+  bool _resetConfiguration = false;
+  @override
+  void didUpdateWidget(_SwitchPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cupertino != widget.cupertino) _resetConfiguration = true;
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _TextButtonPreview(
+    message: [
+      widget.message,
+      if (_resetConfiguration)
+        'Switch preview lifecycle guard: Flutter 3.44.8 retains its Cupertino painter flag after a platform-style change. '
+            'Canvas recreates only the SDK animation shell on that configuration boundary, retaining focus, selection and stored values.',
+    ].where((message) => message.isNotEmpty).join(' '),
+    child: widget.builder(_focus),
+  );
+}
+
+SwitchThemeData _switchEffectiveTheme(CanvasNode node, BuildContext context) {
+  final theme = Theme.of(context);
+  final component = SwitchTheme.of(context);
+  if (node.properties['variant']?.value != 'adaptive') return component;
+  final adaptation = theme.getAdaptation<SwitchThemeData>();
+  return adaptation != null
+      ? adaptation.adapt(theme, component)
+      : _checkboxUsesCupertino(node, context)
+      ? const SwitchThemeData()
+      : component;
+}
+
+double? _switchLocalWidth(CanvasNode node, Set<WidgetState> states) {
+  for (final entry in {
+    ..._checkboxStateLayers,
+    WidgetState.any: 'Default',
+  }.entries) {
+    final value = node.properties['trackOutlineWidth${entry.value}'];
+    if (value != null &&
+        (entry.key == WidgetState.any || states.contains(entry.key))) {
+      return value.kind == 'enum'
+          ? double.infinity
+          : (value.value as num?)?.toDouble();
+    }
+  }
+  return null;
+}
+
+bool _switchWidthPairUnsafe(
+  CanvasNode node,
+  BuildContext context,
+  Set<WidgetState> states,
+) {
+  final theme = _switchEffectiveTheme(node, context);
+  double? resolve(Set<WidgetState> states) =>
+      _switchLocalWidth(node, states) ??
+      theme.trackOutlineWidth?.resolve(states) ??
+      (Theme.of(context).useMaterial3 && !_checkboxUsesCupertino(node, context)
+          ? 2.0
+          : null);
+  final active = resolve({...states, WidgetState.selected});
+  final inactive = resolve({...states}..remove(WidgetState.selected));
+  // ui.lerpDouble permits equal infinities, but rejects unequal nonfinite
+  // endpoints even at a settled zero/one animation position.
+  return active != inactive &&
+      ((active?.isInfinite ?? false) || (inactive?.isInfinite ?? false));
+}
+
+String? _switchWidthMessage(CanvasNode node, BuildContext? context) {
+  if (context == null) return null;
+  const transient = [
+    WidgetState.focused,
+    WidgetState.hovered,
+    WidgetState.pressed,
+  ];
+  for (var mask = 0; mask < 8; mask++) {
+    final states = <WidgetState>{
+      if (node.properties['enabled']?.value == false) WidgetState.disabled,
+      for (var i = 0; i < 3; i++)
+        if (mask & (1 << i) != 0) transient[i],
+    };
+    if (_switchWidthPairUnsafe(node, context, states)) {
+      return 'Render Switch ${node.id}: trackOutlineWidth preview limitation: '
+          'Flutter 3.44.8 cannot interpolate unequal finite/infinite active and inactive outline widths. '
+          'Only affected state pairs use the explicit SDK painter-default width 2 approximation. ';
+    }
+  }
+  return null;
+}
+
+String? _switchPaddingMessage(
+  CanvasNode node,
+  BuildContext context,
+  BoxConstraints constraints,
+) {
+  final local = node.properties['padding']?.value;
+  final theme = _switchEffectiveTheme(node, context).padding;
+  final (horizontal, vertical) = switch (local) {
+    CanvasEdgeInsets() => (local.left + local.right, local.top + local.bottom),
+    CanvasEdgeInsetsDirectional() => (
+      local.start + local.end,
+      local.top + local.bottom,
+    ),
+    _ => (theme?.horizontal ?? 0.0, theme?.vertical ?? 0.0),
+  };
+  final axes = [
+    if (horizontal.isInfinite && !constraints.hasBoundedWidth) 'width',
+    if (vertical.isInfinite && !constraints.hasBoundedHeight) 'height',
+  ];
+  return axes.isEmpty
+      ? null
+      : 'Render Switch ${node.id}: padding preview unavailable because '
+            'the resolved padding sum overflows to infinity on an unbounded ${axes.join('/')} axis. '
+            'Flutter cannot lay out this switch in its current parent. Stored values and generated Dart are unchanged.';
+}
+
+String? _switchPreviewMessage(CanvasNode node, [BuildContext? context]) {
+  final refs = node.properties.entries
+      .where(
+        (entry) =>
+            entry.value.kind == 'dartObjectReferencePresence' &&
+            !(entry.key == 'onChanged' &&
+                node.properties['enabled']?.value == false),
+      )
+      .map((entry) => entry.key)
+      .toSet();
+  final width = _switchWidthMessage(node, context);
+  if (refs.isEmpty && width == null) return null;
+  return 'Switch ${node.id} preview limitation: isolated Canvas never executes project or dependency Dart. '
+      '${refs.intersection({'thumbColor', 'trackColor', 'trackOutlineColor', 'trackOutlineWidth', 'overlayColor', 'thumbIcon'}).isNotEmpty ? 'Configured project state appearance is unavailable; the real SDK switch uses an explicitly approximate theme/default preview. ' : ''}'
+      '${refs.contains('onChanged') ? 'Project onChanged is not invoked; a benign local callback preserves enabled behavior without changing the controlled stored value. ' : ''}'
+      '${refs.contains('onFocusChange') ? 'Project onFocusChange is not invoked; local SDK focus behavior is retained. ' : ''}'
+      '${refs.any((name) => name.endsWith('ThumbImageError')) ? 'Project image error callbacks are not invoked; Canvas reports resource errors locally. ' : ''}'
+      '${refs.contains('focusNode') ? 'Project focus ownership is unavailable; isolated SDK focus state is used. ' : ''}'
+      '${refs.contains('mouseCursor') ? 'Project cursor is unavailable; the SDK default cursor is used. ' : ''}'
+      '${width ?? ''}'
+      'Stored values and generated Dart are unchanged.';
+}
+
 bool _checkboxUsesCupertino(CanvasNode node, BuildContext? context) =>
     node.properties['variant']?.value == 'adaptive' &&
     context != null &&
@@ -387,6 +546,12 @@ String? _customClipperPreviewUnavailableMessageForNode(
   }
   if (node.type == 'flutter.material.Checkbox') {
     return _checkboxPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.Switch') {
+    return context != null && constraints != null
+        ? _switchPaddingMessage(node, context, constraints) ??
+              _switchPreviewMessage(node, context)
+        : _switchPreviewMessage(node, context);
   }
   if (node.type == 'flutter.widgets.Icon' && context != null) {
     return _iconButtonMountedIconMessage(node, context);
@@ -1401,6 +1566,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Card' ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
+        node.type == 'flutter.material.Switch' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.material.CircularProgressIndicator' ||
         node.type == 'flutter.material.RefreshProgressIndicator' ||
@@ -3370,6 +3536,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.FilledButton' => _textButton(context),
       'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.Checkbox' => _checkbox(context),
+      'flutter.material.Switch' => _switch(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
@@ -3851,6 +4018,226 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     }
     entries[WidgetState.any] = base;
     return WidgetStateBorderSide.fromMap(entries);
+  }
+
+  WidgetStateProperty<double?>? _switchStateWidth(BuildContext context) {
+    final entries = <WidgetStatesConstraint, double?>{};
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'trackOutlineWidth${entry.value}';
+      if (node.properties.containsKey(name)) {
+        entries[entry.key] = node.properties[name]!.kind == 'enum'
+            ? double.infinity
+            : _number(name);
+      }
+    }
+    final local = entries.isEmpty
+        ? null
+        : WidgetStateProperty<double?>.fromMap(entries);
+    if (_switchWidthMessage(node, context) == null) return local;
+    return WidgetStateProperty.resolveWith(
+      (states) => _switchWidthPairUnsafe(node, context, states)
+          ? 2.0
+          : local?.resolve(states),
+    );
+  }
+
+  WidgetStateProperty<Icon?>? _switchStateIcon(BuildContext context) {
+    final entries = <WidgetStatesConstraint, Icon?>{};
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final prefix = 'thumbIcon${entry.value}';
+      final fields = node.properties.keys.any(
+        (name) => name.startsWith(prefix),
+      );
+      if (!fields) continue;
+      if (_string('${prefix}Mode') == 'inherit') {
+        entries[entry.key] = null;
+        continue;
+      }
+      final data =
+          node.properties['${prefix}Data']?.value as CanvasIconDataValue?;
+      final icon = data?.codePoint == null
+          ? null
+          : IconData(
+              // Closed, reviewed icon metadata, never a project Dart expression.
+              // ignore: non_const_argument_for_const_parameter
+              data!.codePoint!,
+              // ignore: non_const_argument_for_const_parameter
+              fontFamily: data.fontFamily,
+              // ignore: non_const_argument_for_const_parameter
+              fontPackage: data.fontPackage,
+              matchTextDirection: data.matchTextDirection,
+              fontFamilyFallback: data.fontFamilyFallback.isEmpty
+                  ? null
+                  : data.fontFamilyFallback,
+            );
+      entries[entry.key] = Icon(
+        icon,
+        size: _number('${prefix}Size'),
+        fill: _number('${prefix}Fill'),
+        weight: _number('${prefix}Weight'),
+        grade: _number('${prefix}Grade'),
+        opticalSize: _number('${prefix}OpticalSize'),
+        color: _resolvedColor(context, '${prefix}Color'),
+        shadows: _shadows(context, '${prefix}Shadows'),
+        semanticLabel: _string('${prefix}SemanticLabel'),
+        textDirection: switch (_enum('${prefix}TextDirection')) {
+          'ltr' => TextDirection.ltr,
+          'rtl' => TextDirection.rtl,
+          _ => null,
+        },
+        applyTextScaling: _boolean('${prefix}ApplyTextScaling'),
+        blendMode: _optionalBlendMode('${prefix}BlendMode'),
+        fontWeight: _fontWeight('${prefix}FontWeight'),
+      );
+    }
+    return entries.isEmpty ? null : WidgetStateProperty<Icon?>.fromMap(entries);
+  }
+
+  Widget _switch(BuildContext context) => _SwitchPreview(
+    cupertino: _checkboxUsesCupertino(node, context),
+    message: _switchPreviewMessage(node, context) ?? '',
+    builder: (focusNode) => _RefreshLayoutObserver(
+      builder: (context, constraints) =>
+          _buildSwitch(context, focusNode, constraints),
+    ),
+  );
+
+  Widget _buildSwitch(
+    BuildContext context,
+    FocusNode focusNode,
+    BoxConstraints constraints,
+  ) {
+    final paddingMessage = _switchPaddingMessage(node, context, constraints);
+    if (paddingMessage != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'Switch.padding',
+        expectedType: 'finite layout extent',
+        previewLabel: 'Switch padding\npreview unavailable',
+        messageOverride: paddingMessage,
+      );
+    }
+    ({ImageProvider<Object>? provider, ImageErrorListener? onError}) image(
+      String name,
+    ) {
+      final value = node.properties[name]?.value;
+      if (value is! CanvasImageProviderValue) {
+        return (provider: null, onError: null);
+      }
+      final binding = _imageProvider(value);
+      // Keep the actual SDK thumb/color/icon fallback rather than cover it
+      // with a synthetic image. Property-specific resource status is exposed.
+      if (binding.placeholder) return (provider: null, onError: null);
+      final resource = binding.resolution as CanvasResolvedImageValue;
+      return (
+        provider: binding.provider,
+        onError: (error, stack) =>
+            onImageError?.call(resource.resourceId, error, stack),
+      );
+    }
+
+    final active = image('activeThumbImage');
+    final inactive = image('inactiveThumbImage');
+    final control = _string('variant') == 'adaptive'
+        ? Switch.adaptive(
+            // Public shell boundary only: SDK 3.44.8 never clears its
+            // Cupertino painter flag. The outer owner preserves focus.
+            key: ValueKey(_checkboxUsesCupertino(node, context)),
+            focusNode: focusNode,
+            value: _boolean('value')!,
+            onChanged: _boolean('enabled') == false
+                ? null
+                : (_) => onSelected(node.id),
+            // Preserve the SDK's still-supported legacy color alias exactly.
+            // ignore: deprecated_member_use
+            activeColor: _resolvedColor(context, 'activeColor'),
+            activeThumbColor: _resolvedColor(context, 'activeThumbColor'),
+            activeTrackColor: _resolvedColor(context, 'activeTrackColor'),
+            inactiveThumbColor: _resolvedColor(context, 'inactiveThumbColor'),
+            inactiveTrackColor: _resolvedColor(context, 'inactiveTrackColor'),
+            activeThumbImage: active.provider,
+            onActiveThumbImageError: active.onError,
+            inactiveThumbImage: inactive.provider,
+            onInactiveThumbImageError: inactive.onError,
+            thumbColor: _checkboxStateColor(context, 'thumbColor'),
+            trackColor: _checkboxStateColor(context, 'trackColor'),
+            trackOutlineColor: _checkboxStateColor(
+              context,
+              'trackOutlineColor',
+            ),
+            trackOutlineWidth: _switchStateWidth(context),
+            thumbIcon: _switchStateIcon(context),
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            dragStartBehavior: _dragStartBehavior(),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            focusColor: _resolvedColor(context, 'focusColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: node.properties['splashRadius']?.kind == 'enum'
+                ? double.infinity
+                : _number('splashRadius'),
+            onFocusChange: node.properties.containsKey('onFocusChange')
+                ? (_) {}
+                : null,
+            autofocus: _boolean('autofocus') ?? false,
+            padding: _edgeInsetsGeometry('padding'),
+            applyCupertinoTheme: _boolean('applyCupertinoTheme'),
+          )
+        : Switch(
+            key: ValueKey(_checkboxUsesCupertino(node, context)),
+            focusNode: focusNode,
+            value: _boolean('value')!,
+            onChanged: _boolean('enabled') == false
+                ? null
+                : (_) => onSelected(node.id),
+            // Preserve the SDK's still-supported legacy color alias exactly.
+            // ignore: deprecated_member_use
+            activeColor: _resolvedColor(context, 'activeColor'),
+            activeThumbColor: _resolvedColor(context, 'activeThumbColor'),
+            activeTrackColor: _resolvedColor(context, 'activeTrackColor'),
+            inactiveThumbColor: _resolvedColor(context, 'inactiveThumbColor'),
+            inactiveTrackColor: _resolvedColor(context, 'inactiveTrackColor'),
+            activeThumbImage: active.provider,
+            onActiveThumbImageError: active.onError,
+            inactiveThumbImage: inactive.provider,
+            onInactiveThumbImageError: inactive.onError,
+            thumbColor: _checkboxStateColor(context, 'thumbColor'),
+            trackColor: _checkboxStateColor(context, 'trackColor'),
+            trackOutlineColor: _checkboxStateColor(
+              context,
+              'trackOutlineColor',
+            ),
+            trackOutlineWidth: _switchStateWidth(context),
+            thumbIcon: _switchStateIcon(context),
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            dragStartBehavior: _dragStartBehavior(),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            focusColor: _resolvedColor(context, 'focusColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: node.properties['splashRadius']?.kind == 'enum'
+                ? double.infinity
+                : _number('splashRadius'),
+            onFocusChange: node.properties.containsKey('onFocusChange')
+                ? (_) {}
+                : null,
+            autofocus: _boolean('autofocus') ?? false,
+            padding: _edgeInsetsGeometry('padding'),
+          );
+    return control;
   }
 
   Widget _checkbox(BuildContext context) {
@@ -5700,8 +6087,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
 
   String _imageStatusSemantics() {
     final statuses = <String>[];
-    if (node.type == 'flutter.material.CircleAvatar') {
-      for (final name in const ['backgroundImage', 'foregroundImage']) {
+    if (node.type == 'flutter.material.CircleAvatar' ||
+        node.type == 'flutter.material.Switch') {
+      for (final name
+          in node.type == 'flutter.material.Switch'
+              ? const ['activeThumbImage', 'inactiveThumbImage']
+              : const ['backgroundImage', 'foregroundImage']) {
         final provider = node.properties[name]?.value;
         if (provider is CanvasImageProviderValue) {
           _appendImageStatus(statuses, provider, propertyName: name);

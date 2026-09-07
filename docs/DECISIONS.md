@@ -43,8 +43,8 @@ surface: 1454 typed rows across seventy-seven widgets, seventy-one const-constru
 definitions and 4,774 Palette/DnD candidates, including 4,448 accepted and 326
 rejected cells. Its 1437 non-`Scaffold` rows sat beside the 17 closed scalar
 `Scaffold` fields. ADR-106 adds OutlinedButton, ADR-107 adds FilledButton,
-ADR-108 adds FloatingActionButton, ADR-109 adds IconButton and ADR-110 adds
-Checkbox: the current surface is 82 widgets, 3182 rows and 5576 placement candidates. ADR-036
+ADR-108 adds FloatingActionButton, ADR-109 adds IconButton, ADR-110 adds Checkbox
+and ADR-111 adds Switch: the current surface is 83 widgets, 3383 rows and 5644 placement candidates. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
 is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
@@ -473,8 +473,10 @@ ADR-106 records the historical 78-source, 4,914-candidate matrix (4,583 accepted
 331 rejected), and ADR-107 records 79 sources and 5,135 candidates (4,796 accepted /
 339 rejected). ADR-108 records the historical 80-source, 5,360-candidate matrix
 (5,013 accepted / 347 rejected). ADR-109 records the historical 81-source,
-5,508-candidate matrix (5,156 accepted / 352 rejected). ADR-110 establishes the
-current 82-source, 5,576-candidate matrix (5,222 accepted / 354 rejected).
+5,508-candidate matrix (5,156 accepted / 352 rejected). ADR-110 records the
+historical 82-source, 5,576-candidate matrix (5,222 accepted / 354 rejected).
+ADR-111 establishes the current 83-source, 5,644-candidate matrix
+(5,288 accepted / 356 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -485,7 +487,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -499,12 +501,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated eighty-two-widget model for Mobile, Tablet,
+Canvas now renders the validated eighty-three-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those eighty-two Create-capable definitions, and the DnD-capable set uses the
-reviewed 5,576-cell candidate matrix across sixty-six insertable any-widget and two
-trait-bound destination slots; 5,222 cells are accepted and 354 rejected.
+those eighty-three Create-capable definitions, and the DnD-capable set uses the
+reviewed 5,644-cell candidate matrix across sixty-six insertable any-widget and two
+trait-bound destination slots; 5,288 cells are accepted and 356 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -6856,3 +6858,207 @@ built JAR (333460 bytes, SHA-256
 All 1608 frozen non-Markdown inputs are unchanged after packaging; all 40 source
 and 35 Web manifest entries were independently reverified. No interactive IDE
 acceptance or installed-userdir verification is claimed.
+
+## ADR-111 — Switch state icons, images and adaptive styling
+
+Date: 2026-09-07
+
+### Complete public constructor surface
+
+Admit flutter.material.Switch as a Material/order-200 scalar leaf with Standard
+and Adaptive constructor selection. Both public constructors are const-capable;
+the standard constructor has 27 non-key SDK parameters and adaptive has 28.
+Key remains the shared stable-identity policy. The 201-row schema comprises
+30 direct/policy fields (including required Constructor, Enabled and Value),
+36 local nullable state colors, nine local nullable outline widths and 126 local
+state-Icon fields. No child slot, builder or invented preview child is introduced.
+
+Value is required and non-nullable, initially false. Enabled is initially true;
+without a project onChanged reference it emits a benign callback. Disabled emits
+onChanged:null while retaining its reference metadata without importing, evaluating
+or proving the inactive callback. Preview interaction does not change stored Value.
+onChanged/onFocusChange are strict ValueChanged<bool> references or zero-argument
+factories. Both image-error callbacks use strict ImageErrorListener, including
+factory support, with the existing closed type-witness protocol. Dynamic, nullable
+outer values and incorrect generics/signatures remain rejected.
+
+Apply Cupertino theme admits omission, true, false and explicit null, but is an
+adaptive-only constructor argument. Setting it selects Adaptive in the same patch;
+switching to Standard resets only this incompatible argument. Deprecated activeColor
+remains editable and emitted alongside newer activeThumbColor/activeTrackColor;
+the actual SDK, not Designer, supplies precedence and branch-dependent fallback.
+
+### Presence-aware state maps and full Icon values
+
+Thumb color, track color, track-outline color, overlay color, track-outline width
+and thumb icon each provide a strict whole WidgetStateProperty reference and
+mutually exclusive local alternatives. Whole color maps use Color?, width uses
+double?, and icon uses Icon?; nullable outer references are not accepted. Four
+color families reuse typed literal/theme/null cells. Nine width cells use signed
+finite integer/double, positive infinity and explicit null. Local numeric maps rely on the actual Switch
+argument's downward inference rather than introducing a shadowable bare double
+type or an extra dart:core import. Public fromMap constructors remain const when
+all entries are const.
+
+Each local map resolves the first present matching state in this exact priority:
+disabled, error, dragged, pressed, selected, scrolledUnder, hovered, focused, then
+default. Omission continues lookup; explicit null terminates local lookup and
+delegates to SDK fallback. No implicit disabled:null entry changes the default.
+Arbitrary state combinations remain available through typed whole references.
+
+Each of nine thumb-icon buckets has Mode plus all thirteen non-key Icon fields:
+Data, Size, Color, Shadows, Blend mode, Fill, Weight, Grade, Optical size, Font
+weight, Semantic label, Text direction and Apply text scaling. Mode inherit
+returns null and clears local details. Editing a detail selects Mode icon;
+resetting Mode clears its bucket. Icon mode with omitted or explicit-None Data
+emits Icon(null), which is not a null resolver: the SDK can still change thumb
+radius when an Icon object exists. Optional glyph editors distinguish omitted
+Data from explicit None; the existing required Icon.icon editor remains unchanged.
+Whole/local switches and dependent bucket edits are single undoable patches.
+
+Flutter's Switch painter reads Icon fields directly rather than mounting an Icon
+widget. It uses glyph, size, color, variable-font axes and shadows, but ignores
+Icon blendMode, fontWeight, semanticLabel, textDirection, applyTextScaling and
+IconData.matchTextDirection. These fields are nevertheless preserved and emitted
+exactly; Canvas does not fabricate effects the SDK lacks. Existing Icon numeric,
+glyph, theme, shadow and resource constraints are reused.
+
+### Images, actual SDK rendering and lifecycle
+
+Both thumb-image fields use existing declared project/package asset identities,
+AssetImage/ExactAssetImage, exact scale and ResizeImage policies. No raw file path,
+network expression or executable provider is added. Image-error handlers require
+their matching image. Setting a handler without a provider is rejected; resetting
+one provider atomically clears only its matching handler. Both images enter the
+existing revision-scoped, bounded image-resource admission/projection pipeline.
+Canvas reports missing resources and unavailable project effects without executing
+project callbacks, factories or resolvers.
+
+In pinned Flutter 3.44.8 both constructors use the same internal Material switch
+implementation; adaptive Apple selects a Cupertino configuration, not a separate
+CupertinoSwitch widget. State icons, images and direct parameters remain forwarded.
+Actual Theme.platform, Material 2/3, SwitchTheme, custom SwitchTheme adaptations,
+Cupertino theme overrides, focus, gestures, padding and tap-target behavior remain
+SDK-owned. Signed/infinite splash values retain the established SDK-faithful domain.
+Equal infinite resolved outline endpoints are legal and rendered exactly. The SDK
+unconditionally interpolates unequal finite/infinite endpoints and asserts, even at
+a settled value. Canvas diagnoses only this unsafe pair and previews its outline
+with the SDK default width of two; the stored values and generated Dart remain exact.
+Theme-derived endpoints follow the same contextual check, not a blanket numeric clamp.
+Finite padding sides can overflow their resolved sum to infinity. Bounded parents
+retain exact SDK layout; only an affected unbounded axis receives a diagnosed
+padding-preview-unavailable presentation with the existing selectable Designer
+handle. The exact padding values remain stored and emitted; no global cap is added.
+
+The pinned SDK sets its retained switch State's isCupertino flag true when entering
+Apple adaptation, but never resets it on returning to Material. Canvas handles only
+that effective configuration boundary by remounting the public Switch shell while
+retaining its Canvas-owned FocusNode, outer stable-ID wrapper, selection and stored
+value. Within a configuration, ordinary edits retain SDK State. The boundary resets
+internal animations; there is no child subtree to lose. No private SDK state is
+mutated and no workaround key is emitted into project Dart. Raw retained/fresh SDK
+controls and Canvas transition/focus tests cover this specific upstream lifecycle
+bug rather than claiming the source-generated app itself has been repaired.
+
+### Current aggregate and verification scope
+
+The catalog now contains 83 widgets, 77 const-capable definitions, 3383 writable
+rows (3366 outside Scaffold), 80 scalar plus three structural definitions, 319
+Boolean-only fields, four nullable-Boolean unions and the separate Object-tag
+union. The unchanged 68 destinations (66 ANY and two trait-bound) produce 5644
+placement candidates: 5288 accepted and 356 rejected. Categories are Material20,
+Layout31, Scrolling3, Basic23 and Accessibility6. Thirteen generic/fifteen total
+creation wrappers remain unchanged. The historical practical 92-widget target
+leaves nine; this does not claim recovery of a missing fixed-order inventory.
+FD13, Catalog API14, Canvas model18, NBFC1, metadata1024 and the existing
+512-value/2048-probe/2-MiB/45-second bounds stay unchanged. The existing closed
+type-witness grammar already admits double?; its analyzer overlay now qualifies
+that nested primitive through the isolated dart:core alias, just as bool? already
+does. Previously, a valid WidgetStateProperty<double?> reference was incorrectly
+qualified through the Flutter alias and rejected. Dynamic, nullable outer types,
+wrong generics and user core-import restrictions remain fail-closed; no core-API
+or grammar widening is introduced. No user IDE/userdir modification or user Flutter
+application edit belongs to this slice. Deferred global physical acceptance remains
+deferred.
+
+### Focused evidence and reproducible Canvas artifacts
+
+The complete core install passed 1624 tests with no failures, errors or skips;
+22 new cases cover constructor/schema/generation, command history and payload
+contracts. The 24-class Properties/palette/image gate passed 871 tests. Its initial
+failure was an SVG test expectation missing the normalizer's default stroke width;
+the expectation was corrected and the identical full scope passed. All 201 cells,
+both constructor configurations, nine optional glyph editors, image dependencies,
+nullable/infinite widths and the full placement matrix are covered.
+
+The frozen Flutter suite passed 1493 tests; a separate repeat passed all 34 dedicated
+Switch tests. Flutter analysis is clean. The first complete run found an old
+Scaffold test's next-block delimiter now including the intervening Switch contract;
+that test boundary was corrected before the successful full repeat. Raw SDK pixel
+controls cover signed/equal-infinite widths, unsupported interpolation, adaptation
+and retained-state behavior. Canvas tests cover exact supported rendering, all Icon
+fields, state priority/null fallback, focus/ordinary State retention, controlled
+tap/drag selection, semantics, images, intrinsic parents and contextual padding.
+All 3362 previously reviewed capability records remain byte-identical after line
+ending normalization; the 202 Switch records exactly match the compiled Java proof.
+
+Offline Web release succeeded in 15.1 seconds. main.dart.js is 3103961 bytes,
+SHA-256 `fc11d2e089e36186bf496a776f6f0f528cc348a3f1a9cd961170d99b5932eb8e`.
+All 40 source and 35 Web manifest entries were independently checked for exact
+scoped paths, bytes and SHA-256. Source manifest SHA-256 is
+`2dbedf98ca980e7905bfad2d2d90e5c72dfe548e97c0036ee9f70ad3c47392b7`;
+Web manifest SHA-256 is
+`f16ca04e77d240fd503fc59f02bada6bc173a7989e50c37110700a41b91bb57e`.
+
+The first Switch candidate gate exposed the nested-double witness defect described
+above; the three live history tests already passed, while two SDK methods correctly
+prevented acceptance of the incomplete implementation. After the narrow fix, the
+complete analyzer install ran fresh from 08:27:56 to 08:42:21 UTC: 65 tests across
+eight reports, zero failures/errors/skips, including 33 real-SDK candidate methods.
+The new regression tests cover twelve scripted import-scope combinations, ten
+accepted numeric SDK proofs across five scopes and four adversarial branches.
+Both built and installed analyzer JARs have SHA-256
+`466C88A04BCE84A2C31B52E177AC995BADA0055E6E67C37D07027FD792DA02F7`.
+These are fresh results from this slice, not the previous retained 63-test baseline.
+
+With the rebuilt analyzer and Canvas JARs installed, the repeated plugin-focused
+gate passed all 35 methods: six Switch SDK methods, three live mutation/history
+methods, three Java/Dart parity methods and 23 Web artifact methods. The six SDK
+methods accepted 23 valid candidates and rejected 15 intentional invalid candidates
+(38 total); the complete gate took 2 minutes 10 seconds. Both constructors,
+dense local fields, whole references/factories, images, explicit null, Icon(null),
+signed/mixed/infinite widths, disabled callback isolation and unchanged project
+files are covered. The live gate traverses all 201 cells, atomic dependencies,
+Save/reopen/further edits, native Undo/Redo and exact-byte rollback.
+
+### Final reactor and package verification
+
+The unfiltered remaining ten-module reactor (excluding only the separately and
+freshly verified analyzer) completed successfully at 09:01:21 UTC after 14 minutes
+47 seconds. Together the two fresh gates produced 398 reports: 4338 recorded
+tests, 4331 executed, seven permitted optional skips, zero failures and errors.
+All reports meet their gate's UTC freshness cutoff; no old baseline reports are
+retained. The plugin has 2474 Surefire tests and nine package integration tests;
+the runtime gate has six cases, one optional physical acceptance case skipped.
+All 38 dependency-guard tests passed on the first full run without retry or timeout
+adjustment. All 126 live mutation/history tests passed, including the new Switch
+cases. Surefire reported a 30-second post-System.exit(0) fork termination warning;
+the complete reports and reactor succeeded. This records an observed shutdown
+warning, not a diagnosed cause or a claimed production repair.
+
+Root and module nbm:cluster both succeeded. tools/verify-release.ps1 passed with
+freshness checks enabled. The final NBM is 7678537 bytes, SHA-256
+`5DC5469126DBCE8803D5FB8A6743674D0119F3F8556E122DCC453F3EA4504827`.
+Its embedded module matches all four package/development/runtime module copies:
+3430245 bytes, SHA-256
+`044074CA62D60302F2D1ADF5237F359DA054069D1ADC19B7EB098C84B7806343`.
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
+Switch SVG assets are present. The embedded Canvas runner matches its built JAR:
+340748 bytes, SHA-256
+`3BD36BFD87C49544E442FFB6A301BE7ADE0380D204A0C674D22327D28373E12E`.
+The embedded analyzer is the newly verified 87439-byte JAR with the exact
+`466C88A04BCE84A2C31B52E177AC995BADA0055E6E67C37D07027FD792DA02F7`
+hash, not the previous build. All 1619 frozen non-Markdown inputs (including the
+40 analyzer/core/root-POM inputs) are unchanged after packaging; all 40 source
+and 35 Web manifest entries were reverified. No interactive IDE acceptance or
+installed-userdir verification is claimed.

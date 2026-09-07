@@ -1219,6 +1219,302 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteSwitchAll201FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
+        var id = StableId.parse("e7900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Switch");
+        ExactPair pair;
+        try (var fixture = fixture("switch_palette_insert", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applySwitchMutation(fixture, ready, plan.command(), id);
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"),
+                    new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                    new PropertyName("value"), new PropertyValue.BooleanValue(false)), widget.properties());
+            assertTrue(widget.slots().isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow();
+            onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            pair = savePhysicalModelPair(fixture);
+        }
+        ExactPair sparsePair = pair;
+        var visited = new java.util.HashSet<String>();
+        try (var fixture = fixture("switch_reopened_dense_families", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var history = fixture.dataObject().getCombinedUndoRedo(); int index = 0;
+            for (String variant : List.of("standard", "adaptive")) {
+                for (String iconMode : List.of("icon", "inherit")) {
+                    var before = findModelWidget(current.document().orElseThrow().root(), id);
+                    var target = dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.full(variant);
+                    index++;
+                    target.put(new PropertyName("value"), new PropertyValue.BooleanValue(true));
+                    if (iconMode.equals("inherit")) {
+                        target.keySet().removeIf(name -> dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.iconSourceName(name).isPresent());
+                        for (String state : List.of("Default", "Disabled", "Error", "Dragged", "Pressed", "Selected", "ScrolledUnder", "Hovered", "Focused"))
+                            target.put(new PropertyName("thumbIcon" + state + "Mode"), new PropertyValue.StringValue("inherit"));
+                    }
+                    target.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+                    var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>();
+                    for (var name : before.properties().keySet()) if (!target.containsKey(name)) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name));
+                    target.forEach((name, value) -> { if (!value.equals(before.properties().get(name))) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(name, value)); });
+                    current = applySwitchMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(id, patches), id);
+                    byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                    var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                    token = current.token().orElseThrow(); onEdt(history::redo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                    pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                    try (var reopened = fixture("switch_dense_family_" + index, pair)) {
+                        assertEquals(target, findModelWidget(reopened.ready().document().orElseThrow().root(), id).properties());
+                        assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+                    }
+                }
+            }
+            try (var sparse = fixture("switch_all_sparse_live_cells", sparsePair)) {
+                sparse.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, sparse.frameworkFile())));
+                var currentSparse = sparse.ready(); var sparseHistory = sparse.dataObject().getCombinedUndoRedo();
+                var initial = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+                var sets = properties.getPropertySets();
+                for (var field : definition.properties()) {
+                    String name = field.name().value();
+                    var prerequisites = dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.sparsePrerequisites(name);
+                    byte[] initialDart = sparse.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(sparse);
+                    int prerequisiteEdits = 0;
+                    for (var prerequisite : prerequisites.entrySet()) {
+                        var widget = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                        if (prerequisite.getValue().equals(widget.properties().get(prerequisite.getKey()))) continue;
+                        currentSparse = applySwitchMutation(sparse, currentSparse, new SetProperty(id, prerequisite.getKey(), prerequisite.getValue()), id);
+                        prerequisiteEdits++;
+                    }
+                    var before = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var cell = cellProperty(properties, name); var editor = cell.getPropertyEditor().getClass();
+                    byte[] beforeDart = sparse.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(sparse);
+                    var value = dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.value(field);
+                    commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                    currentSparse = applySwitchMutation(sparse, currentSparse, commands.getFirst(), id);
+                    var edited = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    assertEquals(value, edited.properties().get(field.name()), name); assertTrue(edited.slots().isEmpty());
+                    properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                    currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(currentSparse.document().orElseThrow().root(), id), name);
+                    assertArrayEquals(beforeDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(beforeFd, refreshProgressFdBytes(sparse));
+                    for (int i = 0; i < prerequisiteEdits; i++) {
+                        token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                        currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    }
+                    assertEquals(initial, findModelWidget(currentSparse.document().orElseThrow().root(), id));
+                    assertArrayEquals(initialDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(initialFd, refreshProgressFdBytes(sparse));
+                    properties.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    assertSame(cell, cellProperty(properties, name)); assertEquals(editor, cell.getPropertyEditor().getClass());
+                    assertEquals(List.of(sets), List.of(properties.getPropertySets())); assertTrue(visited.add(name));
+                }
+            }
+            assertEquals(201, visited.size());
+        }
+        try (var fixture = fixture("switch_whole_families_and_rollback", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("thumbColor", "trackColor", "trackOutlineColor", "overlayColor", "trackOutlineWidth", "thumbIcon")) {
+                var before = widget;
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(
+                        dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_" + name)));
+                current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertTrue(widget.properties().keySet().stream().noneMatch(key -> key.value().startsWith(name) && !key.value().equals(name)), name);
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, new PropertyName("value")),
+                    new ResetProperty(id, new PropertyName("variant")), new ResetProperty(id, new PropertyName("enabled")),
+                    new SetProperty(id, new PropertyName("value"), new PropertyValue.NullValue()),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.CallbackValue("rawCallback")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Switch rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                assertEquals(undo, history.getUndoPresentationName());
+            }
+            commands.clear(); cellProperty(properties, "thumbColorDefault").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff556677L)));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "switch_color_refused", "Switch color replacement rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "Switch atomic family rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(widget, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undo, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("switch_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applySwitchMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("value"), new PropertyValue.BooleanValue(false)), id);
+            assertEquals(new PropertyValue.BooleanValue(false), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("value")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+
+    @Test
+    void paletteSwitchAdaptiveIconAndImageDependenciesAreAtomicAcrossHistoryAndReopen() throws Exception {
+        var id = StableId.parse("e8900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Switch"); ExactPair pair;
+        try (var fixture = fixture("switch_atomic_dependencies", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applySwitchMutation(fixture, ready, plan.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            var edits = new java.util.LinkedHashMap<String, FlutterPropertyCellValue>();
+            edits.put("applyCupertinoTheme", FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)));
+            edits.put("thumbIconSelectedData", FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.value("thumbIconSelectedData")));
+            edits.put("thumbIconSelectedSemanticLabel", FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("Retained SDK-ignored Icon label")));
+            edits.put("thumbIconSelectedMode", FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("inherit")));
+            edits.put("activeThumbImage", FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.value("activeThumbImage")));
+            edits.put("onActiveThumbImageError", FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_onActiveThumbImageError")));
+            edits.put("inactiveThumbImage", FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.value("inactiveThumbImage")));
+            edits.put("onInactiveThumbImageError", FlutterPropertyCellValue.explicit(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_onInactiveThumbImageError")));
+            edits.put("variant", FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("standard")));
+            for (var edit : edits.entrySet()) {
+                var before = widget; commands.clear();
+                cellProperty(properties, edit.getKey()).setValue(edit.getValue()); assertEquals(1, commands.size(), edit.getKey());
+                current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(edit.getValue().explicitValue().orElseThrow(), widget.properties().get(new PropertyName(edit.getKey())));
+                if (edit.getKey().equals("applyCupertinoTheme")) assertEquals(new PropertyValue.StringValue("adaptive"), widget.properties().get(new PropertyName("variant")));
+                if (edit.getKey().equals("thumbIconSelectedData")) assertEquals(new PropertyValue.StringValue("icon"), widget.properties().get(new PropertyName("thumbIconSelectedMode")));
+                if (edit.getKey().equals("thumbIconSelectedMode")) assertFalse(widget.properties().keySet().stream().anyMatch(n -> n.value().startsWith("thumbIconSelected") && dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.iconSourceName(n).isPresent()));
+                if (edit.getKey().equals("variant")) assertFalse(widget.properties().containsKey(new PropertyName("applyCupertinoTheme")));
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            // Removing either provider clears only its own dependent error handler, in one history entry.
+            for (String state : List.of("active", "inactive")) {
+                var before = widget; commands.clear();
+                cellProperty(properties, state + "ThumbImage").restoreDefaultValue(); assertEquals(1, commands.size());
+                assertEquals(2, assertInstanceOf(PatchProperties.class, commands.getFirst()).patches().size());
+                current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                String handler = "on" + Character.toUpperCase(state.charAt(0)) + state.substring(1) + "ThumbImageError";
+                assertFalse(widget.properties().containsKey(new PropertyName(state + "ThumbImage"))); assertFalse(widget.properties().containsKey(new PropertyName(handler)));
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id)); assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            // Inherit(null) -> Icon(null) -> omitted icon data keeps distinct model and same-source endpoints.
+            for (boolean reset : List.of(false, true)) {
+                commands.clear(); var cell = cellProperty(properties, "thumbIconSelectedData");
+                if (reset) cell.restoreDefaultValue(); else cell.setValue(FlutterPropertyCellValue.explicit(PropertyValue.IconDataValue.none()));
+                assertEquals(1, commands.size()); current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(new PropertyValue.StringValue("icon"), widget.properties().get(new PropertyName("thumbIconSelectedMode")));
+                assertEquals(reset ? null : PropertyValue.IconDataValue.none(), widget.properties().get(new PropertyName("thumbIconSelectedData")));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            commands.clear(); cellProperty(properties, "thumbIconSelectedMode").restoreDefaultValue();
+            current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+            widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertFalse(widget.properties().keySet().stream().anyMatch(n -> n.value().startsWith("thumbIconSelected")));
+            properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new SetProperty(id, new PropertyName("onActiveThumbImageError"),
+                    dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_onActiveThumbImageError")), "Switch error handler without image").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(beforeFd, refreshProgressFdBytes(fixture));
+            current = awaitReady(fixture.mutations());
+            commands.clear(); cellProperty(properties, "applyCupertinoTheme").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()));
+            current = applySwitchMutation(fixture, current, commands.getFirst(), id);
+            assertEquals(new PropertyValue.StringValue("adaptive"), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("variant")));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("switch_dependencies_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), id);
+            assertInstanceOf(PropertyValue.NullValue.class, widget.properties().get(new PropertyName("applyCupertinoTheme")));
+            var current = applySwitchMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("value"), new PropertyValue.BooleanValue(true)), id);
+            assertEquals(new PropertyValue.BooleanValue(true), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("value")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteSwitchInactiveCallbackEditWhilePairedChangesAreUnsavedKeepsHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("e9900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Switch"); var callback = new PropertyName("onChanged");
+        ExactPair pair;
+        try (var fixture = fixture("switch_inactive_unsaved", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var accepted = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> buttonId));
+            var current = applySwitchMutation(fixture, ready, accepted.command(), buttonId);
+            current = applySwitchMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            current = applySwitchMutation(fixture, current, new SetProperty(buttonId, callback,
+                    dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_disabledCallback")), buttonId);
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8(), "Inactive callback changes only FD while paired source remains unsaved");
+            assertFalse(Arrays.equals(beforeFd, refreshProgressFdBytes(fixture)));
+            var after = findModelWidget(current.document().orElseThrow().root(), buttonId); var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(after, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+            // Saving must retain the same-source predecessor as an exact undoable FD-only endpoint.
+            token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId));
+            if (fixture.coordinator().stagedEvidence() != null) pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("switch_inactive_saved_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertEquals(dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.reference("_disabledCallback"),
+                    findModelWidget(fixture.ready().document().orElseThrow().root(), buttonId).properties().get(callback));
+            var current = applySwitchMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), buttonId);
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_disabledCallback"));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applySwitchMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "Switch complete property contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
+    }
+
+    @Test
     void paletteCheckboxAll106FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
         var id = StableId.parse("d7900004-e530-4b9b-92fa-49e3c491f094");
         var type = new WidgetTypeId("flutter.material.Checkbox");

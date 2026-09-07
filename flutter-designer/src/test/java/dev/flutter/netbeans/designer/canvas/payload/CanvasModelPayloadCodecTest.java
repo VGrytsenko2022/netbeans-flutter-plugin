@@ -95,6 +95,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.FloatingActionButton",
             "flutter.material.IconButton",
             "flutter.material.Checkbox",
+            "flutter.material.Switch",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3687,6 +3688,65 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void switchDenseFamiliesPreserveImagesIconsAndOnlyClosedReferencePresence() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.variants()) {
+            var properties = dev.flutter.netbeans.designer.catalog.SwitchTestValues.full(variant);
+            var node = dev.flutter.netbeans.designer.catalog.SwitchTestValues.node(properties);
+            var resource = CanvasImageResource.create(CanvasImageFormat.PNG, 40, 30, new byte[]{4, 3, 2, 1});
+            var assetId = CanvasImageAssetId.application("assets/switch.png");
+            var bundle = new CanvasImageResourceBundle(List.of(new CanvasImageAsset(assetId, resource.resourceId(),
+                    List.of(new CanvasImageVariant(BigDecimal.ONE, resource.resourceId())))), List.of(resource));
+            var document = new DesignerDocument(DOCUMENT_ID, source(), node);
+            assertThrows(CanvasModelPayloadException.class, () -> new CanvasModelPayloadCodec().encode(request(document)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(PROFILE, document, bundle)), StandardCharsets.UTF_8);
+            for (String name : List.of("onChanged", "onFocusChange", "focusNode", "mouseCursor", "onActiveThumbImageError", "onInactiveThumbImageError")) {
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), name);
+            }
+            for (String forbidden : List.of("buttonValues", "package:buttons", "libraryUri")) assertFalse(json.contains(forbidden));
+            assertTrue(json.contains("\"thumbIconDefaultData\""));
+            assertTrue(json.contains("\"activeThumbImage\""));
+            assertTrue(json.contains("\"inactiveThumbImage\""));
+            assertTrue(json.contains("\"protocolVersion\":18"));
+        }
+    }
+
+    @Test
+    void switchExplicitNullStatesAndIconNullRemainDifferentWireModels() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.SwitchTestValues.node(Map.of(
+                new PropertyName("variant"), new PropertyValue.StringValue("adaptive"),
+                new PropertyName("applyCupertinoTheme"), new PropertyValue.NullValue(),
+                new PropertyName("thumbColorDisabled"), new PropertyValue.NullValue(),
+                new PropertyName("trackOutlineWidthSelected"), new PropertyValue.NullValue(),
+                new PropertyName("thumbIconDefaultMode"), new PropertyValue.StringValue("icon"),
+                new PropertyName("thumbIconSelectedMode"), new PropertyValue.StringValue("inherit")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        for (String name : List.of("applyCupertinoTheme", "thumbColorDisabled", "trackOutlineWidthSelected")) {
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+        }
+        assertTrue(json.contains("\"thumbIconDefaultMode\":{\"kind\":\"string\",\"value\":\"icon\"}"));
+        assertTrue(json.contains("\"thumbIconSelectedMode\":{\"kind\":\"string\",\"value\":\"inherit\"}"));
+        for (String absent : List.of("imageProvider", "MaterialIcons", "resources", "thumbIconDefaultData")) assertFalse(json.contains(absent), absent);
+    }
+
+    @Test
+    void switchMalformedRelationsAndRawCallbacksFailBeforePayloadEncoding() {
+        for (var properties : List.of(
+                Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("applyCupertinoTheme"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.CallbackValue("legacy")),
+                Map.of(new PropertyName("onActiveThumbImageError"), dev.flutter.netbeans.designer.catalog.SwitchTestValues.reference("error")),
+                Map.of(new PropertyName("thumbColor"), dev.flutter.netbeans.designer.catalog.SwitchTestValues.reference("color"),
+                        new PropertyName("thumbColorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("thumbIconSelectedMode"), new PropertyValue.StringValue("inherit"),
+                        new PropertyName("thumbIconSelectedSize"), new PropertyValue.DoubleValue(BigDecimal.ONE)))) {
+            var node = dev.flutter.netbeans.designer.catalog.SwitchTestValues.node(new LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     @Test

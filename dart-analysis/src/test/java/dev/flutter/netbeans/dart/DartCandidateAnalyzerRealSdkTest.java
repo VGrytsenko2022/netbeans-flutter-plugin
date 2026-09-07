@@ -3554,6 +3554,77 @@ class DartCandidateAnalyzerRealSdkTest {
     }
 
     @Test
+    void validatesNumericStatePropertyProofWithRestrictedCoreAndRejectsShadowedTypes() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("numeric_state_core_scope_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        Path pubspec = projectRoot.resolve("pubspec.yaml");
+        Path packageConfig = projectRoot.resolve(".dart_tool/package_config.json");
+        String originalPubspec = Files.readString(pubspec, StandardCharsets.UTF_8);
+        String originalPackageConfig = Files.readString(packageConfig, StandardCharsets.UTF_8);
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable, ignored -> { });
+        long version = 3300;
+        for (var scope : List.of(
+                Map.entry("", ""),
+                Map.entry("import 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:core' show String;\nimport 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:core' hide double;\nimport 'dart:core' as core;\n", "core."),
+                Map.entry("import 'dart:\\u0063ore' as core;\n", "core."))) {
+            String prefix = scope.getValue();
+            String candidate = scope.getKey() + "import 'package:flutter/material.dart';\n"
+                    + "const marker = \"import 'dart:core';\";\n"
+                    + prefix + "String unchangedScope(" + prefix + "String value, " + prefix + "Object object) => value;\n"
+                    + "const plainWidth = WidgetStatePropertyAll<" + prefix + "double>(2);\n"
+                    + "const nullableWidth = WidgetStatePropertyAll<" + prefix + "double?>(null);\n"
+                    + "void analyzerStaticTypeProofScope() {\n  // analyzer static-type proof insertion\n}\n"
+                    + "Widget sample() => Column(children: [\n"
+                    + "  Switch(value: false, onChanged: null, trackOutlineWidth: plainWidth),\n"
+                    + "  Switch.adaptive(value: false, onChanged: null, trackOutlineWidth: nullableWidth),\n]);\n";
+            ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+            for (var reference : List.of(Map.entry("plainWidth", "WidgetStateProperty<double>"),
+                    Map.entry("nullableWidth", "WidgetStateProperty<double?>"))) {
+                int offset = candidate.indexOf(reference.getKey(), candidate.indexOf("Widget sample()"));
+                probes.add(typedProbe("scoped-" + reference.getKey(), offset, reference.getKey(), "project:current", lib,
+                        offset, reference.getKey().length(), candidate, reference.getValue(), "package:flutter/widgets.dart"));
+            }
+            var result = await(analyzer.analyze(request(projectRoot, file, candidate, version++, probes)));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status(), () -> scope.getKey() + ": " + result);
+            assertEquals(2, result.symbolEvidence().size());
+            assertTrue(result.symbolEvidence().stream().allMatch(evidence ->
+                    evidence.staticTypeEvidence().orElseThrow().accepted()));
+        }
+        for (String declaration : List.of(
+                "core.dynamic get reference => const WidgetStatePropertyAll<core.double?>(2);",
+                "WidgetStateProperty<core.double?>? get reference => const WidgetStatePropertyAll<core.double?>(2);",
+                "WidgetStateProperty<core.String> get reference => const WidgetStatePropertyAll<core.String>('wrong');",
+                "class double { const double(); }\n"
+                        + "WidgetStateProperty<double> get reference => const WidgetStatePropertyAll<double>(double());")) {
+            String candidate = "// ignore_for_file: argument_type_not_assignable, invalid_assignment\n"
+                    + "import 'dart:core' show String;\nimport 'dart:core' as core;\n"
+                    + "import 'package:flutter/material.dart';\n" + declaration + "\n"
+                    + "void analyzerStaticTypeProofScope() {\n  // analyzer static-type proof insertion\n}\n"
+                    + "Widget sample() => Switch(value: false, onChanged: null, trackOutlineWidth: reference);\n";
+            int offset = candidate.indexOf("reference", candidate.indexOf("Widget sample()"));
+            var probe = typedProbe("invalid-numeric-state", offset, "reference", "project:current", lib,
+                    offset, "reference".length(), candidate, "WidgetStateProperty<double?>", "package:flutter/widgets.dart");
+            var rejected = await(analyzer.analyze(request(projectRoot, file, candidate, version++, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.REJECTED, rejected.status(), () -> declaration + ": " + rejected);
+            assertFalse(rejected.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted());
+        }
+        assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        assertEquals(originalPubspec, Files.readString(pubspec, StandardCharsets.UTF_8));
+        assertEquals(originalPackageConfig, Files.readString(packageConfig, StandardCharsets.UTF_8));
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    @Test
     void validatesNonBooleanTypedBatchesWithRestrictedCoreAndRejectsDynamicReferences() throws Exception {
         Path executable = configuredDartExecutable();
         Path flutterSdk = configuredFlutter3448Sdk();

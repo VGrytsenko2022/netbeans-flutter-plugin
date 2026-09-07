@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -456,6 +457,10 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(SwitchWidgetPropertySchema.SWITCH_TYPE.value())) {
+            validateSwitch(node, propertiesPath, issues);
+            return;
+        }
         if (type.equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value())) {
             validateCheckbox(node, propertiesPath, issues);
             validateCardShape(node, propertiesPath, issues);
@@ -1399,6 +1404,51 @@ public final class WidgetTreeValidator {
                     node.id(),
                     buttonName(node) + " ButtonStyle alignment requires "
                     + "styleAlignmentKind, styleAlignmentX, and styleAlignmentY together."));
+        }
+    }
+
+    private static void validateSwitch(WidgetNode node, String path, IssueCollector issues) {
+        if (node.properties().containsKey(new PropertyName("applyCupertinoTheme"))
+                && !new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/applyCupertinoTheme", node.id(),
+                    "Switch standard has no Apply Cupertino theme argument; choose Adaptive or reset this field."));
+        }
+        for (String state : List.of("Active", "Inactive")) {
+            String image = Character.toLowerCase(state.charAt(0)) + state.substring(1) + "ThumbImage";
+            String callback = "on" + state + "ThumbImageError";
+            if (node.properties().containsKey(new PropertyName(callback))
+                    && !node.properties().containsKey(new PropertyName(image))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + callback, node.id(),
+                        "Switch " + callback + " requires " + image + ". Set the image first."));
+            }
+        }
+        List<String> families = new ArrayList<>(SwitchWidgetPropertySchema.colorFamilies());
+        families.add("trackOutlineWidth");
+        families.add("thumbIcon");
+        for (String family : families) {
+            if (!node.properties().containsKey(new PropertyName(family))) {
+                continue;
+            }
+            List<String> locals = family.equals("thumbIcon") ? SwitchWidgetPropertySchema.thumbIconLocalProperties()
+                    : family.equals("trackOutlineWidth") ? SwitchWidgetPropertySchema.outlineWidthStateProperties()
+                    : SwitchWidgetPropertySchema.colorStateProperties(family);
+            for (String name : locals) {
+                if (node.properties().containsKey(new PropertyName(name))) {
+                    issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                            "Switch " + family + " reference and local fields are mutually exclusive."));
+                }
+            }
+        }
+        for (String state : SwitchWidgetPropertySchema.thumbIconStates()) {
+            List<String> bucket = SwitchWidgetPropertySchema.thumbIconBucketProperties(state);
+            if (new PropertyValue.StringValue("inherit").equals(node.properties().get(new PropertyName(bucket.getFirst())))) {
+                for (String name : bucket.subList(1, bucket.size())) {
+                    if (node.properties().containsKey(new PropertyName(name))) {
+                        issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                                "Switch Inherit thumb icon mode returns null and cannot contain Icon details."));
+                    }
+                }
+            }
         }
     }
 

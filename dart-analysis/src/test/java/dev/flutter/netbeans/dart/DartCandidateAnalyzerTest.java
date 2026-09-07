@@ -120,6 +120,48 @@ class DartCandidateAnalyzerTest {
     }
 
     @Test
+    void numericStatePropertyProofQualifiesCoreWithoutChangingOriginalImportScope() throws Exception {
+        for (String argument : List.of("double", "double?")) {
+            for (String header : List.of("", "const marker = \"import 'dart:core';\";\n",
+                    "import 'dart:core' as sourceCore show double;\n",
+                    "import 'dart:core' show String;\n",
+                    "import 'dart:\\u0063ore' hide double;\n",
+                    "import 'dart:core' as sourceCore;\nclass double {}\n")) {
+                String candidate = header + "void build() {\n  print('candidate');\n}\n";
+                Fixture accepted = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+                String original = "void build() {}\n";
+                Files.writeString(accepted.dartFile, original, StandardCharsets.UTF_8);
+                Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+                int offset = candidate.indexOf("print");
+                var type = new DartStaticTypeProbe(offset, 5, 0, candidate.indexOf("  print"),
+                        "WidgetStateProperty<" + argument + ">", "package:flutter/widgets.dart");
+                var probe = new DartSymbolProbe("typed.double", offset, 5, "print", "dart:core",
+                        sdkRoot, Optional.of("FUNCTION"), Optional.of(type));
+                var result = await(accepted.analyzer.analyze(request(
+                        accepted, candidate, 41, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+                assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+                var additions = accepted.factory.processes().stream().flatMap(process -> process.requests().stream())
+                        .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                        .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
+                        .filter(value -> "add".equals(value.path("type").asText())).toList();
+                assertEquals(2, additions.size());
+                assertEquals(candidate, additions.getFirst().path("content").asText());
+                String witness = additions.getLast().path("content").asText();
+                assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
+                assertTrue(witness.contains("final _nbfdStaticTypeProof0.WidgetStateProperty<"
+                        + "_nbfdStaticTypeProof0Core." + argument + "> _nbfdStaticTypeProof0Value0 = print;"), witness);
+                assertFalse(witness.contains("_nbfdStaticTypeProof0.double"), witness);
+                assertEquals(!header.startsWith("import"), witness.startsWith(
+                        "import 'package:flutter/widgets.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
+                assertTrue(witness.contains(header + "void build()"), witness);
+                assertTrue(accepted.factory.processes().get(1).requests().getFirst().toString()
+                        .contains("strict-casts: true"));
+                assertEquals(original, Files.readString(accepted.dartFile, StandardCharsets.UTF_8));
+            }
+        }
+    }
+
+    @Test
     void nonBooleanTypedBatchesQualifyTheDynamicControlWithoutWideningCoreScope() throws Exception {
         for (String expectedType : List.of("ButtonStyle", "VoidCallback", "FocusNode")) {
             for (String header : List.of("", "import 'dart:core' as sourceCore;\n",
@@ -310,7 +352,7 @@ class DartCandidateAnalyzerTest {
         String candidate = "void build() {\n  print('candidate');\n}\n";
         int expressionOffset = candidate.indexOf("print");
         Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
-        for (String type : List.of("Animation<Color?>", "AnimationController")) {
+        for (String type : List.of("Animation<Color?>", "AnimationController", "WidgetStateProperty<Icon?>")) {
             Fixture fixture = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
             Files.writeString(fixture.dartFile, "void build() {}\n", StandardCharsets.UTF_8);
             DartSymbolProbe probe = new DartSymbolProbe("typed.print", expressionOffset,
@@ -326,9 +368,11 @@ class DartCandidateAnalyzerTest {
                     .map(value -> value.path("params").path("files").path(fixture.dartFile.toString()))
                     .filter(value -> "add".equals(value.path("type").asText()))
                     .findFirst().orElseThrow().path("content").asText();
-            String expected = type.equals("Animation<Color?>")
-                    ? "_nbfdStaticTypeProof0.Animation<_nbfdStaticTypeProof0.Color?>"
-                    : "_nbfdStaticTypeProof0.AnimationController";
+            String expected = switch (type) {
+                case "Animation<Color?>" -> "_nbfdStaticTypeProof0.Animation<_nbfdStaticTypeProof0.Color?>";
+                case "WidgetStateProperty<Icon?>" -> "_nbfdStaticTypeProof0.WidgetStateProperty<_nbfdStaticTypeProof0.Icon?>";
+                default -> "_nbfdStaticTypeProof0.AnimationController";
+            };
             assertTrue(witness.contains("final " + expected + " _nbfdStaticTypeProof0Value0 = print;"), witness);
             assertTrue(fixture.factory.processes().get(1)
                     .requests().getFirst().toString().contains("strict-casts: true"));

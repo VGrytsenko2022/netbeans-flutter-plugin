@@ -193,6 +193,22 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void switchWidgetBothConstructorsMoveAsLeavesButNeverAcceptAnInventedChildSlot() {
+        for (String variant : List.of("standard", "adaptive")) {
+            var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+            var switchWidget = new WidgetNode(B_ID, type("flutter.material.Switch"),
+                    dev.flutter.netbeans.plugin.designer.properties.SwitchPropertyContractTest.full(variant), Map.of());
+            var root = listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, switchWidget, listParent(C_ID, STACK, CHILDREN, List.of())));
+            var document = document(root);
+            assertAcceptedCommandApplies(document, BUILT_INS, switchWidget,
+                    planner.plan(document, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+            assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, CHILD, 0)));
+            assertTrue(switchWidget.slots().isEmpty());
+        }
+    }
+
+    @Test
     void checkboxBothConstructorsMoveAsLeavesButNeverAcceptAnInventedChildSlot() {
         for (String variant : List.of("standard", "adaptive")) {
             var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);

@@ -774,7 +774,10 @@ public final class DartCandidateAnalyzer {
         String result = (outerType.equals("Object") ? coreAlias : alias) + '.' + outerType;
         if (matcher.group(2) != null) {
             String argument = matcher.group(2);
-            String argumentAlias = argument.equals("bool") || argument.equals("bool?") ? coreAlias : alias;
+            String argumentAlias = switch (argument) {
+                case "bool", "bool?", "double", "double?" -> coreAlias;
+                default -> alias;
+            };
             result += '<' + argumentAlias + '.' + argument + '>';
         }
         return result;

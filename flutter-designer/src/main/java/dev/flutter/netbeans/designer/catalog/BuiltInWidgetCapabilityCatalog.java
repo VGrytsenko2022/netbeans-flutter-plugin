@@ -163,6 +163,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FloatingActionButton", STATIC_EDITABLE),
             Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
+            Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -331,6 +332,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FloatingActionButton", floatingActionButtonProjection()),
             Map.entry("flutter.material.IconButton", iconButtonProjection()),
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
+            Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2150,6 +2152,65 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection switchProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection icon = iconProjection();
+        CanvasProjection checkbox = checkboxProjection();
+        for (String name : SwitchWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            Optional<String> iconName = SwitchWidgetPropertySchema.iconSourceName(name);
+            if (iconName.isPresent()) {
+                CanvasPropertyContract original = icon.propertyContracts().get(new PropertyName(iconName.orElseThrow()));
+                value = new CanvasPropertyContract(original.acceptedKinds(), false, Optional.empty(),
+                        original.numericBounds(), original.constraintFingerprints());
+            } else if (SwitchWidgetPropertySchema.thumbIconLocalProperties().contains(name)) {
+                value = constrainedSchema(PropertyValueKind.STRING, "pattern:" + base64("(?:icon|inherit)"));
+            } else if (SwitchWidgetPropertySchema.colorFamilies().stream()
+                    .anyMatch(family -> SwitchWidgetPropertySchema.colorStateProperties(family).contains(name))) {
+                var color = colorOrThemeProperty(name).getValue();
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(color.constraintFingerprints());
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+            } else if (SwitchWidgetPropertySchema.outlineWidthStateProperties().contains(name)) {
+                var number = withPositiveInfinity(cardNumberSchema(null, null));
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+            } else {
+                value = switch (name) {
+                    case "value" -> requiredDefaultProperty(name, "boolean:false", PropertyValueKind.BOOLEAN).getValue();
+                    case "enabled" -> requiredDefaultProperty(name, "boolean:true", PropertyValueKind.BOOLEAN).getValue();
+                    case "variant" -> requiredDefaultConstrainedProperty(name, "string:" + base64("standard"),
+                            PropertyValueKind.STRING, "pattern:" + base64("(?:standard|adaptive)")).getValue();
+                    case "onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError",
+                            "thumbColor", "trackColor", "trackOutlineColor", "overlayColor", "trackOutlineWidth", "thumbIcon", "focusNode" -> {
+                        String type = switch (name) {
+                            case "onChanged", "onFocusChange" -> "ValueChanged<bool>";
+                            case "onActiveThumbImageError", "onInactiveThumbImageError" -> "ImageErrorListener";
+                            case "thumbColor", "trackColor", "trackOutlineColor", "overlayColor" -> "WidgetStateProperty<Color?>";
+                            case "trackOutlineWidth" -> "WidgetStateProperty<double?>";
+                            case "thumbIcon" -> "WidgetStateProperty<Icon?>";
+                            default -> "FocusNode";
+                        };
+                        yield constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                + type + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                    }
+                    case "activeThumbImage", "inactiveThumbImage" -> constrainedSchema(PropertyValueKind.IMAGE_PROVIDER, IMAGE_PROVIDER_CONTRACT_FINGERPRINT);
+                    case "activeColor", "activeThumbColor", "activeTrackColor", "inactiveThumbColor", "inactiveTrackColor", "focusColor", "hoverColor" -> colorOrThemeProperty(name).getValue();
+                    case "splashRadius", "mouseCursor", "materialTapTargetSize" -> checkbox.propertyContracts().get(new PropertyName(name));
+                    case "dragStartBehavior" -> enumPropertyForLibrary(name, GESTURES_LIBRARY, "DragStartBehavior", "down", "start").getValue();
+                    case "padding" -> edgeInsetsProperty(name, true).getValue();
+                    case "applyCupertinoTheme" -> propertySchema(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL);
+                    default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of());
     }
 
     private static CanvasProjection checkboxProjection() {

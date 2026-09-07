@@ -73,6 +73,127 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterPropertyEditorComponentsTest {
+
+    @Test
+    void switchOptionalIconDataPreservesOmissionNoneGlyphAndCancelWithoutWideningRequiredIcon() throws Exception {
+        for (String state : dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.thumbIconStates()) {
+            var field = SwitchPropertyContractTest.field("thumbIcon" + state + "Data");
+            var glyph = SwitchPropertyContractTest.value(field);
+            for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(PropertyValue.IconDataValue.none()), FlutterPropertyCellValue.explicit(glyph))) {
+                var editor = binding(field).createEditor(); editor.setValue(initial);
+                var env = PropertyEnv.create(descriptor("Thumb icon data", "Omit, None, or exact glyph."));
+                ((ExPropertyEditor) editor).attachEnv(env);
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor();
+                    var omit = findNamed(panel, JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_OMIT_NAME);
+                    var none = findNamed(panel, JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_NONE_NAME);
+                    assertNotNull(omit); assertNotNull(none); assertEquals(initial.explicitValue().isEmpty(), omit.isSelected());
+                    assertTrue(omit.getAccessibleContext().getAccessibleDescription().contains("distinct"));
+                    env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue());
+                    return null;
+                });
+                var editEnv = PropertyEnv.create(descriptor("Thumb icon data", "Local drafts."));
+                ((ExPropertyEditor) editor).attachEnv(editEnv);
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor();
+                    var omit = findNamed(panel, JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_OMIT_NAME);
+                    if (!omit.isSelected()) omit.doClick();
+                    assertEquals(initial, editor.getValue(), "Cancel-safe draft must not mutate committed data");
+                    editEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    return null;
+                });
+                var noneEnv = PropertyEnv.create(descriptor("Thumb icon data", "Explicit None."));
+                ((ExPropertyEditor) editor).attachEnv(noneEnv);
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor();
+                    var omit = findNamed(panel, JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_OMIT_NAME);
+                    var none = findNamed(panel, JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_NONE_NAME);
+                    omit.doClick(); if (!none.isSelected()) none.doClick();
+                    assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    noneEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(PropertyValue.IconDataValue.none()), editor.getValue());
+                    return null;
+                });
+            }
+        }
+        var required = binding(property("flutter.widgets.Icon", "icon")).createEditor();
+        required.setValue(FlutterPropertyCellValue.explicit(PropertyValue.IconDataValue.none()));
+        ((ExPropertyEditor) required).attachEnv(PropertyEnv.create(descriptor("Icon", "Required data.")));
+        onEdt(() -> {
+            assertNull(findNamed(required.getCustomEditor(), JCheckBox.class, FlutterPropertyEditorComponents.MATERIAL_ICON_OMIT_NAME));
+            return null;
+        });
+        assertThrows(IllegalArgumentException.class, () -> required.setValue(FlutterPropertyCellValue.unset()));
+    }
+
+    @Test
+    void switchNullableOutlineWidthsUseStateSpecificOmissionAndNullWithFiniteCancelSafeDrafts() throws Exception {
+        for (String name : dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.outlineWidthStateProperties()) {
+            var editor = binding(SwitchPropertyContractTest.field(name)).createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new BigDecimal("-2.50"))); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor(name, "State width."));
+            ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor();
+                var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME);
+                var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+                assertEquals("Not set (omit state entry)", mode.getItemAt(0)); assertEquals("-2.5", number.getText());
+                number.setText("rawDart()"); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue());
+                mode.setSelectedItem(FlutterNullableNumberEditorComponent.INHERITED);
+                assertFalse(number.isEnabled()); assertTrue(panel.getAccessibleContext().getAccessibleDescription().contains("lower-priority"));
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+                return null;
+            });
+            var omitEnv = PropertyEnv.create(descriptor(name, "Omitted state.")); ((ExPropertyEditor) editor).attachEnv(omitEnv);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME);
+                mode.setSelectedIndex(0); omitEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+        var progress = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")).createEditor();
+        progress.setValue(FlutterPropertyCellValue.unset()); ((ExPropertyEditor) progress).attachEnv(PropertyEnv.create(descriptor("Width", "Constructor default.")));
+        onEdt(() -> { assertEquals(FlutterNullableNumberEditorComponent.OMIT, findNamed(progress.getCustomEditor(), JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME).getItemAt(0)); return null; });
+    }
+
+    @Test
+    void switchNullableInfinityEditorPreservesExactEnumAndRejectsNegativeInfinityWithoutWideningFiniteWidth() throws Exception {
+        for (String name : dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.outlineWidthStateProperties()) {
+            var editor = binding(SwitchPropertyContractTest.field(name)).createEditor();
+            var infinity = FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "infinity"));
+            editor.setValue(infinity); assertEquals("Infinity", editor.getAsText());
+            var env = PropertyEnv.create(descriptor(name, "Infinity state.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+                assertEquals("Infinity", number.getText()); assertTrue(number.getAccessibleContext().getAccessibleName().contains("Infinity"));
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(infinity, editor.getValue()); return null;
+            });
+            var edited = PropertyEnv.create(descriptor(name, "Exact numeric modes.")); ((ExPropertyEditor) editor).attachEnv(edited);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+                for (String invalid : List.of("-Infinity", "NaN", "double.infinity", "", "null")) {
+                    number.setText(invalid); assertEquals(PropertyEnv.STATE_INVALID, edited.getState(), invalid); assertEquals(infinity, editor.getValue());
+                }
+                number.setText("2.25"); assertEquals(infinity, editor.getValue()); edited.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.DoubleValue(new BigDecimal("2.25"))), editor.getValue()); return null;
+            });
+        }
+        var finite = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")).createEditor();
+        finite.setValue(FlutterPropertyCellValue.unset()); assertThrows(IllegalArgumentException.class, () -> finite.setAsText("Infinity"));
+    }
+
+    @Test
+    void switchActivationReferenceDistinguishesGeneratedNoOpFromOrdinaryFocusCallbackOmission() throws Exception {
+        for (String name : List.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError")) {
+            var editor = binding(SwitchPropertyContractTest.field(name)).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "Typed callback.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor();
+                var omit = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                assertEquals(name.equals("onChanged") ? "Use Designer activation default" : "Use Flutter default (omit " + name + ")", omit.getText());
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+    }
+
     @Test
     void checkboxMouseCursorAll41PresetsAndProjectFactoriesStayClosedAndCancelSafe() throws Exception {
         var definition = property("flutter.material.Checkbox", "mouseCursor");
@@ -3820,12 +3941,15 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(307, booleanProperties.size(),
+        assertEquals(319, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));
         assertFalse(booleanProperties.contains("flutter.material.IconButton.isSelected"), "nullable Boolean has a separate union contract");
         assertTrue(booleanProperties.contains("flutter.material.IconButton.enabled"));
+        assertTrue(booleanProperties.contains("flutter.material.Switch.value"));
+        assertTrue(booleanProperties.contains("flutter.material.Switch.thumbIconSelectedApplyTextScaling"));
+        assertFalse(booleanProperties.contains("flutter.material.Switch.applyCupertinoTheme"), "adaptive nullable Boolean uses its union editor");
         assertTrue(booleanProperties.contains("flutter.widgets.IgnorePointer.ignoring"));
         assertTrue(booleanProperties.contains("flutter.widgets.IgnorePointer.ignoringSemantics"));
         assertTrue(booleanProperties.contains("flutter.widgets.AbsorbPointer.absorbing"));

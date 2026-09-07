@@ -40,6 +40,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -529,6 +530,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type())) {
             addIconButtonPropertySets(sheet, hasSlotTab);
+        } else if (SwitchWidgetPropertySchema.SWITCH_TYPE.equals(widget.type())) {
+            addSwitchPropertySets(sheet, hasSlotTab);
         } else if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(widget.type())) {
             addCheckboxPropertySets(sheet, hasSlotTab);
         } else if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
@@ -2348,6 +2351,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addSwitchPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<SwitchWidgetPropertySchema.Group, Sheet.Set>(SwitchWidgetPropertySchema.Group.class);
+        for (var group : SwitchWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = SwitchWidgetPropertySchema.find(property.name()).orElseThrow();
+            var presets = switch (property.name().value()) {
+                case "variant" -> SwitchWidgetPropertySchema.variants();
+                case "mouseCursor" -> SwitchWidgetPropertySchema.mouseCursorPresets();
+                default -> SwitchWidgetPropertySchema.thumbIconStates().stream().anyMatch(state -> SwitchWidgetPropertySchema.thumbIconBucketProperties(state).getFirst().equals(property.name().value()))
+                        ? java.util.List.of("icon", "inherit") : java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Optional fields can be reset. Value, Constructor and Enabled cannot be unset. Setting Apply Cupertino theme selects Adaptive; Standard resets that branch-only field. "
+                    + "Whole references and local families switch atomically; one Undo restores all affected fields. Resetting an image also clears only its matching error callback. Project references are analyzed but never executed in isolated Canvas.", false, presets));
+        }
+    }
+
     private void addCheckboxPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<CheckboxWidgetPropertySchema.Group, Sheet.Set>(CheckboxWidgetPropertySchema.Group.class);
         for (var group : CheckboxWidgetPropertySchema.Group.values()) {
@@ -3893,6 +3916,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
             return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (SwitchWidgetPropertySchema.SWITCH_TYPE.equals(currentWidget.type())) {
+            return switchPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(currentWidget.type())) {
             return checkboxPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4072,6 +4098,47 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 accepted.explicitValue().<PatchProperties.Patch>map(value ->
                         new PatchProperties.SetPatch(propertyName, value))
                         .orElseGet(() -> new PatchProperties.ResetPatch(propertyName))));
+    }
+
+    private DesignerCommand switchPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        boolean setting = accepted.explicitValue().isPresent();
+        var explicit = accepted.explicitValue().orElse(null);
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        var sets = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+        if (setting && edited.equals("applyCupertinoTheme")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
+        if (edited.equals("variant") && explicit instanceof PropertyValue.StringValue variant && variant.value().equals("standard"))
+            resets.add(new PropertyName("applyCupertinoTheme"));
+        for (String prefix : java.util.List.of("Active", "Inactive")) {
+            String image = Character.toLowerCase(prefix.charAt(0)) + prefix.substring(1) + "ThumbImage";
+            String callback = "on" + prefix + "ThumbImageError";
+            if (setting && edited.equals(callback) && !widget.properties().containsKey(new PropertyName(image)))
+                throw new IllegalArgumentException("Cannot set " + callback + " on Switch '" + widget.id()
+                        + "': set " + image + " first; an image-error callback requires its matching provider.");
+            if (!setting && edited.equals(image)) resets.add(new PropertyName(callback));
+        }
+        var families = new java.util.LinkedHashMap<String, java.util.List<String>>();
+        for (String family : SwitchWidgetPropertySchema.colorFamilies()) families.put(family, SwitchWidgetPropertySchema.colorStateProperties(family));
+        families.put("trackOutlineWidth", SwitchWidgetPropertySchema.outlineWidthStateProperties());
+        families.put("thumbIcon", SwitchWidgetPropertySchema.thumbIconLocalProperties());
+        families.forEach((family, leaves) -> {
+            if (setting && edited.equals(family)) leaves.forEach(field -> resets.add(new PropertyName(field)));
+            else if (setting && leaves.contains(edited)) resets.add(new PropertyName(family));
+        });
+        for (String state : SwitchWidgetPropertySchema.thumbIconStates()) {
+            var bucket = SwitchWidgetPropertySchema.thumbIconBucketProperties(state);
+            String mode = bucket.getFirst();
+            if (edited.equals(mode) && (!setting || explicit.equals(new PropertyValue.StringValue("inherit"))))
+                bucket.stream().skip(1).forEach(field -> resets.add(new PropertyName(field)));
+            else if (setting && bucket.contains(edited) && !edited.equals(mode))
+                sets.put(new PropertyName(mode), new PropertyValue.StringValue("icon"));
+        }
+        resets.remove(name); sets.remove(name);
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        sets.forEach((field, value) -> { if (!value.equals(widget.properties().get(field))) patches.add(new PatchProperties.SetPatch(field, value)); });
+        patches.add(setting ? new PatchProperties.SetPatch(name, explicit) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 
     private DesignerCommand checkboxPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {

@@ -153,6 +153,7 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("SemanticFormatterCallback")
                         || type.equals("ValueChanged<RangeValues>")
                         || type.equals("RangeLabels")
+                        || type.equals("VisualDensity")
                         || type.equals("ButtonLayerBuilder"))
                 ? MATERIAL_LIBRARY_URI : WIDGETS_LIBRARY_URI;
 
@@ -212,7 +213,8 @@ final class GeneratedDartSymbolProbePlanner {
                 } else {
                     expectedTargetRoot = projectLibraryRoot;
                 }
-            } else if (occurrence.libraryUri().startsWith(FLUTTER_LIBRARY_PREFIX)) {
+            } else if (occurrence.libraryUri().startsWith(FLUTTER_LIBRARY_PREFIX)
+                    || occurrence.libraryUri().equals("dart:core")) {
                 expectedTargetRoot = normalizedRoot;
             } else {
                 continue;
@@ -320,7 +322,8 @@ final class GeneratedDartSymbolProbePlanner {
                 importsStart,
                 statementInsertion,
                 requirement.expectedDartType(),
-                expectedTypeLibraryUri);
+                expectedTypeLibraryUri,
+                requirement.sourceTypeOverride());
     }
 
     private static boolean isProjectLibraryUri(String value) {

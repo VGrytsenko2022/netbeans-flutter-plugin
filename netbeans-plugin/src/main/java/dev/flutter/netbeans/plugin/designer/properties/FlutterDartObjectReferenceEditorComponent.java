@@ -390,6 +390,13 @@ final class FlutterDartObjectReferenceEditorComponent {
         private String description() {
             String base = "The Dart analyzer validates that the selected Dart "
                     + "symbol is assignable to " + expectedDartType + ". ";
+            if (("value".equals(argumentName) || "groupValue".equals(argumentName)) && "Object?".equals(expectedDartType)) {
+                base = "The analyzer checks this Radio value against the selected type, including its nullable form where permitted. Dynamic references are rejected. ";
+            } else if ("onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
+                base = "The analyzer checks the Radio callback against ValueChanged<T?> for the selected type. Null and omission are distinct from the explicit No-op preset. Enabled false preserves this callback. ";
+            } else if ("groupRegistry".equals(argumentName) && "RadioGroupRegistry<Object>".equals(expectedDartType)) {
+                base = "The analyzer checks the registry against the selected Radio type and its registerClient contract. Null or omission preserves inherited RadioGroup lookup. ";
+            }
             if (noOpRefreshBranch) {
                 base += "Omission generates the required onRefresh: () async {} no-op; it does not emit null or omit the required Dart argument. ";
             }
@@ -407,6 +414,9 @@ final class FlutterDartObjectReferenceEditorComponent {
             } else if ("ShapeBorder".equals(expectedDartType)) {
                 base += "A project-defined shape replaces any mutually exclusive shape configuration "
                         + "atomically. Omission restores the widget's Flutter/theme default. ";
+            }
+            if ("onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
+                return base + "Isolated Canvas retains the actual SDK Radio and never executes the project callback. An active callback is replaced by a benign controlled preview callback with a concrete diagnostic; disabled or inherited-group-ignored callbacks cause no false preview warning. Stored Value and Group value never change from gestures.";
             }
             if (noOpRefreshBranch) {
                 return base + "Isolated Canvas retains the wrapper and editable child, but disables refresh activation and reports this project callback; it never fakes successful refresh.";

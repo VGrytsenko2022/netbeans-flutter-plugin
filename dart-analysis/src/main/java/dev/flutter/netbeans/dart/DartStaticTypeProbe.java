@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.dart;
 
 import java.util.Objects;
+import java.util.Optional;
 import java.util.regex.Pattern;
 
 /**
@@ -8,10 +9,12 @@ import java.util.regex.Pattern;
  *
  * <p>A separate analyzer context constructs a second in-memory overlay with
  * proof-owned strict-casts options and assigns the exact expression to the
- * exact non-null expected type. The typed initializer preserves downward
+ * exact expected type. The typed initializer preserves downward
  * inference for generic constructor and factory invocations. In conjunction
- * with original call-site analysis, it rejects {@code dynamic}, nullable outer types,
- * {@code null}, and wrong generic instantiations. Neither result is accepted
+ * with original call-site analysis, it rejects {@code dynamic} and wrong generic
+ * instantiations. Legacy non-null requirements also reject nullable outer types
+ * and {@code null}; an explicit Radio source-type identity may request nullable
+ * values and adds independent non-dynamic and registry-consumption checks. Neither result is accepted
  * in isolation.</p>
  */
 public record DartStaticTypeProbe(
@@ -20,14 +23,22 @@ public record DartStaticTypeProbe(
         int importInsertionOffset,
         int statementInsertionOffset,
         String expectedDartType,
-        String expectedTypeLibraryUri) {
+        String expectedTypeLibraryUri,
+        Optional<String> sourceTypeOverride) {
 
     private static final Pattern EXPECTED_TYPE = Pattern.compile(
-            "[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?");
+            "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|Object\\?)");
+    private static final Pattern SOURCE_TYPE = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?\\??");
     private static final Pattern LIBRARY_URI = Pattern.compile(
             "(?:dart:[a-z][a-z0-9_.]*|package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"
             + "[A-Za-z0-9_-][A-Za-z0-9_.-]*\\.dart)");
+
+    public DartStaticTypeProbe(int expressionOffset, int expressionLength, int importInsertionOffset,
+            int statementInsertionOffset, String expectedDartType, String expectedTypeLibraryUri) {
+        this(expressionOffset, expressionLength, importInsertionOffset, statementInsertionOffset,
+                expectedDartType, expectedTypeLibraryUri, Optional.empty());
+    }
 
     public DartStaticTypeProbe {
         if (expressionOffset < 0 || expressionLength <= 0) {
@@ -46,6 +57,12 @@ public record DartStaticTypeProbe(
                 || !EXPECTED_TYPE.matcher(expectedDartType).matches()) {
             throw new IllegalArgumentException(
                     "expected Dart type must use the closed simple/generic form");
+        }
+        Objects.requireNonNull(sourceTypeOverride, "sourceTypeOverride");
+        if (sourceTypeOverride.isPresent() && (sourceTypeOverride.orElseThrow().length() > 256
+                || !SOURCE_TYPE.matcher(sourceTypeOverride.orElseThrow()).matches()
+                || !java.util.Set.of("Type", "Object", "Object?", "ValueChanged<Object?>", "RadioGroupRegistry<Object>").contains(expectedDartType))) {
+            throw new IllegalArgumentException("Source type override must be a closed generated Radio type identity");
         }
         expectedTypeLibraryUri = Objects.requireNonNull(
                 expectedTypeLibraryUri, "expectedTypeLibraryUri");

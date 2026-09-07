@@ -193,6 +193,19 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void radioMovesExactFullPropertiesAsLeafAndRejectsInventedChild() {
+        var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+        var radio = new WidgetNode(B_ID, type("flutter.material.Radio"),
+                dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.full(), Map.of());
+        var root = listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, radio, listParent(C_ID, STACK, CHILDREN, List.of())));
+        var document = document(root);
+        assertAcceptedCommandApplies(document, BUILT_INS, radio, planner.plan(document, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+        assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, CHILD, 0)));
+        assertTrue(radio.slots().isEmpty());
+    }
+
+    @Test
     void rangeSliderMovesExactFullPropertiesAsLeafAndRejectsInventedChild() {
         var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
         var rangeSlider = new WidgetNode(B_ID, type("flutter.material.RangeSlider"),

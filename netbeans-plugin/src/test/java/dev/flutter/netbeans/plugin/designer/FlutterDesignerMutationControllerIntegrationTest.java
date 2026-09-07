@@ -1219,6 +1219,347 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteRadioAll107FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
+        var id = StableId.parse("fad00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Radio");
+        ExactPair pair;
+        try (var fixture = fixture("radio_palette_insert", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyRadioMutation(fixture, ready, plan.command(), id);
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("String"),
+                    new PropertyName("variant"), new PropertyValue.StringValue("standard"),
+                    new PropertyName("value"), new PropertyValue.StringValue("option"),
+                    new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), widget.properties());
+            assertTrue(widget.slots().isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow();
+            onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            pair = savePhysicalModelPair(fixture);
+        }
+        ExactPair sparsePair = pair;
+        var visited = new java.util.HashSet<String>();
+        try (var fixture = fixture("radio_reopened_dense_families", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var history = fixture.dataObject().getCombinedUndoRedo(); int index = 0;
+            for (String family : List.of("standard", "adaptive")) {
+                    var before = findModelWidget(current.document().orElseThrow().root(), id);
+                    var target = dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.full();
+                    index++;
+                    target.put(new PropertyName("variant"), new PropertyValue.StringValue(family));
+                    if (family.equals("standard")) target.remove(new PropertyName("useCupertinoCheckmarkStyle"));
+                    var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>();
+                    for (var name : before.properties().keySet()) if (!target.containsKey(name)) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name));
+                    target.forEach((name, value) -> { if (!value.equals(before.properties().get(name))) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(name, value)); });
+                    current = applyRadioMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(id, patches), id);
+                    byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                    var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                    token = current.token().orElseThrow(); onEdt(history::redo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                    pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                    try (var reopened = fixture("radio_dense_family_" + index, pair)) {
+                        assertEquals(target, findModelWidget(reopened.ready().document().orElseThrow().root(), id).properties());
+                        assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+                    }
+            }
+            try (var sparse = fixture("radio_all_sparse_live_cells", sparsePair)) {
+                sparse.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, sparse.frameworkFile())));
+                var currentSparse = sparse.ready(); var sparseHistory = sparse.dataObject().getCombinedUndoRedo();
+                var initial = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+                var sets = properties.getPropertySets();
+                for (var field : definition.properties()) {
+                    String name = field.name().value();
+                    var prerequisites = dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.sparsePrerequisites(name);
+                    byte[] initialDart = sparse.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(sparse);
+                    int prerequisiteEdits = 0;
+                    for (var prerequisite : prerequisites.entrySet()) {
+                        var widget = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                        if (prerequisite.getValue().equals(widget.properties().get(prerequisite.getKey()))) continue;
+                        currentSparse = applyRadioMutation(sparse, currentSparse, new SetProperty(id, prerequisite.getKey(), prerequisite.getValue()), id);
+                        prerequisiteEdits++;
+                    }
+                    var before = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var cell = cellProperty(properties, name); var editor = cell.getPropertyEditor().getClass();
+                    byte[] beforeDart = sparse.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(sparse);
+                    var value = dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.value(field);
+                    commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                    currentSparse = applyRadioMutation(sparse, currentSparse, commands.getFirst(), id);
+                    var edited = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    assertEquals(value, edited.properties().get(field.name()), name); assertTrue(edited.slots().isEmpty());
+                    properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                    currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(currentSparse.document().orElseThrow().root(), id), name);
+                    assertArrayEquals(beforeDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(beforeFd, refreshProgressFdBytes(sparse));
+                    for (int i = 0; i < prerequisiteEdits; i++) {
+                        token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                        currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    }
+                    assertEquals(initial, findModelWidget(currentSparse.document().orElseThrow().root(), id));
+                    assertArrayEquals(initialDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(initialFd, refreshProgressFdBytes(sparse));
+                    properties.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    assertSame(cell, cellProperty(properties, name)); assertEquals(editor, cell.getPropertyEditor().getClass());
+                    assertEquals(List.of(sets), List.of(properties.getPropertySets())); assertTrue(visited.add(name));
+                }
+            }
+            assertEquals(107, visited.size());
+        }
+        try (var fixture = fixture("radio_whole_families_and_rollback", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("fillColor", "overlayColor", "backgroundColor", "innerRadius", "side", "visualDensity")) {
+                var before = widget;
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(
+                        dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.reference("_" + name)));
+                current = applyRadioMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertTrue(widget.properties().keySet().stream().noneMatch(key -> key.value().startsWith(name) && !key.value().equals(name)), name);
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, new PropertyName("value")),
+                    new ResetProperty(id, new PropertyName("valueType")), new ResetProperty(id, new PropertyName("variant")),
+                    new SetProperty(id, new PropertyName("value"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE)),
+                    new SetProperty(id, new PropertyName("visualDensityHorizontal"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(5))),
+                    new SetProperty(id, new PropertyName("variant"), new PropertyValue.StringValue("unreviewed")),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.CallbackValue("rawCallback")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Radio rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                assertEquals(undo, history.getUndoPresentationName());
+            }
+            commands.clear(); cellProperty(properties, "overlayColorDefault").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff556677L)));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "radio_color_refused", "Radio color replacement rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "Radio atomic family rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(widget, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undo, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("radio_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyRadioMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("value"), new PropertyValue.StringValue("saved")), id);
+            assertEquals(new PropertyValue.StringValue("saved"), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("value")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteRadioNullableEnablementAndCallbacksStaySourceVisibleAcrossHistoryAndReopen() throws Exception {
+        StableId id = StableId.parse("fbd00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Radio");
+        ExactPair pair;
+        try (var fixture = fixture("radio_nullable_activation", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var insertion = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyRadioMutation(fixture, ready, insertion.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            var sets = properties.getPropertySets();
+            var enabledCell = cellProperty(properties, "enabled");
+            var callbackCell = cellProperty(properties, "onChanged");
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            var edits = List.of(
+                    Map.entry("onChanged", (PropertyValue) dev.flutter.netbeans.plugin.designer.properties.RadioPropertyContractTest.reference("_radioChanged")),
+                    Map.entry("enabled", (PropertyValue) new PropertyValue.BooleanValue(false)),
+                    Map.entry("onChanged", (PropertyValue) new PropertyValue.NullValue()),
+                    Map.entry("enabled", (PropertyValue) new PropertyValue.NullValue()),
+                    Map.entry("onChanged", (PropertyValue) new PropertyValue.StringValue("noop")),
+                    Map.entry("enabled", (PropertyValue) new PropertyValue.BooleanValue(true)),
+                    Map.entry("useCupertinoCheckmarkStyle", (PropertyValue) new PropertyValue.BooleanValue(true)),
+                    Map.entry("variant", (PropertyValue) new PropertyValue.StringValue("standard")),
+                    Map.entry("sidePressedWidth", (PropertyValue) new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(3))),
+                    Map.entry("sidePressedMode", (PropertyValue) new PropertyValue.StringValue("inherit")),
+                    Map.entry("sideStateful", (PropertyValue) new PropertyValue.BooleanValue(false)),
+                    Map.entry("groupValue", (PropertyValue) new PropertyValue.NullValue()));
+            for (var edit : edits) {
+                var before = widget;
+                commands.clear();
+                cellProperty(properties, edit.getKey()).setValue(FlutterPropertyCellValue.explicit(edit.getValue()));
+                assertEquals(1, commands.size(), edit.getKey());
+                current = applyRadioMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(edit.getValue(), widget.properties().get(new PropertyName(edit.getKey())));
+                if (edit.getKey().equals("enabled") && edit.getValue().equals(new PropertyValue.BooleanValue(false))) {
+                    String source = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+                    assertTrue(source.contains("onChanged: _radioChanged"), "SDK enabled=false does not suppress callback source/proof");
+                    assertTrue(source.contains("enabled: false"), source);
+                }
+                if (edit.getKey().equals("useCupertinoCheckmarkStyle")) {
+                    assertEquals(new PropertyValue.StringValue("adaptive"), widget.properties().get(new PropertyName("variant")));
+                }
+                if (edit.getKey().equals("variant")) {
+                    assertFalse(widget.properties().containsKey(new PropertyName("useCupertinoCheckmarkStyle")));
+                }
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8();
+                byte[] exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow();
+                onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow();
+                onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                assertSame(enabledCell, cellProperty(properties, "enabled"));
+                assertSame(callbackCell, cellProperty(properties, "onChanged"));
+                assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+            }
+            current = applyRadioMutation(fixture, current, new ResetProperty(id, new PropertyName("enabled")), id);
+            current = applyRadioMutation(fixture, current, new ResetProperty(id, new PropertyName("onChanged")), id);
+            widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertFalse(widget.properties().containsKey(new PropertyName("enabled")));
+            assertFalse(widget.properties().containsKey(new PropertyName("onChanged")));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("radio_activation_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), id);
+            assertFalse(widget.properties().containsKey(new PropertyName("enabled")));
+            assertFalse(widget.properties().containsKey(new PropertyName("onChanged")));
+            var current = applyRadioMutation(fixture, fixture.ready(),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), id);
+            assertEquals(new PropertyValue.StringValue("noop"), findModelWidget(current.document().orElseThrow().root(), id)
+                    .properties().get(new PropertyName("onChanged")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteRadioCompoundTypeDraftIsOneGuardedHistoryStepAndSurvivesReopen() throws Exception {
+        StableId id = StableId.parse("fcd00004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Radio");
+        java.util.Map<String, Optional<PropertyValue>> expectedTuple = java.util.Map.of(
+                "valueType", Optional.of(new PropertyValue.StringValue("int")),
+                "nullableValueType", Optional.of(new PropertyValue.BooleanValue(false)),
+                "value", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))),
+                "groupValue", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))));
+        ExactPair pair;
+        try (var fixture = fixture("radio_atomic_generic_type", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var insertion = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyRadioMutation(fixture, ready, insertion.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var before = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>();
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, before, definition, commands::add);
+            var typeCell = cellProperty(properties, "valueType");
+            var valueCell = cellProperty(properties, "value");
+            var sets = properties.getPropertySets();
+            var requested = new java.util.LinkedHashMap<>(FlutterPropertyCellValue.RadioTypeEdit.snapshot(before));
+            var nextType = new PropertyValue.StringValue("int");
+            requested.put("valueType", Optional.of(nextType));
+            requested.put("nullableValueType", Optional.of(new PropertyValue.BooleanValue(false)));
+            requested.put("value", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))));
+            requested.put("groupValue", Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7))));
+            var edit = new FlutterPropertyCellValue(Optional.of(nextType),
+                    Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(id, FlutterPropertyCellValue.RadioTypeEdit.snapshot(before), requested)));
+            typeCell.setValue(edit);
+            assertEquals(1, commands.size());
+            assertInstanceOf(PatchProperties.class, commands.getFirst());
+            current = applyRadioMutation(fixture, current, commands.getFirst(), id);
+            var after = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(expectedTuple, FlutterPropertyCellValue.RadioTypeEdit.snapshot(after), "All four requested fields must be applied, including explicit false versus unset");
+            assertEquals(nextType, after.properties().get(new PropertyName("valueType")));
+            assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(7)), after.properties().get(new PropertyName("value")));
+            assertEquals(before.properties().get(new PropertyName("onChanged")), after.properties().get(new PropertyName("onChanged")));
+            assertEquals(before.slots(), after.slots());
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            assertTrue(new String(exactDart, StandardCharsets.UTF_8).contains("Radio<int>"), "Selected T must be explicit in source");
+            properties.refreshPresentation(after, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            assertSame(typeCell, cellProperty(properties, "valueType"));
+            assertSame(valueCell, cellProperty(properties, "value"));
+            assertEquals(List.of(sets), List.of(properties.getPropertySets()));
+            commands.clear();
+            assertThrows(IllegalArgumentException.class, () -> typeCell.setValue(edit), "Stale four-field baseline cannot overwrite current values");
+            assertThrows(IllegalArgumentException.class, () -> valueCell.setValue(edit), "Dependent payload cannot be injected into another property");
+            assertTrue(commands.isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow();
+            onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id), "One Undo restores all four fields");
+            token = current.token().orElseThrow();
+            onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            assertEquals(after, findModelWidget(current.document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            // A rejected analyzer result must roll back the entire dependent tuple, not only the displayed type.
+            properties.refreshPresentation(after, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            var rollback = new java.util.LinkedHashMap<>(FlutterPropertyCellValue.RadioTypeEdit.snapshot(after));
+            rollback.put("valueType", Optional.of(new PropertyValue.StringValue("String")));
+            rollback.put("value", Optional.of(new PropertyValue.StringValue("changed")));
+            rollback.put("groupValue", Optional.empty());
+            var backEdit = new FlutterPropertyCellValue(rollback.get("valueType"),
+                    Optional.of(new FlutterPropertyCellValue.RadioTypeEdit(id, FlutterPropertyCellValue.RadioTypeEdit.snapshot(after), rollback)));
+            commands.clear();
+            typeCell.setValue(backEdit);
+            assertEquals(1, commands.size());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request,
+                    "radio_type_refused", "Radio dependent generic edit refused")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "Radio atomic type rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(after, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("radio_generic_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), id);
+            assertEquals(expectedTuple, FlutterPropertyCellValue.RadioTypeEdit.snapshot(widget), "Save/reopen must retain the complete requested type tuple");
+            assertEquals(new PropertyValue.StringValue("int"), widget.properties().get(new PropertyName("valueType")));
+            var current = applyRadioMutation(fixture, fixture.ready(),
+                    new SetProperty(id, new PropertyName("value"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(8))), id);
+            assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(8)),
+                    findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("value")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyRadioMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "Radio complete property contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
+    }
+
+    @Test
     void paletteRangeSliderAll37FieldsSingleConstructorSaveReopenHistoryAndRollback() throws Exception {
         var id = StableId.parse("fac00004-e530-4b9b-92fa-49e3c491f094");
         var type = new WidgetTypeId("flutter.material.RangeSlider");
@@ -17453,6 +17794,11 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 class StatelessWidget extends Widget {}
                 class Text extends Widget {}
                 """, StandardCharsets.UTF_8);
+        Path core = Files.createDirectories(flutterRoot.resolve("bin/cache/dart-sdk/lib/core"));
+        for (String typeName : List.of("String", "int", "double", "num", "bool", "Object")) {
+            Files.writeString(core.resolve(typeName.toLowerCase(java.util.Locale.ROOT) + ".dart"),
+                    "class " + typeName + " {}\n", StandardCharsets.UTF_8);
+        }
         return new FakeSdk(
                 flutterRoot.toRealPath(),
                 dartExecutable.toRealPath(),
@@ -18531,9 +18877,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
         List<DartSymbolEvidence> symbolEvidence = request.symbolProbes().stream()
                 .map(probe -> acceptedSymbol(
                         probe,
-                        probe.expectedLibraryUri().startsWith("package:flutter/")
-                                ? navigationTarget
-                                : request.dartFile()))
+                        mockNavigationTarget(probe, request, navigationTarget)))
                 .toList();
         return new DartCandidateAnalysisResult(
                 DartCandidateAnalysisStatus.PASSED,
@@ -18559,9 +18903,7 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 .map(probe -> {
                     DartSymbolEvidence accepted = acceptedSymbol(
                             probe,
-                            probe.expectedLibraryUri().startsWith(
-                                    "package:flutter/")
-                                    ? navigationTarget : request.dartFile());
+                            mockNavigationTarget(probe, request, navigationTarget));
                     if (!probe.equals(typed)) {
                         return accepted;
                     }
@@ -18586,6 +18928,15 @@ class FlutterDesignerMutationControllerIntegrationTest {
                 request.symbolProbes().size(),
                 symbolEvidence,
                 Optional.empty());
+    }
+
+    private static Path mockNavigationTarget(DartSymbolProbe probe,
+            DartCandidateAnalysisRequest request, Path flutterTarget) {
+        if (probe.expectedLibraryUri().equals("dart:core")) {
+            return probe.expectedTargetRoot().resolve("bin/cache/dart-sdk/lib/core")
+                    .resolve(probe.expectedSymbolName().toLowerCase(java.util.Locale.ROOT) + ".dart");
+        }
+        return probe.expectedLibraryUri().startsWith("package:flutter/") ? flutterTarget : request.dartFile();
     }
 
     private static DartCandidateAnalysisResult rejectedDiagnosticAnalysis(

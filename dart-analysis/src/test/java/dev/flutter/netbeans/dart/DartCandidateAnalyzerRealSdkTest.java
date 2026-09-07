@@ -3554,6 +3554,83 @@ class DartCandidateAnalyzerRealSdkTest {
     }
 
     @Test
+    void validatesRadioNullableTypeIdentityWithoutDynamicOrCovariantRegistryEscapes() throws Exception {
+        Path executable = configuredDartExecutable();
+        Path flutterSdk = configuredFlutter3448Sdk();
+        Path projectRoot = Files.createDirectories(workspace.resolve("radio_type_proof_project"));
+        Path dependencyRoot = Files.createDirectories(workspace.resolve("clipper_dependency"));
+        Files.createDirectories(dependencyRoot.resolve("lib"));
+        Path lib = Files.createDirectories(projectRoot.resolve("lib"));
+        writeFlutterPackageConfig(projectRoot, dependencyRoot, flutterSdk);
+        Path file = lib.resolve("main.dart");
+        String disk = "void main() {}\n";
+        Files.writeString(file, disk, StandardCharsets.UTF_8);
+        String prelude = """
+                // ignore_for_file: invalid_assignment, argument_type_not_assignable
+                import 'dart:core' as core;
+                import 'package:flutter/material.dart';
+                enum Choice { first }
+                typedef Alias = Choice;
+                typedef NullableAlias = Choice?;
+                typedef DynamicAlias = core.dynamic;
+                Choice? nullableChoice;
+                Choice? nullableChoiceFactory() => null;
+                core.Object? nullableObject;
+                core.dynamic dynamicValue;
+                core.dynamic dynamicFactory() => null;
+                T genericFactory<T>() => throw 0;
+                class Spoof {
+                  core.int get _nbfdStaticTypeProof0NonDynamic => 1;
+                }
+                core.dynamic spoofedDynamic = Spoof();
+                class Registry<T> implements RadioGroupRegistry<T> {
+                  T? get groupValue => null;
+                  ValueChanged<T?> get onChanged => (_) {};
+                  void registerClient(RadioClient<T> value) {}
+                  void unregisterClient(RadioClient<T> value) {}
+                }
+                final choiceRegistry = Registry<Choice>();
+                final stringRegistry = Registry<core.String>();
+                void analyzerStaticTypeProofScope() {
+                  // analyzer static-type proof insertion
+                }
+                """;
+        record Case(String expression, String expectedType, String selectedType, boolean accepted) {}
+        List<Case> cases = List.of(
+                new Case("nullableChoice", "Object?", "Choice", true),
+                new Case("nullableChoiceFactory()", "Object?", "Choice", true),
+                new Case("nullableObject", "Object?", "core.Object?", true),
+                new Case("dynamicValue", "Object?", "core.Object?", false),
+                new Case("dynamicFactory()", "Object?", "core.Object?", false),
+                new Case("spoofedDynamic", "Object?", "core.Object?", false),
+                new Case("genericFactory()", "Object?", "core.Object?", false),
+                new Case("genericFactory()", "Object", "Choice", true),
+                new Case("choiceRegistry", "RadioGroupRegistry<Object>", "Choice", true),
+                new Case("stringRegistry", "RadioGroupRegistry<Object>", "core.Object?", false),
+                new Case("Alias", "Type", "Alias", true),
+                new Case("NullableAlias", "Type", "NullableAlias?", true),
+                new Case("NullableAlias", "Type", "NullableAlias", false),
+                new Case("DynamicAlias", "Type", "DynamicAlias", false));
+        DartCandidateAnalyzer analyzer = new DartCandidateAnalyzer(executable, ignored -> {});
+        long version = 3400;
+        for (Case sample : cases) {
+            String candidate = prelude + "core.Object? sample() => " + sample.expression() + ";\n";
+            int offset = candidate.indexOf(sample.expression(), candidate.indexOf("core.Object? sample()"));
+            String symbol = sample.expression().replace("()", "");
+            var probe = new DartSymbolProbe("radio-proof", offset, symbol.length(), symbol, "project:current", lib,
+                    Optional.empty(), Optional.of(new DartStaticTypeProbe(offset, sample.expression().length(), 0,
+                            candidate.indexOf("  // analyzer static-type proof insertion"), sample.expectedType(),
+                            "package:flutter/material.dart", Optional.of(sample.selectedType()))));
+            var result = await(analyzer.analyze(request(projectRoot, file, candidate, version++, List.of(probe))));
+            assertEquals(sample.accepted() ? DartCandidateAnalysisStatus.PASSED : DartCandidateAnalysisStatus.REJECTED,
+                    result.status(), () -> sample + ": " + result);
+            assertEquals(sample.accepted(), result.symbolEvidence().getFirst().staticTypeEvidence().orElseThrow().accepted(), sample.toString());
+            assertEquals(disk, Files.readString(file, StandardCharsets.UTF_8));
+        }
+        assertFalse(Files.exists(lib.resolve("analysis_options.yaml")));
+    }
+
+    @Test
     void validatesNumericStatePropertyProofWithRestrictedCoreAndRejectsShadowedTypes() throws Exception {
         Path executable = configuredDartExecutable();
         Path flutterSdk = configuredFlutter3448Sdk();

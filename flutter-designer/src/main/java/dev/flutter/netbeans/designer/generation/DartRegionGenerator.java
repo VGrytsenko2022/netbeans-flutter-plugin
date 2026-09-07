@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
@@ -415,6 +416,11 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
+                    && (property.parameter().order() >= 23
+                    || Set.of("value", "groupValue", "onChanged", "groupRegistry", "visualDensityHorizontal", "visualDensityVertical").contains(property.name().value())
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
             if (node.type().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE)
                     && (property.parameter().order() >= 18
                     || Set.of("valuesStart", "valuesEnd", "labelsStart", "labelsEnd", "onChanged").contains(property.name().value()))) continue;
@@ -575,6 +581,9 @@ public final class DartRegionGenerator {
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
             appendCheckboxArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
+        if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
+            appendRadioArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
         if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
             appendSwitchArguments(node, definition, path, context, arguments);
         }
@@ -704,6 +713,19 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
+        if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
+            RenderedSymbol type = radioTypeSymbol(node, context);
+            String selectedType = type.text() + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
+            int typeStart = constructor.length() + 1;
+            boolean projectType = node.properties().get(new PropertyName("valueType")) instanceof PropertyValue.DartObjectReferenceValue;
+            constructorOccurrences.add(occurrence(projectType
+                            ? "widget:" + node.id() + ":property-reference:" + path + "/properties/valueType:root"
+                            : "widget:" + node.id() + ":radio-core-value-type",
+                    typeStart + type.nameOffset(), type.name(), type.libraryUri(),
+                    path + "/properties/valueType" + (projectType ? "/rootSymbol" : ""), Optional.of(node.id()),
+                    Optional.of(new GeneratedDartStaticTypeRequirement(typeStart, type.text().length(), "Type", Optional.of(selectedType)))));
+            constructor += "<" + selectedType + ">";
+        }
         if (node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
                 && !FilledButtonWidgetPropertySchema.constructorName(node).isEmpty()) {
             String member = FilledButtonWidgetPropertySchema.constructorName(node);
@@ -712,6 +734,7 @@ public final class DartRegionGenerator {
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += "." + member;
         } else if ((node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                || node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
                 || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                 || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
                 && new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
@@ -2308,6 +2331,74 @@ public final class DartRegionGenerator {
         return scalar(rendered.toString(), constant, iconPath, node.id(), context, occurrences);
     }
 
+    private RenderedSymbol radioTypeSymbol(WidgetNode node, GenerationContext context) {
+        PropertyValue value = node.properties().get(new PropertyName("valueType"));
+        if (value instanceof PropertyValue.StringValue builtin) {
+            // Keep the user's original core scope. Exact navigation proof rejects
+            // a shadowed or unavailable builtin; no implicit import is broadened.
+            return new RenderedSymbol(builtin.value(), builtin.value(), "dart:core", 0);
+        }
+        PropertyValue.DartObjectReferenceValue reference = (PropertyValue.DartObjectReferenceValue) value;
+        return reference.libraryUri().isPresent()
+                ? context.planner().renderedSymbol(reference.libraryUri().orElseThrow(), reference.rootSymbol())
+                : new RenderedSymbol(reference.rootSymbol(), reference.rootSymbol(), CURRENT_PROJECT_LIBRARY_URI, 0);
+    }
+
+    private void appendRadioArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        String selectedType = radioTypeSymbol(node, context).text()
+                + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
+        for (String name : List.of("value", "groupValue", "onChanged", "groupRegistry")) {
+            PropertyName key = new PropertyName(name);
+            PropertyValue value = node.properties().get(key);
+            if (value == null) continue;
+            PropertyDefinition property = definition.property(key).orElseThrow();
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered;
+            if (name.equals("onChanged") && value instanceof PropertyValue.StringValue) {
+                rendered = scalar("(_) {}", false, valuePath, node.id(), context);
+            } else if (value instanceof PropertyValue.EnumValue numeric && numeric.type().equals("double")) {
+                String literal = switch (numeric.value()) {
+                    case "infinity" -> "(1.0 / 0.0)";
+                    case "negativeInfinity" -> "(-1.0 / 0.0)";
+                    case "nan" -> "(0.0 / 0.0)";
+                    default -> throw new IllegalArgumentException("Unreviewed Radio numeric constant");
+                };
+                rendered = scalar(literal, true, valuePath, node.id(), context);
+            } else if (value instanceof PropertyValue.DartObjectReferenceValue reference) {
+                String expected = switch (name) {
+                    case "value" -> "Object";
+                    case "groupValue" -> "Object?";
+                    case "onChanged" -> "ValueChanged<Object?>";
+                    default -> "RadioGroupRegistry<Object>";
+                };
+                rendered = renderDartObjectReference(reference, expected, valuePath, node.id(), context, Optional.of(selectedType));
+            } else {
+                rendered = renderProperty(value, property, valuePath, node.id(), context);
+            }
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(), "visualDensity", false, density));
+        for (String family : List.of("fillColor", "overlayColor", "backgroundColor", "innerRadius")) {
+            ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : RadioWidgetPropertySchema.statePriority()) {
+                String suffix = Character.toUpperCase(state.charAt(0)) + state.substring(1);
+                PropertyName name = new PropertyName(family + suffix);
+                PropertyValue value = node.properties().get(name);
+                if (value != null) entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state,
+                        renderProperty(value, definition.property(name).orElseThrow(), path + "/properties/" + name, node.id(), context)));
+            }
+            if (!entries.isEmpty()) arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),
+                    family, false, renderCheckboxStateMap("WidgetStateProperty", family.equals("innerRadius") ? "double" : "Color", entries,
+                            path + "/properties/" + family, node.id(), context)));
+        }
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
+    }
+
     private void appendCheckboxArguments(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
         PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
@@ -2343,11 +2434,17 @@ public final class DartRegionGenerator {
                                 path + "/properties/" + family, node.id(), context)));
             }
         }
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
+    }
+
+    private void appendCheckboxSideArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        DartParameter parameter = definition.property(new PropertyName("side")).orElseThrow().parameter();
         boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
         RenderedValue baseSide = renderCheckboxSide(node, definition, "side", path, indent, context, false);
         if (!stateful) {
             if (baseSide != null) {
-                arguments.add(new ConstructorArgument(DartParameter.named(17, false), "side", false, baseSide));
+                arguments.add(new ConstructorArgument(parameter, "side", false, baseSide));
             }
             return;
         }
@@ -2365,7 +2462,7 @@ public final class DartRegionGenerator {
         }
         entries.add(new ElevatedButtonStateEntry("any", baseSide == null
                 ? scalar("null", true, path + "/properties/sideStateful", node.id(), context) : baseSide));
-        arguments.add(new ConstructorArgument(DartParameter.named(17, false), "side", false,
+        arguments.add(new ConstructorArgument(parameter, "side", false,
                 renderCheckboxStateMap("WidgetStateBorderSide", "BorderSide", entries,
                         path + "/properties/side", node.id(), context)));
     }
@@ -6378,6 +6475,12 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
+        return renderDartObjectReference(value, expectedDartType, path, widgetId, context, Optional.empty());
+    }
+
+    private RenderedValue renderDartObjectReference(
+            PropertyValue.DartObjectReferenceValue value, String expectedDartType, String path,
+            StableId widgetId, GenerationContext context, Optional<String> sourceTypeOverride) {
         String constantPrefix = value.constant().orElse(false) ? "const " : "";
         String rootText;
         int rootNameOffset;
@@ -6408,7 +6511,7 @@ public final class DartRegionGenerator {
         }
         GeneratedDartStaticTypeRequirement staticTypeRequirement =
                 new GeneratedDartStaticTypeRequirement(
-                        0, rendered.length(), expectedDartType);
+                        0, rendered.length(), expectedDartType, sourceTypeOverride);
         ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
         occurrences.add(occurrence(
                 "widget:" + widgetId + ":property-reference:" + path + ":root",
@@ -7098,6 +7201,7 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                            || definition.typeId().equals(RadioWidgetPropertySchema.RADIO_TYPE)
                             || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                             || definition.typeId().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
                             || definition.typeId().equals(RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE))

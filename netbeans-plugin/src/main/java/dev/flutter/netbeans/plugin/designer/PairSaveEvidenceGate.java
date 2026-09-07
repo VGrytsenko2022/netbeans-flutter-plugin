@@ -38,6 +38,10 @@ final class PairSaveEvidenceGate {
     private static final String REQUIRED_WIDGET = "Widget";
     private static final String REQUIRED_BUILD_CONTEXT = "BuildContext";
     private static final String CURRENT_PROJECT_LIBRARY_URI = "project:current";
+    private static final Set<String> RADIO_CORE_TYPES = Set.of(
+            "String", "int", "double", "num", "bool", "Object");
+    private static final Pattern RADIO_CORE_TYPE_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:radio-core-value-type");
     private static final Pattern PROJECT_PACKAGE_LIBRARY_URI = Pattern.compile(
             "package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"
@@ -449,24 +453,26 @@ final class PairSaveEvidenceGate {
             verifyStaticTypeEvidence(candidate, evidence, diagnostics);
             boolean flutterLibrary = isFlutterLibraryUri(
                     probe.expectedLibraryUri());
+            boolean radioCoreType = isRadioCoreTypeProbe(probe);
             boolean currentProjectLibrary = CURRENT_PROJECT_LIBRARY_URI.equals(
                     probe.expectedLibraryUri());
             boolean declaredPackageLibrary = isDeclaredPackageLibraryUri(
                     probe.expectedLibraryUri());
-            if (!flutterLibrary && !currentProjectLibrary
+            if (!flutterLibrary && !radioCoreType && !currentProjectLibrary
                     && !declaredPackageLibrary) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.INVALID_FLUTTER_LIBRARY_URI,
                         "analysis.symbolEvidence." + probe.id(),
                         "A pair-save symbol probe must identify a package:flutter URI "
-                        + "or a closed current/declared project package library URI.");
+                        + "or a closed current/declared project package library URI, "
+                        + "or the exact generator-owned Radio dart:core type contract.");
             }
 
             Path expectedRootReal = realPath(
                     probe.expectedTargetRoot(),
                     "analysis.symbolEvidence." + probe.id() + ".expectedTargetRoot",
                     diagnostics);
-            Path authorizedRoot = flutterLibrary
+            Path authorizedRoot = flutterLibrary || radioCoreType
                     ? trustedFlutterReal
                     : currentProjectLibrary
                             ? projectLibraryReal
@@ -478,12 +484,12 @@ final class PairSaveEvidenceGate {
                             : currentProjectLibrary
                                     ? expectedRootReal.equals(authorizedRoot)
                                     : expectedRootReal.equals(authorizedRoot));
-            if ((flutterLibrary || currentProjectLibrary
+            if ((flutterLibrary || radioCoreType || currentProjectLibrary
                     || declaredPackageLibrary) && !trustedExpectedRoot) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT,
                         "analysis.symbolEvidence." + probe.id(),
-                        flutterLibrary
+                        flutterLibrary || radioCoreType
                                 ? "The probe's real target root is outside the trusted Flutter SDK root."
                                 : currentProjectLibrary
                                         ? "The current-library probe's real target root is not the trusted project lib directory."
@@ -521,6 +527,15 @@ final class PairSaveEvidenceGate {
                             "analysis.symbolEvidence." + probe.id() + ".kind",
                             "The analyzer navigation target kind differs from the probe contract.");
                 }
+                if (radioCoreType && (targetReal == null
+                        || !"CLASS".equals(target.kind())
+                        || !isRadioCoreTypeTarget(trustedFlutterReal, targetReal,
+                                probe.expectedSymbolName()))) {
+                    add(diagnostics,
+                            PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET,
+                            "analysis.symbolEvidence." + probe.id() + ".target",
+                            "The Radio core type must resolve to its exact class in the trusted SDK Dart or sky_engine core library.");
+                }
             }
 
             if (diagnostics.size() == diagnosticsBefore) {
@@ -554,6 +569,34 @@ final class PairSaveEvidenceGate {
                     "analysis.symbolEvidence",
                     "Pair-save evidence requires an accepted BuildContext probe.");
         }
+    }
+
+    /** Additional closed admission; the complete prepared manifest is still compared above. */
+    private static boolean isRadioCoreTypeProbe(DartSymbolProbe probe) {
+        if (!"dart:core".equals(probe.expectedLibraryUri())
+                || !RADIO_CORE_TYPE_PROBE_ID.matcher(probe.id()).matches()
+                || !RADIO_CORE_TYPES.contains(probe.expectedSymbolName())) return false;
+        DartStaticTypeProbe type = probe.staticTypeProbe().orElse(null);
+        return type != null && type.expectedDartType().equals("Type")
+                && type.expressionOffset() == probe.offset()
+                && type.expressionLength() == probe.length()
+                && probe.length() == probe.expectedSymbolName().length()
+                && type.sourceTypeOverride().filter(value -> value.equals(probe.expectedSymbolName())
+                        || value.equals(probe.expectedSymbolName() + '?')).isPresent();
+    }
+
+    private static boolean isRadioCoreTypeTarget(Path trustedSdk, Path target, String symbol) {
+        if (trustedSdk == null) return false;
+        for (String core : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+            try {
+                Path declared = trustedSdk.resolve(core).resolve(
+                        symbol.toLowerCase(java.util.Locale.ROOT) + ".dart").toRealPath();
+                if (declared.startsWith(trustedSdk) && target.equals(declared)) return true;
+            } catch (IOException unavailableCoreLibrary) {
+                // A distribution need not expose both public core-library trees.
+            }
+        }
+        return false;
     }
 
     private static void verifyExactProbeManifest(

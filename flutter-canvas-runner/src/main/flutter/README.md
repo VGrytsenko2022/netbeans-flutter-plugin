@@ -1357,14 +1357,38 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 84 widgets and 78 reviewed const definitions,
-with 3416 writable rows (3399 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, twenty-one Material and six Accessibility items; the
-backlog is 84/92 complete with 8 remaining. The 84 sources across 68
-insertable destinations form 5,712 cells, with 5,354 accepted and 358 rejected.
+The aggregate catalog now has 86 widgets and 79 reviewed const definitions,
+with 3560 writable rows (3543 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, twenty-three Material and six Accessibility items.
+Against the historical 92-widget target, 86 are complete and six remain; a fixed
+ordered inventory has not been recovered. The 86 sources across 68 insertable
+destinations form 5,848 cells, with 5,486 accepted and 362 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
+
+## Radio standard/adaptive Canvas
+
+Both constructors expose 107 reviewed property rows and dispatch the real typed
+Radio<T>/Radio<T?> for String, int, double, num, bool and Object. Group values
+remain nullable. The SDK's nullable Enabled field is preserved: false disables
+without dropping callbacks, while omission/null can use a matching typed inherited
+RadioGroup. Explicit project registries and unresolved project selection types or
+values remain editable/selectable with a scoped preview-unavailable diagnostic;
+Canvas never executes project code or invents project equality.
+
+Presence-aware color, inner-radius and side state maps preserve explicit null and
+SDK resolution order. Adaptive Apple uses the actual Cupertino branch, including
+its forwarded mouse cursor and ignored Material-only visual fields. Gestures do
+not change stored values. Project callbacks receive a diagnosed benign preview
+replacement only when active; disabled or inherited-group-ignored callbacks do
+not produce false warnings. Ordinary edits retain the SDK state and focus.
+
+Fixed positive/negative infinity and NaN are valid double/num/Object identity
+values. NaN remains unequal to itself and therefore unselected; this does not
+admit NaN geometry. Signed finite and both infinite splash/inner radii retain
+the pinned SDK behavior without a speculative clamp. Model/wire versions and
+existing budgets are unchanged.
 
 ## Switch standard/adaptive Canvas
 

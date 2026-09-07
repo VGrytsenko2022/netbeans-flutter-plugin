@@ -51,7 +51,7 @@ public final class DartCandidateAnalyzer {
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final ProtocolVersion MINIMUM_PROTOCOL = new ProtocolVersion(1, 40, 0);
     private static final Pattern CLOSED_EXPECTED_TYPE = Pattern.compile(
-            "([A-Za-z][A-Za-z0-9_]*)(?:<([A-Za-z][A-Za-z0-9_]*\\??)>)?");
+            "([A-Za-z][A-Za-z0-9_]*)(?:<([A-Za-z][A-Za-z0-9_]*\\??)>)?(\\?)?");
     private static final ScheduledExecutorService WATCHDOG =
             Executors.newSingleThreadScheduledExecutor(new DaemonThreadFactory());
 
@@ -405,10 +405,13 @@ public final class DartCandidateAnalyzer {
      * Completes the original call-site assignability proof without trusting
      * human-readable hover strings. The error-free original overlay proves
      * assignability to Flutter's real nullable parameter. A separate analyzer
-     * context owns strict-casts options and adds an exact non-null typed local
+     * context owns strict-casts options and adds an exact requested-type local
      * initializer for every expression. The initializer preserves downward
      * inference for generic zero-argument constructors and factories while
-     * rejecting dynamic, nullable outer types, null, and wrong generic instantiations.
+     * rejecting dynamic and incompatible generic instantiations. Existing
+     * non-null requirements still reject nullable outer types and null. Radio
+     * can request its exact nullable selected type, with separate non-dynamic,
+     * selected-type identity and invariant registry-consumption checks.
      * Neither analyzer context is accepted in isolation.
      */
     private List<DartSymbolEvidence> analyzeStaticTypes(
@@ -485,12 +488,11 @@ public final class DartCandidateAnalyzer {
                     accepted,
                     accepted ? Optional.empty() : Optional.of(
                             proofControlsFailed
-                                    ? "Analyzer strict-casts proof control was suppressed "
-                                    + "or demoted; the static type is untrusted."
+                                    ? "Analyzer strict-casts or selected-type nullability proof control was suppressed or demoted; the static type is untrusted."
                                     : globalFailure
                                     ? "Analyzer could not isolate a valid static-type proof overlay."
-                                    : "The expression is not statically assignable to non-null "
-                                    + probe.expectedDartType() + ".")));
+                                    : "The expression does not satisfy the strict requested type "
+                                    + requestedTypeDescription(probe) + " and its selected-type constraints.")));
         }
 
         ArrayList<DartSymbolEvidence> combined = new ArrayList<>(
@@ -654,8 +656,21 @@ public final class DartCandidateAnalyzer {
         // source had no explicit core directive. Never undo show/hide/prefix.
         if (!explicitCore) importLine += "import 'dart:core';\n";
         importLine += "import 'dart:core' as " + coreAlias + ";\n";
-        String controlExpectedType = qualifiedExpectedType(
-                context.expectedDartType(), alias, coreAlias);
+        // An Object? destination cannot discriminate dynamic: the independent
+        // int control always proves strict-casts, regardless of the first field.
+        String controlExpectedType = coreAlias + ".int";
+        boolean hasSourceTypes = typed.stream().anyMatch(evidence -> {
+            DartStaticTypeProbe probe = evidence.probe().staticTypeProbe().orElseThrow();
+            return probe.sourceTypeOverride().isPresent() || probe.expectedDartType().equals("Object?");
+        });
+        String nonDynamicGetter = alias + "NonDynamic";
+        Set<String> coreSourceTypes = typed.stream().filter(evidence -> evidence.probe().expectedLibraryUri().equals("dart:core"))
+                .map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .filter(probe -> probe.expectedDartType().equals("Type"))
+                .flatMap(probe -> probe.sourceTypeOverride().stream())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+        String extension = hasSourceTypes ? "\nextension " + alias + "Extension on " + coreAlias
+                + ".Object? { " + coreAlias + ".int get " + nonDynamicGetter + " => 0; }\n" : "";
         StringBuilder statements = new StringBuilder();
         ArrayList<StaticTypeProofControl> relativeControls = new ArrayList<>();
         statements.append("    ")
@@ -681,18 +696,48 @@ public final class DartCandidateAnalyzer {
                     .staticTypeProbe().orElseThrow();
             String expression = request.content().substring(
                     probe.expressionOffset(), probe.expressionEndOffset());
-            String expectedType = qualifiedExpectedType(
-                    probe.expectedDartType(), alias, coreAlias);
+            String expectedType = qualifiedExpectedType(probe, alias, coreAlias);
             int start = statements.length();
+            int index = witnessIndex++;
+            String local = alias + "Value" + index;
             statements.append("    final ")
                     .append(expectedType)
                     .append(' ')
-                    .append(alias)
-                    .append("Value")
-                    .append(witnessIndex++)
+                    .append(local)
                     .append(" = ")
                     .append(expression)
                     .append(";\n");
+            if (probe.sourceTypeOverride().isPresent() || probe.expectedDartType().equals("Object?")) {
+                String selectedType = probe.sourceTypeOverride().orElse(expectedType);
+                String selected = alias + "Selected" + index;
+                // This analyzer-only getter has no dynamic dispatch equivalent.
+                // A same-library member/extension cannot spoof it because the
+                // entire allocated prefix is absent from the original source.
+                statements.append("    ").append(selectedType).append(' ').append(selected)
+                        .append("() => throw 0;\n    final ").append(coreAlias).append(".int ")
+                        .append(alias).append("SelectedCheck").append(index).append(" = ")
+                        .append(selected).append("().").append(nonDynamicGetter).append(";\n");
+                boolean coreSelected = coreSourceTypes.contains(selectedType);
+                if (probe.sourceTypeOverride().isPresent() && !coreSelected && !selectedType.endsWith("?")) {
+                    int nullableControlStart = statements.length();
+                    statements.append("    final ").append(selectedType).append(' ').append(alias)
+                            .append("NonNullableControl").append(index).append(" = null;\n");
+                    relativeControls.add(new StaticTypeProofControl(INVALID_ASSIGNMENT, nullableControlStart, statements.length()));
+                }
+                boolean valueFamily = probe.expectedDartType().equals("Object") || probe.expectedDartType().equals("Object?");
+                boolean nullableDestination = probe.expectedDartType().equals("Object?") || selectedType.endsWith("?");
+                boolean broadNullable = !coreSelected || selectedType.replace("?", "").equals("Object");
+                if (valueFamily && nullableDestination && broadNullable) {
+                    statements.append("    final ").append(coreAlias).append(".int ").append(alias)
+                            .append("ExpressionCheck").append(index).append(" = (").append(expression)
+                            .append(").").append(nonDynamicGetter).append(";\n");
+                }
+                if (probe.expectedDartType().equals("RadioGroupRegistry<Object>")) {
+                    statements.append("    final void Function(").append(alias).append(".RadioClient<")
+                            .append(selectedType).append(">) ").append(alias).append("Consumer").append(index)
+                            .append(" = (").append(expression).append(").registerClient;\n");
+                }
+            }
             relativeEntries.add(new StaticTypeWitnessEntry(
                     evidence.probe().id(),
                     start,
@@ -702,7 +747,7 @@ public final class DartCandidateAnalyzer {
         }
 
         long witnessLength = (long) request.content().length()
-                + importLine.length() + statements.length();
+                + importLine.length() + statements.length() + extension.length();
         if (witnessLength > Integer.MAX_VALUE
                 || witnessLength > (long) limits.maxCandidateBytes()
                 + limits.maxDiagnosticTextChars()) {
@@ -718,7 +763,7 @@ public final class DartCandidateAnalyzer {
                 + importLine
                 + source.substring(importOffset, statementOffset)
                 + statements
-                + source.substring(statementOffset);
+                + source.substring(statementOffset) + extension;
         int proofUtf8Size = DartCandidateHashes.strictUtf8(content).length;
         if ((long) proofUtf8Size > (long) limits.maxCandidateBytes()
                 + limits.maxDiagnosticTextChars()) {
@@ -771,16 +816,46 @@ public final class DartCandidateAnalyzer {
         String outerType = matcher.group(1);
         // Object is a core type, not an export of the selected Flutter proof
         // library. Keep the witness-owned core import and the user's scope intact.
-        String result = (outerType.equals("Object") ? coreAlias : alias) + '.' + outerType;
+        String result = (isCoreProofType(outerType) ? coreAlias : alias) + '.' + outerType;
         if (matcher.group(2) != null) {
             String argument = matcher.group(2);
-            String argumentAlias = switch (argument) {
-                case "bool", "bool?", "double", "double?" -> coreAlias;
-                default -> alias;
-            };
+            String argumentAlias = isCoreProofType(argument.replace("?", "")) ? coreAlias : alias;
             result += '<' + argumentAlias + '.' + argument + '>';
         }
-        return result;
+        return matcher.group(3) == null ? result : result + '?';
+    }
+
+    private static boolean isCoreProofType(String name) {
+        return Set.of("Object", "String", "int", "double", "num", "bool", "Type").contains(name);
+    }
+
+    private static String requestedTypeDescription(DartStaticTypeProbe probe) {
+        if (probe.sourceTypeOverride().isEmpty()) return probe.expectedDartType();
+        String type = probe.sourceTypeOverride().orElseThrow();
+        String nullable = type.endsWith("?") ? type : type + '?';
+        return switch (probe.expectedDartType()) {
+            case "Type" -> "Type (selected " + type + ')';
+            case "Object" -> type;
+            case "Object?" -> nullable;
+            case "ValueChanged<Object?>" -> "ValueChanged<" + nullable + '>';
+            case "RadioGroupRegistry<Object>" -> "RadioGroupRegistry<" + type + '>';
+            default -> probe.expectedDartType();
+        };
+    }
+
+    private static String qualifiedExpectedType(DartStaticTypeProbe probe, String alias, String coreAlias)
+            throws AnalysisFailure {
+        if (probe.sourceTypeOverride().isEmpty()) return qualifiedExpectedType(probe.expectedDartType(), alias, coreAlias);
+        String type = probe.sourceTypeOverride().orElseThrow();
+        String nullable = type.endsWith("?") ? type : type + '?';
+        return switch (probe.expectedDartType()) {
+            case "Type" -> coreAlias + ".Type";
+            case "Object" -> type;
+            case "Object?" -> nullable;
+            case "ValueChanged<Object?>" -> alias + ".ValueChanged<" + nullable + '>';
+            case "RadioGroupRegistry<Object>" -> alias + ".RadioGroupRegistry<" + type + '>';
+            default -> throw malformed("Source type override has an unsupported proof family.");
+        };
     }
 
     private static boolean overlaps(
@@ -1192,9 +1267,9 @@ public final class DartCandidateAnalyzer {
             Objects.requireNonNull(content, "content");
             entries = List.copyOf(Objects.requireNonNull(entries, "entries"));
             controls = List.copyOf(Objects.requireNonNull(controls, "controls"));
-            if (controls.size() != 1) {
+            if (controls.isEmpty() || controls.size() > entries.size() + 1) {
                 throw new IllegalArgumentException(
-                        "static-type proof requires its strict-casts control");
+                        "static-type proof requires its strict-casts control and bounded optional type-nullability controls");
             }
         }
     }

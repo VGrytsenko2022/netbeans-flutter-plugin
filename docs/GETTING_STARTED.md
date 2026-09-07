@@ -52,14 +52,14 @@ To add a visual form, select `lib` or one of its subfolders and use `File > New 
 
 The Design toolbar offers only exact previews compatible with the project's generated platform folders: Android enables Android Phone and Android Tablet; iOS enables iPhone and iPad; Windows, macOS and Linux each enable their named Desktop target; and `web` enables Web. Adding or removing a platform updates every open Design tab without reopening the file. NetBeans retains the exact target, then the same viewport mode, and otherwise selects the first canonical choice. Android/iOS/macOS/Linux use Flutter adaptive appearance inside the native Windows Canvas; they are not device or emulator runtimes. Web renders a browser-sized responsive layout in that native Canvas. It is a design-time layout preview and does not emulate `kIsWeb`, browser fonts, DOM, plugins or platform channels. If the project has no real platform directory, Preview is disabled.
 
-The current capability-gated Palette and native Canvas admit exactly eighty-five
+The current capability-gated Palette and native Canvas admit exactly eighty-six
 widgets: `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`, `Column`, `Row`,
 `Wrap`, `Padding`, `Center`, `SizedBox`, `AspectRatio`, `Container`, `Opacity`,
 `Align`, `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`,
 `LimitedBox`, `OverflowBox`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`,
-`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Slider` and `RangeSlider`.
-Seventy-eight definitions use reviewed const constructors. Across the catalog,
-`General` Properties expose exactly 3453 typed writable rows: 3436 across the eighty-four
+`Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Text`, `Icon`, `Image`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch`, `Slider`, `RangeSlider` and `Radio`.
+Seventy-nine definitions use reviewed const constructors. Across the catalog,
+`General` Properties expose exactly 3560 typed writable rows: 3543 across the eighty-five
 non-`Scaffold` definitions and 17 closed scalar `Scaffold` fields. IntrinsicHeight,
 RepaintBoundary and MergeSemantics add no scalar rows; edit their child through Slots.
 `Icon` is a
@@ -966,9 +966,9 @@ Side fields as well as its Shape; theme/default resolution is specific to
 OutlinedButton. Save/reopen, native history and the same explicit project-code
 preview limits apply.
 
-The practical backlog is now 85/92 complete with 7 remaining; Layout contains
-31 items, Scrolling 3, Basic 23, Material 22 and Accessibility 6. The aggregate
-is 78 reviewed const definitions and 3453 writable rows, including 3436 outside
+The practical backlog is now 86/92 complete with 6 remaining; Layout contains
+31 items, Scrolling 3, Basic 23, Material 23 and Accessibility 6. The aggregate
+is 79 reviewed const definitions and 3560 writable rows, including 3543 outside
 `Scaffold`.
 
 `Container` exposes all 13 reviewed non-widget constructor properties:
@@ -1034,8 +1034,8 @@ value, version 9 adds the atomic finite signed `Offset` wire value, and version
 physical/directional finite non-negative elliptical border-radius value;
 version 12 adds the closed current/package Dart-object reference; version 13 adds
 the structured ShapeBorderClipper value with reviewed shapes, radius and direction.
-Eighty-five sources across sixty-six insertable any-widget and two trait-bound
-slots produce 5,780 compatibility candidates: 5,420 accepted and 360
+Eighty-six sources across sixty-six insertable any-widget and two trait-bound
+slots produce 5,848 compatibility candidates: 5,486 accepted and 362
 rejected. Expanded and Flexible enter only direct
 `Row.children` and `Column.children` wrapper targets, while Spacer inserts only
 into those same two list slots; the wrappers' required child slots are
@@ -1255,3 +1255,29 @@ appearance. Padding belongs to standard only: setting it selects standard;
 choosing adaptive clears it atomically. Invalid range edits are rejected without
 clamping other fields. See [ADR-112](DECISIONS.md#adr-112--slider-ranges-interaction-and-adaptive-rendering)
 for the exact 33-field contract and isolated-preview limits.
+
+
+## Radio
+
+Choose Material → Radio. It starts with the String type, Value option and an
+explicit No-op callback. Standard and Adaptive constructors share 107 property
+rows. The adaptive-only Cupertino checkmark style selects Adaptive; returning
+to Standard clears only that constructor-specific option in one Undo step.
+
+Open Value type to edit Type, nullable type, Value and Group value in one dialog.
+Use a built-in type or a named project class/enum/typedef; a typedef can name a
+complex generic type. Cancel changes nothing. A stale dialog is rejected rather
+than overwriting a newer value. Callbacks and registries remain unchanged and
+must still pass type checking for the selected generic type.
+
+Enabled accepts unset, explicit null, true or false. Unset/null delegates to the
+SDK's callback/registry/group inference. Clearing On changed really omits it;
+explicit null remains distinct. Disabled radios retain callback source and proof.
+Group registry overrides an inherited matching RadioGroup, which overrides the
+legacy Group value/On changed pair.
+
+Canvas does not execute project values, equality, registries or callbacks.
+A custom type or unresolved selection receives a concrete preview-unavailable
+message while the form remains editable and its source is retained. Literal
+built-in values use the actual SDK Radio<T> or Radio<T?> with normal semantics.
+See [ADR-114](DECISIONS.md#adr-114--radio-generic-identity-nullable-values-and-registry-consumption).

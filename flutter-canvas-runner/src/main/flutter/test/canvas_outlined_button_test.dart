@@ -143,7 +143,7 @@ Future<void> _pump(
 
 String _section(String contract) => contract.substring(
   contract.indexOf('W|$_type\n'),
-  contract.indexOf('W|flutter.material.RangeSlider\n'),
+  contract.indexOf('W|flutter.material.Radio\n'),
 );
 Map<String, Object?> _allLocalStyles() {
   final elevated = fixture.elevatedButtonPropertiesForViewTest();

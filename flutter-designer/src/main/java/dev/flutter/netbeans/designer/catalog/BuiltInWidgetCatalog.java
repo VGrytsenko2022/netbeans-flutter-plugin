@@ -106,6 +106,7 @@ public final class BuiltInWidgetCatalog {
             floatingActionButton(),
             iconButton(),
             checkbox(),
+            radio(),
             switchWidget(),
             slider(),
             rangeSlider(),
@@ -921,6 +922,73 @@ public final class BuiltInWidgetCatalog {
         return widget(SwitchWidgetPropertySchema.SWITCH_TYPE.value(), "Switch", true,
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, GESTURES_IMPORT, "dart:core"), Set.of(),
                 palette("flutter.material", 100, 200, "Switch"), properties, List.of());
+    }
+
+    private static WidgetDefinition radio() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition shared = checkbox();
+        for (var entry : RadioWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (List.of("fillColor", "overlayColor", "backgroundColor").stream()
+                    .anyMatch(family -> RadioWidgetPropertySchema.colorStateProperties(family).contains(name))) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (RadioWidgetPropertySchema.innerRadiusStateProperties().contains(name) || name.equals("splashRadius")) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"),
+                        List.of("infinity", "negativeInfinity")));
+                if (!name.equals("splashRadius")) constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (RadioWidgetPropertySchema.sideLocalProperties().contains(name)) {
+                constraints = shared.property(new PropertyName(name)).orElseThrow().constraints();
+            } else {
+                constraints = switch (name) {
+                    case "value", "groupValue" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(cardNumbers(null, null));
+                        values.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"),
+                                List.of("infinity", "negativeInfinity", "nan")));
+                        values.addAll(any(PropertyValueKind.STRING));
+                        values.addAll(any(PropertyValueKind.BOOLEAN));
+                        values.addAll(any(PropertyValueKind.NULL));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("Object?"));
+                        yield values;
+                    }
+                    case "valueType" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(stringPattern("(?:String|int|double|num|bool|Object)", "Radio value type"));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("Type"));
+                        yield values;
+                    }
+                    case "onChanged" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(stringPattern("noop", "Radio no-op callback"));
+                        values.addAll(any(PropertyValueKind.NULL));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<Object?>"));
+                        yield values;
+                    }
+                    case "groupRegistry" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL),
+                            new PropertyValueConstraint.DartObjectReferenceValues("RadioGroupRegistry<Object>"));
+                    case "fillColor", "overlayColor", "backgroundColor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"));
+                    case "innerRadius" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<double?>"));
+                    case "visualDensity" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VisualDensity"));
+                    case "enabled" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "Radio constructor");
+                    case "toggleable", "useCupertinoCheckmarkStyle", "nullableValueType" -> any(PropertyValueKind.BOOLEAN);
+                    default -> shared.property(new PropertyName(name)).orElseThrow().constraints();
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.StringValue("option");
+                case "valueType" -> new PropertyValue.StringValue("String");
+                case "variant" -> new PropertyValue.StringValue("standard");
+                case "onChanged" -> new PropertyValue.StringValue("noop");
+                default -> null;
+            };
+            boolean required = List.of("value", "valueType", "variant").contains(name);
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), required, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), required, constraints, creation));
+        }
+        return widget(RadioWidgetPropertySchema.RADIO_TYPE.value(), "Radio", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 230, "Radio"), properties, List.of());
     }
 
     private static WidgetDefinition checkbox() {

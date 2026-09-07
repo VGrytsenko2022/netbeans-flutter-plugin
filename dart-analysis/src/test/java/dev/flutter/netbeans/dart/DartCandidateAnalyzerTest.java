@@ -185,7 +185,7 @@ class DartCandidateAnalyzerTest {
                         .map(value -> value.path("content").asText()).reduce((first, last) -> last).orElseThrow();
                 assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
                 assertTrue(witness.contains("    _nbfdStaticTypeProof0Core.dynamic _nbfdStaticTypeProof0Dynamic() => null;"), witness);
-                assertTrue(witness.contains("final _nbfdStaticTypeProof0." + expectedType
+                assertTrue(witness.contains("final _nbfdStaticTypeProof0Core.int"
                         + " _nbfdStaticTypeProof0Control = _nbfdStaticTypeProof0Dynamic();"), witness);
                 assertEquals(header.isEmpty(), witness.startsWith(
                         "import 'package:flutter/material.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
@@ -216,13 +216,50 @@ class DartCandidateAnalyzerTest {
                     .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
                     .filter(value -> "add".equals(value.path("type").asText()))
                     .map(value -> value.path("content").asText()).reduce((first, last) -> last).orElseThrow();
-            assertTrue(witness.contains("final _nbfdStaticTypeProof0Core.Object _nbfdStaticTypeProof0Control"), witness);
+            assertTrue(witness.contains("final _nbfdStaticTypeProof0Core.int _nbfdStaticTypeProof0Control"), witness);
             assertFalse(witness.contains("_nbfdStaticTypeProof0.Object"), witness);
             assertTrue(witness.contains("import 'dart:core' as _nbfdStaticTypeProof0Core;"), witness);
             assertEquals(header.isEmpty(), witness.startsWith(
                     "import 'package:flutter/material.dart' as _nbfdStaticTypeProof0;\nimport 'dart:core';"), witness);
             assertTrue(witness.contains(header + "void build()"), witness);
             assertEquals(original, Files.readString(accepted.dartFile, StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    void radioProofUsesClosedSourceIdentityCollisionFreeExtensionAndRegistryConsumption() throws Exception {
+        for (String expected : List.of("Type", "Object", "Object?", "ValueChanged<Object?>", "RadioGroupRegistry<Object>")) {
+            String candidate = "import 'dart:core' as sourceCore;\n"
+                    + "const spoof = '_nbfdStaticTypeProof0NonDynamic';\n"
+                    + "void build() {\n  print('candidate');\n}\n";
+            Fixture accepted = fixture(Mode.PASS, limits(Duration.ofSeconds(3), 1024 * 1024));
+            String disk = "void build() {}\n";
+            Files.writeString(accepted.dartFile, disk, StandardCharsets.UTF_8);
+            Path sdkRoot = Files.createDirectories(temporaryDirectory.resolve("sdk/lib"));
+            int offset = candidate.indexOf("print");
+            var type = new DartStaticTypeProbe(offset, 5, 0, candidate.indexOf("  print"),
+                    expected, "package:flutter/widgets.dart", Optional.of("project.Choice?"));
+            var probe = new DartSymbolProbe("typed.radio", offset, 5, "print", "dart:core",
+                    sdkRoot, Optional.of("FUNCTION"), Optional.of(type));
+            var result = await(accepted.analyzer.analyze(request(accepted, candidate, 41, DartCandidateWarningPolicy.ALLOW, List.of(probe))));
+            assertEquals(DartCandidateAnalysisStatus.PASSED, result.status());
+            String witness = accepted.factory.processes().stream().flatMap(process -> process.requests().stream())
+                    .filter(value -> "analysis.updateContent".equals(value.path("method").asText()))
+                    .map(value -> value.path("params").path("files").path(accepted.dartFile.toString()))
+                    .filter(value -> "add".equals(value.path("type").asText()))
+                    .map(value -> value.path("content").asText()).reduce((first, last) -> last).orElseThrow();
+            assertTrue(witness.contains("final _nbfdStaticTypeProof1Core.int _nbfdStaticTypeProof1Control"), witness);
+            assertTrue(witness.contains("project.Choice? _nbfdStaticTypeProof1Selected0() => throw 0;"), witness);
+            assertTrue(witness.endsWith("extension _nbfdStaticTypeProof1Extension on _nbfdStaticTypeProof1Core.Object? { _nbfdStaticTypeProof1Core.int get _nbfdStaticTypeProof1NonDynamic => 0; }\n"), witness);
+            assertFalse(witness.contains("Choice??"), witness);
+            assertFalse(witness.contains("import 'dart:core';"), witness);
+            if (expected.equals("RadioGroupRegistry<Object>")) {
+                assertTrue(witness.contains("void Function(_nbfdStaticTypeProof1.RadioClient<project.Choice?>) _nbfdStaticTypeProof1Consumer0 = (print).registerClient;"), witness);
+            }
+            if (expected.equals("Object") || expected.equals("Object?")) {
+                assertTrue(witness.contains("ExpressionCheck0 = (print)._nbfdStaticTypeProof1NonDynamic;"), witness);
+            }
+            assertEquals(disk, Files.readString(accepted.dartFile, StandardCharsets.UTF_8));
         }
     }
 
@@ -344,7 +381,7 @@ class DartCandidateAnalyzerTest {
         assertFalse(failed.symbolEvidence().getFirst()
                 .staticTypeEvidence().orElseThrow().accepted());
         assertTrue(failed.symbolEvidence().getFirst().rejectionReason()
-                .orElseThrow().contains("non-null CustomClipper<RRect>"));
+                .orElseThrow().contains("strict requested type CustomClipper<RRect>"));
     }
 
     @Test
@@ -951,7 +988,7 @@ class DartCandidateAnalyzerTest {
             ArrayNode errors = JSON.createArrayNode();
             String file = request.path("params").path("file").asText();
             String content = latestOverlayContent(file);
-            boolean proofOverlay = content.contains("_nbfdStaticTypeProof");
+            boolean proofOverlay = content.contains("Dynamic() => null;") && content.contains("Control =");
             if (proofOverlay) {
                 int assignabilityControl = content.indexOf(
                         "Control =");

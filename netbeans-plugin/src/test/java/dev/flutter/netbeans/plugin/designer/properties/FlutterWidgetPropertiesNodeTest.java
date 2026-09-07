@@ -1531,6 +1531,10 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")));
         requiredValues.put("flutter.material.CircularProgressIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
+        requiredValues.put("flutter.material.Radio", Map.of(
+                new PropertyName("value"), new PropertyValue.StringValue("option"),
+                new PropertyName("valueType"), new PropertyValue.StringValue("String"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.RangeSlider", Map.of(
                 new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
                 new PropertyName("valuesEnd"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
@@ -1587,6 +1591,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.Switch",
                 "flutter.material.Slider",
                 "flutter.material.RangeSlider",
+                "flutter.material.Radio",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1684,7 +1689,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(3453, writableCount,
+        assertEquals(3560, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1697,7 +1702,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(3436, nonScaffoldWritableCount,
+        assertEquals(3543, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6507,6 +6512,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.Switch",
                 "flutter.material.Slider",
                 "flutter.material.RangeSlider",
+                "flutter.material.Radio",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6599,7 +6605,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(85, iconPaths.size(),
+        assertEquals(86, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
@@ -499,6 +500,10 @@ public final class WidgetTreeValidator {
         }
         if (type.equals(SwitchWidgetPropertySchema.SWITCH_TYPE.value())) {
             validateSwitch(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(RadioWidgetPropertySchema.RADIO_TYPE.value())) {
+            validateRadio(node, propertiesPath, issues);
             return;
         }
         if (type.equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value())) {
@@ -1492,6 +1497,30 @@ public final class WidgetTreeValidator {
         }
     }
 
+    private static void validateRadio(WidgetNode node, String path, IssueCollector issues) {
+        RadioWidgetPropertySchema.valueTypeError(node).ifPresent(message ->
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/valueType", node.id(), message)));
+        if (!new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))
+                && node.properties().containsKey(new PropertyName("useCupertinoCheckmarkStyle"))) {
+            issues.add(issue(PROPERTY_CONFLICT, path + "/useCupertinoCheckmarkStyle", node.id(),
+                    "Radio Use Cupertino Checkmark Style is available only on the Adaptive constructor."));
+        }
+        for (String family : List.of("fillColor", "overlayColor", "backgroundColor", "innerRadius", "side", "visualDensity")) {
+            if (!node.properties().containsKey(new PropertyName(family))) continue;
+            List<String> locals = switch (family) {
+                case "side" -> RadioWidgetPropertySchema.sideLocalProperties();
+                case "innerRadius" -> RadioWidgetPropertySchema.innerRadiusStateProperties();
+                case "visualDensity" -> List.of("visualDensityHorizontal", "visualDensityVertical");
+                default -> RadioWidgetPropertySchema.colorStateProperties(family);
+            };
+            for (String name : locals) if (node.properties().containsKey(new PropertyName(name))) {
+                issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                        "Radio " + family + " whole reference and local fields are mutually exclusive."));
+            }
+        }
+        validateStatefulRadioOrCheckboxSide(node, path, issues, "Radio");
+    }
+
     private static void validateCheckbox(WidgetNode node, String path, IssueCollector issues) {
         if (node.properties().get(new PropertyName("value")) instanceof PropertyValue.NullValue
                 && !new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("tristate")))) {
@@ -1511,18 +1540,22 @@ public final class WidgetTreeValidator {
                 }
             }
         }
+        validateStatefulRadioOrCheckboxSide(node, path, issues, "Checkbox");
+    }
+
+    private static void validateStatefulRadioOrCheckboxSide(WidgetNode node, String path, IssueCollector issues, String family) {
         boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
         for (String state : CheckboxWidgetPropertySchema.sideStates()) {
             List<String> bucket = CheckboxWidgetPropertySchema.sideBucketProperties(state);
             if (!stateful && bucket.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))) {
                 issues.add(issue(PROPERTY_DEPENDENCY, path + "/side" + state + "Mode", node.id(),
-                        "Checkbox state-specific side fields require Side Stateful true."));
+                        family + " state-specific side fields require Side Stateful true."));
             }
             if (new PropertyValue.StringValue("inherit").equals(node.properties().get(new PropertyName(bucket.getFirst())))) {
                 for (String detail : bucket.subList(1, bucket.size())) {
                     if (node.properties().containsKey(new PropertyName(detail))) {
                         issues.add(issue(PROPERTY_CONFLICT, path + "/" + detail, node.id(),
-                                "Checkbox Inherit side mode returns null and cannot contain border details."));
+                                family + " Inherit side mode returns null and cannot contain border details."));
                     }
                 }
             }

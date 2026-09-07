@@ -98,6 +98,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.Switch",
             "flutter.material.Slider",
             "flutter.material.RangeSlider",
+            "flutter.material.Radio",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3690,6 +3691,62 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void radioDenseAndWholeGenericReferencesPreserveOnlyPresenceWithoutProjectCodeOrResources() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.variants()) {
+            var fields = dev.flutter.netbeans.designer.catalog.RadioTestValues.full(variant);
+            var node = dev.flutter.netbeans.designer.catalog.RadioTestValues.node(fields);
+            var codec = new CanvasModelPayloadCodec();
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            String json = new String(codec.encode(candidate), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
+            for (var name : fields.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+            for (String name : List.of("onChanged", "groupRegistry", "focusNode", "mouseCursor")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "resources")) assertFalse(json.contains(absent), absent);
+            assertTrue(json.contains("\"protocolVersion\":18"));
+        }
+        var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("valueType", "value", "groupValue", "fillColor", "overlayColor", "backgroundColor", "innerRadius", "side", "visualDensity")) fields.put(new PropertyName(name),
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "ProjectValue", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()));
+        var root = dev.flutter.netbeans.designer.catalog.RadioTestValues.node(fields);
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+        for (var name : fields.keySet()) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertFalse(json.contains("ProjectValue"));
+    }
+
+    @Test
+    void radioSpecialNumbersLiteralIdentityAndNoopNullOmittedRemainDistinctWireValues() throws Exception {
+        for (String member : List.of("infinity", "negativeInfinity", "nan")) {
+            var node = dev.flutter.netbeans.designer.catalog.RadioTestValues.node(Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("double"),
+                    new PropertyName("value"), new PropertyValue.EnumValue("double", member), new PropertyName("groupValue"), new PropertyValue.EnumValue("double", member),
+                    new PropertyName("enabled"), new PropertyValue.NullValue(), new PropertyName("onChanged"), new PropertyValue.NullValue()));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"type\":\"double\",\"value\":\"" + member + "\""));
+            assertTrue(json.contains("\"onChanged\":{\"kind\":\"null\"}"));
+            assertTrue(json.contains("\"enabled\":{\"kind\":\"null\"}"));
+        }
+        var created = dev.flutter.netbeans.designer.catalog.RadioTestValues.node(Map.of());
+        String createdJson = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), created))), StandardCharsets.UTF_8);
+        assertTrue(createdJson.contains("\"onChanged\":{\"kind\":\"string\",\"value\":\"noop\"}"));
+        var omitted = dev.flutter.netbeans.designer.catalog.RadioTestValues.without(created, "onChanged");
+        String omittedJson = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), omitted))), StandardCharsets.UTF_8);
+        assertFalse(omittedJson.contains("\"onChanged\":"));
+        assertFalse(omittedJson.contains("\"enabled\":"));
+    }
+
+    @Test
+    void radioMalformedTypeValueWholeLocalAndRawCallbackBranchesFailBeforeEncoding() {
+        for (var fields : List.of(Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("int")),
+                Map.of(new PropertyName("useCupertinoCheckmarkStyle"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("sidePressedWidth"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("fillColor"), dev.flutter.netbeans.designer.catalog.RadioTestValues.reference("whole"), new PropertyName("fillColorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.CallbackValue("legacy")))) {
+            var node = dev.flutter.netbeans.designer.catalog.RadioTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     @Test

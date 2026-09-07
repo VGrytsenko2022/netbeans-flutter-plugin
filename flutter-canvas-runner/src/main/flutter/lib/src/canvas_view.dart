@@ -91,6 +91,109 @@ double? _sliderNumber(CanvasNode node, String name) =>
       _ => null,
     };
 
+bool _radioHasInheritedRegistry(CanvasNode node, BuildContext context) {
+  final nullable = node.properties['nullableValueType']?.value == true;
+  return switch (node.properties['valueType']?.value) {
+    'String' =>
+      nullable
+          ? RadioGroup.maybeOf<String?>(context) != null
+          : RadioGroup.maybeOf<String>(context) != null,
+    'int' =>
+      nullable
+          ? RadioGroup.maybeOf<int?>(context) != null
+          : RadioGroup.maybeOf<int>(context) != null,
+    'double' =>
+      nullable
+          ? RadioGroup.maybeOf<double?>(context) != null
+          : RadioGroup.maybeOf<double>(context) != null,
+    'num' =>
+      nullable
+          ? RadioGroup.maybeOf<num?>(context) != null
+          : RadioGroup.maybeOf<num>(context) != null,
+    'bool' =>
+      nullable
+          ? RadioGroup.maybeOf<bool?>(context) != null
+          : RadioGroup.maybeOf<bool>(context) != null,
+    'Object' =>
+      nullable
+          ? RadioGroup.maybeOf<Object?>(context) != null
+          : RadioGroup.maybeOf<Object>(context) != null,
+    _ => false,
+  };
+}
+
+bool _radioHasCallback(CanvasNode node) =>
+    node.properties['onChanged']?.value == 'noop' ||
+    node.properties['onChanged']?.kind == 'dartObjectReferencePresence';
+
+String? _radioUnavailableMessage(CanvasNode node, BuildContext? context) {
+  final unresolved = ['valueType', 'value', 'groupValue', 'groupRegistry']
+      .where(
+        (name) =>
+            node.properties[name]?.kind == 'dartObjectReferencePresence' &&
+            !(name == 'groupValue' &&
+                context != null &&
+                _radioHasInheritedRegistry(node, context)),
+      )
+      .toList();
+  if (unresolved.isNotEmpty) {
+    return 'Render Radio ${node.id}: preview unavailable for ${unresolved.join(', ')}. '
+        'Isolated Canvas cannot execute project types, values, equality or group registries and does not invent a selected state. '
+        'Stored values and generated Dart are unchanged.';
+  }
+  if (context != null &&
+      node.properties['enabled']?.value == true &&
+      !_radioHasCallback(node) &&
+      !_radioHasInheritedRegistry(node, context)) {
+    return 'Render Radio ${node.id}: preview unavailable for enabled. '
+        'Flutter 3.44.8 asserts when enabled is true without onChanged or a matching typed RadioGroup/registry in this preview context. '
+        'Stored values and generated Dart are unchanged.';
+  }
+  return null;
+}
+
+String? _radioReferenceMessage(CanvasNode node, BuildContext? context) {
+  final apple = _checkboxUsesCupertino(node, context);
+  final refs = node.properties.entries
+      .where((entry) {
+        if (entry.value.kind != 'dartObjectReferencePresence') return false;
+        if (entry.key == 'groupValue' &&
+            context != null &&
+            _radioHasInheritedRegistry(node, context)) {
+          return false;
+        }
+        if (entry.key == 'onChanged' &&
+            (node.properties['enabled']?.value == false ||
+                (context != null &&
+                    _radioHasInheritedRegistry(node, context)))) {
+          return false;
+        }
+        if (apple &&
+            {
+              'fillColor',
+              'hoverColor',
+              'overlayColor',
+              'splashRadius',
+              'materialTapTargetSize',
+              'visualDensity',
+              'backgroundColor',
+              'side',
+              'innerRadius',
+            }.contains(entry.key)) {
+          return false;
+        }
+        return true;
+      })
+      .map((entry) => entry.key)
+      .toList();
+  if (refs.isEmpty) return null;
+  return 'Radio ${node.id} preview limitation for ${refs.join(', ')}: isolated Canvas never executes project or dependency Dart. '
+      '${refs.contains('onChanged') ? 'The project callback is replaced by a benign controlled callback; stored group/value are not changed. ' : ''}'
+      '${refs.contains('focusNode') ? 'The SDK uses its isolated local focus ownership, not the project FocusNode. ' : ''}'
+      '${refs.any((name) => name != 'onChanged' && name != 'focusNode') ? 'Unknown appearance/cursor/density uses the actual SDK theme/default as an explicit preview approximation. ' : ''}'
+      'Stored values and generated Dart are unchanged.';
+}
+
 String? _rangeSliderGeometryMessage(
   CanvasNode node,
   BuildContext? context, [
@@ -857,6 +960,10 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? _switchPaddingMessage(node, context, constraints) ??
               _switchPreviewMessage(node, context)
         : _switchPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.Radio') {
+    return _radioUnavailableMessage(node, context) ??
+        _radioReferenceMessage(node, context);
   }
   if (node.type == 'flutter.material.RangeSlider') {
     return _rangeSliderGeometryMessage(node, context, constraints) ??
@@ -1880,6 +1987,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
+        node.type == 'flutter.material.Radio' ||
         node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
@@ -3852,6 +3960,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
+      'flutter.material.Radio' => _radio(context),
       'flutter.material.RangeSlider' => _rangeSlider(context),
       'flutter.material.Slider' => _slider(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
@@ -4414,6 +4523,134 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       );
     }
     return entries.isEmpty ? null : WidgetStateProperty<Icon?>.fromMap(entries);
+  }
+
+  Widget _radio(BuildContext context) {
+    final unavailable = _radioUnavailableMessage(node, context);
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'Radio',
+        expectedType: 'known generic values and group selection',
+        previewLabel: 'Radio\npreview unavailable',
+        messageOverride: unavailable,
+      );
+    }
+    final nullable = _boolean('nullableValueType') == true;
+    final control = switch (_string('valueType')) {
+      'String' =>
+        nullable ? _typedRadio<String?>(context) : _typedRadio<String>(context),
+      'int' =>
+        nullable ? _typedRadio<int?>(context) : _typedRadio<int>(context),
+      'double' =>
+        nullable ? _typedRadio<double?>(context) : _typedRadio<double>(context),
+      'num' =>
+        nullable ? _typedRadio<num?>(context) : _typedRadio<num>(context),
+      'bool' =>
+        nullable ? _typedRadio<bool?>(context) : _typedRadio<bool>(context),
+      _ =>
+        nullable ? _typedRadio<Object?>(context) : _typedRadio<Object>(context),
+    };
+    return _TextButtonPreview(
+      message: _radioReferenceMessage(node, context) ?? '',
+      child: Listener(
+        behavior: HitTestBehavior.translucent,
+        onPointerDown: (_) => onSelected(node.id),
+        child: control,
+      ),
+    );
+  }
+
+  Widget _typedRadio<T>(BuildContext context) {
+    Object? literal(String name) {
+      final value = switch (node.properties[name]?.value) {
+        CanvasEnumValue(value: 'infinity') => double.infinity,
+        CanvasEnumValue(value: 'negativeInfinity') => double.negativeInfinity,
+        CanvasEnumValue(value: 'nan') => double.nan,
+        final value => value,
+      };
+      return _string('valueType') == 'double' && value is num
+          ? value.toDouble()
+          : value;
+    }
+
+    final value = literal('value') as T;
+    final groupValue = _radioHasInheritedRegistry(node, context)
+        ? null
+        : literal('groupValue') as T?;
+    final ValueChanged<T?>? onChanged = _radioHasCallback(node)
+        ? (_) => onSelected(node.id)
+        : null;
+    final horizontal = _number('visualDensityHorizontal');
+    final vertical = _number('visualDensityVertical');
+    final density = horizontal == null && vertical == null
+        ? null
+        : VisualDensity(horizontal: horizontal ?? 0, vertical: vertical ?? 0);
+    final radiusEntries = <WidgetStatesConstraint, double?>{};
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'innerRadius${entry.value}';
+      if (node.properties.containsKey(name)) {
+        radiusEntries[entry.key] = _sliderNumber(node, name);
+      }
+    }
+    final innerRadius = radiusEntries.isEmpty
+        ? null
+        : WidgetStateProperty<double?>.fromMap(radiusEntries);
+    final tapTarget = switch (_enum('materialTapTargetSize')) {
+      'padded' => MaterialTapTargetSize.padded,
+      'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+      _ => null,
+    };
+    return _string('variant') == 'adaptive'
+        ? Radio<T>.adaptive(
+            value: value,
+            // These still-existing SDK arguments preserve the full legacy branch.
+            // ignore: deprecated_member_use
+            groupValue: groupValue,
+            // ignore: deprecated_member_use
+            onChanged: onChanged,
+            enabled: _boolean('enabled'),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            toggleable: _boolean('toggleable') ?? false,
+            activeColor: _resolvedColor(context, 'activeColor'),
+            fillColor: _checkboxStateColor(context, 'fillColor'),
+            focusColor: _resolvedColor(context, 'focusColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: _sliderNumber(node, 'splashRadius'),
+            materialTapTargetSize: tapTarget,
+            visualDensity: density,
+            autofocus: _boolean('autofocus') ?? false,
+            useCupertinoCheckmarkStyle:
+                _boolean('useCupertinoCheckmarkStyle') ?? false,
+            backgroundColor: _checkboxStateColor(context, 'backgroundColor'),
+            side: _checkboxSide(context),
+            innerRadius: innerRadius,
+          )
+        : Radio<T>(
+            value: value,
+            // ignore: deprecated_member_use
+            groupValue: groupValue,
+            // ignore: deprecated_member_use
+            onChanged: onChanged,
+            enabled: _boolean('enabled'),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            toggleable: _boolean('toggleable') ?? false,
+            activeColor: _resolvedColor(context, 'activeColor'),
+            fillColor: _checkboxStateColor(context, 'fillColor'),
+            focusColor: _resolvedColor(context, 'focusColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: _sliderNumber(node, 'splashRadius'),
+            materialTapTargetSize: tapTarget,
+            visualDensity: density,
+            autofocus: _boolean('autofocus') ?? false,
+            backgroundColor: _checkboxStateColor(context, 'backgroundColor'),
+            side: _checkboxSide(context),
+            innerRadius: innerRadius,
+          );
   }
 
   Widget _rangeSlider(BuildContext context) => _TextButtonPreview(

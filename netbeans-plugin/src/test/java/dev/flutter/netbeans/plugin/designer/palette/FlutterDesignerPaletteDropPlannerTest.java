@@ -162,8 +162,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void rangeSliderCompletes5780CellMatrixWithExactControlledEndpoints() {
-        var type = new WidgetTypeId("flutter.material.RangeSlider");
+    void radioCompletes5848CellMatrixWithTypedValueAndCreationCallback() {
+        var type = new WidgetTypeId("flutter.material.Radio");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
@@ -178,7 +178,38 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(85, BUILT_INS.definitions().size()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
+        assertEquals(86, BUILT_INS.definitions().size()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
+        assertEquals(5848, accepted + rejected); assertEquals(5486, accepted); assertEquals(362, rejected);
+        var target = target("Column.children", COLUMN, CHILDREN);
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
+        assertEquals(type, created.type()); assertTrue(created.slots().isEmpty());
+        assertEquals(Map.of(new PropertyName("value"), new PropertyValue.StringValue("option"), new PropertyName("valueType"), new PropertyValue.StringValue("String"), new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), created.properties());
+        {
+            var sliderWidget = new WidgetNode(ROOT_ID, type, Map.of(new PropertyName("value"), new PropertyValue.StringValue("option"), new PropertyName("valueType"), new PropertyValue.StringValue("String"), new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("onChanged"), new PropertyValue.StringValue("noop")), Map.of());
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(sliderWidget), BUILT_INS, TEXT, ROOT_ID, CHILD, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void rangeSliderCompletes5780CellMatrixWithExactControlledEndpoints() {
+        var type = new WidgetTypeId("flutter.material.RangeSlider");
+        var targets = preRadioDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0, wrappers = 0;
+        for (var definition : preRadioDefinitions().toList()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            if (wrapper) wrappers++;
+            for (var target : targets) {
+                var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+                var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+                if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+            }
+        }
+        assertEquals(85, preRadioDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
         assertEquals(5780, accepted + rejected); assertEquals(5420, accepted); assertEquals(360, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
@@ -6188,8 +6219,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         return preIconButtonDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.FloatingActionButton"));
     }
 
+    private static Stream<WidgetDefinition> preRadioDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.Radio"));
+    }
+
     private static Stream<WidgetDefinition> preRangeSliderDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.RangeSlider"));
+        return preRadioDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.RangeSlider"));
     }
 
     private static Stream<WidgetDefinition> preSliderDefinitions() {

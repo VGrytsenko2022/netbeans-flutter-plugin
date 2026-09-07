@@ -7468,3 +7468,228 @@ The embedded analyzer matches the unchanged 87439-byte baseline JAR, SHA-256
 All 1644 frozen non-Markdown inputs remain unchanged after packaging, and all
 75 source/Web manifest entries were reverified. No interactive IDE launch,
 installed-userdir verification or global physical acceptance is claimed.
+
+## ADR-114 — Radio generic identity, nullable values and registry consumption
+
+Date: 2026-09-07.
+
+Status: implemented and verified after RangeSlider 7a91158.
+
+### Scope and constructor contract
+
+Admit Radio at Material/order230 as a const-capable leaf with both Standard and
+Adaptive constructors. The pinned Flutter 3.44.8 source is authoritative where
+its implementation differs from current API prose. References:
+[Radio](https://api.flutter.dev/flutter/material/Radio-class.html),
+[standard constructor](https://api.flutter.dev/flutter/material/Radio/Radio.html)
+and [adaptive constructor](https://api.flutter.dev/flutter/material/Radio/Radio.adaptive.html).
+
+The 107 rows comprise 26 direct/type-policy fields, 27 local color states,
+nine local inner radii and 45 local side fields. All 20 standard and 21 adaptive
+non-key constructor parameters are covered; Key remains the shared stable widget
+identity. VisualDensity admits a strict whole object and two local axes.
+Constructor/Value type/Value are required, created standard/String/option.
+On changed is optional with an explicitly stored No-op creation value. No
+synthetic required Enabled policy is added.
+
+SDK enabled is nullable: omitted/null infers activation from a callback, explicit
+registry or matching typed RadioGroup. False disables without suppressing stored
+callback/source/proof. Explicit true needs one of those sources at runtime.
+On changed supports No-op, explicit null or a strict typed reference; removing
+it genuinely omits the argument. Both legacy Group value and On changed remain
+available despite their SDK deprecation. Explicit registry takes precedence over
+a matching inherited group, then the SDK's legacy per-radio registry.
+
+### Explicit generic identity
+
+Do not specialize every Radio to Object? or rely on unconstrained constructor
+inference. Both can change which RadioGroup is found, and covariant registry
+assignability alone can accept an incompatible client type at runtime.
+
+The required Value type is a closed choice of String/int/double/num/bool/Object
+or a structured current-library/package simple class, enum or typedef reference.
+No type expression, member access, invocation, filesystem path or network URL is
+accepted as a type. Complex generic types can be named by a project typedef.
+An optional nullable-type flag preserves T versus T?; Group value and the
+callback always use the nullable form of T.
+
+Built-in type names remain unqualified in emitted source and receive exact
+dart:core navigation evidence. This avoids injecting a prefixed core import
+that would suppress implicit core scope, or an unprefixed import that would
+undo the user's show/hide/prefix choices. Missing or shadowed built-in names
+fail closed. A project typedef can provide the intended scoped type instead.
+Original source scope is never silently widened.
+
+The live controller gate exposed an additional pair-save prerequisite: its old
+closed URI allowlist rejected the new generator-owned dart:core occurrence even
+after successful analyzer proof. Pair-save now admits only the exact Radio core
+type contract: one of the six reviewed names, its generated ID and exact Type
+witness/span, the unchanged complete prepared probe manifest, and CLASS navigation
+to that type's corresponding file in the trusted SDK Dart or sky_engine core
+library. These checks run again when binding the applied live document. This is
+not general permission for dart: URIs or arbitrary SDK navigation targets.
+
+Value and Group value retain portable literals, explicit null where permitted,
+and project references. Nullable project variables are first-class values; a
+literal null alternative is not a substitute for supporting a runtime nullable
+reference. Invalid type/value edits reject without coercion or deletion.
+
+For double, num and Object, fixed positive infinity, negative infinity and NaN
+are also valid identity values. These use the existing closed numeric EnumValue
+representations, not raw Dart or a new wire kind. NaN preserves SDK equality
+(NaN is not equal to itself, so equal-looking NaN value/group selections remain
+unselected). String, int and bool reject these alternatives. This does not
+admit NaN as splashRadius or innerRadius geometry.
+
+### Analyzer-only typed proof
+
+Existing three-argument GeneratedDartStaticTypeRequirement and six-argument
+DartStaticTypeProbe constructors remain available. A bounded optional
+sourceTypeOverride carries only a generator-owned simple or prefix-qualified
+type token, with optional nullability; it is not an arbitrary Dart expression.
+It applies only to the reviewed Radio value/type/callback/registry families.
+Exact original symbol navigation and complete candidate analysis remain required.
+
+An independent int-from-dynamic negative control proves that strict casts are
+active regardless of whether a nullable Object destination appears first.
+Object.hashCode is not a sufficient discriminator: Dart gives this member a
+static type even on a dynamic receiver. Instead, a collision-free proof-owned
+extension supplies a non-dynamic getter in the isolated analyzer overlay.
+Selected-type and expression checks reject dynamic and typedef-to-dynamic
+without running any project or witness code.
+
+Registry proof checks both assignment to RadioGroupRegistry<T> and compatibility
+of registerClient with a function consuming RadioClient<T>. This closes the
+covariance-only gap. Whole VisualDensity selects the existing candidate-wide
+Material umbrella, while original navigation roots stay symbol-specific.
+
+For broad nullable destinations, including Object? and project nullable types
+whose independent expression proof cannot retain contextual inference, an
+unconstrained generic factory is rejected conservatively. Contextually inferred
+factories remain valid for reviewed nullable core types such as String? and
+non-nullable project types such as Choice. A zero-argument factory with a declared
+concrete nullable return type works.
+Existing generic factory behavior outside this new proof path is unchanged;
+dynamic rejection is not weakened to admit ambiguous factories.
+
+### Properties, persistence and preview
+
+The Value type dialog stages type, nullability, Value and Group value together.
+Its UI-only immutable RadioTypeEdit carries the widget ID and exact captured
+four-field baseline. Only Radio.Value type can publish it; stale/wrong-node or
+wrong-property payloads reject. A valid draft submits one PatchProperties.
+Cancel publishes nothing, callbacks/registry remain untouched, and ordinary
+cells retain the previous one-value API. No FD/wire value kind is introduced.
+
+Whole/local color, radius, density and side families change atomically. Explicit
+null state entries terminate lower local fallback and defer to the SDK/theme.
+Adaptive-only Cupertino checkmark style selects Adaptive; Standard removes
+only that incompatible option. Other ignored fields remain stored.
+
+Canvas dispatches actual Radio<T>/Radio<T?> for the six built-in literal types.
+Custom generic types, unresolved Value/Group value or an explicit project registry
+cannot be evaluated without project code, so they receive an editable/selectable
+preview-unavailable message with model/source retained. A known matching inherited
+group can make the legacy Group value/On changed irrelevant; such ignored
+references must not produce false selection diagnostics.
+
+The actual Apple branch forwards Mouse cursor despite conflicting API prose.
+Material side resolution receives synthetic pressed states, and inner-radius
+resolution receives selected plus pressed; fill/background resolve before those
+mutations. Actual SDK rendering, focus, semantics and defaults remain authoritative.
+The preview does not write values from gestures or execute project callbacks.
+
+A bounded raw-SDK probe covered 112 standard/adaptive, M2/M3, Windows/iOS and
+signed-radius cases with selection, focus, hover and intermediate press/selection
+animations. Signed finite and both positive/negative Infinity splash/inner radii
+did not throw and remain admitted. No speculative positivity clamp or new radius
+paint limit is introduced.
+
+### Verification
+
+The final Flutter suite passed 1594 visible tests plus 49 hidden loader entries
+in 33.854 seconds. Radio adds 28 Canvas cases, three raw-SDK cases and four
+runtime/DnD cases. Coverage includes 48 actual-SDK pixel comparisons, all 12
+built-in T/T? combinations, 256 state-map priority combinations, inherited group
+keyboard behavior, retained SDK state/focus and 36 non-finite identity branches.
+The 108 new Radio contract records match compiled Java metadata independently;
+the previous 3636 W/P/S/C records are unchanged. The full contract has 3744
+W/P/S/C records plus six existing R records.
+
+Flutter analyze is clean. Offline Web build passed in 17.9 seconds and all 40
+source plus 35 Web manifest entries were independently re-read and verified.
+The resulting main.dart.js is 3228465 bytes, SHA-256
+`4bbaa96ff6dcfe396b38452cce6c393db4be10c00933c5a9e1af93d7d662e9d1`.
+
+Focused Java gates passed: 1683 core tests (195 classes), 923 Properties/palette
+tests (28 classes), 80 real-SDK candidates in eight methods and all three Radio
+live controller methods. The latter cover all 107 sparse fields, dense standard
+and adaptive values, exact FD/Dart history, atomic family/type changes, rollback,
+persistent property cells, Save/reopen and further edits. The SDK harness also
+binds valid and rejected results through the actual pair-save analysis ticket.
+Its final reactor run passed all eight methods/80 candidates in 207.4 seconds.
+The 40-case pair-save gate includes five new methods covering 48 positive Radio
+type/constructor/nullability/core-library combinations plus forged identities,
+URIs, static proofs, SDK roots/targets and deletion before post-CAS binding.
+
+The complete same-turn analyzer gate passed 68 tests, including 34 candidate SDK
+methods, with zero skips/failures/errors (11:56:46–12:11:06 UTC, 14:18 elapsed).
+After that compilation, only Javadoc and rejection-message wording/formatting
+changed; no proof construction, classification, navigation, offsets, controls or
+budgets changed. All 27 affected analyzer unit methods were rerun and the final
+JAR installed. The final build reuses this full behavior gate and the post-wording
+unit gate rather than redundantly rerunning the long SDK suite. All 40 final
+analyzer/API/POM input hashes were checked against its frozen snapshot SHA-256
+`ec61005b985918e9ca1daaf960804ac586182844cea6592361e5cc8c20488d7a`.
+Final installed analyzer JAR SHA-256:
+`736ec66f61d65ef1f941de5aae35abf01f325d6deaac4c2ae082571c77df562e`.
+
+Formats FD13/Catalog14/Canvas18/NBFC1 and existing
+value/patch/probe/candidate/time budgets are unchanged. Physical desktop acceptance
+and the explicitly deferred platform work remain outside this palette slice.
+
+### Final reactor, targeted correction and package verification
+
+The unfiltered ten-module reactor (the separately verified analyzer omitted)
+ran from 12:26:59 to 12:50:40 UTC, reporting 23 minutes 39 seconds. All 1683
+core cases passed. Of the 2558 plugin cases, only an overlooked stale aggregate
+assertion failed: FlutterWidgetCapabilityParityTest still expected 85 instead of
+86 Canvas types. The other cases completed, including all 135 live controller
+methods (335.5 seconds), all 80 Radio SDK candidates (207.4 seconds), and the
+unchanged Checkbox/FAB/IconButton/RangeSlider/Slider/Switch/TextButton SDK gates.
+
+The correction changes only that test's expected count and adds explicit Radio
+presence. Hash comparison across all 1659 non-Markdown inputs proved this was
+the only post-freeze delta; no production source changed. The build resumed from
+netbeans-plugin with only the three parity Surefire cases selected and Failsafe
+unfiltered. All three passed, followed by all nine package metadata cases and
+six runtime cases (one permitted optional skip). The resumed three-module reactor
+returned zero at 12:51:48 UTC in 49.284 seconds. No safety condition or budget was
+relaxed to obtain this result.
+
+After the initial test run, the same preexisting test-JVM shutdown anomaly as
+ADR-113 appeared: MasterFS LockForFile.hardUnlockAll reported a cleanup
+NullPointerException, and Surefire terminated the fork 30 seconds after
+System.exit(0). This is separate from the stale-count failure, not a clean-log
+claim or a diagnosed Radio issue. No tooling, lock behavior or shutdown timeout
+was changed. The subsequent parity/package/runtime run completed successfully.
+
+The final 411 XML reports contain 4484 cases: 4477 executed, seven permitted
+optional skips and zero outstanding failures/errors. This comprises 4409 executed
+cases from the final reactor/resume and the explicitly documented 68 same-turn
+analyzer cases. All non-analyzer reports meet the 12:26:59 UTC cutoff; analyzer
+reports meet the 11:56:46 UTC cutoff. Freshness checks remain enabled.
+
+Both root and module nbm:cluster succeeded. tools/verify-release.ps1 passed with
+freshness, metadata and licensing checks. NBM: 7772045 bytes, SHA-256
+`A5546C88AEADA705AB576EB70A38E8419B03DD70DF6850B4640C5FE4ED88347D`.
+Its embedded module matches all four package/development/runtime copies:
+3478669 bytes, SHA-256
+`C27D0E7B0D15C5E39C466204A93274DF20187F460DBC4CFB632FE22387F64462`.
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
+Radio SVGs are present. Embedded Canvas matches its built 350993-byte JAR,
+SHA-256 `07DE9969734622A8AE4775539A235E29459822DDB5CD54FDAAD7E66892A05FE7`.
+Embedded analyzer matches the final installed 90244-byte JAR and its recorded hash.
+All 1659 final non-Markdown inputs remained unchanged after packaging, and all
+75 source/Web manifest entries were independently reverified. No interactive IDE
+launch, installed-userdir verification or global physical acceptance is claimed.

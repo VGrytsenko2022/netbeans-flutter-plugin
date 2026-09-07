@@ -163,6 +163,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FloatingActionButton", STATIC_EDITABLE),
             Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
+            Map.entry("flutter.material.Radio", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.Slider", STATIC_EDITABLE),
             Map.entry("flutter.material.RangeSlider", STATIC_EDITABLE),
@@ -334,6 +335,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FloatingActionButton", floatingActionButtonProjection()),
             Map.entry("flutter.material.IconButton", iconButtonProjection()),
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
+            Map.entry("flutter.material.Radio", radioProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.Slider", sliderProjection()),
             Map.entry("flutter.material.RangeSlider", rangeSliderProjection()),
@@ -2314,6 +2316,68 @@ public final class BuiltInWidgetCapabilityCatalog {
                     case "padding" -> edgeInsetsProperty(name, true).getValue();
                     case "applyCupertinoTheme" -> propertySchema(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL);
                     default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of());
+    }
+
+    private static CanvasProjection radioProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection shared = checkboxProjection();
+        for (String name : RadioWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            if (List.of("fillColor", "overlayColor", "backgroundColor").stream()
+                    .anyMatch(family -> RadioWidgetPropertySchema.colorStateProperties(family).contains(name))) {
+                value = shared.propertyContracts().get(new PropertyName("fillColorDefault"));
+            } else if (RadioWidgetPropertySchema.innerRadiusStateProperties().contains(name) || name.equals("splashRadius")) {
+                var number = cardNumberSchema(null, null);
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,negativeInfinity");
+                if (!name.equals("splashRadius")) constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+            } else if (RadioWidgetPropertySchema.sideLocalProperties().contains(name)) {
+                value = shared.propertyContracts().get(new PropertyName(name));
+            } else if (List.of("value", "groupValue", "valueType", "onChanged", "groupRegistry", "visualDensity", "innerRadius").contains(name)) {
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                Map<PropertyValueKind, CanvasNumericBounds> bounds = Map.of();
+                String type = switch (name) {
+                    case "value", "groupValue" -> "Object?";
+                    case "valueType" -> "Type";
+                    case "onChanged" -> "ValueChanged<Object?>";
+                    case "groupRegistry" -> "RadioGroupRegistry<Object>";
+                    case "visualDensity" -> "VisualDensity";
+                    default -> "WidgetStateProperty<double?>";
+                };
+                constraints.put(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                        + type + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                if (name.equals("value") || name.equals("groupValue")) {
+                    var number = cardNumberSchema(null, null);
+                    constraints.putAll(number.constraintFingerprints());
+                    constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,nan,negativeInfinity");
+                    bounds = number.numericBounds();
+                    constraints.put(PropertyValueKind.STRING, "any");
+                    constraints.put(PropertyValueKind.BOOLEAN, "any");
+                }
+                if (List.of("value", "groupValue", "onChanged", "groupRegistry").contains(name)) constraints.put(PropertyValueKind.NULL, "any");
+                if (name.equals("onChanged")) constraints.put(PropertyValueKind.STRING, "pattern:" + base64("noop"));
+                if (name.equals("valueType")) constraints.put(PropertyValueKind.STRING, "pattern:" + base64("(?:String|int|double|num|bool|Object)"));
+                String creation = switch (name) {
+                    case "value" -> "string:" + base64("option");
+                    case "valueType" -> "string:" + base64("String");
+                    case "onChanged" -> "string:" + base64("noop");
+                    default -> null;
+                };
+                value = new CanvasPropertyContract(constraints.keySet(), List.of("value", "valueType").contains(name),
+                        Optional.ofNullable(creation), bounds, constraints);
+            } else {
+                value = switch (name) {
+                    case "enabled" -> propertySchema(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL);
+                    case "backgroundColor" -> shared.propertyContracts().get(new PropertyName("fillColor"));
+                    case "toggleable", "useCupertinoCheckmarkStyle", "nullableValueType" -> propertySchema(PropertyValueKind.BOOLEAN);
+                    default -> shared.propertyContracts().get(new PropertyName(name));
                 };
             }
             properties.put(name, value);

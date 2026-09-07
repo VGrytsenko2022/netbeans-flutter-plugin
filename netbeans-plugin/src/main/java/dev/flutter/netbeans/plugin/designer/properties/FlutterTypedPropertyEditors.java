@@ -69,6 +69,19 @@ final class FlutterTypedPropertyEditors {
                     .orElse(newlineStringList
                             ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
             }
+        } else if (definition.name().value().equals("valueType") && definition.parameter().required()
+                && kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Type"))) {
+            editorKind = EditorKind.RADIO_TYPE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.NULL, PropertyValueKind.STRING, PropertyValueKind.INTEGER,
+                PropertyValueKind.DOUBLE, PropertyValueKind.BOOLEAN, PropertyValueKind.ENUM, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Object?"))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.EnumValues special
+                        && special.dartType().libraryUri().equals("dart:core") && special.dartType().name().equals("double")
+                        && java.util.Set.copyOf(special.values()).equals(java.util.Set.of("infinity", "negativeInfinity", "nan")))) {
+            editorKind = EditorKind.RADIO_VALUE;
         } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
                 || kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && !presets.isEmpty() && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
@@ -219,6 +232,8 @@ final class FlutterTypedPropertyEditors {
         STRING_PRESET,
         PRESET_DART_REFERENCE,
         OBJECT_TAG,
+        RADIO_TYPE,
+        RADIO_VALUE,
         NEWLINE_STRING_LIST,
         BOOLEAN,
         NULLABLE_BOOLEAN,
@@ -331,6 +346,9 @@ final class FlutterTypedPropertyEditors {
 
         FlutterPropertyCellValue validate(FlutterPropertyCellValue candidate) {
             Objects.requireNonNull(candidate, "candidate");
+            if (candidate.radioTypeEdit().isPresent() && editorKind != EditorKind.RADIO_TYPE) {
+                throw invalid("A dependent Radio type draft is accepted only by the Radio valueType editor.");
+            }
             if (candidate.explicitValue().isEmpty()) {
                 if (!optional()) {
                     throw invalid("Required property '" + definition.name().value()
@@ -372,7 +390,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG ->
+                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, RADIO_VALUE ->
                     new StructuredEditor(this);
             };
         }
@@ -1045,13 +1063,14 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public String getAsText() {
-            if (binding.editorKind() == EditorKind.OBJECT_TAG) {
+            if (binding.editorKind() == EditorKind.OBJECT_TAG || binding.editorKind() == EditorKind.RADIO_VALUE) {
                 return explicitValue().map(value -> switch (value) {
-                    case PropertyValue.NullValue ignored -> "None (disable Hero)";
+                    case PropertyValue.NullValue ignored -> binding.editorKind() == EditorKind.RADIO_VALUE ? "Explicit null" : "None (disable Hero)";
                     case PropertyValue.StringValue text -> "String: \"" + text.value().replace("\\", "\\\\").replace("\"", "\\\"").replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t") + "\"";
                     case PropertyValue.IntegerValue integer -> "Integer: " + integer.value();
                     case PropertyValue.DoubleValue number -> "Double: " + number.value().toPlainString();
                     case PropertyValue.BooleanValue bool -> "Boolean: " + bool.value();
+                    case PropertyValue.EnumValue number -> "Double: " + switch (number.value()) { case "infinity" -> "Infinity"; case "negativeInfinity" -> "-Infinity"; case "nan" -> "NaN"; default -> PropertyValueFormatter.format(number); };
                     default -> PropertyValueFormatter.format(value);
                 }).orElseGet(this::unsetText);
             }
@@ -1064,7 +1083,7 @@ final class FlutterTypedPropertyEditors {
                         ? FlutterNullableDartReferenceEditorComponent.nullText(binding) : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
-                return explicitValue().map(value -> value instanceof PropertyValue.NullValue ? "Inherit (null)"
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue ? binding.definition().name().value().equals("onChanged") ? "Explicit null" : "Inherit (null)"
                         : value instanceof PropertyValue.StringValue preset ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {

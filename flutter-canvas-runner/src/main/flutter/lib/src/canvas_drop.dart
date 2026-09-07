@@ -370,6 +370,20 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
           zonePlacement: CanvasDropZonePlacement.listTileTrailing,
         ),
       ],
+      'flutter.material.CheckboxListTile' => const [
+        CanvasDropSlotSemantics.emptySingle(
+          slotName: 'title',
+          zonePlacement: CanvasDropZonePlacement.listTileTitle,
+        ),
+        CanvasDropSlotSemantics.emptySingle(
+          slotName: 'subtitle',
+          zonePlacement: CanvasDropZonePlacement.listTileSubtitle,
+        ),
+        CanvasDropSlotSemantics.emptySingle(
+          slotName: 'secondary',
+          zonePlacement: CanvasDropZonePlacement.listTileTrailing,
+        ),
+      ],
       'flutter.material.Badge' => const [
         canvasBadgeLabelDropSlot,
         canvasEmptyChildDropSlot,

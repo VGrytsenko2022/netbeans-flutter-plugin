@@ -54,7 +54,7 @@ final class FlutterPresetDartReferenceEditorComponent {
                     .filter(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)
                     .map(PropertyValueConstraint.DartObjectReferenceValues.class::cast).findFirst().orElseThrow();
             expectedType = referenceConstraint.expectedDartType();
-            nullLabel = isRadioCallback() || isListTileCallback() ? "Explicit null" : NULL;
+            nullLabel = isRadioCallback() || isListTileCallback() || isCheckboxTileCallback() ? "Explicit null" : NULL;
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(710, 500)); setName("flutter.presetReference.editor");
             getAccessibleContext().setAccessibleName(binding.definition().name().value() + " preset or Dart reference editor");
             getAccessibleContext().setAccessibleDescription("Choose omission, a reviewed preset, or an analyzer-verified " + expectedType + ". All drafts remain local until OK.");
@@ -86,6 +86,7 @@ final class FlutterPresetDartReferenceEditorComponent {
                             PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())));
             var referenceDescriptor = new FeatureDescriptor();
             referenceDescriptor.setValue(FlutterDartObjectReferenceEditorComponent.RADIO_GROUP_CALLBACK_ATTRIBUTE, isRadioCallback() && !binding.optional());
+            referenceDescriptor.setValue(FlutterDartObjectReferenceEditorComponent.CHECKBOX_TILE_CALLBACK_ATTRIBUTE, isCheckboxTileCallback());
             var referenceEnvironment = PropertyEnv.create(referenceDescriptor);
             referencePanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
                     FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
@@ -99,6 +100,10 @@ final class FlutterPresetDartReferenceEditorComponent {
         }
 
         private boolean isRadioCallback() { return binding.definition().name().value().equals("onChanged") && expectedType.equals("ValueChanged<Object?>"); }
+        private boolean isCheckboxTileCallback() {
+            return !binding.optional() && binding.stringPresets().equals(List.of("noop"))
+                    && binding.definition().name().value().equals("onChanged") && expectedType.equals("ValueChanged<bool?>");
+        }
         private boolean isListTileCallback() {
             return binding.stringPresets().equals(List.of("noop")) && (List.of("onTap", "onLongPress").contains(binding.definition().name().value()) && expectedType.equals("VoidCallback")
                     || binding.definition().name().value().equals("onFocusChange") && expectedType.equals("ValueChanged<bool>"));
@@ -125,6 +130,10 @@ final class FlutterPresetDartReferenceEditorComponent {
                         : PRESET.equals(selected) ? "Stores an explicit no-op callback. Gesture callback presence may enable pointer and button semantics, even when the tile is disabled; it is not null or omission."
                         : nullLabel.equals(selected) ? "Stores explicit null: this callback is absent. This is distinct from the explicit no-op and from omitting the argument."
                         : "Omits this ListTile callback argument. No handler is injected and all other callback fields remain unchanged.";
+                if (isCheckboxTileCallback()) description = PROJECT.equals(selected)
+                        ? "Stores the required typed CheckboxListTile callback unchanged. Enabled is independent and nullable. Isolated Canvas never executes project callbacks."
+                        : PRESET.equals(selected) ? "Stores an explicit no-op callback. It is distinct from null; the SDK combines callback presence with Enabled to determine activation."
+                        : "Stores explicit null for the required On changed argument. The checkbox cannot request a value change; Enabled remains independent and unchanged.";
                 note.setText(description); note.getAccessibleContext().setAccessibleDescription(description);
                 var candidate = PROJECT.equals(selected) ? requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue()
                         : PRESET.equals(selected) ? FlutterPropertyCellValue.explicit(new PropertyValue.StringValue((String) preset.getSelectedItem()))

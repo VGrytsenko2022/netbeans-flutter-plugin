@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
 import dev.flutter.netbeans.designer.model.SlotCardinality;
@@ -441,7 +442,7 @@ final class FlutterWidgetSlotPropertyEditor extends PropertyEditorSupport
         private static int effectiveMinimum(WidgetNode owner, SlotDefinition slot) {
             return slot.name().value().equals("child") && (FilledButtonWidgetPropertySchema.requiresChild(owner)
                     || FloatingActionButtonWidgetPropertySchema.requiresChild(owner))
-                    || slot.name().value().equals("subtitle") && ListTileWidgetPropertySchema.requiresSubtitle(owner)
+                    || slot.name().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(owner) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(owner))
                     ? 1 : slot.minChildren();
         }
 

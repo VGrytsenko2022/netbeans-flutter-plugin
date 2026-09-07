@@ -60,6 +60,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId TEXT_FIELD =
             type("flutter.material.TextField");
     private static final WidgetTypeId TEXT = type("flutter.widgets.Text");
+    private static final WidgetTypeId CHECKBOX_LIST_TILE =
+            type("flutter.material.CheckboxListTile");
     private static final WidgetTypeId COLUMN = type("flutter.widgets.Column");
     private static final WidgetTypeId ROW = type("flutter.widgets.Row");
     private static final WidgetTypeId WRAP = type("flutter.widgets.Wrap");
@@ -126,6 +128,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final SlotName APP_BAR_SLOT = new SlotName("appBar");
     private static final SlotName LEADING = new SlotName("leading");
     private static final SlotName TITLE = new SlotName("title");
+    private static final SlotName SUBTITLE = new SlotName("subtitle");
+    private static final SlotName SECONDARY = new SlotName("secondary");
     private static final SlotName ACTIONS = new SlotName("actions");
     private static final SlotName FLEXIBLE_SPACE = new SlotName("flexibleSpace");
     private static final SlotName BOTTOM = new SlotName("bottom");
@@ -179,14 +183,43 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(88, BUILT_INS.definitions().size()); assertEquals(72, targets.size()); assertEquals(16, wrappers);
-        assertEquals(6336, accepted + rejected); assertEquals(5958, accepted); assertEquals(378, rejected);
+        assertEquals(89, BUILT_INS.definitions().size()); assertEquals(75, targets.size()); assertEquals(16, wrappers);
+        assertEquals(6675, accepted + rejected); assertEquals(6286, accepted); assertEquals(389, rejected);
         var empty = target("Column.children", COLUMN, CHILDREN);
         var planned = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
         assertTrue(planned.command().widget().properties().isEmpty());
         assertEquals(Set.of(new SlotName("leading"), new SlotName("title"), new SlotName("subtitle"), new SlotName("trailing")), planned.command().widget().slots().keySet());
         planned.command().widget().slots().values().forEach(slot -> assertTrue(((WidgetSlot.SingleSlot) slot).child().isEmpty()));
+    }
+
+    @Test
+    void checkboxListTileCreatesBothConstructorsWithAllThreeOptionalSlots() {
+        var target = target("Column.children", COLUMN, CHILDREN);
+        var planned = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(target.document(), BUILT_INS, CHECKBOX_LIST_TILE, ROOT_ID,
+                        CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        var created = planned.command().widget();
+        assertEquals(CHECKBOX_LIST_TILE, created.type());
+        assertEquals(Map.of(
+                new PropertyName("value"), new PropertyValue.BooleanValue(false),
+                new PropertyName("onChanged"), new PropertyValue.StringValue("noop"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")),
+                created.properties());
+        assertEquals(Map.of(
+                TITLE, WidgetSlot.SingleSlot.empty(),
+                SUBTITLE, WidgetSlot.SingleSlot.empty(),
+                SECONDARY, WidgetSlot.SingleSlot.empty()), created.slots());
+
+        for (var slot : List.of(TITLE, SUBTITLE, SECONDARY)) {
+            var slotTarget = target("CheckboxListTile." + slot.value(),
+                    CHECKBOX_LIST_TILE, slot);
+            var insertion = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(slotTarget.document(), BUILT_INS, TEXT, ROOT_ID,
+                            slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+            assertEquals(TEXT, insertion.command().widget().type());
+            assertEquals(slot, insertion.command().destination().slotName());
+        }
     }
 
 
@@ -6283,7 +6316,9 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preListTileDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.ListTile"));
+        return BUILT_INS.definitions().stream().filter(definition ->
+                !Set.of("flutter.material.ListTile", "flutter.material.CheckboxListTile")
+                        .contains(definition.typeId().value()));
     }
 
     private static Stream<WidgetDefinition> preRadioGroupDefinitions() {

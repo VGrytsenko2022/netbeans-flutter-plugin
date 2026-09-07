@@ -159,6 +159,80 @@ String? _listTileStaticMessage(CanvasNode node, BuildContext? context) {
   return '${messages.join(' ')} Stored properties and generated Dart are unchanged.';
 }
 
+String? _checkboxListTileStaticMessage(CanvasNode node, BuildContext? context) {
+  final apple = _checkboxUsesCupertino(node, context);
+  final refs = node.properties.entries
+      .where(
+        (entry) =>
+            entry.value.kind == 'dartObjectReferencePresence' &&
+            !(entry.key == 'onChanged' &&
+                node.properties['enabled']?.value == false) &&
+            !(apple && {'fillColor', 'overlayColor'}.contains(entry.key)),
+      )
+      .map((entry) => entry.key)
+      .toList();
+  final tileShape = _cardShapePreviewUnavailableMessage(
+    node,
+    widgetName: 'CheckboxListTile',
+  );
+  final checkboxShape = _cardShapePreviewUnavailableMessage(
+    node,
+    widgetName: 'CheckboxListTile',
+    prefix: 'checkboxShape',
+    expectedType: 'OutlinedBorder',
+  );
+  final direction = _checkboxShapeDirectionMessage(
+    node,
+    context,
+    family: 'checkboxShape',
+    owner: 'CheckboxListTile.checkboxShape',
+  );
+  final messages = <String>[
+    if (refs.isNotEmpty)
+      'CheckboxListTile ${node.id} preview limitation for ${refs.join(', ')}: isolated Canvas never executes project Dart. '
+          'Callback presence is retained with benign no-ops, including disabled onChanged metadata; '
+          'unknown appearance, density, padding and cursor use the actual SDK theme/default as an explicit approximation. '
+          'Focus and widget states remain SDK-owned locally, not the referenced project objects.',
+    if (tileShape case final String shape) shape,
+    if (checkboxShape case final String shape) shape,
+    if (direction case final String shape) shape,
+  ];
+  if (context != null) {
+    Widget? intermediate;
+    var material = false;
+    context.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is Material) {
+        material = true;
+        return false;
+      }
+      final color = switch (widget) {
+        ColoredBox(:final color) => color,
+        DecoratedBox(decoration: BoxDecoration(:final color)) => color,
+        DecoratedBox(decoration: ShapeDecoration(:final color)) => color,
+        _ => null,
+      };
+      if (intermediate == null && color != null && color.a > 0) {
+        intermediate = widget;
+      }
+      return true;
+    });
+    if (!material) {
+      messages.add(
+        'Render CheckboxListTile ${node.id}: Material ancestor is unavailable, so CheckboxListTile and its child previews cannot be mounted in this context. '
+        'No synthetic Material is inserted; child State retention applies only to geometry/slot guards under an existing Material.',
+      );
+    } else if (intermediate != null) {
+      messages.add(
+        'CheckboxListTile ${node.id}: ink/tile-background preview may be hidden by the intermediate ${intermediate.runtimeType}. '
+        'The actual SDK paints on the existing Material ancestor; Canvas does not insert a different ink surface.',
+      );
+    }
+  }
+  if (messages.isEmpty) return null;
+  return '${messages.join(' ')} Stored properties and generated Dart are unchanged.';
+}
+
 String? _radioTypeKey(CanvasNode node) {
   final type = node.properties['valueType']?.value;
   return type is String
@@ -790,15 +864,26 @@ String? _checkboxPreviewMessage(CanvasNode node, BuildContext? context) {
       '${shape ?? ''}${direction ?? ''} Stored values and generated Dart are unchanged.';
 }
 
-String? _checkboxShapeDirectionMessage(CanvasNode node, BuildContext? context) {
+String? _checkboxShapeDirectionMessage(
+  CanvasNode node,
+  BuildContext? context, {
+  String family = 'shape',
+  String owner = 'Checkbox.shape',
+}) {
   String? unsafe;
-  final localKind = node.properties['shapeKind']?.value;
+  final localKind = node.properties['${family}Kind']?.value;
   final availableLocal =
       localKind != null &&
-      _cardShapePreviewUnavailableMessage(node, widgetName: 'Checkbox') == null;
+      _cardShapePreviewUnavailableMessage(
+            node,
+            widgetName: owner,
+            prefix: family,
+            expectedType: 'OutlinedBorder',
+          ) ==
+          null;
   if (availableLocal) {
     if (localKind == 'linear') unsafe = 'LinearBorder';
-    if (node.properties['shapeRadius']?.value
+    if (node.properties['${family}Radius']?.value
         is CanvasDirectionalBorderRadiusValue) {
       unsafe = '$localKind with directional corner radii';
     }
@@ -817,7 +902,7 @@ String? _checkboxShapeDirectionMessage(CanvasNode node, BuildContext? context) {
   }
   return unsafe == null
       ? null
-      : 'Checkbox.shape preview limitation: $unsafe requires TextDirection, '
+      : '$owner preview limitation: $unsafe requires TextDirection, '
             'but the Flutter 3.44.8 Material and Cupertino checkbox painters do not pass it. '
             'The real checkbox uses an explicit SDK default-shape approximation; the configured shape is not rendered. ';
 }
@@ -1016,6 +1101,7 @@ class _ListTilePreview extends StatefulWidget {
     required this.builder,
     required this.riskyUnboundedHeight,
     required this.hasMaterial,
+    this.widgetName = 'ListTile',
   });
   final CanvasNode node;
   final String? message;
@@ -1023,6 +1109,7 @@ class _ListTilePreview extends StatefulWidget {
   final Widget Function(Map<String, Widget>) builder;
   final bool riskyUnboundedHeight;
   final bool hasMaterial;
+  final String widgetName;
   @override
   State<_ListTilePreview> createState() => _ListTilePreviewState();
 }
@@ -1043,7 +1130,7 @@ class _ListTilePreviewState extends State<_ListTilePreview> {
       final messages = <String>[
         if (widget.message case final String message) message,
         if (_geometryMessage case final String message)
-          'Render ListTile ${widget.node.id}: geometry preview unavailable: $message. The SDK subtree is retained but unsafe paint/semantics and pointer input are withheld.',
+          'Render ${widget.widgetName} ${widget.node.id}: geometry preview unavailable: $message. The SDK subtree is retained but unsafe paint/semantics and pointer input are withheld.',
         ..._slotMessages.values,
       ];
       final message = messages.join(' ');
@@ -1071,7 +1158,10 @@ class _ListTilePreviewState extends State<_ListTilePreview> {
       for (final entry in widget.slots.entries)
         entry.key: _ListTileSlotGuard(
           key: ValueKey(entry.key),
-          sideSlot: entry.key == 'leading' || entry.key == 'trailing',
+          sideSlot:
+              entry.key == 'leading' ||
+              entry.key == 'trailing' ||
+              entry.key == 'secondary',
           onRenderer: (renderer) {
             if (renderer == null) {
               _slotRenderers.remove(entry.key);
@@ -1082,7 +1172,7 @@ class _ListTilePreviewState extends State<_ListTilePreview> {
           onBlocked: (blocked) {
             if (blocked) {
               _slotMessages[entry.key] =
-                  'ListTile ${widget.node.id}.${entry.key} preview unavailable: '
+                  '${widget.widgetName} ${widget.node.id}.${entry.key} preview unavailable: '
                   'the mounted slot consumes the entire nonzero tile content width, which Flutter 3.44.8 rejects. '
                   'Only this slot paint/semantics is withheld and it reports zero width; child State, model and generated Dart are retained.';
             } else {
@@ -1101,6 +1191,7 @@ class _ListTilePreviewState extends State<_ListTilePreview> {
       child: _ListTileLayoutGuard(
         riskyUnboundedHeight: widget.riskyUnboundedHeight,
         slotRenderers: _slotRenderers,
+        widgetName: widget.widgetName,
         onMessage: (message) {
           _geometryMessage = message;
           _scheduleMessage();
@@ -1198,14 +1289,21 @@ class _ListTileLayoutGuard extends SingleChildRenderObjectWidget {
     required this.riskyUnboundedHeight,
     required this.slotRenderers,
     required this.onMessage,
+    this.widgetName = 'ListTile',
     required super.child,
   });
   final bool riskyUnboundedHeight;
   final Map<String, _ListTileSlotRenderBox> slotRenderers;
   final ValueChanged<String?> onMessage;
+  final String widgetName;
   @override
   _ListTileLayoutRenderBox createRenderObject(BuildContext context) =>
-      _ListTileLayoutRenderBox(riskyUnboundedHeight, slotRenderers, onMessage);
+      _ListTileLayoutRenderBox(
+        riskyUnboundedHeight,
+        slotRenderers,
+        onMessage,
+        widgetName,
+      );
   @override
   void updateRenderObject(
     BuildContext context,
@@ -1213,6 +1311,7 @@ class _ListTileLayoutGuard extends SingleChildRenderObjectWidget {
   ) {
     render.riskyUnboundedHeight = riskyUnboundedHeight;
     render.onMessage = onMessage;
+    render.widgetName = widgetName;
     render.clearIntrinsicDiagnostic();
     render.markNeedsLayout();
   }
@@ -1226,10 +1325,12 @@ class _ListTileLayoutRenderBox extends RenderProxyBox {
     this.riskyUnboundedHeight,
     this.slots,
     this.onMessage,
+    this.widgetName,
   );
   bool riskyUnboundedHeight;
   final Map<String, _ListTileSlotRenderBox> slots;
   ValueChanged<String?> onMessage;
+  String widgetName;
   bool _blocked = false;
   String? _intrinsicMessage;
   void clearIntrinsicDiagnostic() => _intrinsicMessage = null;
@@ -1285,7 +1386,7 @@ class _ListTileLayoutRenderBox extends RenderProxyBox {
     String? message = _intrinsicMessage;
     if (!constraints.hasBoundedWidth) {
       message =
-          'the parent supplies unbounded width; ListTile requires a bounded horizontal layout';
+          'the parent supplies unbounded width; $widgetName requires a bounded horizontal layout';
     } else if (!constraints.hasBoundedHeight && riskyUnboundedHeight) {
       try {
         final measured = child!.getDryLayout(constraints);
@@ -1794,6 +1895,23 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? state!._message
         : _listTileStaticMessage(node, context);
   }
+  if (node.type == 'flutter.material.CheckboxListTile') {
+    _ListTilePreviewState? state;
+    void visit(Element element) {
+      if (element is StatefulElement &&
+          element.state is _ListTilePreviewState &&
+          (element.state as _ListTilePreviewState).widget.node.id == node.id) {
+        state = element.state as _ListTilePreviewState;
+        return;
+      }
+      if (state == null) element.visitChildElements(visit);
+    }
+
+    context?.visitChildElements(visit);
+    return state?._message.isNotEmpty == true
+        ? state!._message
+        : _checkboxListTileStaticMessage(node, context);
+  }
   if (node.type == 'flutter.material.RangeSlider') {
     return _rangeSliderGeometryMessage(node, context, constraints) ??
         _rangeSliderReferenceMessage(node);
@@ -2180,18 +2298,20 @@ String? _linearProgressUnavailableMessage(
 String? _cardShapePreviewUnavailableMessage(
   CanvasNode node, {
   String widgetName = 'Card',
+  String prefix = 'shape',
+  String expectedType = 'ShapeBorder',
 }) {
-  if (node.properties['shape']?.kind == 'dartObjectReferencePresence') {
+  if (node.properties[prefix]?.kind == 'dartObjectReferencePresence') {
     return _customClipperPreviewUnavailableMessage(
-      widgetName: '$widgetName.shape',
-      expectedType: 'ShapeBorder',
+      widgetName: '$widgetName.$prefix',
+      expectedType: expectedType,
     );
   }
-  final kind = node.properties['shapeKind']?.value;
-  final points = node.properties['shapePoints']?.value as num? ?? 5;
+  final kind = node.properties['${prefix}Kind']?.value;
+  final points = node.properties['${prefix}Points']?.value as num? ?? 5;
   if ((kind == 'star' || kind == 'polygon') &&
       points > _maximumCanvasCardShapePoints) {
-    return '$widgetName.shape $kind preview unavailable: requested $points points exceeds the isolated Canvas budget of $_maximumCanvasCardShapePoints. Generated Dart preserves the configured ShapeBorder; child and properties remain editable.';
+    return '$widgetName.$prefix $kind preview unavailable: requested $points points exceeds the isolated Canvas budget of $_maximumCanvasCardShapePoints. Generated Dart preserves the configured $expectedType; child and properties remain editable.';
   }
   return null;
 }
@@ -2819,6 +2939,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Radio' ||
         node.type == 'flutter.widgets.RadioGroup' ||
         node.type == 'flutter.material.ListTile' ||
+        node.type == 'flutter.material.CheckboxListTile' ||
         node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
@@ -4859,6 +4980,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Switch' => _switch(context),
       'flutter.material.Radio' => _radio(context),
       'flutter.material.ListTile' => _listTile(context),
+      'flutter.material.CheckboxListTile' => _checkboxListTile(context),
       'flutter.widgets.RadioGroup' => _RadioGroupPreview(
         node: node,
         child: _single('child')!,
@@ -5552,6 +5674,151 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         internalAddSemanticForOnTap:
             _boolean('internalAddSemanticForOnTap') ?? true,
       ),
+    );
+  }
+
+  Widget _checkboxListTile(BuildContext context) {
+    final tileTheme = ListTileTheme.of(context);
+    final height =
+        _listTileNumber(node, 'minTileHeight') ?? tileTheme.minTileHeight;
+    final padding =
+        _listTileNumber(node, 'minVerticalPadding') ??
+        tileTheme.minVerticalPadding ??
+        (Theme.of(context).useMaterial3 ? 8 : 4);
+    return _ListTilePreview(
+      node: node,
+      widgetName: 'CheckboxListTile',
+      message: _checkboxListTileStaticMessage(node, context),
+      riskyUnboundedHeight:
+          (height != null &&
+              !height.isFinite &&
+              height != double.negativeInfinity) ||
+          !(padding * 2).isFinite && padding != double.negativeInfinity,
+      hasMaterial: context.findAncestorWidgetOfExactType<Material>() != null,
+      slots: {
+        for (final name in ['title', 'subtitle', 'secondary'])
+          if (_single(name) case final Widget child) name: child,
+      },
+      builder: (slots) => _checkboxListTileWithSlots(context, slots),
+    );
+  }
+
+  Widget _checkboxListTileWithSlots(
+    BuildContext context,
+    Map<String, Widget> slots,
+  ) {
+    final create = _string('variant') == 'adaptive'
+        ? CheckboxListTile.adaptive
+        : CheckboxListTile.new;
+    final cursorEntries = <WidgetStatesConstraint, MouseCursor>{};
+    var unresolvedCursor = false;
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'mouseCursor${entry.value}';
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') {
+        unresolvedCursor = true;
+      }
+      final cursor = _mouseCursor(name);
+      if (cursor != null) cursorEntries[entry.key] = cursor;
+    }
+    final cursor = unresolvedCursor
+        ? null
+        : cursorEntries.isEmpty
+        ? _mouseCursor('mouseCursor')
+        : WidgetStateMouseCursor.fromMap(cursorEntries);
+    final tileUnavailable = _cardShapePreviewUnavailableMessage(
+      node,
+      widgetName: 'CheckboxListTile',
+    );
+    final checkboxUnavailable = _cardShapePreviewUnavailableMessage(
+      node,
+      widgetName: 'CheckboxListTile',
+      prefix: 'checkboxShape',
+      expectedType: 'OutlinedBorder',
+    );
+    final checkboxDirection = _checkboxShapeDirectionMessage(
+      node,
+      context,
+      family: 'checkboxShape',
+      owner: 'CheckboxListTile.checkboxShape',
+    );
+    return create(
+      value: _boolean('value'),
+      onChanged:
+          _listTileHasCallback(node, 'onChanged') &&
+              _boolean('enabled') != false
+          ? (_) => onSelected(node.id)
+          : null,
+      mouseCursor: cursor,
+      activeColor: _resolvedColor(context, 'activeColor'),
+      fillColor: _checkboxStateColor(context, 'fillColor'),
+      checkColor: _resolvedColor(context, 'checkColor'),
+      hoverColor: _resolvedColor(context, 'hoverColor'),
+      overlayColor: _checkboxStateColor(context, 'overlayColor'),
+      splashRadius: _listTileNumber(node, 'splashRadius'),
+      materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+        'padded' => MaterialTapTargetSize.padded,
+        'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+        _ => null,
+      },
+      visualDensity: switch ((
+        _number('visualDensityHorizontal'),
+        _number('visualDensityVertical'),
+      )) {
+        (null, null) => null,
+        (final h, final v) => VisualDensity(
+          horizontal: h ?? 0,
+          vertical: v ?? 0,
+        ),
+      },
+      focusNode: null,
+      statesController: null,
+      autofocus: _boolean('autofocus') ?? false,
+      shape: tileUnavailable == null ? _cardShape(context) : null,
+      side: _checkboxSide(context),
+      isError: _boolean('isError') ?? false,
+      enabled: _boolean('enabled'),
+      tileColor: _resolvedColor(context, 'tileColor'),
+      title: slots['title'],
+      subtitle: slots['subtitle'],
+      isThreeLine: _boolean('isThreeLine'),
+      dense: _boolean('dense'),
+      secondary: slots['secondary'],
+      selected: _boolean('selected') ?? false,
+      controlAffinity: switch (_enum('controlAffinity')) {
+        'leading' => ListTileControlAffinity.leading,
+        'trailing' => ListTileControlAffinity.trailing,
+        'platform' => ListTileControlAffinity.platform,
+        _ => null,
+      },
+      contentPadding: _edgeInsetsGeometry('contentPadding'),
+      tristate: _boolean('tristate') ?? false,
+      checkboxShape: checkboxUnavailable == null && checkboxDirection == null
+          ? _cardShapeForFamily(context, 'checkboxShape') as OutlinedBorder?
+          : null,
+      selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+      onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+          ? (_) {}
+          : null,
+      enableFeedback: _boolean('enableFeedback'),
+      horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+      minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+      minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+      minTileHeight: _listTileNumber(node, 'minTileHeight'),
+      checkboxSemanticLabel: _string('checkboxSemanticLabel'),
+      checkboxScaleFactor: _listTileNumber(node, 'checkboxScaleFactor') ?? 1,
+      titleAlignment: switch (_enum('titleAlignment')) {
+        'threeLine' => ListTileTitleAlignment.threeLine,
+        'titleHeight' => ListTileTitleAlignment.titleHeight,
+        'top' => ListTileTitleAlignment.top,
+        'center' => ListTileTitleAlignment.center,
+        'bottom' => ListTileTitleAlignment.bottom,
+        _ => null,
+      },
+      internalAddSemanticForOnTap:
+          _boolean('internalAddSemanticForOnTap') ?? false,
     );
   }
 
@@ -8701,17 +8968,21 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     };
   }
 
-  ShapeBorder? _cardShape(BuildContext context) {
-    final kind = _string('shapeKind');
+  ShapeBorder? _cardShape(BuildContext context) =>
+      _cardShapeForFamily(context, 'shape');
+
+  ShapeBorder? _cardShapeForFamily(BuildContext context, String family) {
+    String property(String suffix) => '$family$suffix';
+    final kind = _string(property('Kind'));
     if (kind == null) return null;
-    final side = _appBarBorderSide(context);
-    final value = node.properties['shapeRadius']?.value;
+    final side = _shapeBorderSide(context, family);
+    final value = node.properties[property('Radius')]?.value;
     final radius = value is CanvasBorderRadiusGeometryValue
         ? _borderRadius(value)
         : BorderRadius.zero;
     LinearBorderEdge? edge(String name) {
-      final size = _number('shape${name}Size');
-      final alignment = _number('shape${name}Alignment');
+      final size = _number(property('${name}Size'));
+      final alignment = _number(property('${name}Alignment'));
       return size == null && alignment == null
           ? null
           : LinearBorderEdge(size: size ?? 1, alignment: alignment ?? 0);
@@ -8736,11 +9007,11 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'circle' => CircleBorder(
         side: side,
-        eccentricity: _number('shapeCircleEccentricity') ?? 0,
+        eccentricity: _number(property('CircleEccentricity')) ?? 0,
       ),
       'oval' => OvalBorder(
         side: side,
-        eccentricity: _number('shapeCircleEccentricity') ?? 1,
+        eccentricity: _number(property('CircleEccentricity')) ?? 1,
       ),
       'stadium' => StadiumBorder(side: side),
       'linear' => LinearBorder(
@@ -8752,19 +9023,19 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'star' => StarBorder(
         side: side,
-        points: _number('shapePoints') ?? 5,
-        innerRadiusRatio: _number('shapeInnerRadiusRatio') ?? .4,
-        pointRounding: _number('shapePointRounding') ?? 0,
-        valleyRounding: _number('shapeValleyRounding') ?? 0,
-        rotation: _number('shapeRotation') ?? 0,
-        squash: _number('shapeSquash') ?? 0,
+        points: _number(property('Points')) ?? 5,
+        innerRadiusRatio: _number(property('InnerRadiusRatio')) ?? .4,
+        pointRounding: _number(property('PointRounding')) ?? 0,
+        valleyRounding: _number(property('ValleyRounding')) ?? 0,
+        rotation: _number(property('Rotation')) ?? 0,
+        squash: _number(property('Squash')) ?? 0,
       ),
       'polygon' => StarBorder.polygon(
         side: side,
-        sides: _number('shapePoints') ?? 5,
-        pointRounding: _number('shapePointRounding') ?? 0,
-        rotation: _number('shapeRotation') ?? 0,
-        squash: _number('shapeSquash') ?? 0,
+        sides: _number(property('Points')) ?? 5,
+        pointRounding: _number(property('PointRounding')) ?? 0,
+        rotation: _number(property('Rotation')) ?? 0,
+        squash: _number(property('Squash')) ?? 0,
       ),
       _ => throw StateError('Unreviewed Canvas Card shape kind: $kind'),
     };
@@ -9132,18 +9403,23 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   BorderSide _appBarBorderSide(BuildContext context) {
-    if (!node.properties.keys.any((name) => name.startsWith('shapeSide'))) {
+    return _shapeBorderSide(context, 'shape');
+  }
+
+  BorderSide _shapeBorderSide(BuildContext context, String family) {
+    final prefix = '${family}Side';
+    if (!node.properties.keys.any((name) => name.startsWith(prefix))) {
       return BorderSide.none;
     }
     return BorderSide(
       color:
-          _resolvedColor(context, 'shapeSideColor') ?? const Color(0xff000000),
-      width: _number('shapeSideWidth') ?? 1.0,
-      style: _enum('shapeSideStyle') == 'none'
+          _resolvedColor(context, '${prefix}Color') ?? const Color(0xff000000),
+      width: _number('${prefix}Width') ?? 1.0,
+      style: _enum('${prefix}Style') == 'none'
           ? BorderStyle.none
           : BorderStyle.solid,
       strokeAlign:
-          _number('shapeSideStrokeAlign') ?? BorderSide.strokeAlignInside,
+          _number('${prefix}StrokeAlign') ?? BorderSide.strokeAlignInside,
     );
   }
 

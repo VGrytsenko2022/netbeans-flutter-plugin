@@ -166,6 +166,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Radio", STATIC_EDITABLE),
             Map.entry("flutter.widgets.RadioGroup", STATIC_EDITABLE),
             Map.entry("flutter.material.ListTile", STATIC_EDITABLE),
+            Map.entry("flutter.material.CheckboxListTile", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.Slider", STATIC_EDITABLE),
             Map.entry("flutter.material.RangeSlider", STATIC_EDITABLE),
@@ -340,6 +341,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Radio", radioProjection()),
             Map.entry("flutter.widgets.RadioGroup", radioGroupProjection()),
             Map.entry("flutter.material.ListTile", listTileProjection()),
+            Map.entry("flutter.material.CheckboxListTile", checkboxListTileProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.Slider", sliderProjection()),
             Map.entry("flutter.material.RangeSlider", rangeSliderProjection()),
@@ -2387,6 +2389,53 @@ public final class BuiltInWidgetCapabilityCatalog {
             properties.put(name, value);
         }
         return projection(properties, Map.of());
+    }
+
+    private static CanvasProjection checkboxListTileProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        var tile = listTileProjection();
+        var checkbox = checkboxProjection();
+        var shapes = cardProjection();
+        for (String name : CheckboxListTileWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            var shapeName = CheckboxListTileWidgetPropertySchema.shapeSourceName(name);
+            if (shapeName.isPresent()) {
+                value = shapes.propertyContracts().get(new PropertyName(shapeName.orElseThrow()));
+            } else if (CheckboxListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                value = listTileAddReference(colorOrThemeProperty(name).getValue(), "Color");
+            } else if (CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                value = checkbox.propertyContracts().get(new PropertyName("mouseCursor"));
+            } else if (List.of("splashRadius", "checkboxScaleFactor").contains(name)) {
+                var number = cardNumberSchema(null, null);
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,nan,negativeInfinity");
+                if (name.equals("splashRadius")) constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+            } else {
+                value = switch (name) {
+                    case "onChanged" -> {
+                        var reference = listTileReference("ValueChanged<bool?>");
+                        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                        constraints.putAll(reference.constraintFingerprints());
+                        constraints.put(PropertyValueKind.STRING, "pattern:" + base64("noop"));
+                        constraints.put(PropertyValueKind.NULL, "any");
+                        yield new CanvasPropertyContract(constraints.keySet(), true, Optional.of("string:" + base64("noop")), Map.of(), constraints);
+                    }
+                    case "checkboxShape" -> listTileReference("OutlinedBorder");
+                    case "enabled" -> new CanvasPropertyContract(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL), false,
+                            Optional.empty(), Map.of(), Map.of(PropertyValueKind.BOOLEAN, "any", PropertyValueKind.NULL, "any"));
+                    case "controlAffinity" -> materialEnumProperty(name, "ListTileControlAffinity", "leading", "trailing", "platform").getValue();
+                    case "checkboxSemanticLabel" -> propertySchema(PropertyValueKind.STRING);
+                    case "variant" -> new CanvasPropertyContract(Set.of(PropertyValueKind.STRING), true, Optional.of("string:" + base64("standard")),
+                            Map.of(), Map.of(PropertyValueKind.STRING, "pattern:" + base64("(?:standard|adaptive)")));
+                    default -> Optional.ofNullable(tile.propertyContracts().get(new PropertyName(name)))
+                            .orElseGet(() -> checkbox.propertyContracts().get(new PropertyName(name)));
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of("title", singleSlotSchema(false, 0), "subtitle", singleSlotSchema(false, 0), "secondary", singleSlotSchema(false, 0)));
     }
 
     private static CanvasProjection listTileProjection() {

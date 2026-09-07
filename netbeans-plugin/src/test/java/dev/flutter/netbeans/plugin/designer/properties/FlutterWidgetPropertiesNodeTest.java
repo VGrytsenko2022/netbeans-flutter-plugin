@@ -13,6 +13,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ColoredBoxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
@@ -1554,6 +1555,10 @@ class FlutterWidgetPropertiesNodeTest {
                 new PropertyName("value"), new PropertyValue.BooleanValue(false),
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
+        requiredValues.put(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value(), Map.of(
+                new PropertyName("value"), new PropertyValue.BooleanValue(false),
+                new PropertyName("onChanged"), new PropertyValue.StringValue("noop"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.IconButton", Map.of(
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
@@ -1597,6 +1602,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.Radio",
                 "flutter.widgets.RadioGroup",
                 "flutter.material.ListTile",
+                CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value(),
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1694,7 +1700,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(3740, writableCount,
+        assertEquals(3894, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1707,7 +1713,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(3723, nonScaffoldWritableCount,
+        assertEquals(3877, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6520,6 +6526,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.Radio",
                 "flutter.widgets.RadioGroup",
                 "flutter.material.ListTile",
+                CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value(),
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6612,7 +6619,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(88, iconPaths.size(),
+        assertEquals(89, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

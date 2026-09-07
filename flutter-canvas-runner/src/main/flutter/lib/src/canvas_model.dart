@@ -832,9 +832,18 @@ void _validateNodeSlotRelationships(
   String path,
 ) {
   if (type == 'flutter.material.ListTile') {
-    _expect(properties['isThreeLine']?.value != true ||
-      (slots['subtitle']?.children.isNotEmpty ?? false),
-      'Canvas ListTile explicit isThreeLine requires subtitle: $path/slots/subtitle');
+    _expect(
+      properties['isThreeLine']?.value != true ||
+          (slots['subtitle']?.children.isNotEmpty ?? false),
+      'Canvas ListTile explicit isThreeLine requires subtitle: $path/slots/subtitle',
+    );
+  }
+  if (type == 'flutter.material.CheckboxListTile') {
+    _expect(
+      properties['isThreeLine']?.value != true ||
+          (slots['subtitle']?.children.isNotEmpty ?? false),
+      'Canvas CheckboxListTile explicit isThreeLine requires subtitle: $path/slots/subtitle',
+    );
   }
   if (type == 'flutter.material.FloatingActionButton') {
     final extended = properties['variant']?.value == 'extended';
@@ -3999,6 +4008,231 @@ Map<String, _PropertySpec> _checkboxProperties() => {
   },
 };
 
+_PropertySpec _canvasColorWithReference(String dartType) {
+  final constraints = <String>{
+    ..._themeAwareColorProperty.kinds,
+    'dartObjectReference',
+  };
+  return _PropertySpec(
+    constraints,
+    themeTokens: canvasColorSchemeThemeTokens,
+    dartObjectExpectedType: dartType,
+  );
+}
+
+_PropertySpec _canvasReference(
+  String dartType, {
+  Set<String> kinds = const {'dartObjectReference'},
+}) => _PropertySpec(kinds, dartObjectExpectedType: dartType);
+
+_PropertySpec _canvasNumberWithNull() => _PropertySpec(
+  {'integer', 'double', 'enum', 'null'},
+  numericBounds: _unboundedNumberBounds,
+  enumLibraryUri: 'dart:core',
+  enumType: 'double',
+  enumValues: {'infinity', 'negativeInfinity', 'nan'},
+);
+
+Map<String, _PropertySpec> _checkboxListTileProperties() {
+  final properties = <String, _PropertySpec>{};
+  void add(String name, _PropertySpec spec) => properties[name] = spec;
+
+  // Keep this order in lock-step with CheckboxListTileWidgetPropertySchema:
+  // constructor arguments first, then the closed local compound families.
+  add(
+    'value',
+    _PropertySpec(
+      {'boolean', 'null'},
+      required: true,
+      creationDefaultFingerprint: 'boolean:false',
+    ),
+  );
+  add(
+    'onChanged',
+    _PropertySpec(
+      {'string', 'null', 'dartObjectReference'},
+      required: true,
+      creationDefaultFingerprint: 'string:bm9vcA',
+      stringPattern: r'noop',
+      dartObjectExpectedType: 'ValueChanged<bool?>',
+    ),
+  );
+  add('mouseCursor', _checkboxProperties()['mouseCursor']!);
+  add('activeColor', _canvasColorWithReference('Color'));
+  add('fillColor', _canvasReference('WidgetStateProperty<Color?>'));
+  add('checkColor', _canvasColorWithReference('Color'));
+  add('hoverColor', _canvasColorWithReference('Color'));
+  add('overlayColor', _canvasReference('WidgetStateProperty<Color?>'));
+  add('splashRadius', _canvasNumberWithNull());
+  add(
+    'materialTapTargetSize',
+    _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _materialLibraryUri,
+      enumType: 'MaterialTapTargetSize',
+      enumValues: {'padded', 'shrinkWrap'},
+    ),
+  );
+  add('visualDensity', _canvasReference('VisualDensity'));
+  add('focusNode', _canvasReference('FocusNode'));
+  add('statesController', _canvasReference('WidgetStatesController'));
+  add('autofocus', _PropertySpec({'boolean'}));
+  add('shape', _canvasReference('ShapeBorder'));
+  add('side', _canvasReference('BorderSide'));
+  add('isError', _PropertySpec({'boolean'}));
+  add('enabled', _PropertySpec({'boolean', 'null'}));
+  add('tileColor', _canvasColorWithReference('Color'));
+  add('isThreeLine', _PropertySpec({'boolean', 'null'}));
+  add('dense', _PropertySpec({'boolean', 'null'}));
+  add('selected', _PropertySpec({'boolean'}));
+  add(
+    'controlAffinity',
+    _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _materialLibraryUri,
+      enumType: 'ListTileControlAffinity',
+      enumValues: {'leading', 'trailing', 'platform'},
+    ),
+  );
+  add(
+    'contentPadding',
+    _PropertySpec(
+      {'edgeInsets', 'edgeInsetsDirectional', 'dartObjectReference'},
+      numericBounds: const {
+        'edgeInsets': _NumericBounds(),
+        'edgeInsetsDirectional': _NumericBounds(),
+      },
+      dartObjectExpectedType: 'EdgeInsetsGeometry',
+    ),
+  );
+  add('tristate', _PropertySpec({'boolean'}));
+  add('checkboxShape', _canvasReference('OutlinedBorder'));
+  add('selectedTileColor', _canvasColorWithReference('Color'));
+  add(
+    'onFocusChange',
+    _PropertySpec(
+      {'string', 'null', 'dartObjectReference'},
+      stringPattern: r'noop',
+      dartObjectExpectedType: 'ValueChanged<bool>',
+    ),
+  );
+  add('enableFeedback', _PropertySpec({'boolean', 'null'}));
+  for (final name in [
+    'horizontalTitleGap',
+    'minVerticalPadding',
+    'minLeadingWidth',
+    'minTileHeight',
+  ]) {
+    add(name, _canvasNumberWithNull());
+  }
+  add('checkboxSemanticLabel', _PropertySpec({'string'}));
+  add(
+    'checkboxScaleFactor',
+    _PropertySpec(
+      {'integer', 'double', 'enum'},
+      numericBounds: _unboundedNumberBounds,
+      enumLibraryUri: 'dart:core',
+      enumType: 'double',
+      enumValues: {'infinity', 'negativeInfinity', 'nan'},
+    ),
+  );
+  add(
+    'titleAlignment',
+    _PropertySpec(
+      {'enum'},
+      enumLibraryUri: _materialLibraryUri,
+      enumType: 'ListTileTitleAlignment',
+      enumValues: {'threeLine', 'titleHeight', 'top', 'center', 'bottom'},
+    ),
+  );
+  add('internalAddSemanticForOnTap', _PropertySpec({'boolean'}));
+  add(
+    'variant',
+    _PropertySpec(
+      {'string'},
+      required: true,
+      creationDefaultFingerprint: 'string:c3RhbmRhcmQ',
+      stringPattern: r'(?:standard|adaptive)',
+    ),
+  );
+
+  for (final axis in ['Horizontal', 'Vertical']) {
+    add(
+      'visualDensity$axis',
+      _PropertySpec(
+        {'double'},
+        numericBounds: const {
+          'double': _NumericBounds(minimum: -4, maximum: 4),
+        },
+      ),
+    );
+  }
+
+  for (final family in ['shape', 'checkboxShape']) {
+    for (final entry in _cardShapeProperties().entries) {
+      if (entry.key == 'shape') continue;
+      final suffix = entry.key.substring('shape'.length);
+      add('$family$suffix', entry.value);
+    }
+  }
+  for (final family in ['fillColor', 'overlayColor']) {
+    for (final state in ['Default', ..._checkboxStateNames]) {
+      add(
+        '$family$state',
+        _PropertySpec({
+          'color',
+          'themeToken',
+          'null',
+        }, themeTokens: canvasColorSchemeThemeTokens),
+      );
+    }
+  }
+  add('sideColor', _themeAwareColorProperty);
+  add(
+    'sideWidth',
+    _PropertySpec({
+      'integer',
+      'double',
+    }, numericBounds: _nonNegativeNumberBounds),
+  );
+  add('sideStyle', _borderStyleProperty);
+  add(
+    'sideStrokeAlign',
+    _PropertySpec({'integer', 'double'}, numericBounds: _unboundedNumberBounds),
+  );
+  add('sideStateful', _PropertySpec({'boolean'}));
+  for (final state in _checkboxStateNames) {
+    add(
+      'side${state}Mode',
+      _PropertySpec({'string'}, stringPattern: r'(?:border|inherit)'),
+    );
+    add('side${state}Color', _themeAwareColorProperty);
+    add(
+      'side${state}Width',
+      _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _nonNegativeNumberBounds),
+    );
+    add('side${state}Style', _borderStyleProperty);
+    add(
+      'side${state}StrokeAlign',
+      _PropertySpec({
+        'integer',
+        'double',
+      }, numericBounds: _unboundedNumberBounds),
+    );
+  }
+  for (final state in ['Default', ..._checkboxStateNames]) {
+    add('mouseCursor$state', _checkboxProperties()['mouseCursor']!);
+  }
+  _expect(
+    properties.length == 154,
+    'CheckboxListTile Canvas property schema must contain 154 properties; got ${properties.length}.',
+  );
+  return properties;
+}
+
 Map<String, _PropertySpec> _radioGroupProperties() => {
   for (final name in ['valueType', 'nullableValueType', 'groupValue'])
     name: _radioProperties()[name]!,
@@ -4012,47 +4246,103 @@ Map<String, _PropertySpec> _radioGroupProperties() => {
 };
 
 Map<String, _PropertySpec> _listTileProperties() => {
-  for (final name in ['enabled', 'selected', 'autofocus', 'internalAddSemanticForOnTap'])
+  for (final name in [
+    'enabled',
+    'selected',
+    'autofocus',
+    'internalAddSemanticForOnTap',
+  ])
     name: _PropertySpec({'boolean'}),
   for (final name in ['isThreeLine', 'dense', 'enableFeedback'])
     name: _PropertySpec({'boolean', 'null'}),
   for (final name in ['onTap', 'onLongPress', 'onFocusChange'])
-    name: _PropertySpec({'string', 'null', 'dartObjectReference'},
+    name: _PropertySpec(
+      {'string', 'null', 'dartObjectReference'},
       stringPattern: r'noop',
-      dartObjectExpectedType: name == 'onFocusChange' ? 'ValueChanged<bool>' : 'VoidCallback'),
+      dartObjectExpectedType: name == 'onFocusChange'
+          ? 'ValueChanged<bool>'
+          : 'VoidCallback',
+    ),
   for (final entry in {
-    'visualDensity': 'VisualDensity', 'focusNode': 'FocusNode',
+    'visualDensity': 'VisualDensity',
+    'focusNode': 'FocusNode',
     'statesController': 'WidgetStatesController',
   }.entries)
-    entry.key: _PropertySpec({'dartObjectReference'}, dartObjectExpectedType: entry.value),
+    entry.key: _PropertySpec({
+      'dartObjectReference',
+    }, dartObjectExpectedType: entry.value),
   for (final name in ['visualDensityHorizontal', 'visualDensityVertical'])
-    name: _PropertySpec({'double'}, numericBounds: const {
-      'double': _NumericBounds(minimum: -4, maximum: 4),
-    }),
-  for (final name in ['selectedColor', 'iconColor', 'textColor', 'focusColor',
-    'hoverColor', 'splashColor', 'tileColor', 'selectedTileColor'])
-    name: _PropertySpec({'color', 'themeToken', 'dartObjectReference'},
-      themeTokens: canvasColorSchemeThemeTokens, dartObjectExpectedType: 'Color'),
+    name: _PropertySpec(
+      {'double'},
+      numericBounds: const {'double': _NumericBounds(minimum: -4, maximum: 4)},
+    ),
+  for (final name in [
+    'selectedColor',
+    'iconColor',
+    'textColor',
+    'focusColor',
+    'hoverColor',
+    'splashColor',
+    'tileColor',
+    'selectedTileColor',
+  ])
+    name: _PropertySpec(
+      {'color', 'themeToken', 'dartObjectReference'},
+      themeTokens: canvasColorSchemeThemeTokens,
+      dartObjectExpectedType: 'Color',
+    ),
   ..._cardShapeProperties(),
-  for (final family in ['titleTextStyle', 'subtitleTextStyle', 'leadingAndTrailingTextStyle']) ...{
-    family: _PropertySpec({'dartObjectReference'}, dartObjectExpectedType: 'TextStyle'),
+  for (final family in [
+    'titleTextStyle',
+    'subtitleTextStyle',
+    'leadingAndTrailingTextStyle',
+  ]) ...{
+    family: _PropertySpec({
+      'dartObjectReference',
+    }, dartObjectExpectedType: 'TextStyle'),
     ..._prefixedTextStyleProperties(family),
   },
-  'contentPadding': _PropertySpec({'edgeInsets', 'edgeInsetsDirectional', 'dartObjectReference'},
-    numericBounds: const {'edgeInsets': _NumericBounds(), 'edgeInsetsDirectional': _NumericBounds()},
-    dartObjectExpectedType: 'EdgeInsetsGeometry'),
-  'style': _PropertySpec({'enum'}, enumLibraryUri: _materialLibraryUri,
-    enumType: 'ListTileStyle', enumValues: {'list', 'drawer'}),
-  'titleAlignment': _PropertySpec({'enum'}, enumLibraryUri: _materialLibraryUri,
-    enumType: 'ListTileTitleAlignment', enumValues: {'threeLine', 'titleHeight', 'top', 'center', 'bottom'}),
-  for (final name in ['horizontalTitleGap', 'minVerticalPadding', 'minLeadingWidth', 'minTileHeight'])
-    name: _PropertySpec({'integer', 'double', 'enum', 'null'},
-      numericBounds: _unboundedNumberBounds, enumLibraryUri: 'dart:core',
-      enumType: 'double', enumValues: {'infinity', 'negativeInfinity', 'nan'}),
+  'contentPadding': _PropertySpec(
+    {'edgeInsets', 'edgeInsetsDirectional', 'dartObjectReference'},
+    numericBounds: const {
+      'edgeInsets': _NumericBounds(),
+      'edgeInsetsDirectional': _NumericBounds(),
+    },
+    dartObjectExpectedType: 'EdgeInsetsGeometry',
+  ),
+  'style': _PropertySpec(
+    {'enum'},
+    enumLibraryUri: _materialLibraryUri,
+    enumType: 'ListTileStyle',
+    enumValues: {'list', 'drawer'},
+  ),
+  'titleAlignment': _PropertySpec(
+    {'enum'},
+    enumLibraryUri: _materialLibraryUri,
+    enumType: 'ListTileTitleAlignment',
+    enumValues: {'threeLine', 'titleHeight', 'top', 'center', 'bottom'},
+  ),
+  for (final name in [
+    'horizontalTitleGap',
+    'minVerticalPadding',
+    'minLeadingWidth',
+    'minTileHeight',
+  ])
+    name: _PropertySpec(
+      {'integer', 'double', 'enum', 'null'},
+      numericBounds: _unboundedNumberBounds,
+      enumLibraryUri: 'dart:core',
+      enumType: 'double',
+      enumValues: {'infinity', 'negativeInfinity', 'nan'},
+    ),
   for (final family in ['iconColor', 'textColor'])
     for (final state in ['Default', ..._checkboxStateNames])
       '$family$state': _themeAwareColorProperty,
-  for (final name in ['mouseCursor', for (final state in ['Default', ..._checkboxStateNames]) 'mouseCursor$state'])
+  for (final name in [
+    'mouseCursor',
+    for (final state in ['Default', ..._checkboxStateNames])
+      'mouseCursor$state',
+  ])
     name: _checkboxProperties()['mouseCursor']!,
 };
 
@@ -6155,13 +6445,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
   'flutter.material.Switch': _WidgetSpec(_switchProperties(), const {}),
   'flutter.material.Radio': _WidgetSpec(_radioProperties(), const {}),
   'flutter.material.ListTile': _WidgetSpec(_listTileProperties(), const {
-    'leading': _optionalSingleSlot, 'title': _optionalSingleSlot,
-    'subtitle': _optionalSingleSlot, 'trailing': _optionalSingleSlot,
+    'leading': _optionalSingleSlot,
+    'title': _optionalSingleSlot,
+    'subtitle': _optionalSingleSlot,
+    'trailing': _optionalSingleSlot,
   }),
-  'flutter.widgets.RadioGroup': _WidgetSpec(
-    _radioGroupProperties(),
-    const {'child': _requiredSingleSlot},
-  ),
+  'flutter.material.CheckboxListTile':
+      _WidgetSpec(_checkboxListTileProperties(), const {
+        'title': _optionalSingleSlot,
+        'subtitle': _optionalSingleSlot,
+        'secondary': _optionalSingleSlot,
+      }),
+  'flutter.widgets.RadioGroup': _WidgetSpec(_radioGroupProperties(), const {
+    'child': _requiredSingleSlot,
+  }),
   'flutter.material.RangeSlider': _WidgetSpec(
     _rangeSliderProperties(),
     const {},
@@ -6800,6 +7097,164 @@ P|value|boolean,null|1|boolean:false|-|boolean:any;null:any
 P|variant|string|1|string:c3RhbmRhcmQ|-|string:pattern:KD86c3RhbmRhcmR8YWRhcHRpdmUp
 P|visualDensityHorizontal|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
 P|visualDensityVertical|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
+W|flutter.material.CheckboxListTile
+P|activeColor|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|autofocus|boolean|0|-|-|boolean:any
+P|checkColor|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|checkboxScaleFactor|double,enum,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxSemanticLabel|string|0|-|-|string:any
+P|checkboxShape|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:OutlinedBorder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|checkboxShapeBottomAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeBottomSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeCircleEccentricity|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeEndAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeEndSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeInnerRadiusRatio|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeKind|string|0|-|-|string:pattern:KD86cm91bmRlZFJlY3RhbmdsZXxiZXZlbGVkUmVjdGFuZ2xlfGNvbnRpbnVvdXNSZWN0YW5nbGV8cm91bmRlZFN1cGVyZWxsaXBzZXxjaXJjbGV8b3ZhbHxzdGFkaXVtfGxpbmVhcnxzdGFyfHBvbHlnb24p
+P|checkboxShapePointRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapePoints|double,integer|0|-|double:2:1:*:1;integer:2:1:9007199254740991:1|double:range:2:1:*:1;integer:range:2:1:9007199254740991:1
+P|checkboxShapeRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|checkboxShapeRotation|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeSideColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|checkboxShapeSideStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeSideStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|checkboxShapeSideWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|checkboxShapeSquash|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeStartAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeStartSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeTopAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|checkboxShapeTopSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|checkboxShapeValleyRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|contentPadding|dartObjectReference,edgeInsets,edgeInsetsDirectional|0|-|edgeInsets:*:1:*:1;edgeInsetsDirectional:*:1:*:1|dartObjectReference:dartObjectReference:v1:EdgeInsetsGeometry:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);edgeInsets:edgeInsets:0:*:1:*:1;edgeInsetsDirectional:edgeInsets:0:*:1:*:1
+P|controlAffinity|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:ListTileControlAffinity:leading,platform,trailing
+P|dense|boolean,null|0|-|-|boolean:any;null:any
+P|enableFeedback|boolean,null|0|-|-|boolean:any;null:any
+P|enabled|boolean,null|0|-|-|boolean:any;null:any
+P|fillColor|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:WidgetStateProperty<Color?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|fillColorDefault|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorDisabled|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorDragged|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorError|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorFocused|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorHovered|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorPressed|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorScrolledUnder|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|fillColorSelected|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|focusNode|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:FocusNode:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|horizontalTitleGap|double,enum,integer,null|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any
+P|hoverColor|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|internalAddSemanticForOnTap|boolean|0|-|-|boolean:any
+P|isError|boolean|0|-|-|boolean:any
+P|isThreeLine|boolean,null|0|-|-|boolean:any;null:any
+P|materialTapTargetSize|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:MaterialTapTargetSize:padded,shrinkWrap
+P|minLeadingWidth|double,enum,integer,null|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any
+P|minTileHeight|double,enum,integer,null|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any
+P|minVerticalPadding|double,enum,integer,null|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any
+P|mouseCursor|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorDefault|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorDisabled|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorDragged|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorError|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorFocused|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorHovered|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorPressed|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorScrolledUnder|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|mouseCursorSelected|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:MouseCursor:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bm9uZXxiYXNpY3xjbGlja3xmb3JiaWRkZW58d2FpdHxwcm9ncmVzc3xjb250ZXh0TWVudXxoZWxwfHRleHR8dmVydGljYWxUZXh0fGNlbGx8cHJlY2lzZXxtb3ZlfGdyYWJ8Z3JhYmJpbmd8bm9Ecm9wfGFsaWFzfGNvcHl8ZGlzYXBwZWFyaW5nfGFsbFNjcm9sbHxyZXNpemVMZWZ0UmlnaHR8cmVzaXplVXBEb3dufHJlc2l6ZVVwTGVmdERvd25SaWdodHxyZXNpemVVcFJpZ2h0RG93bkxlZnR8cmVzaXplVXB8cmVzaXplRG93bnxyZXNpemVMZWZ0fHJlc2l6ZVJpZ2h0fHJlc2l6ZVVwTGVmdHxyZXNpemVVcFJpZ2h0fHJlc2l6ZURvd25MZWZ0fHJlc2l6ZURvd25SaWdodHxyZXNpemVDb2x1bW58cmVzaXplUm93fHpvb21Jbnx6b29tT3V0fGRlZmVyfHVuY29udHJvbGxlZHxjbGlja2FibGV8YWRhcHRpdmVDbGlja2FibGV8dGV4dGFibGUp
+P|onChanged|dartObjectReference,null,string|1|string:bm9vcA|-|dartObjectReference:dartObjectReference:v1:ValueChanged<bool?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:bm9vcA
+P|onFocusChange|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:ValueChanged<bool>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:bm9vcA
+P|overlayColor|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:WidgetStateProperty<Color?>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|overlayColorDefault|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorDisabled|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorDragged|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorError|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorFocused|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorHovered|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorPressed|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorScrolledUnder|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|overlayColorSelected|color,null,themeToken|0|-|-|color:any;null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|selected|boolean|0|-|-|boolean:any
+P|selectedTileColor|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|shape|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ShapeBorder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|shapeBottomAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeBottomSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeCircleEccentricity|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeEndAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeEndSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeInnerRadiusRatio|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeKind|string|0|-|-|string:pattern:KD86cm91bmRlZFJlY3RhbmdsZXxiZXZlbGVkUmVjdGFuZ2xlfGNvbnRpbnVvdXNSZWN0YW5nbGV8cm91bmRlZFN1cGVyZWxsaXBzZXxjaXJjbGV8b3ZhbHxzdGFkaXVtfGxpbmVhcnxzdGFyfHBvbHlnb24p
+P|shapePointRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapePoints|double,integer|0|-|double:2:1:*:1;integer:2:1:9007199254740991:1|double:range:2:1:*:1;integer:range:2:1:9007199254740991:1
+P|shapeRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|shapeRotation|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeSideColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|shapeSideStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeSideStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|shapeSideWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|shapeSquash|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeStartAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeStartSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeTopAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeTopSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeValleyRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|side|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:BorderSide:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|sideColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideDisabledColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideDisabledMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideDisabledStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideDisabledStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideDisabledWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideDraggedColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideDraggedMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideDraggedStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideDraggedStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideDraggedWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideErrorColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideErrorMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideErrorStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideErrorStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideErrorWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideFocusedColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideFocusedMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideFocusedStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideFocusedStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideFocusedWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideHoveredColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideHoveredMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideHoveredStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideHoveredStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideHoveredWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sidePressedColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sidePressedMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sidePressedStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sidePressedStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sidePressedWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideScrolledUnderColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideScrolledUnderMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideScrolledUnderStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideScrolledUnderStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideScrolledUnderWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideSelectedColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|sideSelectedMode|string|0|-|-|string:pattern:KD86Ym9yZGVyfGluaGVyaXQp
+P|sideSelectedStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideSelectedStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideSelectedWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|sideStateful|boolean|0|-|-|boolean:any
+P|sideStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sideStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|sideWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|splashRadius|double,enum,integer,null|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;enum:enum:ZGFydDpjb3Jl:double:infinity,nan,negativeInfinity;integer:range:-9007199254740991:1:9007199254740991:1;null:any
+P|statesController|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:WidgetStatesController:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|tileColor|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|titleAlignment|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:ListTileTitleAlignment:bottom,center,threeLine,titleHeight,top
+P|tristate|boolean|0|-|-|boolean:any
+P|value|boolean,null|1|boolean:false|-|boolean:any;null:any
+P|variant|string|1|string:c3RhbmRhcmQ|-|string:pattern:KD86c3RhbmRhcmR8YWRhcHRpdmUp
+P|visualDensity|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:VisualDensity:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|visualDensityHorizontal|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
+P|visualDensityVertical|double|0|-|double:-4:1:4:1|double:range:-4:1:4:1
+S|secondary|single|0|0|1|any
+S|subtitle|single|0|0|1|any
+S|title|single|0|0|1|any
 W|flutter.material.CircleAvatar
 P|backgroundColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|backgroundImage|imageProvider|0|-|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling)
@@ -10701,23 +11156,110 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.material.CheckboxListTile') {
+    _expect(
+      properties['value']?.kind != 'null' ||
+          properties['tristate']?.value == true,
+      'Canvas CheckboxListTile null value requires tristate true: $path/properties/value',
+    );
+    _validateCardRelationships(
+      properties,
+      path,
+      widgetName: 'CheckboxListTile',
+    );
+    _validateCardRelationships(
+      properties,
+      path,
+      widgetName: 'CheckboxListTile.checkboxShape',
+      prefix: 'checkboxShape',
+    );
+    _expect(
+      !properties.containsKey('visualDensity') ||
+          (!properties.containsKey('visualDensityHorizontal') &&
+              !properties.containsKey('visualDensityVertical')),
+      'Canvas CheckboxListTile visualDensity reference and local axes are mutually exclusive: $path/properties',
+    );
+    for (final family in ['fillColor', 'overlayColor', 'mouseCursor']) {
+      final local = [
+        'Default',
+        ..._checkboxStateNames,
+      ].any((state) => properties.containsKey('$family$state'));
+      _expect(
+        !local || !properties.containsKey(family),
+        'Canvas CheckboxListTile $family reference and local states are mutually exclusive: $path/properties/$family',
+      );
+      _expect(
+        !local || properties.containsKey('${family}Default'),
+        'Canvas CheckboxListTile local $family requires Default: $path/properties/${family}Default',
+      );
+    }
+    final localSide = properties.keys.where(
+      (name) => name.startsWith('side') && name != 'side',
+    );
+    _expect(
+      !properties.containsKey('side') || localSide.isEmpty,
+      'Canvas CheckboxListTile side reference and local side fields are mutually exclusive: $path/properties/side',
+    );
+    for (final state in _checkboxStateNames) {
+      final prefix = 'side$state';
+      final details = [
+        'Color',
+        'Width',
+        'Style',
+        'StrokeAlign',
+      ].any((suffix) => properties.containsKey('$prefix$suffix'));
+      final mode = properties['${prefix}Mode']?.value;
+      _expect(
+        (mode == null && !details) || properties['sideStateful']?.value == true,
+        'Canvas CheckboxListTile state side requires sideStateful true: $path/properties/$prefix',
+      );
+      _expect(
+        mode != 'inherit' || !details,
+        'Canvas CheckboxListTile inherit side mode excludes details: $path/properties/$prefix',
+      );
+    }
+    return;
+  }
   if (type == 'flutter.material.ListTile') {
     _validateCardRelationships(properties, path, widgetName: 'ListTile');
-    _expect(!properties.containsKey('visualDensity') ||
-      (!properties.containsKey('visualDensityHorizontal') && !properties.containsKey('visualDensityVertical')),
-      'Canvas ListTile visualDensity reference and local axes are mutually exclusive: $path/properties');
-    for (final family in ['titleTextStyle', 'subtitleTextStyle', 'leadingAndTrailingTextStyle']) {
-      _expect(!properties.containsKey(family) ||
-        !properties.keys.any((name) => name.startsWith(family) && name != family),
-        'Canvas ListTile $family reference and local fields are mutually exclusive: $path/properties/$family');
-      _validateAppBarTextStyleRelationships(properties, prefix: family, path: path, widgetName: 'ListTile');
+    _expect(
+      !properties.containsKey('visualDensity') ||
+          (!properties.containsKey('visualDensityHorizontal') &&
+              !properties.containsKey('visualDensityVertical')),
+      'Canvas ListTile visualDensity reference and local axes are mutually exclusive: $path/properties',
+    );
+    for (final family in [
+      'titleTextStyle',
+      'subtitleTextStyle',
+      'leadingAndTrailingTextStyle',
+    ]) {
+      _expect(
+        !properties.containsKey(family) ||
+            !properties.keys.any(
+              (name) => name.startsWith(family) && name != family,
+            ),
+        'Canvas ListTile $family reference and local fields are mutually exclusive: $path/properties/$family',
+      );
+      _validateAppBarTextStyleRelationships(
+        properties,
+        prefix: family,
+        path: path,
+        widgetName: 'ListTile',
+      );
     }
     for (final family in ['iconColor', 'textColor', 'mouseCursor']) {
-      final local = ['Default', ..._checkboxStateNames].any((state) => properties.containsKey('$family$state'));
-      _expect(!local || !properties.containsKey(family),
-        'Canvas ListTile $family value and local states are mutually exclusive: $path/properties/$family');
-      _expect(!local || properties.containsKey('${family}Default'),
-        'Canvas ListTile local $family requires Default: $path/properties/${family}Default');
+      final local = [
+        'Default',
+        ..._checkboxStateNames,
+      ].any((state) => properties.containsKey('$family$state'));
+      _expect(
+        !local || !properties.containsKey(family),
+        'Canvas ListTile $family value and local states are mutually exclusive: $path/properties/$family',
+      );
+      _expect(
+        !local || properties.containsKey('${family}Default'),
+        'Canvas ListTile local $family requires Default: $path/properties/${family}Default',
+      );
     }
     return;
   }
@@ -10765,7 +11307,8 @@ void _validatePropertyRelationships(
     }
     return;
   }
-  if (type == 'flutter.material.Radio' || type == 'flutter.widgets.RadioGroup') {
+  if (type == 'flutter.material.Radio' ||
+      type == 'flutter.widgets.RadioGroup') {
     _expect(
       properties['value']?.kind != 'null' ||
           properties['nullableValueType']?.value == true,
@@ -11678,25 +12221,27 @@ void _validateCardRelationships(
   Map<String, CanvasValue> properties,
   String path, {
   String widgetName = 'Card',
+  String prefix = 'shape',
 }) {
+  String field(String suffix) => '$prefix$suffix';
   final builtInFields = properties.keys
-      .where((name) => name.startsWith('shape') && name != 'shape')
+      .where((name) => name.startsWith(prefix) && name != prefix)
       .toSet();
   _expect(
-    !properties.containsKey('shape') || builtInFields.isEmpty,
-    'Canvas $widgetName shape reference and built-in shape fields are mutually exclusive: $path/properties/shape',
+    !properties.containsKey(prefix) || builtInFields.isEmpty,
+    'Canvas $widgetName $prefix reference and built-in shape fields are mutually exclusive: $path/properties/$prefix',
   );
-  final kind = properties['shapeKind']?.value;
+  final kind = properties[field('Kind')]?.value;
   _expect(
     kind is String || builtInFields.isEmpty,
-    'Canvas $widgetName shape details require shapeKind: $path/properties/shapeKind',
+    'Canvas $widgetName shape details require ${field('Kind')}: $path/properties/${field('Kind')}',
   );
   final allowed = <String>{
-    'shapeKind',
-    'shapeSideColor',
-    'shapeSideWidth',
-    'shapeSideStyle',
-    'shapeSideStrokeAlign',
+    field('Kind'),
+    field('SideColor'),
+    field('SideWidth'),
+    field('SideStyle'),
+    field('SideStrokeAlign'),
   };
   if (const {
     'roundedRectangle',
@@ -11704,25 +12249,25 @@ void _validateCardRelationships(
     'continuousRectangle',
     'roundedSuperellipse',
   }.contains(kind)) {
-    allowed.add('shapeRadius');
+    allowed.add(field('Radius'));
   }
   if (kind == 'circle' || kind == 'oval') {
-    allowed.add('shapeCircleEccentricity');
+    allowed.add(field('CircleEccentricity'));
   }
   if (kind == 'star' || kind == 'polygon') {
     allowed.addAll({
-      'shapePoints',
-      'shapePointRounding',
-      'shapeRotation',
-      'shapeSquash',
+      field('Points'),
+      field('PointRounding'),
+      field('Rotation'),
+      field('Squash'),
     });
   }
   if (kind == 'star') {
-    allowed.addAll({'shapeInnerRadiusRatio', 'shapeValleyRounding'});
+    allowed.addAll({field('InnerRadiusRatio'), field('ValleyRounding')});
   }
   if (kind == 'linear') {
     for (final edge in ['Start', 'End', 'Top', 'Bottom']) {
-      allowed.addAll({'shape${edge}Size', 'shape${edge}Alignment'});
+      allowed.addAll({field('${edge}Size'), field('${edge}Alignment')});
     }
   }
   for (final field in builtInFields) {
@@ -11731,11 +12276,11 @@ void _validateCardRelationships(
       'Canvas $widgetName $kind shape does not accept $field: $path/properties/$field',
     );
   }
-  final point = properties['shapePointRounding']?.value as num? ?? 0;
-  final valley = properties['shapeValleyRounding']?.value as num? ?? 0;
+  final point = properties[field('PointRounding')]?.value as num? ?? 0;
+  final valley = properties[field('ValleyRounding')]?.value as num? ?? 0;
   _expect(
     point + valley <= 1,
-    'Canvas $widgetName star point and valley rounding sum must not exceed one: $path/properties/shapePointRounding',
+    'Canvas $widgetName star point and valley rounding sum must not exceed one: $path/properties/${field('PointRounding')}',
   );
 }
 

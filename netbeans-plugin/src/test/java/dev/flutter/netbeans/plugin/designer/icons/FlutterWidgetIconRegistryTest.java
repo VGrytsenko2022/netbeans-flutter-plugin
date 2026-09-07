@@ -1953,6 +1953,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Radio", ICON_ROOT + "radio.svg");
         expected.put("flutter.widgets.RadioGroup", ICON_ROOT + "radio_group.svg");
         expected.put("flutter.material.ListTile", ICON_ROOT + "list_tile.svg");
+        expected.put("flutter.material.CheckboxListTile",
+                ICON_ROOT + "checkbox_list_tile.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

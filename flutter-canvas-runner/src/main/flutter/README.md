@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-88 reviewed Canvas widgets. Palette insertion evaluates 6,336 exact
-source/destination cells across 88 draggable sources and 72 insertable reviewed
-slots; 5,958 are accepted and 378 cells are rejected. Expanded and Flexible are
+89 reviewed Canvas widgets. Palette insertion evaluates 6,675 exact
+source/destination cells across 89 draggable sources and 75 insertable reviewed
+slots; 6,286 are accepted and 389 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1357,12 +1357,12 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 88 widgets and 81 reviewed const definitions,
-with 3740 writable rows (3723 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, twenty-five Material and six Accessibility items.
+The aggregate catalog now has 89 widgets and 82 reviewed const definitions,
+with 3894 writable rows (3877 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, twenty-six Material and six Accessibility items.
 The historical 92-widget target is not an exhaustive inventory and does not
-establish a remaining-widget count. The 88 sources across 72 insertable
-destinations form 6,336 cells, with 5,958 accepted and 378 rejected.
+establish a remaining-widget count. The 89 sources across 75 insertable
+destinations form 6,675 cells, with 6,286 accepted and 389 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
@@ -1401,6 +1401,22 @@ unavailable-preview case, not a State-retention guarantee.
 Catalog and Java/Dart metadata, protocol-v18 decoding, all slot combinations,
 actual SDK comparisons and lifecycle regressions are covered by the ListTile
 tests. Final counts and package evidence are recorded in ADR-116.
+
+## CheckboxListTile typed Canvas
+
+The protocol-v18 projection adds `flutter.material.CheckboxListTile` with both
+the standard and adaptive const constructors. Its 38 direct constructor
+arguments expand to 154 typed property rows, while `title`, `subtitle` and
+`secondary` remain three optional single any-widget slots. Sparse creation
+preserves SDK defaults; explicit `value: null` requires `tristate: true`, and
+explicit `isThreeLine: true` requires `subtitle`.
+
+The preview constructs the actual SDK `CheckboxListTile` or
+`CheckboxListTile.adaptive`, retaining the platform-specific Cupertino branch
+on Apple targets. State-aware colors/cursors, checkbox and tile shapes, side,
+density, callbacks and all slot combinations are validated against the same
+closed model contract. Project references and callbacks remain isolated from
+the runner. See ADR-117 for the complete constructor, DnD and lifecycle gate.
 
 ## RadioGroup typed Canvas
 

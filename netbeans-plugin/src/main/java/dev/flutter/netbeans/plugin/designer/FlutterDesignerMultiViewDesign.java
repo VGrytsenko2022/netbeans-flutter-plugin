@@ -66,6 +66,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -3689,8 +3690,8 @@ public final class FlutterDesignerMultiViewDesign
                             + "' is no longer a direct child of slot '"
                             + exactSlot + "'.");
                 }
-                if (remove.slotName().value().equals("subtitle") && ListTileWidgetPropertySchema.requiresSubtitle(owner)) {
-                    throw new IllegalArgumentException("Cannot remove ListTile Subtitle from '" + exactSlot
+                if (remove.slotName().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(owner) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(owner))) {
+                    throw new IllegalArgumentException("Cannot remove " + owner.type().value() + " Subtitle from '" + exactSlot
                             + "': Three line is true. Disable Three line or replace Subtitle first.");
                 }
                 if (remove.slotName().value().equals("child") && FloatingActionButtonWidgetPropertySchema.requiresChild(owner)) {

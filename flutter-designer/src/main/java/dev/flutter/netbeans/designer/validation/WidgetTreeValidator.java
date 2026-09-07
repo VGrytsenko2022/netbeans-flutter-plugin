@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
@@ -536,6 +537,26 @@ public final class WidgetTreeValidator {
                     issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/" + family + "Default", node.id(),
                             "ListTile local " + family + " map requires an explicit non-null Default. Set Default before another state; no color or cursor fallback is invented."));
                 }
+            }
+            return;
+        }
+        if (type.equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value())) {
+            validateCheckbox(node, propertiesPath, issues, "CheckboxListTile");
+            for (String family : CheckboxListTileWidgetPropertySchema.shapeFamilies()) {
+                validateCardShape(node, propertiesPath, issues, family, "CheckboxListTile " + family);
+            }
+            if (CheckboxListTileWidgetPropertySchema.requiresSubtitle(node)
+                    && (!(node.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty())) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/isThreeLine", node.id(),
+                        "CheckboxListTile explicit Three line true requires a nonempty Subtitle slot. No child is fabricated."));
+            }
+            validateListTileWholeLocal(node, propertiesPath, issues, "visualDensity", List.of("visualDensityHorizontal", "visualDensityVertical"));
+            List<String> cursors = CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties();
+            validateListTileWholeLocal(node, propertiesPath, issues, "mouseCursor", cursors);
+            if (cursors.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))
+                    && !node.properties().containsKey(new PropertyName("mouseCursorDefault"))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/mouseCursorDefault", node.id(),
+                        "CheckboxListTile local cursor map requires an explicit non-null Default; no cursor is invented."));
             }
             return;
         }
@@ -1565,10 +1586,14 @@ public final class WidgetTreeValidator {
     }
 
     private static void validateCheckbox(WidgetNode node, String path, IssueCollector issues) {
+        validateCheckbox(node, path, issues, "Checkbox");
+    }
+
+    private static void validateCheckbox(WidgetNode node, String path, IssueCollector issues, String label) {
         if (node.properties().get(new PropertyName("value")) instanceof PropertyValue.NullValue
                 && !new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("tristate")))) {
             issues.add(issue(PROPERTY_DEPENDENCY, path + "/value", node.id(),
-                    "Checkbox null Value requires Tristate true. Set a concrete false/true value before disabling Tristate."));
+                    label + " null Value requires Tristate true. Set a concrete false/true value before disabling Tristate."));
         }
         for (String family : List.of("fillColor", "overlayColor", "side")) {
             if (!node.properties().containsKey(new PropertyName(family))) {
@@ -1579,11 +1604,11 @@ public final class WidgetTreeValidator {
             for (String name : locals) {
                 if (node.properties().containsKey(new PropertyName(name))) {
                     issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
-                            "Checkbox " + family + " reference and local fields are mutually exclusive."));
+                            label + " " + family + " reference and local fields are mutually exclusive."));
                 }
             }
         }
-        validateStatefulRadioOrCheckboxSide(node, path, issues, "Checkbox");
+        validateStatefulRadioOrCheckboxSide(node, path, issues, label);
     }
 
     private static void validateStatefulRadioOrCheckboxSide(WidgetNode node, String path, IssueCollector issues, String family) {
@@ -1608,25 +1633,30 @@ public final class WidgetTreeValidator {
     private static void validateCardShape(WidgetNode node, String path, IssueCollector issues) {
         String family = node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                 ? "FloatingActionButton" : node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE) ? "Checkbox" : "Card";
-        PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
+        validateCardShape(node, path, issues, "shape", family);
+    }
+
+    private static void validateCardShape(WidgetNode node, String path, IssueCollector issues, String prefix, String family) {
+        PropertyValue kindValue = node.properties().get(new PropertyName(prefix + "Kind"));
         String kind = kindValue instanceof PropertyValue.StringValue value ? value.value() : null;
-        boolean reference = node.properties().containsKey(new PropertyName("shape"));
-        for (String name : CardWidgetPropertySchema.builtInShapePropertyNames()) {
+        boolean reference = node.properties().containsKey(new PropertyName(prefix));
+        for (String sourceName : CardWidgetPropertySchema.builtInShapePropertyNames()) {
+            String name = prefix + sourceName.substring(5);
             if (!node.properties().containsKey(new PropertyName(name))) continue;
             if (reference) issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
                     family + " ShapeBorder reference and built-in shape fields are mutually exclusive."));
-            if (CardWidgetPropertySchema.isShapeDetailProperty(name)
-                    && (kind == null || !CardWidgetPropertySchema.shapePropertyAppliesToKind(name, kind))) {
+            if (CardWidgetPropertySchema.isShapeDetailProperty(sourceName)
+                    && (kind == null || !CardWidgetPropertySchema.shapePropertyAppliesToKind(sourceName, kind))) {
                 issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + name, node.id(),
-                        family + " " + name + " requires a compatible explicit shapeKind."));
+                        family + " " + name + " requires a compatible explicit " + prefix + "Kind."));
             }
         }
         if ("star".equals(kind)) {
-            BigDecimal point = numericValue(node, "shapePointRounding");
-            BigDecimal valley = numericValue(node, "shapeValleyRounding");
+            BigDecimal point = numericValue(node, prefix + "PointRounding");
+            BigDecimal valley = numericValue(node, prefix + "ValleyRounding");
             if ((point == null ? BigDecimal.ZERO : point).add(valley == null ? BigDecimal.ZERO : valley)
                     .compareTo(BigDecimal.ONE) > 0) {
-                issues.add(issue(PROPERTY_CONSTRAINT, path + "/shapeValleyRounding", node.id(),
+                issues.add(issue(PROPERTY_CONSTRAINT, path + "/" + prefix + "ValleyRounding", node.id(),
                         family + " StarBorder pointRounding plus valleyRounding must not exceed one."));
             }
         }

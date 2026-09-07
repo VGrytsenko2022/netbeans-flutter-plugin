@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
@@ -419,6 +420,11 @@ public final class DartRegionGenerator {
         }
         for (PropertyDefinition property : definition.properties()) {
             if (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) continue;
+            if (node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
+                    && (property.parameter().order() >= 40
+                    || Set.of("onChanged", "onFocusChange").contains(property.name().value())
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
             if (node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
                     && (property.parameter().order() >= 37
                     || Set.of("onTap", "onLongPress", "onFocusChange").contains(property.name().value())
@@ -583,12 +589,16 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
+                || node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
                 || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                 || node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
             appendCardShape(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
             appendCheckboxArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)) {
+            appendCheckboxListTileArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
             appendRadioArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
@@ -751,6 +761,7 @@ public final class DartRegionGenerator {
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += "." + member;
         } else if ((node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                || node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
                 || node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
                 || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                 || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
@@ -2463,6 +2474,40 @@ public final class DartRegionGenerator {
         appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
     }
 
+    private void appendCheckboxListTileArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        for (String name : List.of("onChanged", "onFocusChange")) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered = value instanceof PropertyValue.StringValue
+                    ? scalar("(_) {}", false, valuePath, node.id(), context)
+                    : renderProperty(value, property, valuePath, node.id(), context);
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(), "visualDensity", false, density));
+        appendCardShape(node, definition, path, indent, context, arguments, "checkboxShape");
+        appendCheckboxStateColorArguments(node, definition, path, context, arguments);
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
+        List<ElevatedButtonStateEntry> entries = new ArrayList<>();
+        for (String state : CheckboxListTileWidgetPropertySchema.statePriority()) {
+            String name = "mouseCursor" + Character.toUpperCase(state.charAt(0)) + state.substring(1);
+            PropertyValue value = node.properties().get(new PropertyName(name));
+            if (value == null) continue;
+            RenderedValue rendered = value instanceof PropertyValue.StringValue
+                    ? renderElevatedCursor(node, definition, name, path, context)
+                    : renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(), path + "/properties/" + name, node.id(), context);
+            entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state, rendered));
+        }
+        if (!entries.isEmpty()) arguments.add(new ConstructorArgument(definition.property(new PropertyName("mouseCursor")).orElseThrow().parameter(), "mouseCursor", false,
+                renderCheckboxStateMap("WidgetStateMouseCursor", "MouseCursor", entries, path + "/properties/mouseCursor", node.id(), context, false)));
+    }
+
     private void appendCheckboxArguments(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
         PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
@@ -2480,6 +2525,12 @@ public final class DartRegionGenerator {
         if (density != null) {
             arguments.add(new ConstructorArgument(DartParameter.named(12, false), "visualDensity", false, density));
         }
+        appendCheckboxStateColorArguments(node, definition, path, context, arguments);
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
+    }
+
+    private void appendCheckboxStateColorArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
         for (String family : List.of("fillColor", "overlayColor")) {
             ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
             for (String state : CheckboxWidgetPropertySchema.statePriority()) {
@@ -2498,7 +2549,6 @@ public final class DartRegionGenerator {
                                 path + "/properties/" + family, node.id(), context)));
             }
         }
-        appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
     }
 
     private void appendCheckboxSideArguments(WidgetNode node, WidgetDefinition definition, String path,
@@ -4017,33 +4067,38 @@ public final class DartRegionGenerator {
 
     private void appendCardShape(WidgetNode node, WidgetDefinition definition, String path, int indent,
             GenerationContext context, List<ConstructorArgument> arguments) {
-        PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
+        appendCardShape(node, definition, path, indent, context, arguments, "shape");
+    }
+
+    private void appendCardShape(WidgetNode node, WidgetDefinition definition, String path, int indent,
+            GenerationContext context, List<ConstructorArgument> arguments, String family) {
+        PropertyValue kindValue = node.properties().get(new PropertyName(family + "Kind"));
         if (!(kindValue instanceof PropertyValue.StringValue kind)) return;
         ArrayList<CompositeMember> members = new ArrayList<>();
         ArrayList<CompositeMember> side = new ArrayList<>();
         for (String suffix : List.of("Color", "Width", "Style", "StrokeAlign")) {
-            addCardMember(side, node, definition, path, "shapeSide" + suffix,
+            addCardMember(side, node, definition, path, family + "Side" + suffix,
                     Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1), side.size(), indent + 2, context);
         }
         if (!side.isEmpty()) members.add(new CompositeMember("side", 0,
                 renderNamedCompositeMembers("BorderSide", Optional.empty(), side, indent + 2,
-                        path + "/properties/shape/side", node.id(), context)));
-        addCardMember(members, node, definition, path, "shapeRadius", "borderRadius", 1, indent + 2, context);
-        addCardMember(members, node, definition, path, "shapeCircleEccentricity", "eccentricity", 1, indent + 2, context);
-        addCardMember(members, node, definition, path, "shapePoints", kind.value().equals("polygon") ? "sides" : "points", 1, indent + 2, context);
+                        path + "/properties/" + family + "/side", node.id(), context)));
+        addCardMember(members, node, definition, path, family + "Radius", "borderRadius", 1, indent + 2, context);
+        addCardMember(members, node, definition, path, family + "CircleEccentricity", "eccentricity", 1, indent + 2, context);
+        addCardMember(members, node, definition, path, family + "Points", kind.value().equals("polygon") ? "sides" : "points", 1, indent + 2, context);
         for (String suffix : List.of("InnerRadiusRatio", "PointRounding", "ValleyRounding", "Rotation", "Squash")) {
-            addCardMember(members, node, definition, path, "shape" + suffix,
+            addCardMember(members, node, definition, path, family + suffix,
                     Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1), members.size() + 2, indent + 2, context);
         }
         for (String edge : List.of("Start", "End", "Top", "Bottom")) {
             ArrayList<CompositeMember> fields = new ArrayList<>();
-            addCardMember(fields, node, definition, path, "shape" + edge + "Size", "size", 0, indent + 4, context);
-            addCardMember(fields, node, definition, path, "shape" + edge + "Alignment", "alignment", 1, indent + 4, context);
+            addCardMember(fields, node, definition, path, family + edge + "Size", "size", 0, indent + 4, context);
+            addCardMember(fields, node, definition, path, family + edge + "Alignment", "alignment", 1, indent + 4, context);
             if (!fields.isEmpty()) {
                 String name = Character.toLowerCase(edge.charAt(0)) + edge.substring(1);
                 members.add(new CompositeMember(name, members.size() + 2,
                         renderNamedCompositeMembers("LinearBorderEdge", Optional.empty(), fields, indent + 2,
-                                path + "/properties/shape/" + name, node.id(), context)));
+                                path + "/properties/" + family + "/" + name, node.id(), context)));
             }
         }
         String dartClass = switch (kind.value()) {
@@ -4056,20 +4111,20 @@ public final class DartRegionGenerator {
             case "stadium" -> "StadiumBorder";
             case "linear" -> "LinearBorder";
             case "star", "polygon" -> "StarBorder";
-            default -> throw catalogInconsistency(path + "/properties/shapeKind", node.id(), "Unknown Card shape");
+            default -> throw catalogInconsistency(path + "/properties/" + family + "Kind", node.id(), "Unknown Card shape");
         };
         RenderedValue rendered = renderNamedCompositeMembers(dartClass,
                 kind.value().equals("polygon") ? Optional.of("polygon") : Optional.empty(),
-                members, indent, path + "/properties/shape", node.id(), context);
+                members, indent, path + "/properties/" + family, node.id(), context);
         if (kind.value().equals("polygon")) {
             var symbol = rendered.symbolOccurrences().getFirst();
             var occurrences = new ArrayList<>(rendered.symbolOccurrences());
-            occurrences.add(1, occurrence("widget:" + node.id() + ":cardPolygonConstructor", symbol.endOffset() + 1,
-                    "polygon", symbol.libraryUri(), path + "/properties/shapeKind", Optional.of(node.id())));
+            occurrences.add(1, occurrence("widget:" + node.id() + ":cardPolygonConstructor" + (family.equals("shape") ? "" : ":" + family), symbol.endOffset() + 1,
+                    "polygon", symbol.libraryUri(), path + "/properties/" + family + "Kind", Optional.of(node.id())));
             rendered = new RenderedValue(rendered.lines(), rendered.constant(), rendered.utf8Size(), occurrences);
         }
-        arguments.add(new ConstructorArgument(definition.property(new PropertyName("shape")).orElseThrow().parameter(),
-                "shape", false, rendered));
+        arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),
+                family, false, rendered));
     }
 
     private void addCardMember(List<CompositeMember> members, WidgetNode node, WidgetDefinition definition, String path,
@@ -7280,6 +7335,7 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                            || definition.typeId().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
                             || definition.typeId().equals(RadioWidgetPropertySchema.RADIO_TYPE)
                             || definition.typeId().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
                             || definition.typeId().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)

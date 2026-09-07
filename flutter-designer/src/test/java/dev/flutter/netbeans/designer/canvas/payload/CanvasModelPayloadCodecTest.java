@@ -101,6 +101,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.Radio",
             "flutter.widgets.RadioGroup",
             "flutter.material.ListTile",
+            "flutter.material.CheckboxListTile",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",

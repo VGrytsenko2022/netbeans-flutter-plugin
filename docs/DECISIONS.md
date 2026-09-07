@@ -8190,3 +8190,66 @@ Core Designer: 1683848 bytes, SHA-256
 No installed IDE/userdir, interactive desktop or deferred platform acceptance
 was modified or verified.
 No installed IDE/userdir or deferred platform acceptance is part of this slice.
+
+## ADR-117 — CheckboxListTile complete constructor and adaptive preview
+
+Date: 2026-09-07
+Status: implemented; scoped verification and package complete.
+
+### Exact constructor and sparse creation
+
+The pinned Flutter 3.44.8 `material/checkbox_list_tile.dart` and its official
+[CheckboxListTile constructor](https://api.flutter.dev/flutter/material/CheckboxListTile/CheckboxListTile.html)
+define the reviewed standard and adaptive const constructors. Both variants
+share 38 direct constructor arguments. The optional single any-widget slots are
+`title`, `subtitle` and `secondary`; no synthetic child or Material wrapper is
+created. The catalog stores required `value: false`, `onChanged: noop` and
+`variant: standard` defaults while omitted optional values retain SDK defaults.
+The resulting closed projection contains 154 typed property rows and is
+Material/order 260, immediately after ListTile.
+
+Explicit `value: null` is accepted only with `tristate: true`. An explicit
+`isThreeLine: true` requires a populated subtitle slot. Omission, false and
+null remain distinct choices, so theme defaults do not invent a subtitle or
+change the stored value. The same conditional minimum is enforced by the
+property editor, tree/Canvas insertion and Save/Undo paths.
+
+### Typed branches and source safety
+
+The direct fields cover value/callbacks, state-aware colors and cursors,
+material tap target and visual density, focus/state controllers, tile and
+checkbox shape/side families, error/enabled/selection layout, semantics,
+feedback and the adaptive variant. Closed local state maps retain an explicit
+Default entry; whole references and local families remain mutually exclusive.
+Shape, color, cursor, side, insets, callback and text-slot values use the
+existing strict typed editors and project-reference gates. No project callback,
+initializer, factory or object is executed by the isolated preview.
+
+### Canvas and DnD
+
+The protocol-v18 Canvas constructs the actual SDK `CheckboxListTile` or
+`CheckboxListTile.adaptive`, including the platform-specific Cupertino checkbox
+branch on Apple profiles. It preserves the normal Material ancestry and slot
+identities. Missing Material context, nonfinite geometry, unsafe width/height,
+shape/side state relations and invalid slot combinations fail closed with the
+existing contextual diagnostics; safe geometry remains the SDK result. Callback
+presence and disabled behavior are represented without invoking project code.
+The native drop contract exposes exactly the three optional slots, each at most
+once, and maps `secondary` to the reviewed trailing placement.
+
+### Verification and release boundary
+
+The focused Canvas suite covers the exact 154-property/three-slot schema,
+standard and adaptive mounting, Apple/Windows checkbox branches, callback
+presence, nullable/tristate and subtitle constraints, and slot admission. The
+full Flutter suite and Dart analyzer pass. Core Designer, affected NetBeans
+palette/property/DnD tests, the real pinned-SDK candidate gate, parity tests and
+the full plugin test suite pass after rebuilding the Canvas runner artifact.
+Current totals are 89 widgets, 82 const definitions, 3894 writable rows
+(3877 outside Scaffold), 350 Boolean-only fields and 15 nullable-Boolean
+unions; 75 insertable destinations and 89 sources form 6675 matrix cells
+(6286 accepted / 389 rejected), with 26 Material items.
+
+No installed IDE/userdir or interactive desktop acceptance is claimed here.
+CJK IME and Linux/macOS Canvas providers remain intentionally deferred until
+the complete planned palette is implemented, as agreed for this project.

@@ -25,6 +25,7 @@ import org.openide.explorer.propertysheet.PropertyEnv;
 /** Transactional editor for one closed project-Dart object reference. */
 final class FlutterDartObjectReferenceEditorComponent {
     static final String RADIO_GROUP_CALLBACK_ATTRIBUTE = "flutter.radioGroup.callback";
+    static final String CHECKBOX_TILE_CALLBACK_ATTRIBUTE = "flutter.checkboxListTile.callback";
     static final String PANEL_NAME = "flutter.dartObjectReference.editor";
     static final String DEFAULT_NAME = "flutter.dartObjectReference.default";
     static final String SCOPE_NAME = "flutter.dartObjectReference.scope";
@@ -389,6 +390,12 @@ final class FlutterDartObjectReferenceEditorComponent {
         }
 
         private String description() {
+            if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(CHECKBOX_TILE_CALLBACK_ATTRIBUTE))
+                    && "onChanged".equals(argumentName) && "ValueChanged<bool?>".equals(expectedDartType)) {
+                return "The analyzer verifies the required CheckboxListTile callback as ValueChanged<bool?>. "
+                        + "Choose a non-null project reference, explicit No-op preset or explicit null; omission is not accepted. "
+                        + "Enabled is independently nullable and never rewrites this callback. Isolated Canvas does not execute project callbacks.";
+            }
             if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(RADIO_GROUP_CALLBACK_ATTRIBUTE))
                     && "onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
                 return "The analyzer checks the required RadioGroup callback against ValueChanged<T?> for the selected type. "

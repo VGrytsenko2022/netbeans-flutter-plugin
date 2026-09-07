@@ -120,7 +120,8 @@ final class FlutterTypedPropertyEditors {
                         value instanceof PropertyValueConstraint.EnumValues values
                         && values.dartType().libraryUri().equals("dart:core")
                         && values.dartType().name().equals("double")
-                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))))) {
+                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))
+                                || values.values().equals(List.of("infinity", "negativeInfinity", "nan"))))) {
             editorKind = EditorKind.NUMBER_WITH_INFINITY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ENUM))
                 && definition.constraints().getFirst()
@@ -792,7 +793,8 @@ final class FlutterTypedPropertyEditors {
                 setExplicit(new PropertyValue.NullValue());
                 return;
             }
-            if (binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY && normalized.equalsIgnoreCase("NaN")) {
+            if ((binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY || binding.editorKind() == EditorKind.NUMBER_WITH_INFINITY)
+                    && normalized.equalsIgnoreCase("NaN")) {
                 setExplicit(new PropertyValue.EnumValue("double", "nan"));
                 return;
             }

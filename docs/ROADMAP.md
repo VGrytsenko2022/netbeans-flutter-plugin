@@ -1980,8 +1980,15 @@ accepted architecture is documented in
   signed/reference padding, exact nullable/nonfinite geometry and strict source
   references. Preserve disabled callbacks and conditional Subtitle admission,
   stable Properties, history, Save/reopen and actual SDK Canvas behavior.
-  Final gate evidence: ADR-116. This adds one admitted widget, not proof that
-  only four widgets remain in the full Flutter palette.
+  Final gate evidence: ADR-116. This adds one admitted widget; the historical
+  92-widget target is not a verified remaining-work count.
+- [x] Add CheckboxListTile at Material/order260 as one complete const-constructor
+  slice covering both standard and adaptive constructors, all 38 direct
+  arguments, 154 typed rows and the optional `title`, `subtitle` and `secondary`
+  slots. Preserve nullable `value`/`tristate` and `isThreeLine`/`subtitle`
+  constraints, state-aware colors/cursors, shape/side/density, callbacks,
+  deterministic generation, stable Properties, history, Save/reopen and actual
+  standard/adaptive SDK Canvas behavior. Final gate evidence: ADR-117.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1999,8 +2006,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty-eight admitted built-ins.
-  The 85 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty-nine admitted built-ins.
+  The 86 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

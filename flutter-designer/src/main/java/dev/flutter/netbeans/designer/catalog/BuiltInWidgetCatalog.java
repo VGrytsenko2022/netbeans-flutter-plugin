@@ -109,6 +109,7 @@ public final class BuiltInWidgetCatalog {
             radio(),
             radioGroup(),
             listTile(),
+            checkboxListTile(),
             switchWidget(),
             slider(),
             rangeSlider(),
@@ -776,6 +777,54 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition checkboxListTile() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition checkbox = checkbox();
+        WidgetDefinition tile = listTile();
+        WidgetDefinition shape = card();
+        for (var entry : CheckboxListTileWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            var shapeName = CheckboxListTileWidgetPropertySchema.shapeSourceName(name);
+            if (shapeName.isPresent()) {
+                constraints = shape.property(new PropertyName(shapeName.orElseThrow())).orElseThrow().constraints();
+            } else if (CheckboxListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+            } else if (CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                constraints = checkbox.property(new PropertyName("mouseCursor")).orElseThrow().constraints();
+            } else if (List.of("splashRadius", "checkboxScaleFactor").contains(name)) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity", "negativeInfinity", "nan")));
+                if (name.equals("splashRadius")) constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (name) {
+                    case "onChanged" -> List.of(new PropertyValueConstraint.StringPattern("noop", "Explicit controlled no-op callback"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL), new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool?>"));
+                    case "checkboxShape" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("OutlinedBorder"));
+                    case "enabled" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "controlAffinity" -> materialEnumValues("ListTileControlAffinity", "leading", "trailing", "platform");
+                    case "checkboxSemanticLabel" -> any(PropertyValueKind.STRING);
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "CheckboxListTile constructor");
+                    default -> tile.property(new PropertyName(name)).or(() -> checkbox.property(new PropertyName(name))).orElseThrow().constraints();
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.BooleanValue(false);
+                case "onChanged" -> new PropertyValue.StringValue("noop");
+                case "variant" -> new PropertyValue.StringValue("standard");
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value(), "CheckboxListTile", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 260, "CheckboxListTile"), properties,
+                List.of(singleSlot("title", 0, false, 0, ANY_WIDGET), singleSlot("subtitle", 1, false, 0, ANY_WIDGET),
+                        singleSlot("secondary", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition listTile() {

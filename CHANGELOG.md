@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- CheckboxListTile at Material/order 260 as one complete const-constructor
+  slice with standard and adaptive variants, all 38 direct constructor
+  arguments expanded to 154 typed property rows, and optional `title`,
+  `subtitle` and `secondary` slots. The slice preserves Flutter's nullable
+  `value`/`tristate` and `isThreeLine`/`subtitle` constraints, state-aware
+  colors/cursors, shape and side families, density, callback presence and
+  adaptive Cupertino behavior. Properties, deterministic generation,
+  validation, Palette/tree/Canvas insertion, Save/reopen/further editing,
+  Undo/Redo, four SVG assets and focused runtime coverage are included.
+  Current totals: 89 widgets, 82 const definitions, 3894 writable rows
+  (3877 outside Scaffold), 350 Boolean-only fields and 15 nullable-Boolean
+  unions. The 75 insertable destinations and 89 sources form 6675 candidate
+  cells (6286 accepted / 389 rejected); Material has 26 items.
+
 - Slider at Material/order 210 with standard and adaptive const constructors and
   33 typed rows: all 22 standard SDK parameters, controlled activation/value,
   signed ranges, optional secondary track/divisions, strict double callbacks and

@@ -29,6 +29,7 @@ import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
@@ -537,6 +538,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIconButtonPropertySets(sheet, hasSlotTab);
         } else if (RadioWidgetPropertySchema.RADIO_TYPE.equals(widget.type())) {
             addRadioPropertySets(sheet, hasSlotTab);
+        } else if (CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.equals(widget.type())) {
+            addCheckboxListTilePropertySets(sheet, hasSlotTab);
         } else if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(widget.type())) {
             addListTilePropertySets(sheet, hasSlotTab);
         } else if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) {
@@ -2367,6 +2370,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addCheckboxListTilePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<CheckboxListTileWidgetPropertySchema.Group, Sheet.Set>(CheckboxListTileWidgetPropertySchema.Group.class);
+        for (var group : CheckboxListTileWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = CheckboxListTileWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            var presets = switch (name) {
+                case "variant" -> CheckboxListTileWidgetPropertySchema.variants();
+                case "shapeKind", "checkboxShapeKind" -> CheckboxListTileWidgetPropertySchema.shapeKinds();
+                case "onChanged", "onFocusChange" -> java.util.List.of("noop");
+                default -> name.equals("mouseCursor") || CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)
+                        ? CheckboxListTileWidgetPropertySchema.mouseCursorPresets()
+                        : name.endsWith("Mode") ? java.util.List.of("border", "inherit") : java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Value, On changed and Constructor cannot be unset. Enabled is independently nullable; changing it retains the callback. "
+                    + "Mixed Value enables Tristate; disabling/resetting Tristate while mixed sets Value false. Three line requires an existing Subtitle. "
+                    + "Whole values and local families switch atomically; one Undo restores affected fields. No child or cursor Default is invented.", false, presets));
+        }
+    }
+
     private void addListTilePropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<ListTileWidgetPropertySchema.Group, Sheet.Set>(ListTileWidgetPropertySchema.Group.class);
         for (var group : ListTileWidgetPropertySchema.Group.values()) {
@@ -4026,6 +4053,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
+        if (CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.equals(currentWidget.type())) {
+            return checkboxListTilePropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(currentWidget.type())) {
             return listTilePropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4444,6 +4474,60 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
         sets.forEach((field, value) -> { if (!value.equals(widget.properties().get(field))) patches.add(new PatchProperties.SetPatch(field, value)); });
         patches.add(setting ? new PatchProperties.SetPatch(name, explicit) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand checkboxListTilePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var shapeFamily = CheckboxListTileWidgetPropertySchema.shapeFamilies().contains(edited) ? Optional.of(edited) : CheckboxListTileWidgetPropertySchema.shapeFamily(name);
+        if (shapeFamily.isPresent()) return checkboxListTileShapeCommand(widget, name, accepted, shapeFamily.orElseThrow());
+        if (edited.equals("isThreeLine") && accepted.explicitValue().filter(new PropertyValue.BooleanValue(true)::equals).isPresent()
+                && (!(widget.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty()))
+            throw new IllegalArgumentException("Cannot enable CheckboxListTile Three line: add a widget to Subtitle first. No subtitle is created automatically.");
+        if (!edited.equals("visualDensity") && !edited.startsWith("visualDensity")
+                && !edited.equals("mouseCursor") && !CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties().contains(edited))
+            return checkboxPropertyCommand(widget, name, accepted);
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        if (setting && edited.equals("visualDensity")) {
+            resets.add(new PropertyName("visualDensityHorizontal")); resets.add(new PropertyName("visualDensityVertical"));
+        } else if (setting && (edited.equals("visualDensityHorizontal") || edited.equals("visualDensityVertical")))
+            resets.add(new PropertyName("visualDensity"));
+        var local = CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties();
+        if (setting && edited.equals("mouseCursor")) local.forEach(field -> resets.add(new PropertyName(field)));
+        if (local.contains(edited)) {
+            if (setting) {
+                if (!edited.equals("mouseCursorDefault") && !widget.properties().containsKey(new PropertyName("mouseCursorDefault")))
+                    throw new IllegalArgumentException("Cannot set CheckboxListTile " + edited + ": set mouseCursorDefault first. No cursor is invented.");
+                resets.add(new PropertyName("mouseCursor"));
+            } else if (edited.equals("mouseCursorDefault") && local.stream().filter(field -> !field.equals(edited)).anyMatch(field -> widget.properties().containsKey(new PropertyName(field))))
+                throw new IllegalArgumentException("Cannot reset CheckboxListTile mouseCursorDefault: reset its remaining local state entries first, or set the whole mouseCursor value.");
+        }
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand checkboxListTileShapeCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted, String family) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var local = CheckboxListTileWidgetPropertySchema.shapeLocalProperties(family); String kindField = family + "Kind";
+        var resets = new java.util.LinkedHashSet<PropertyName>(); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        if (edited.equals(family) && setting) local.forEach(field -> resets.add(new PropertyName(field)));
+        else if (local.contains(edited)) {
+            if (setting) {
+                resets.add(new PropertyName(family));
+                String kind = edited.equals(kindField) ? ((PropertyValue.StringValue) accepted.explicitValue().orElseThrow()).value()
+                        : widget.properties().get(new PropertyName(kindField)) instanceof PropertyValue.StringValue current
+                                && CheckboxListTileWidgetPropertySchema.shapePropertyAppliesToKind(edited, current.value())
+                                        ? current.value() : CheckboxListTileWidgetPropertySchema.preferredShapeKindForProperty(edited);
+                local.stream().filter(field -> !field.equals(kindField) && !CheckboxListTileWidgetPropertySchema.shapePropertyAppliesToKind(field, kind))
+                        .forEach(field -> resets.add(new PropertyName(field)));
+                if (!edited.equals(kindField) && !new PropertyValue.StringValue(kind).equals(widget.properties().get(new PropertyName(kindField))))
+                    patches.add(new PatchProperties.SetPatch(new PropertyName(kindField), new PropertyValue.StringValue(kind)));
+            } else if (edited.equals(kindField)) local.forEach(field -> resets.add(new PropertyName(field)));
+        }
+        resets.remove(name); resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
         return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 

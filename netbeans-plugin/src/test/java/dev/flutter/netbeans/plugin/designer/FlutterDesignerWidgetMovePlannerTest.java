@@ -518,6 +518,26 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void listTileMovesFourSlotSubtreeAndOnlyThreeLineSubtitleCannotDetach() {
+        for (boolean threeLine : List.of(false, true)) {
+            var prototype = dev.flutter.netbeans.plugin.designer.properties.ListTilePropertyContractTest.prototype();
+            var properties = dev.flutter.netbeans.plugin.designer.properties.ListTilePropertyContractTest.full();
+            properties.put(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine));
+            var tile = new WidgetNode(A_ID, prototype.type(), properties, prototype.slots());
+            var destination = listParent(B_ID, STACK, CHILDREN, List.of());
+            var document = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(tile, destination)));
+            var entire = planner.plan(document, BUILT_INS, tile.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id()));
+            assertAcceptedCommandApplies(document, BUILT_INS, tile, entire);
+            for (String name : List.of("leading", "title", "subtitle", "trailing")) {
+                var child = ((WidgetSlot.SingleSlot) tile.slots().get(new SlotName(name))).child().orElseThrow();
+                var move = planner.plan(document, BUILT_INS, child.id(), new FlutterDesignerWidgetMovePlanner.On(destination.id()));
+                if (threeLine && name.equals("subtitle")) assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class, move);
+                else assertAcceptedCommandApplies(document, BUILT_INS, child, move);
+            }
+        }
+    }
+
+    @Test
     void completedRadioGroupMovesAsOneSubtreeAndCannotLoseItsRequiredChild() {
         var requiredChild = validText(D_ID, "refresh child");
         var wrapper = new WidgetNode(A_ID, type("flutter.widgets.RadioGroup"),

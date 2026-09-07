@@ -111,7 +111,8 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.ENUM, PropertyValueKind.NULL))
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.EnumValues values
                         && values.dartType().libraryUri().equals("dart:core") && values.dartType().name().equals("double")
-                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))))) {
+                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))
+                                || values.values().equals(List.of("infinity", "negativeInfinity", "nan"))))) {
             editorKind = EditorKind.NULLABLE_NUMBER_WITH_INFINITY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER,
                 PropertyValueKind.DOUBLE, PropertyValueKind.ENUM))
@@ -132,6 +133,16 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().getFirst()
                         instanceof PropertyValueConstraint.EdgeInsetsValues) {
             editorKind = EditorKind.EDGE_INSETS;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.EdgeInsetsValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("EdgeInsetsGeometry"))) {
+            editorKind = EditorKind.EDGE_INSETS_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.ThemeTokenValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Color"))) {
+            editorKind = EditorKind.COLOR_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR))) {
             editorKind = EditorKind.COLOR;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN,
@@ -247,6 +258,8 @@ final class FlutterTypedPropertyEditors {
         NUMBER_WITH_INFINITY,
         ENUM,
         EDGE_INSETS,
+        EDGE_INSETS_REFERENCE,
+        COLOR_REFERENCE,
         COLOR,
         THEME_COLOR,
         NULLABLE_THEME_COLOR,
@@ -390,7 +403,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, RADIO_VALUE ->
+                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, RADIO_VALUE ->
                     new StructuredEditor(this);
             };
         }
@@ -479,6 +492,7 @@ final class FlutterTypedPropertyEditors {
                     || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
                     || binding.editorKind() == EditorKind.COLOR_ANIMATION
+                    || binding.editorKind() == EditorKind.COLOR_REFERENCE
                     || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR
                     || FlutterPropertyValuePreview.isPaintable(
                             binding.editorKind());
@@ -486,7 +500,7 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.COLOR_ANIMATION || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
+            if (binding.editorKind() == EditorKind.COLOR_ANIMATION || binding.editorKind() == EditorKind.COLOR_REFERENCE || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
                 if (explicitValue().orElse(null) instanceof PropertyValue.ColorValue
                         || explicitValue().orElse(null) instanceof PropertyValue.ThemeTokenValue) {
                     FlutterPropertyEditorComponents.paintColorValue(graphics, box, cellValue());
@@ -759,7 +773,7 @@ final class FlutterTypedPropertyEditors {
             return explicitValue().map(value -> switch (value) {
                 case PropertyValue.IntegerValue integer -> integer.value().toString();
                 case PropertyValue.DoubleValue decimal -> decimal.value().toPlainString();
-                case PropertyValue.EnumValue infinity -> infinity.value().equals("negativeInfinity") ? "-Infinity" : "Infinity";
+                case PropertyValue.EnumValue infinity -> switch (infinity.value()) { case "negativeInfinity" -> "-Infinity"; case "nan" -> "NaN"; default -> "Infinity"; };
                 case PropertyValue.NullValue ignored -> FlutterNullableNumberEditorComponent.nullText(binding);
                 default -> throw new IllegalStateException(
                         "Unexpected numeric value " + value.kind());
@@ -776,6 +790,10 @@ final class FlutterTypedPropertyEditors {
                     && (normalized.equalsIgnoreCase("null")
                     || normalized.equalsIgnoreCase(FlutterNullableNumberEditorComponent.nullText(binding)))) {
                 setExplicit(new PropertyValue.NullValue());
+                return;
+            }
+            if (binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY && normalized.equalsIgnoreCase("NaN")) {
+                setExplicit(new PropertyValue.EnumValue("double", "nan"));
                 return;
             }
             if ((binding.editorKind() == EditorKind.NUMBER_WITH_INFINITY || binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY)

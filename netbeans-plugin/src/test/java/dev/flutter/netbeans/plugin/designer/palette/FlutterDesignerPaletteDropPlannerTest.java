@@ -38,6 +38,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
@@ -162,8 +163,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void radioGroupCompletes5916CellMatrixAndRequiresAnExistingChild() {
-        var type = new WidgetTypeId("flutter.widgets.RadioGroup");
+    void listTileCompletes6336PlacementsWithFourOptionalDestinationsAndNoCreatedContent() {
+        var type = new WidgetTypeId("flutter.material.ListTile");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
@@ -178,7 +179,36 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(87, BUILT_INS.definitions().size()); assertEquals(68, targets.size()); assertEquals(16, wrappers);
+        assertEquals(88, BUILT_INS.definitions().size()); assertEquals(72, targets.size()); assertEquals(16, wrappers);
+        assertEquals(6336, accepted + rejected); assertEquals(5958, accepted); assertEquals(378, rejected);
+        var empty = target("Column.children", COLUMN, CHILDREN);
+        var planned = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        assertTrue(planned.command().widget().properties().isEmpty());
+        assertEquals(Set.of(new SlotName("leading"), new SlotName("title"), new SlotName("subtitle"), new SlotName("trailing")), planned.command().widget().slots().keySet());
+        planned.command().widget().slots().values().forEach(slot -> assertTrue(((WidgetSlot.SingleSlot) slot).child().isEmpty()));
+    }
+
+
+
+    @Test
+    void radioGroupCompletes5916CellMatrixAndRequiresAnExistingChild() {
+        var type = new WidgetTypeId("flutter.widgets.RadioGroup");
+        var targets = preListTileDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0, wrappers = 0;
+        for (var definition : preListTileDefinitions().toList()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            if (wrapper) wrappers++;
+            for (var target : targets) {
+                var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+                var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+                if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+            }
+        }
+        assertEquals(87, preListTileDefinitions().count()); assertEquals(68, targets.size()); assertEquals(16, wrappers);
         assertEquals(5916, accepted + rejected); assertEquals(5552, accepted); assertEquals(364, rejected);
         var empty = target("Column.children", COLUMN, CHILDREN);
         assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
@@ -6252,8 +6282,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         return preIconButtonDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.FloatingActionButton"));
     }
 
+    private static Stream<WidgetDefinition> preListTileDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.ListTile"));
+    }
+
     private static Stream<WidgetDefinition> preRadioGroupDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.widgets.RadioGroup"));
+        return preListTileDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.widgets.RadioGroup"));
     }
 
     private static Stream<WidgetDefinition> preRadioDefinitions() {

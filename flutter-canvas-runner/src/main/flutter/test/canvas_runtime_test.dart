@@ -4,7 +4,7 @@ import 'dart:ui' show FlutterView;
 
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart'
-    show Checkbox, Switch, Slider, RangeSlider, Radio;
+    show Checkbox, Switch, Slider, RangeSlider, Radio, ListTile;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_drop.dart';
@@ -17,6 +17,80 @@ import 'canvas_model_test.dart' as fixture;
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  for (final profile in ['windows', 'web']) {
+    testWidgets(
+      'authoritative ListTile $profile admits four independent optional slots',
+      (tester) async {
+        final input = StreamController<List<int>>();
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (_) {},
+          flush: () async {},
+          diagnostic: fail,
+        );
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+        );
+        final model =
+            jsonDecode(
+                  utf8.decode(
+                    fixture.elevatedButtonModelBytesForViewTest(
+                      properties: {
+                        'enabled': {'kind': 'boolean', 'value': true},
+                      },
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final control = (model['root'] as Map)['slots']['body']['child'] as Map;
+        control['type'] = 'flutter.material.ListTile';
+        control['properties'] = <String, Object?>{};
+        control['slots'] = <String, Object?>{};
+        (model['profile'] as Map)['targetPlatform'] = profile;
+        _addRender(input, Uint8List.fromList(utf8.encode(jsonEncode(model))));
+        await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+        for (var i = 0; i < 20 && runtime.model == null; i++) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        await tester.pump();
+        expect(find.byType(ListTile), findsOneWidget);
+        var tokenIndex = 1;
+        for (final slot in ['leading', 'title', 'subtitle', 'trailing']) {
+          runtime.setDropResolver(
+            (_, _, [_]) => CanvasDropTarget(
+              parentWidgetId: fixture.elevatedButtonWidgetIdForViewTest,
+              slotName: slot,
+              insertionIndex: 0,
+            ),
+          );
+          for (final (type, accepted) in [
+            ('flutter.widgets.Text', true),
+            ('flutter.material.ListTile', true),
+            ('flutter.widgets.Spacer', false),
+          ]) {
+            expect(
+              await _sourceAwareHover(runtime, input, {
+                'token':
+                    'nbfdnd:v1:d40d59ed-9d9c-41b3-9bc7-9c7be768fc65:f6480d29-b8a4-4dc7-85f7-${(tokenIndex++).toString().padLeft(12, '0')}',
+                'xMicros': 500000,
+                'yMicros': 500000,
+                'generation': tokenIndex,
+                'probeId': 0,
+              }, widgetType: type),
+              accepted,
+              reason: '$slot $type',
+            );
+          }
+        }
+        await input.close();
+        await running;
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 
   test('protocol stdout zone diverts print output to diagnostics', () {
     final diagnostics = <String>[];

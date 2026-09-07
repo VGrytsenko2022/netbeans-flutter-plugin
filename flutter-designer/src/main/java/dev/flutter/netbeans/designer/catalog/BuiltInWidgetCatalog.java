@@ -108,6 +108,7 @@ public final class BuiltInWidgetCatalog {
             checkbox(),
             radio(),
             radioGroup(),
+            listTile(),
             switchWidget(),
             slider(),
             rangeSlider(),
@@ -775,6 +776,58 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition listTile() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition text = badge();
+        WidgetDefinition shape = card();
+        List<PropertyValueConstraint> cursor = checkbox().property(new PropertyName("mouseCursor")).orElseThrow().constraints();
+        for (var entry : ListTileWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            var family = ListTileWidgetPropertySchema.textStyleFamily(new PropertyName(name));
+            if (family.isPresent()) {
+                constraints = text.property(new PropertyName("textStyle" + name.substring(family.orElseThrow().length()))).orElseThrow().constraints();
+            } else if (ListTileWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                constraints = shape.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (ListTileWidgetPropertySchema.stateColorFamilies().stream().anyMatch(value -> ListTileWidgetPropertySchema.colorStateProperties(value).contains(name))) {
+                constraints = colorOrTheme();
+            } else if (ListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name) || name.equals("mouseCursor")) {
+                constraints = cursor;
+            } else if (ListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+            } else if (ListTileWidgetPropertySchema.geometryProperties().contains(name)) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity", "negativeInfinity", "nan")));
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (name) {
+                    case "visualDensity" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VisualDensity"));
+                    case "visualDensityHorizontal", "visualDensityVertical" -> minusFourToFourDoubles();
+                    case "shape" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"));
+                    case "titleTextStyle", "subtitleTextStyle", "leadingAndTrailingTextStyle" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("TextStyle"));
+                    case "contentPadding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(false), new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"));
+                    case "style" -> materialEnumValues("ListTileStyle", "list", "drawer");
+                    case "titleAlignment" -> materialEnumValues("ListTileTitleAlignment", "threeLine", "titleHeight", "top", "center", "bottom");
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "statesController" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStatesController"));
+                    case "isThreeLine", "dense", "enableFeedback" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "onTap", "onLongPress", "onFocusChange" -> List.of(
+                            new PropertyValueConstraint.StringPattern("noop", "Explicit controlled no-op callback"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL),
+                            new PropertyValueConstraint.DartObjectReferenceValues(name.equals("onFocusChange") ? "ValueChanged<bool>" : "VoidCallback"));
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.add(namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(ListTileWidgetPropertySchema.LIST_TILE_TYPE.value(), "ListTile", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 250, "ListTile"), properties,
+                List.of(singleSlot("leading", 0, false, 0, ANY_WIDGET), singleSlot("title", 1, false, 0, ANY_WIDGET),
+                        singleSlot("subtitle", 2, false, 0, ANY_WIDGET), singleSlot("trailing", 3, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition rangeSlider() {

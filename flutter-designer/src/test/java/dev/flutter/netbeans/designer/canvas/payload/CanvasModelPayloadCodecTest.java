@@ -100,6 +100,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.RangeSlider",
             "flutter.material.Radio",
             "flutter.widgets.RadioGroup",
+            "flutter.material.ListTile",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -4087,6 +4088,61 @@ class CanvasModelPayloadCodecTest {
                 dev.flutter.netbeans.designer.catalog.IconButtonTestValues.definition(), StableId.random());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
                 new DesignerDocument(DOCUMENT_ID, source(), prototype))));
+    }
+
+    @Test
+    void listTileAllCompoundFieldsAndFourSlotsRemainExactWhileProjectValuesArePresenceOnly() throws Exception {
+        for (String shape : dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema.shapeKinds()) for (boolean paints : List.of(false, true)) {
+            var root = dev.flutter.netbeans.designer.catalog.ListTileTestValues.fullNode(shape, paints);
+            var codec = new CanvasModelPayloadCodec();
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            String json = new String(codec.encode(candidate), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
+            for (var name : root.properties().keySet()) assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+            for (String name : List.of("leading", "title", "subtitle", "trailing")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"single\""));
+            for (String name : List.of("onTap", "onLongPress", "onFocusChange", "focusNode", "statesController")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            for (String hidden : List.of("package:buttons", "buttonValues", "libraryUri", "resources")) assertFalse(json.contains(hidden), hidden);
+            assertTrue(json.contains("\"protocolVersion\":18"));
+        }
+        var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("shape", "visualDensity", "titleTextStyle", "subtitleTextStyle", "leadingAndTrailingTextStyle", "contentPadding", "iconColor", "textColor", "selectedColor", "mouseCursor")) {
+            properties.put(new PropertyName(name), dev.flutter.netbeans.designer.catalog.ListTileTestValues.reference(name));
+        }
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), dev.flutter.netbeans.designer.catalog.ListTileTestValues.node(properties)))), StandardCharsets.UTF_8);
+        for (var name : properties.keySet()) assertTrue(json.contains("\"" + name.value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertFalse(json.contains("buttonValues"));
+    }
+
+    @Test
+    void listTileEmptyCreationNullableCallbacksAndSignedConstantsHaveNoInventedFields() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var empty = dev.flutter.netbeans.designer.catalog.ListTileTestValues.node(Map.of());
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertFalse(json.contains("\"onTap\":"));
+        assertFalse(json.contains("\"title\":"));
+        for (String name : dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema.geometryProperties()) {
+            for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.EnumValue("double", "infinity"), new PropertyValue.EnumValue("double", "negativeInfinity"), new PropertyValue.EnumValue("double", "nan"))) {
+                var root = dev.flutter.netbeans.designer.catalog.ListTileTestValues.node(Map.of(new PropertyName(name), value, new PropertyName("onTap"), new PropertyValue.NullValue(), new PropertyName("enabled"), new PropertyValue.BooleanValue(false)));
+                String encoded = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+                assertTrue(encoded.contains("\"" + name + "\":{\"kind\":\"" + value.kind().wireName() + "\""));
+                assertTrue(encoded.contains("\"onTap\":{\"kind\":\"null\"}"));
+            }
+        }
+    }
+
+    @Test
+    void listTileInvalidThreeLineStateDefaultsCompoundConflictsAndRawCodeRejectBeforePayloadAdmission() {
+        var codec = new CanvasModelPayloadCodec();
+        var invalid = List.of(Map.of(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(true)),
+                Map.of(new PropertyName("iconColorDisabled"), new PropertyValue.ColorValue(0xff123456L)),
+                Map.of(new PropertyName("mouseCursorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onTap"), new PropertyValue.DartExpressionValue("unsafe()")),
+                Map.of(new PropertyName("contentPadding"), new PropertyValue.DartExpressionValue("EdgeInsets.zero")),
+                Map.of(new PropertyName("shape"), dev.flutter.netbeans.designer.catalog.ListTileTestValues.reference("shape"), new PropertyName("shapeKind"), new PropertyValue.StringValue("circle")));
+        for (var fields : invalid) {
+            var root = dev.flutter.netbeans.designer.catalog.ListTileTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
     }
 
     private static WidgetTypeId type(String value) {

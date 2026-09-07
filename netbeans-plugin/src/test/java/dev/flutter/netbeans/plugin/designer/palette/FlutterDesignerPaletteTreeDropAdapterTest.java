@@ -215,6 +215,28 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void listTileTreeDropCreatesFourEmptyOptionalSlotsWithoutInventingContent() {
+        for (var root : List.of(column(List.of()), withSlot(prototype(CENTER), CHILD, WidgetSlot.SingleSlot.empty()))) {
+            var fixture = fixture(new WidgetTypeId("flutter.material.ListTile"));
+            var transfer = new StringSelection(fixture.token());
+            var document = document(root);
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            AtomicInteger allocations = new AtomicInteger();
+            var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document, CATALOG,
+                            () -> { allocations.incrementAndGet(); return NEW_ID; })).command().widget();
+            assertEquals(1, allocations.get());
+            assertEquals(new WidgetTypeId("flutter.material.ListTile"), added.type());
+            assertTrue(added.properties().isEmpty());
+            assertEquals(4, added.slots().size());
+            added.slots().values().forEach(slot -> assertTrue(((WidgetSlot.SingleSlot) slot).child().isEmpty()));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
     void switchTreeDropCreatesAControlledFalseLeafWithoutWrapping() {
         for (var root : List.of(column(List.of()), withSlot(prototype(CENTER), CHILD, WidgetSlot.SingleSlot.empty()))) {
             var fixture = fixture(new WidgetTypeId("flutter.material.Switch"));

@@ -75,6 +75,97 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void listTileLocalReferenceEditorsPreserveAllModesAndValidateOnlyTheActiveDraft() throws Exception {
+        for (String name : List.of("selectedColor", "contentPadding")) {
+            var field = ListTilePropertyContractTest.DEF.property(new PropertyName(name)).orElseThrow(); var binding = binding(field);
+            var local = ListTilePropertyContractTest.value(name); var reference = ListTilePropertyContractTest.reference(name.equals("selectedColor") ? "_color" : "_padding");
+            for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(local), FlutterPropertyCellValue.explicit(reference))) {
+                var editor = binding.createEditor(); editor.setValue(initial); var env = PropertyEnv.create(descriptor(name, "Exact local or reference value.")); ((ExPropertyEditor) editor).attachEnv(env);
+                onEdt(() -> { var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, name.toLowerCase(java.util.Locale.ROOT), "reference"); env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); return null; });
+            }
+            for (String branch : List.of("omit", "local", "project", "cancel")) {
+                var initial = FlutterPropertyCellValue.explicit(local); var editor = binding.createEditor(); editor.setValue(initial);
+                var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                var env = PropertyEnv.create(descriptor(name, "Cancel-safe union.")); ((ExPropertyEditor) editor).attachEnv(env);
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterLocalDartReferenceEditorComponent.MODE_NAME);
+                    assertEquals(List.of(FlutterLocalDartReferenceEditorComponent.OMIT, name.equals("selectedColor") ? FlutterLocalDartReferenceEditorComponent.COLOR : FlutterLocalDartReferenceEditorComponent.INSETS, FlutterLocalDartReferenceEditorComponent.PROJECT), comboLabels(mode));
+                    mode.setSelectedItem(FlutterLocalDartReferenceEditorComponent.PROJECT); var symbol = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME);
+                    for (String invalid : List.of("", "Color(0xff123456)", "factory(1)")) {
+                        symbol.setText(invalid); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                    }
+                    FlutterPropertyCellValue expected;
+                    if (branch.equals("omit")) { mode.setSelectedItem(FlutterLocalDartReferenceEditorComponent.OMIT); expected = FlutterPropertyCellValue.unset(); }
+                    else if (branch.equals("local")) { mode.setSelectedIndex(1); expected = initial; }
+                    else { symbol.setText(reference.rootSymbol()); expected = FlutterPropertyCellValue.explicit(reference); }
+                    assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                    if (branch.equals("cancel")) return null;
+                    env.setState(PropertyEnv.STATE_VALID); assertEquals(expected, editor.getValue()); assertEquals(1, commits.get());
+                    env.setState(PropertyEnv.STATE_NEEDS_VALIDATION); env.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get()); return null;
+                });
+            }
+            assertThrows(IllegalArgumentException.class, () -> binding.validate(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())));
+        }
+    }
+
+    @Test
+    void listTileLocalInsetsAcceptSignedPhysicalAndDirectionalDraftsWithoutWideningPadding() throws Exception {
+        for (boolean directional : List.of(false, true)) {
+            var field = ListTilePropertyContractTest.DEF.property(new PropertyName("contentPadding")).orElseThrow(); var binding = binding(field);
+            PropertyValue value = directional ? new PropertyValue.EdgeInsetsDirectionalValue(new BigDecimal("-1"), new BigDecimal("-2"), new BigDecimal("-3"), new BigDecimal("-4"))
+                    : new PropertyValue.EdgeInsetsValue(new BigDecimal("-1"), new BigDecimal("-2"), new BigDecimal("-3"), new BigDecimal("-4"));
+            var initial = FlutterPropertyCellValue.explicit(value); var editor = binding.createEditor(); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor("Content padding", "Signed local insets.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> { var panel = editor.getCustomEditor(); env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); assertEquals(PropertyEnv.STATE_VALID, env.getState()); return null; });
+        }
+        var padding = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.widgets.Padding")).orElseThrow().property(new PropertyName("padding")).orElseThrow();
+        assertThrows(IllegalArgumentException.class, () -> binding(padding).validate(FlutterPropertyCellValue.explicit(new PropertyValue.EdgeInsetsValue(BigDecimal.ONE.negate(), BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO))));
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.EDGE_INSETS, binding(padding).editorKind());
+        var animation = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.LinearProgressIndicator")).orElseThrow().property(new PropertyName("valueColor")).orElseThrow();
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.COLOR_ANIMATION, binding(animation).editorKind());
+    }
+
+    @Test
+    void listTileLocalDraftErrorsCannotPublishStaleReferenceAndValidModesCommitOnce() throws Exception {
+        for (String name : List.of("selectedColor", "contentPadding")) {
+            var binding = binding(ListTilePropertyContractTest.DEF.property(new PropertyName(name)).orElseThrow());
+            var initial = FlutterPropertyCellValue.explicit(ListTilePropertyContractTest.reference(name.equals("selectedColor") ? "_color" : "_padding"));
+            var editor = binding.createEditor(); editor.setValue(initial); var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+            var env = PropertyEnv.create(descriptor(name, "Typed local draft.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterLocalDartReferenceEditorComponent.MODE_NAME); mode.setSelectedIndex(1);
+                var field = findNamed(panel, JTextField.class, name.equals("selectedColor") ? FlutterComplexPropertyEditorComponents.THEME_COLOR_ARGB_NAME : FlutterPropertyEditorComponents.EDGE_ALL_NAME);
+                field.setText("invalid"); env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                field.setText(name.equals("selectedColor") ? "0xff123456" : "-3"); assertEquals(initial, editor.getValue()); assertEquals(0, commits.get());
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(1, commits.get());
+                var expected = name.equals("selectedColor") ? new PropertyValue.ColorValue(0xff123456L)
+                        : new PropertyValue.EdgeInsetsValue(new BigDecimal("-3"), new BigDecimal("-3"), new BigDecimal("-3"), new BigDecimal("-3"));
+                assertEquals(FlutterPropertyCellValue.explicit(expected), editor.getValue()); return null;
+            });
+        }
+    }
+
+    @Test
+    void listTileNullableGeometryNaNPanelAndCallbackHelpRemainPreciselyScoped() throws Exception {
+        for (String name : dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema.geometryProperties()) {
+            var binding = binding(ListTilePropertyContractTest.DEF.property(new PropertyName(name)).orElseThrow()); var editor = binding.createEditor();
+            var initial = FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "nan")); editor.setValue(initial);
+            var env = PropertyEnv.create(descriptor(name, "Exact closed geometry.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> { var panel = editor.getCustomEditor(); var text = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+                assertEquals("NaN", text.getText()); assertTrue(text.getAccessibleContext().getAccessibleDescription().contains("NaN")); env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue()); return null; });
+        }
+        var node = ListTilePropertyContractTest.node(ListTilePropertyContractTest.prototype(), new java.util.ArrayList<>());
+        for (String name : List.of("onTap", "onLongPress", "onFocusChange")) {
+            var editor = ListTilePropertyContractTest.cell(node, name).getPropertyEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "ListTile callback.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> { var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME);
+                mode.setSelectedItem("Explicit null"); var note = findNamed(panel, JTextArea.class, FlutterPresetDartReferenceEditorComponent.NOTE_NAME);
+                assertTrue(note.getText().contains("callback is absent")); assertFalse(note.getText().contains("cursor"));
+                mode.setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET); assertTrue(note.getText().contains("no-op")); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null; });
+        }
+    }
+
+    @Test
     void rangeSliderNullableLabelsPreserveOmitNullReferencesAndCancelSafeSingleCommit() throws Exception {
         var binding = binding(RangeSliderPropertyContractTest.field("labels"));
         for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()),
@@ -4124,7 +4215,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(328, booleanProperties.size(),
+        assertEquals(344, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

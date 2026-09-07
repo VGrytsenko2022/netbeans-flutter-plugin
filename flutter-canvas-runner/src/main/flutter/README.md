@@ -241,14 +241,14 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-84 reviewed Canvas widgets. Palette insertion evaluates 5,712 exact
-source/destination cells across 84 draggable sources and 68 insertable reviewed
-slots; 5,354 are accepted and 358 cells are rejected. Expanded and Flexible are
+88 reviewed Canvas widgets. Palette insertion evaluates 6,336 exact
+source/destination cells across 88 draggable sources and 72 insertable reviewed
+slots; 5,958 are accepted and 378 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
 Spacer; Spacer is inserted only into direct Row/Column children and never wraps
-another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton and IconButton are generic atomic wrappers around
+another widget. SafeArea, Directionality, ExcludeFocus, ExcludeFocusTraversal, Visibility, TickerMode, DefaultTextHeightBehavior, DefaultSelectionStyle, IconTheme, RefreshIndicator, TextButton, OutlinedButton, IconButton and RadioGroup are generic atomic wrappers around
 an existing widget,
 never an empty required-slot prototype. The current Canvas target wire exposes
 non-root child targets only and intentionally offers no root target; root
@@ -1357,15 +1357,50 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 87 widgets and 80 reviewed const definitions,
-with 3564 writable rows (3547 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, twenty-four Material and six Accessibility items.
-Against the historical 92-widget target, 87 are complete and five remain; a fixed
-ordered inventory has not been recovered. The 87 sources across 68 insertable
-destinations form 5,916 cells, with 5,552 accepted and 364 rejected.
+The aggregate catalog now has 88 widgets and 81 reviewed const definitions,
+with 3740 writable rows (3723 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, twenty-five Material and six Accessibility items.
+The historical 92-widget target is not an exhaustive inventory and does not
+establish a remaining-widget count. The 88 sources across 72 insertable
+destinations form 6,336 cells, with 5,958 accepted and 378 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
+
+## ListTile typed Canvas
+
+`flutter.material.ListTile` adds all 37 non-key constructor arguments as 176
+typed property rows and four independent optional slots: Leading, Title,
+Subtitle and Trailing. Sparse creation omits every argument. Only explicit
+`isThreeLine: true` requires Subtitle; a theme's value does not add a model
+constraint. Four separate RTL-aware insertion handles remain outside SDK paint.
+
+The preview constructs the actual SDK ListTile, with its existing Material
+ancestry, M2/M3 defaults, whole text-style replacement, dense sizing, title
+alignment, state colors/cursors and ink placement. The three local text-style
+families use the shared complete Text projection. Whole project references
+remain explicitly unresolved; they are never executed and do not enter a local
+typed decoder. The generated source retains all references and callbacks,
+including callbacks stored while Enabled is false.
+
+An opaque intermediate ColoredBox/DecoratedBox can hide ink on the actual
+ancestor Material. The SDK's nonfatal warning remains in the normal diagnostic
+pipeline; no local Material is injected to change this behavior. The normal
+Canvas surface already supplies Material. A defensive missing-Material branch
+reports the unavailable tile and child preview rather than constructing an
+invalid SDK subtree or silently inventing ancestry.
+
+Signed geometry and the closed infinity/negativeInfinity/nan choices are not
+globally rejected. Contextual render guards handle unbounded width, unsafe
+height/offset results and full-width side children, retaining child State under
+valid Material ancestry while withholding unsafe paint, semantics and pointer
+input. Safe geometry restores the same mounted child. These guards never change
+the model, generated Dart or pair-save authority. Missing Material is a separate
+unavailable-preview case, not a State-retention guarantee.
+
+Catalog and Java/Dart metadata, protocol-v18 decoding, all slot combinations,
+actual SDK comparisons and lifecycle regressions are covered by the ListTile
+tests. Final counts and package evidence are recorded in ADR-116.
 
 ## RadioGroup typed Canvas
 

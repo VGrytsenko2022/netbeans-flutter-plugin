@@ -4,6 +4,7 @@ import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircularProgressIndicatorWidgetPropertySchema;
@@ -512,6 +513,32 @@ public final class WidgetTreeValidator {
                     issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/valueType", node.id(), message)));
             return;
         }
+        if (type.equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE.value())) {
+            if (ListTileWidgetPropertySchema.requiresSubtitle(node)
+                    && (!(node.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty())) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/isThreeLine", node.id(),
+                        "ListTile explicit Three line true requires a nonempty Subtitle slot. Add Subtitle first, or reset Three line; no child is fabricated."));
+            }
+            validateCardShape(node, propertiesPath, issues);
+            for (String family : ListTileWidgetPropertySchema.styleFamilies()) {
+                validateListTileWholeLocal(node, propertiesPath, issues, family, ListTileWidgetPropertySchema.localTextStyleProperties(family));
+                validateFontPackageDependency(node, propertiesPath, issues, family + "Package", family + "FontFamily", family + "FontFamilyFallback", "ListTile " + family);
+                validateMutuallyExclusiveProperties(node, propertiesPath, issues, family + "Color", family + "Foreground", "ListTile " + family);
+                validateMutuallyExclusiveProperties(node, propertiesPath, issues, family + "BackgroundColor", family + "Background", "ListTile " + family);
+            }
+            validateListTileWholeLocal(node, propertiesPath, issues, "visualDensity", List.of("visualDensityHorizontal", "visualDensityVertical"));
+            for (String family : List.of("iconColor", "textColor", "mouseCursor")) {
+                List<String> local = family.equals("mouseCursor") ? ListTileWidgetPropertySchema.mouseCursorStateProperties()
+                        : ListTileWidgetPropertySchema.colorStateProperties(family);
+                validateListTileWholeLocal(node, propertiesPath, issues, family, local);
+                if (local.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))
+                        && !node.properties().containsKey(new PropertyName(family + "Default"))) {
+                    issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/" + family + "Default", node.id(),
+                            "ListTile local " + family + " map requires an explicit non-null Default. Set Default before another state; no color or cursor fallback is invented."));
+                }
+            }
+            return;
+        }
         if (type.equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value())) {
             validateCheckbox(node, propertiesPath, issues);
             validateCardShape(node, propertiesPath, issues);
@@ -929,6 +956,16 @@ public final class WidgetTreeValidator {
                     propertiesPath + "/fit",
                     node.id(),
                     "Image centerSlice does not allow BoxFit.cover or BoxFit.none."));
+        }
+    }
+
+    private static void validateListTileWholeLocal(WidgetNode node, String path, IssueCollector issues, String whole, List<String> local) {
+        if (!node.properties().containsKey(new PropertyName(whole))) return;
+        for (String name : local) {
+            if (node.properties().containsKey(new PropertyName(name))) {
+                issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                        "ListTile " + whole + " whole value and its local fields are mutually exclusive. Reset one representation first."));
+            }
         }
     }
 

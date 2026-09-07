@@ -473,6 +473,50 @@ class FlutterWidgetSlotPropertyEditorTest {
     }
 
     @Test
+    void listTileFourOptionalSlotsAddReplaceAndClearExceptActiveThreeLineSubtitle() throws Exception {
+        var definition = definition("flutter.material.ListTile");
+        for (boolean threeLine : List.of(false, true)) {
+            var prototype = ListTilePropertyContractTest.prototype();
+            var node = new WidgetNode(prototype.id(), definition.typeId(), Map.of(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine)), prototype.slots());
+            var context = new FlutterWidgetSlotEditorContext(document(node), CATALOG, List.of(type("flutter.widgets.Text")));
+            for (String name : List.of("leading", "title", "subtitle", "trailing")) {
+                var slot = new SlotName(name); boolean required = threeLine && name.equals("subtitle");
+                var child = ((WidgetSlot.SingleSlot) node.slots().get(slot)).child().orElseThrow();
+                var model = new FlutterWidgetSlotPropertyEditor.Model(node, definition, definition.slot(slot).orElseThrow(), context);
+                assertEquals(!required, model.canRemove()); assertTrue(model.canReplaceNew());
+                var editor = new FlutterWidgetSlotPropertyEditor(node, definition, definition.slot(slot).orElseThrow(), context);
+                editor.attachEnv(PropertyEnv.create(descriptor(name)));
+                onEdt(() -> { var action = component(editor.getCustomEditor(), FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                    assertEquals(!required, labels(action).contains("Clear single child")); assertTrue(labels(action).contains("Replace with new widget")); return null; });
+                var remove = FlutterWidgetSlotCellValue.staged("Remove " + name, new FlutterWidgetSlotMutation.Remove(node.id(), slot, child.id()));
+                if (required) assertThrows(IllegalArgumentException.class, () -> editor.setValue(remove)); else editor.setValue(remove);
+                editor.setValue(FlutterWidgetSlotCellValue.staged("Replace " + name, new FlutterWidgetSlotMutation.Replace(node.id(), slot, child.id(), new FlutterWidgetSlotMutation.Replace.NewWidget(type("flutter.widgets.Text")))));
+                if (!required) {
+                    var slots = new java.util.LinkedHashMap<>(node.slots()); slots.put(slot, WidgetSlot.SingleSlot.empty()); var empty = new WidgetNode(node.id(), node.type(), node.properties(), slots);
+                    var emptyModel = new FlutterWidgetSlotPropertyEditor.Model(empty, definition, definition.slot(slot).orElseThrow(), new FlutterWidgetSlotEditorContext(document(empty), CATALOG, List.of(type("flutter.widgets.Text"))));
+                    assertTrue(emptyModel.canAdd()); assertFalse(emptyModel.canRemove());
+                }
+            }
+        }
+    }
+
+    @Test
+    void otherSlotEditorsCannotDetachThreeLineSubtitleDuringMoveOrReplacement() {
+        var definition = definition("flutter.material.ListTile"); var centerDefinition = definition("flutter.widgets.Center"); var subtitle = new SlotName("subtitle");
+        for (boolean threeLine : List.of(false, true)) for (boolean occupied : List.of(false, true)) {
+            var label = text(StableId.random(), "Subtitle"); var existing = text(StableId.random(), "Existing");
+            var tile = new WidgetNode(StableId.random(), definition.typeId(), Map.of(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine)), Map.of(subtitle, WidgetSlot.SingleSlot.of(label)));
+            var center = new WidgetNode(StableId.random(), centerDefinition.typeId(), Map.of(), Map.of(CHILD, occupied ? WidgetSlot.SingleSlot.of(existing) : WidgetSlot.SingleSlot.empty()));
+            var root = new WidgetNode(StableId.random(), type("flutter.widgets.Column"), Map.of(), Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(tile, center))));
+            var editor = new FlutterWidgetSlotPropertyEditor(center, centerDefinition, centerDefinition.slot(CHILD).orElseThrow(), new FlutterWidgetSlotEditorContext(document(root), CATALOG, List.of(type("flutter.widgets.Text"))));
+            var mutation = occupied ? new FlutterWidgetSlotMutation.Replace(center.id(), CHILD, existing.id(), new FlutterWidgetSlotMutation.Replace.ExistingWidget(label.id()))
+                    : new FlutterWidgetSlotMutation.Move(center.id(), CHILD, label.id(), 0);
+            var staged = FlutterWidgetSlotCellValue.staged("Move Subtitle", mutation);
+            if (threeLine) assertThrows(IllegalArgumentException.class, () -> editor.setValue(staged)); else editor.setValue(staged);
+        }
+    }
+
+    @Test
     void filledButtonChildAndIconEditorsRespectAllFourConstructorContracts() throws Exception {
         var definition = definition("flutter.material.FilledButton");
         var iconSlot = new SlotName("icon");

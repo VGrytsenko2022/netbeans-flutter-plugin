@@ -7961,3 +7961,232 @@ Canvas runner: 354531 bytes, SHA-256
 
 No installed IDE/userdir was modified or verified, and no interactive desktop,
 CJK IME or Linux/macOS Canvas-provider acceptance is included in this slice.
+
+## ADR-116 — ListTile complete constructor and contextual layout
+
+Date: 2026-09-07
+Status: implemented; scoped verification and package complete. The existing
+shared-fork rename-test issue remains explicitly documented below.
+
+### Exact constructor and sparse creation
+
+The pinned Flutter 3.44.8 material/list_tile.dart and its official
+[ListTile constructor](https://api.flutter.dev/flutter/material/ListTile/ListTile.html)
+define one const constructor with 37 non-key arguments. The four optional single
+ANY slots are leading/title/subtitle/trailing, in constructor order 0–3.
+All 33 scalar arguments retain their SDK names/orders; 143 closed compound
+leaves bring the editable surface to 176 rows. Type flutter.material.ListTile
+is Material/order250, following RadioGroup. Common key remains the existing
+identity contract. Creation stores no scalar properties, callbacks or children;
+the prototype contains the four empty declared slots.
+
+Explicit isThreeLine=true requires a populated subtitle slot, exactly matching
+the constructor assertion. False, null and omission remain distinct stored
+choices; a theme's three-line value does not invent a model-required subtitle.
+Properties, remove actions, slot editing and move planning enforce the same
+conditional minimum. Removing the condition never fabricates or discards content.
+The other three slots always remain optional. ListTile is not another generic
+required-child wrapper.
+
+### Complete local and project-reference branches
+
+The direct fields cover layout, shape/style, eight colors, three text styles,
+padding, all seven Boolean/nullable-Boolean fields, gestures/focus, mouse cursor,
+state controller, four geometry numbers and title alignment. Four non-null
+Booleans preserve SDK defaults through omission: enabled=true, selected=false,
+autofocus=false and internalAddSemanticForOnTap=true. isThreeLine/dense/
+enableFeedback separately retain Boolean, explicit null and unset.
+
+Closed extensions are two VisualDensity axes, 21 shared local shape fields,
+three sets of 31 TextStyle leaves, 18 icon/text state colors and nine state
+cursors. A whole typed reference and that family's local entries are mutually
+exclusive. Shape uses the existing reviewed Card shape algebra; text styles
+reuse the complete Text algebra including theme references, locale, paints,
+shadows, font features/variations and package/font-family handling. Local style
+construction is a TextStyle replacement, not a synthesized component-theme
+merge; the actual SDK subsequently applies resolved text colors and dense sizes.
+
+Whole colors accept a literal, theme token or strict Color reference; the latter
+can denote a WidgetStateColor subtype. Local state color maps require a non-null
+Default and use the established deterministic state priority. The SDK resolves
+icon/text colors for disabled/selected; a plain color and WidgetStateColor have
+different fallbacks. No transparent color or guessed theme fallback is invented.
+MouseCursor has 41 presets or a strict reference, plus the analogous nine-state
+local map with an explicit Default. The pinned ListTile resolves only disabled
+for its cursor, based on Enabled and whether either gesture callback is present.
+
+ContentPadding accepts signed physical/directional EdgeInsets or a strict
+EdgeInsetsGeometry reference in one row. SafeArea resolves these minima against
+system padding; a negative minimum is not intrinsically invalid. The existing
+insets editor now follows its declared nonNegative constraint, retaining all
+other fields' stricter domains. A cancel-safe local/reference draft editor is
+selected only for the exact reviewed Color and EdgeInsetsGeometry unions.
+
+HorizontalTitleGap, MinVerticalPadding, MinLeadingWidth and MinTileHeight accept
+signed finite numbers, explicit null and the three closed double constants
+infinity/negativeInfinity/nan. Raw SDK controls establish valid inactive branches
+for values which would be unsafe in another mounted layout. No global numeric
+domain is widened. The numeric editor exposes NaN only when the actual catalog
+enum permits it; generated nonfinite constants retain source-scope evidence.
+
+Callbacks accept omission, explicit null, controlled No-op or strict typed
+references/zero-argument factories. The original onTap/onLongPress arguments are
+retained even with enabled=false: Flutter checks their presence for semantics
+and background warnings before disabling activation. onFocusChange uses
+ValueChanged<bool>. FocusNode and WidgetStatesController remain typed references.
+No project object, callback, initializer, factory or equality code is executed
+by the isolated preview.
+
+### Canvas and source safety
+
+Canvas constructs the actual SDK ListTile and preserves its Material ancestor,
+theme/style/color resolution, dense sizing, alignment and child-slot identities.
+It does not inject a local Material to alter ink placement. An intervening painted
+ColoredBox/DecoratedBox keeps the SDK's nonfatal invisible-ink/background report,
+which travels through the existing runtime diagnostic pipeline; no temporary
+global FlutterError handler replaces it.
+
+The SDK requires finite available width but permits unbounded height and exact
+zero width. Full-width side children and nonfinite resolved internal geometry
+require contextual preview guards, not blanket model rejection or source edits.
+Under valid existing Material ancestry, the guard policy retains child State,
+withholds only unsafe paint/semantics and pointer input, and reports the affected
+node/slot; safe geometry restores normal rendering. The normal Canvas surface
+already supplies Material. A defensive missing-Material branch explicitly makes
+the tile and child preview unavailable rather than inserting synthetic ancestry;
+State retention is not promised for that separate invalid-context case.
+The public intrinsic guard preserves every finite SDK result, including signed
+values that the parent safely clamps. Only nonfinite intrinsic extents are
+projected to zero with an explicit unavailable-preview diagnostic. This prevents
+an IntrinsicWidth parent from forcing infinite tight constraints before the
+ordinary layout guard can run. Actual/dry baseline guards prevent nonfinite
+baseline values escaping to siblings; normal finite intrinsic/baseline behavior
+remains the SDK's. The guard does not claim to intercept retained keyboard focus.
+
+Generation keeps ListTile itself and all public argument types; no private SDK
+implementation class or raw Dart-expression escape hatch is introduced. The
+existing typed symbol/probe/pair-save pipeline must verify actual generated
+occurrences and strict reference types before a candidate can acquire save
+authority. Dynamic or nullable references cannot substitute for the declared
+non-null reference contracts, even when the outer SDK argument is optional.
+Existing model/protocol versions and safety limits remain unchanged. The three
+local theme TextStyle families revealed a shared fallback-probe ID collision;
+ListTile now scopes those IDs by property path, preserving every occurrence
+without changing other widgets' proof IDs.
+
+### Verification and package
+
+The full core install passed 1720 tests in 199 suites with no failures, errors or
+skips: twelve ListTile contract tests, five command/history tests and three
+payload tests are new. The final focused native UI gate passed 998 tests across
+31 classes, including all 176 stable cells, local/reference editor drafts,
+four-slot admission, conditional Subtitle guards and the complete placement
+matrix. Initial aggregate/fixture-only failures were corrected and the complete
+affected scopes rerun; they are not counted as successful runs.
+
+The real pinned SDK gate covers 29 candidate analyses across four test methods:
+dense local styles/state maps, every slot combination, nullable/nonfinite
+arguments, whole references/factories, disabled stored callbacks, and exact
+dynamic/nullable/wrong-type rejection. Candidates must acquire actual pair-save
+authority, not merely parse or generate text. The two new live tests edit each
+of 176 cells, check exact Undo/Redo/source restoration, Save/reopen, atomic
+whole/local family replacement, conditional Subtitle rejection and analysis
+rollback. The complete live integration class also passes all 139 methods.
+
+Executable totals are 88 widgets, 81 const definitions, 3740 writable rows
+(3723 outside Scaffold), 85 scalar and three structural-only definitions,
+344 Boolean-only fields and ten nullable-Boolean unions. Categories are
+Material 25, Layout 31, Scrolling three, Basic 23 and Accessibility six.
+The 72 insertable destinations (70 ANY plus two trait-bound) form 6336 cells:
+5958 accepted and 378 rejected. Wrapper counts remain 14 generic and 16 total.
+ListTile contributes 181 metadata records (one W, 176 P, four S, no creation
+wrapper C): 3932 W/P/S/C records plus six R records across the catalog.
+
+The dedicated Canvas suite covers 34 tests, including 48 raw-SDK M2/M3/RTL
+pixel comparisons, 256 state combinations, all 93 local TextStyle leaves,
+ten shapes, four-slot/profile-aware drops, slot moves and retained TextField
+State. Raw controls demonstrate the intrinsic-infinity failure independently
+of the guard. A whole contentPadding reference originally reached the local
+insets decoder; the focused suite caught this and the explicit unresolved
+reference path now keeps the documented SDK fallback instead.
+
+The final Flutter analyzer is clean. The complete Flutter suite passes 1660
+visible tests plus 51 loader events, exit zero in 32.014 seconds. This adds
+34 dedicated ListTile tests and two runtime protocol tests. After line-ending
+normalization, all 3757 pre-existing reviewed metadata records remain identical;
+the total is now 3938.
+
+Release verification uses a fresh broad reactor phase with Failsafe enabled and
+the new Canvas bundle. It retains the successful current ListTile SDK and full
+139-method live reports only after checking their source, compiled-class,
+classpath and SDK inputs. Nine earlier widgets' dedicated SDK classes are not
+rerun in this slice; their old reports are excluded from the current-case ledger.
+The unchanged analyzer's 68-case baseline is recorded separately after checking
+all 40 analyzer inputs and its exact installed JAR. This is not represented as
+one fresh unfiltered reactor run.
+
+Two shared-fork release attempts failed only the unchanged
+FlutterDesignerMoveDependencyGuardTest.exclusiveProofPreventsARelevantFolderFromBeingRenamed
+at line 483, while waiting five seconds for rename completion after the exclusive
+guard returned. The entire 38-method class passed alone before these attempts
+and again in an explicit fresh fork (`forkCount=1`, `reuseForks=false`) afterward:
+38 executed, zero failures/errors/skips in 1.890 seconds. Guard, PairMove, test
+assertions and timeouts are unchanged. Final packaging runs the remaining classes
+separately and retains that exact successful 38-case report; it does not skip
+their assertions or represent the isolation as a bug fix.
+
+The available thread dump was captured during later JVM shutdown, not the
+five-second wait. It contains no rename worker/FolderObj/LockForFile stack or
+blocked thread that establishes the timeout's cause. Nested tooling modal-dialog
+and ToolkitShutdown frames are observable but their connection to rename is
+unproven. The shared-fork timeout remains an explicitly unresolved existing
+test-suite issue. Surefire's separate 30-second post-System.exit shutdown warning
+also remains outside this widget implementation.
+
+The offline Web release build passes in 15.4 seconds. main.dart.js is 3276087
+bytes, SHA-256 e94b23ea4bf7403f8b3aa5623832854642f0933c431949a2191b82c4f1bc8b1c.
+All 40 source-manifest and 35 Web-manifest entries are independently rehashed.
+Source manifest SHA-256:
+ddc4593cd49cf7cd6e666c79b02501e44645c9e09276eff496475b22549db913.
+Web manifest SHA-256:
+9265a12b45052c8a78baed7f89013db2c9188668292663226cb8690bb785f7b0.
+Only the reviewed drop/model/view source entries and the Web main.dart.js entry
+change; the Java artifact-size/hash pins are updated to the new verified bytes.
+
+The final scoped reactor install passed (exit zero), including nine package
+metadata tests and the assembled-runtime gate. Root and module nbm:cluster both
+passed. tools/verify-release.ps1 passed with freshness checking enabled and no
+installed-userdir or optional-platform acceptance requested.
+
+The deduplicated current-case Java ledger is 410 reports / 4525 cases:
+4518 executed, zero failures/errors and seven explicitly allowed optional skips.
+It includes 143 current SDK/live cases, the isolated 38-case unchanged guard,
+and the separately verified unchanged 68-case analyzer baseline; 4276 cases
+belong to the final new-artifact phase. Module totals are core Designer 1720,
+plugin Surefire 2562, plugin Failsafe nine, runtime six, project 65, run 88 and
+SDK seven, plus the analyzer baseline. The generic release verifier also sees
+46 older SDK cases in nine retained reports (4571 total); those are not counted
+as freshly revalidated by this slice.
+
+Post-package verification matched all 1681 non-Markdown repository inputs,
+1578 phase-one source inputs, 2432 compiled classes, 1639 SDK/dependency files
+and all three preserved report byte hashes. Of 158 phase-one classpath JARs,
+only the expected new Canvas runner changed; the other 157 are identical.
+All 40 unchanged analyzer inputs and its exact JAR match the recorded baseline.
+The fresh artifact/parity and UI gates ran against the new bundle.
+
+NBM: netbeans-plugin/target/netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm,
+7823957 bytes, SHA-256
+121eb631d6b81327db3959841e1ab85927c9cb8c69e912d4065e6586238c2c73.
+All four packaged/development/assembled-runtime module copies are 3496297 bytes,
+SHA-256 264c8d8e1c76e5dd1510fdc44c50691f55ffbfca9ab2cfb02b7844e03ce380a7.
+The ordinary Maven JAR differs from the NBM module only in META-INF/MANIFEST.MF;
+all four ListTile SVG resources are present. Embedded module, Canvas runner,
+core Designer and analyzer match their verified built counterparts exactly.
+Canvas runner: 363496 bytes, SHA-256
+b760886c0a1ff0bdcf67aeb152dae4bd2ab3fc13c3499d9722cea7e03bb4a097.
+Core Designer: 1683848 bytes, SHA-256
+502cb7b4ab3b66faa730abd69d727de4019d21a33ab5e7f72ca54565fc37def1.
+No installed IDE/userdir, interactive desktop or deferred platform acceptance
+was modified or verified.
+No installed IDE/userdir or deferred platform acceptance is part of this slice.

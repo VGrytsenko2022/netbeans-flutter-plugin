@@ -12,6 +12,9 @@ import 'package:flutter/rendering.dart'
         OverflowBoxFit,
         ScrollCacheExtent,
         RenderProxyBox,
+        BoxParentData,
+        BoxHitTestResult,
+        RenderObjectVisitor,
         RenderObjectWithLayoutCallbackMixin;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/semantics.dart';
@@ -93,6 +96,68 @@ double? _sliderNumber(CanvasNode node, String name) =>
       num value => value.toDouble(),
       _ => null,
     };
+
+double? _listTileNumber(CanvasNode node, String name) =>
+    switch (node.properties[name]?.value) {
+      CanvasEnumValue(value: 'nan') => double.nan,
+      _ => _sliderNumber(node, name),
+    };
+
+bool _listTileHasCallback(CanvasNode node, String name) =>
+    node.properties[name]?.value == 'noop' ||
+    node.properties[name]?.kind == 'dartObjectReferencePresence';
+
+String? _listTileStaticMessage(CanvasNode node, BuildContext? context) {
+  final refs = node.properties.entries
+      .where((entry) => entry.value.kind == 'dartObjectReferencePresence')
+      .map((entry) => entry.key)
+      .toList();
+  final messages = <String>[
+    if (refs.isNotEmpty)
+      'ListTile ${node.id} preview limitation for ${refs.join(', ')}: isolated Canvas never executes project Dart. '
+          'Callback presence is retained with benign no-ops, including disabled semantic-button presence; '
+          'unknown appearance, density, padding and cursor use the actual SDK theme/default as an explicit approximation. '
+          'Focus and widget states remain SDK-owned locally, not the referenced project objects.',
+    if (_cardShapePreviewUnavailableMessage(node, widgetName: 'ListTile')
+        case final String shape)
+      shape,
+  ];
+  if (context != null) {
+    Widget? intermediate;
+    var material = false;
+    context.visitAncestorElements((ancestor) {
+      final widget = ancestor.widget;
+      if (widget is Material) {
+        material = true;
+        return false;
+      }
+      final color = switch (widget) {
+        ColoredBox(:final color) => color,
+        DecoratedBox(decoration: BoxDecoration(:final color)) => color,
+        DecoratedBox(decoration: ShapeDecoration(:final color)) => color,
+        _ => null,
+      };
+      if (intermediate == null && color != null && color.a > 0) {
+        intermediate = widget;
+      }
+      return true;
+    });
+    if (!material) {
+      messages.add(
+        'Render ListTile ${node.id}: Material ancestor is unavailable, so ListTile and its child previews cannot be mounted in this context. '
+        'No synthetic Material is inserted; child State retention applies only to geometry/slot guards under an existing Material.',
+      );
+    } else if (intermediate != null) {
+      messages.add(
+        'ListTile ${node.id}: ink/tile-background preview may be hidden by the intermediate ${intermediate.runtimeType}. '
+        'The actual SDK paints on the existing Material ancestor; Canvas does not insert a different ink surface. '
+        'The SDK may also report its nonfatal background warning through the existing diagnostic pipeline.',
+      );
+    }
+  }
+  if (messages.isEmpty) return null;
+  return '${messages.join(' ')} Stored properties and generated Dart are unchanged.';
+}
 
 String? _radioTypeKey(CanvasNode node) {
   final type = node.properties['valueType']?.value;
@@ -943,6 +1008,332 @@ String? _iconButtonMountedIconMessage(CanvasNode node, BuildContext context) {
   return 'Render Icon ${node.id} inside IconButton: iconSize preview unavailable because the actual mounted IconTheme resolves size $size; an Icon requires a finite nonnegative dimension. The SDK button remains active, and stored values and generated Dart are unchanged.';
 }
 
+class _ListTilePreview extends StatefulWidget {
+  const _ListTilePreview({
+    required this.node,
+    required this.message,
+    required this.slots,
+    required this.builder,
+    required this.riskyUnboundedHeight,
+    required this.hasMaterial,
+  });
+  final CanvasNode node;
+  final String? message;
+  final Map<String, Widget> slots;
+  final Widget Function(Map<String, Widget>) builder;
+  final bool riskyUnboundedHeight;
+  final bool hasMaterial;
+  @override
+  State<_ListTilePreview> createState() => _ListTilePreviewState();
+}
+
+class _ListTilePreviewState extends State<_ListTilePreview> {
+  final _keys = <String, GlobalKey>{};
+  final _slotRenderers = <String, _ListTileSlotRenderBox>{};
+  final _slotMessages = <String, String>{};
+  String? _geometryMessage;
+  String _message = '';
+  bool _scheduled = false;
+  void _scheduleMessage() {
+    if (_scheduled) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted) return;
+      final messages = <String>[
+        if (widget.message case final String message) message,
+        if (_geometryMessage case final String message)
+          'Render ListTile ${widget.node.id}: geometry preview unavailable: $message. The SDK subtree is retained but unsafe paint/semantics and pointer input are withheld.',
+        ..._slotMessages.values,
+      ];
+      final message = messages.join(' ');
+      if (_message != message) {
+        setState(() => _message = message);
+        context
+            .findAncestorStateOfType<_CanvasDocumentViewState>()
+            ?._refreshZeroSizedWidgetTargetsAfterFrame();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final names = widget.slots.keys.toSet();
+    _slotMessages.removeWhere((name, _) => !names.contains(name));
+    _scheduleMessage();
+    if (!widget.hasMaterial) {
+      return _TextButtonPreview(
+        message: widget.message ?? '',
+        child: const SizedBox.shrink(),
+      );
+    }
+    final slots = <String, Widget>{
+      for (final entry in widget.slots.entries)
+        entry.key: _ListTileSlotGuard(
+          key: ValueKey(entry.key),
+          sideSlot: entry.key == 'leading' || entry.key == 'trailing',
+          onRenderer: (renderer) {
+            if (renderer == null) {
+              _slotRenderers.remove(entry.key);
+            } else {
+              _slotRenderers[entry.key] = renderer;
+            }
+          },
+          onBlocked: (blocked) {
+            if (blocked) {
+              _slotMessages[entry.key] =
+                  'ListTile ${widget.node.id}.${entry.key} preview unavailable: '
+                  'the mounted slot consumes the entire nonzero tile content width, which Flutter 3.44.8 rejects. '
+                  'Only this slot paint/semantics is withheld and it reports zero width; child State, model and generated Dart are retained.';
+            } else {
+              _slotMessages.remove(entry.key);
+            }
+            _scheduleMessage();
+          },
+          child: KeyedSubtree(
+            key: _keys.putIfAbsent(entry.key, GlobalKey.new),
+            child: entry.value,
+          ),
+        ),
+    };
+    return _TextButtonPreview(
+      message: _message.isEmpty ? widget.message ?? '' : _message,
+      child: _ListTileLayoutGuard(
+        riskyUnboundedHeight: widget.riskyUnboundedHeight,
+        slotRenderers: _slotRenderers,
+        onMessage: (message) {
+          _geometryMessage = message;
+          _scheduleMessage();
+        },
+        child: widget.builder(slots),
+      ),
+    );
+  }
+}
+
+class _ListTileSlotGuard extends SingleChildRenderObjectWidget {
+  const _ListTileSlotGuard({
+    super.key,
+    required this.sideSlot,
+    required this.onRenderer,
+    required this.onBlocked,
+    required super.child,
+  });
+  final bool sideSlot;
+  final ValueChanged<_ListTileSlotRenderBox?> onRenderer;
+  final ValueChanged<bool> onBlocked;
+  @override
+  _ListTileSlotRenderBox createRenderObject(BuildContext context) {
+    final render = _ListTileSlotRenderBox(sideSlot, onBlocked, onRenderer);
+    onRenderer(render);
+    return render;
+  }
+
+  @override
+  void updateRenderObject(BuildContext context, _ListTileSlotRenderBox render) {
+    render.sideSlot = sideSlot;
+    render.onBlocked = onBlocked;
+    render.onRenderer = onRenderer;
+    onRenderer(render);
+    render.markNeedsLayout();
+  }
+}
+
+class _ListTileSlotRenderBox extends RenderProxyBox {
+  _ListTileSlotRenderBox(this.sideSlot, this.onBlocked, this.onRenderer);
+  bool sideSlot;
+  ValueChanged<bool> onBlocked;
+  ValueChanged<_ListTileSlotRenderBox?> onRenderer;
+  bool blocked = false;
+  bool _fullWidth(Size size, BoxConstraints constraints) =>
+      sideSlot &&
+      constraints.maxWidth > 0 &&
+      size.width == constraints.maxWidth;
+  bool get hasInvalidOffset {
+    final data = parentData;
+    return data is BoxParentData &&
+        (!data.offset.dx.isFinite || !data.offset.dy.isFinite);
+  }
+
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    final measured = child?.getDryLayout(constraints) ?? Size.zero;
+    return _fullWidth(measured, constraints)
+        ? Size(0, measured.height)
+        : measured;
+  }
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final previous = blocked;
+    blocked = _fullWidth(size, constraints);
+    if (blocked) size = Size(0, size.height);
+    if (previous != blocked) markNeedsSemanticsUpdate();
+    onBlocked(blocked);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (!blocked) super.paint(context, offset);
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      !blocked && super.hitTest(result, position: position);
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (!blocked) super.visitChildrenForSemantics(visitor);
+  }
+
+  @override
+  void dispose() {
+    onRenderer(null);
+    super.dispose();
+  }
+}
+
+class _ListTileLayoutGuard extends SingleChildRenderObjectWidget {
+  const _ListTileLayoutGuard({
+    required this.riskyUnboundedHeight,
+    required this.slotRenderers,
+    required this.onMessage,
+    required super.child,
+  });
+  final bool riskyUnboundedHeight;
+  final Map<String, _ListTileSlotRenderBox> slotRenderers;
+  final ValueChanged<String?> onMessage;
+  @override
+  _ListTileLayoutRenderBox createRenderObject(BuildContext context) =>
+      _ListTileLayoutRenderBox(riskyUnboundedHeight, slotRenderers, onMessage);
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _ListTileLayoutRenderBox render,
+  ) {
+    render.riskyUnboundedHeight = riskyUnboundedHeight;
+    render.onMessage = onMessage;
+    render.clearIntrinsicDiagnostic();
+    render.markNeedsLayout();
+  }
+}
+
+// The public SDK ListTile still owns layout. Only a genuinely unavailable host
+// layout is parked at zero constraints; no dimensions are inserted into source.
+// Actual post-layout slot offsets decide the finite-paint guard.
+class _ListTileLayoutRenderBox extends RenderProxyBox {
+  _ListTileLayoutRenderBox(
+    this.riskyUnboundedHeight,
+    this.slots,
+    this.onMessage,
+  );
+  bool riskyUnboundedHeight;
+  final Map<String, _ListTileSlotRenderBox> slots;
+  ValueChanged<String?> onMessage;
+  bool _blocked = false;
+  String? _intrinsicMessage;
+  void clearIntrinsicDiagnostic() => _intrinsicMessage = null;
+  double _finiteIntrinsic(double value) {
+    if (value.isFinite) return value;
+    // No build, callback, child mutation or layout runs during an intrinsic
+    // query. Cache only the reason for the next normal layout's diagnostic.
+    _intrinsicMessage =
+        'the SDK returned a nonfinite intrinsic dimension; its unavailable extent is projected to zero for this parent';
+    return 0;
+  }
+
+  @override
+  double computeMinIntrinsicWidth(double height) =>
+      _finiteIntrinsic(super.computeMinIntrinsicWidth(height));
+  @override
+  double computeMaxIntrinsicWidth(double height) =>
+      _finiteIntrinsic(super.computeMaxIntrinsicWidth(height));
+  @override
+  double computeMinIntrinsicHeight(double width) =>
+      _finiteIntrinsic(super.computeMinIntrinsicHeight(width));
+  @override
+  double computeMaxIntrinsicHeight(double width) =>
+      _finiteIntrinsic(super.computeMaxIntrinsicHeight(width));
+  @override
+  Size computeDryLayout(BoxConstraints constraints) {
+    if (!constraints.hasBoundedWidth) {
+      return constraints.constrain(Size.zero);
+    }
+    final measured = super.computeDryLayout(constraints);
+    return measured.isFinite ? measured : constraints.constrain(Size.zero);
+  }
+
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) {
+    if (_blocked) return null;
+    final value = super.computeDistanceToActualBaseline(baseline);
+    return value == null || value.isFinite ? value : null;
+  }
+
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) {
+    if (!constraints.hasBoundedWidth) return null;
+    final value = super.computeDryBaseline(constraints, baseline);
+    return value == null || value.isFinite ? value : null;
+  }
+
+  @override
+  void performLayout() {
+    String? message = _intrinsicMessage;
+    if (!constraints.hasBoundedWidth) {
+      message =
+          'the parent supplies unbounded width; ListTile requires a bounded horizontal layout';
+    } else if (!constraints.hasBoundedHeight && riskyUnboundedHeight) {
+      try {
+        final measured = child!.getDryLayout(constraints);
+        if (!measured.isFinite) {
+          message =
+              'resolved minTileHeight/minVerticalPadding produce a nonfinite height in this unbounded parent';
+        }
+      } on FlutterError {
+        message =
+            'nonfinite height settings cannot be safely preflighted for these mounted children in an unbounded parent';
+      }
+    }
+    final quarantine = message != null;
+    child!.layout(
+      quarantine ? BoxConstraints.tight(Size.zero) : constraints,
+      parentUsesSize: true,
+    );
+    size = quarantine ? constraints.constrain(Size.zero) : child!.size;
+    if (!quarantine) {
+      final invalid = slots.entries
+          .where((entry) => entry.value.hasInvalidOffset)
+          .map((entry) => entry.key)
+          .toList();
+      if (invalid.isNotEmpty) {
+        message =
+            'the SDK resolved nonfinite positions for ${invalid.join(', ')} from horizontalTitleGap/minLeadingWidth/minVerticalPadding/minTileHeight';
+      }
+    }
+    final blocked = message != null;
+    if (_blocked != blocked) markNeedsSemanticsUpdate();
+    _blocked = blocked;
+    onMessage(message);
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (!_blocked) super.paint(context, offset);
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      !_blocked && super.hitTest(result, position: position);
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (!_blocked) super.visitChildrenForSemantics(visitor);
+  }
+}
+
 class _CanvasRadioGroupScope extends InheritedWidget {
   const _CanvasRadioGroupScope({
     required this.typeKey,
@@ -1385,6 +1776,23 @@ String? _customClipperPreviewUnavailableMessageForNode(
   }
   if (node.type == 'flutter.widgets.RadioGroup') {
     return _radioGroupPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.ListTile') {
+    _ListTilePreviewState? state;
+    void visit(Element element) {
+      if (element is StatefulElement &&
+          element.state is _ListTilePreviewState &&
+          (element.state as _ListTilePreviewState).widget.node.id == node.id) {
+        state = element.state as _ListTilePreviewState;
+        return;
+      }
+      if (state == null) element.visitChildElements(visit);
+    }
+
+    context?.visitChildElements(visit);
+    return state?._message.isNotEmpty == true
+        ? state!._message
+        : _listTileStaticMessage(node, context);
   }
   if (node.type == 'flutter.material.RangeSlider') {
     return _rangeSliderGeometryMessage(node, context, constraints) ??
@@ -2410,6 +2818,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Switch' ||
         node.type == 'flutter.material.Radio' ||
         node.type == 'flutter.widgets.RadioGroup' ||
+        node.type == 'flutter.material.ListTile' ||
         node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
@@ -2827,6 +3236,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         return null;
       }
       zone = switch (reviewedSlot?.zonePlacement) {
+        CanvasDropZonePlacement.listTileLeading ||
+        CanvasDropZonePlacement.listTileTitle ||
+        CanvasDropZonePlacement.listTileSubtitle ||
+        CanvasDropZonePlacement.listTileTrailing => _listTileDropZone(
+          parentRect,
+          reviewedSlot!.zonePlacement,
+          _resolvedTextDirection(parentNode),
+        ),
         CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(parentRect),
         CanvasDropZonePlacement.fullNode || null => parentRect,
         CanvasDropZonePlacement.terminalList => _terminalZone(
@@ -3178,6 +3595,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           }
           final localParent = Offset.zero & box.size;
           final localZone = switch (dropSlot.zonePlacement) {
+            CanvasDropZonePlacement.listTileLeading ||
+            CanvasDropZonePlacement.listTileTitle ||
+            CanvasDropZonePlacement.listTileSubtitle ||
+            CanvasDropZonePlacement.listTileTrailing => _listTileDropZone(
+              localParent,
+              dropSlot.zonePlacement,
+              _resolvedTextDirection(node),
+            ),
             CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(localParent),
             CanvasDropZonePlacement.fullNode => localParent,
             CanvasDropZonePlacement.terminalList => _terminalZone(
@@ -3218,6 +3643,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             point,
             surfaceRect,
             placement: dropSlot.zonePlacement,
+            direction: _resolvedTextDirection(node),
           );
           if (zone != null) {
             result.add(
@@ -3404,6 +3830,45 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     parent.right,
     parent.center.dy,
   );
+
+  // Four disjoint Designer insertion handles, not fabricated SDK slot sizes.
+  // Empty slots have no RenderBox; retain logical leading/trailing under RTL.
+  Rect _listTileDropZone(
+    Rect parent,
+    CanvasDropZonePlacement placement,
+    TextDirection direction,
+  ) {
+    final start = parent.left + parent.width * .25;
+    final end = parent.right - parent.width * .25;
+    return switch (placement) {
+      CanvasDropZonePlacement.listTileLeading
+          when direction == TextDirection.ltr =>
+        Rect.fromLTRB(parent.left, parent.top, start, parent.bottom),
+      CanvasDropZonePlacement.listTileTrailing
+          when direction == TextDirection.rtl =>
+        Rect.fromLTRB(parent.left, parent.top, start, parent.bottom),
+      CanvasDropZonePlacement.listTileLeading ||
+      CanvasDropZonePlacement.listTileTrailing => Rect.fromLTRB(
+        end,
+        parent.top,
+        parent.right,
+        parent.bottom,
+      ),
+      CanvasDropZonePlacement.listTileTitle => Rect.fromLTRB(
+        start,
+        parent.top,
+        end,
+        parent.center.dy,
+      ),
+      CanvasDropZonePlacement.listTileSubtitle => Rect.fromLTRB(
+        start,
+        parent.center.dy,
+        end,
+        parent.bottom,
+      ),
+      _ => parent,
+    };
+  }
 
   bool _isEligibleDropSlot(CanvasNode node, String slotName) {
     if (node.type == 'flutter.material.Badge' && slotName == 'label') {
@@ -3746,6 +4211,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     Offset globalPoint,
     Rect surfaceRect, {
     CanvasDropZonePlacement? placement,
+    TextDirection direction = TextDirection.ltr,
   }) {
     final renderedBox = _finiteGlobalRect(box);
     if (renderedBox == null || !_hasFiniteGlobalInverse(box)) {
@@ -3753,9 +4219,18 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     }
     if (box.size.isEmpty) {
       final bounded = _boundedDesignerHitRect(renderedBox, surfaceRect);
-      final synthetic = placement == CanvasDropZonePlacement.badgeLabel
-          ? _badgeLabelZone(bounded)
-          : bounded;
+      final synthetic = switch (placement) {
+        CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(bounded),
+        CanvasDropZonePlacement.listTileLeading ||
+        CanvasDropZonePlacement.listTileTitle ||
+        CanvasDropZonePlacement.listTileSubtitle ||
+        CanvasDropZonePlacement.listTileTrailing => _listTileDropZone(
+          bounded,
+          placement!,
+          direction,
+        ),
+        _ => bounded,
+      };
       return !synthetic.isEmpty && synthetic.contains(globalPoint)
           ? synthetic
           : null;
@@ -4383,6 +4858,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
       'flutter.material.Radio' => _radio(context),
+      'flutter.material.ListTile' => _listTile(context),
       'flutter.widgets.RadioGroup' => _RadioGroupPreview(
         node: node,
         child: _single('child')!,
@@ -4949,6 +5425,134 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       );
     }
     return entries.isEmpty ? null : WidgetStateProperty<Icon?>.fromMap(entries);
+  }
+
+  Widget _listTile(BuildContext context) {
+    Color? color(String name) {
+      final entries = <WidgetStatesConstraint, Color>{};
+      for (final entry in {
+        ..._checkboxStateLayers,
+        WidgetState.any: 'Default',
+      }.entries) {
+        final value = _resolvedColor(context, '$name${entry.value}');
+        if (value != null) entries[entry.key] = value;
+      }
+      return entries.isEmpty
+          ? _resolvedColor(context, name)
+          : WidgetStateColor.fromMap(entries);
+    }
+
+    final cursorEntries = <WidgetStatesConstraint, MouseCursor>{};
+    var unresolvedCursor = false;
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'mouseCursor${entry.value}';
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') {
+        unresolvedCursor = true;
+      }
+      final cursor = _mouseCursor(name);
+      if (cursor != null) cursorEntries[entry.key] = cursor;
+    }
+    final cursor = unresolvedCursor
+        ? null
+        : cursorEntries.isEmpty
+        ? _mouseCursor('mouseCursor')
+        : WidgetStateMouseCursor.fromMap(cursorEntries);
+    final horizontal = _number('visualDensityHorizontal'),
+        vertical = _number('visualDensityVertical');
+    final density = horizontal == null && vertical == null
+        ? null
+        : VisualDensity(horizontal: horizontal ?? 0, vertical: vertical ?? 0);
+    TextStyle? textStyle(String prefix) =>
+        node.properties[prefix]?.kind == 'dartObjectReferencePresence'
+        ? null
+        : _textStyle(context, prefix);
+    final tileTheme = ListTileTheme.of(context);
+    final height =
+        _listTileNumber(node, 'minTileHeight') ?? tileTheme.minTileHeight;
+    final padding =
+        _listTileNumber(node, 'minVerticalPadding') ??
+        tileTheme.minVerticalPadding ??
+        (Theme.of(context).useMaterial3 ? 8 : 4);
+    return _ListTilePreview(
+      node: node,
+      message: _listTileStaticMessage(node, context),
+      riskyUnboundedHeight:
+          (height != null &&
+              !height.isFinite &&
+              height != double.negativeInfinity) ||
+          !(padding * 2).isFinite && padding != double.negativeInfinity,
+      hasMaterial: context.findAncestorWidgetOfExactType<Material>() != null,
+      slots: {
+        for (final name in ['leading', 'title', 'subtitle', 'trailing'])
+          if (_single(name) case final Widget child) name: child,
+      },
+      builder: (slots) => ListTile(
+        leading: slots['leading'],
+        title: slots['title'],
+        subtitle: slots['subtitle'],
+        trailing: slots['trailing'],
+        isThreeLine: _boolean('isThreeLine'),
+        dense: _boolean('dense'),
+        visualDensity: density,
+        shape:
+            _cardShapePreviewUnavailableMessage(node, widgetName: 'ListTile') ==
+                null
+            ? _cardShape(context)
+            : null,
+        style: switch (_enum('style')) {
+          'list' => ListTileStyle.list,
+          'drawer' => ListTileStyle.drawer,
+          _ => null,
+        },
+        selectedColor: _resolvedColor(context, 'selectedColor'),
+        iconColor: color('iconColor'),
+        textColor: color('textColor'),
+        titleTextStyle: textStyle('titleTextStyle'),
+        subtitleTextStyle: textStyle('subtitleTextStyle'),
+        leadingAndTrailingTextStyle: textStyle('leadingAndTrailingTextStyle'),
+        contentPadding:
+            node.properties['contentPadding']?.kind ==
+                'dartObjectReferencePresence'
+            ? null
+            : _edgeInsetsGeometry('contentPadding'),
+        enabled: _boolean('enabled') ?? true,
+        onTap: _listTileHasCallback(node, 'onTap')
+            ? () => onSelected(node.id)
+            : null,
+        onLongPress: _listTileHasCallback(node, 'onLongPress')
+            ? () => onSelected(node.id)
+            : null,
+        onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+            ? (_) {}
+            : null,
+        mouseCursor: cursor,
+        selected: _boolean('selected') ?? false,
+        focusColor: _resolvedColor(context, 'focusColor'),
+        hoverColor: _resolvedColor(context, 'hoverColor'),
+        splashColor: _resolvedColor(context, 'splashColor'),
+        autofocus: _boolean('autofocus') ?? false,
+        tileColor: _resolvedColor(context, 'tileColor'),
+        selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+        enableFeedback: _boolean('enableFeedback'),
+        horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+        minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+        minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+        minTileHeight: _listTileNumber(node, 'minTileHeight'),
+        titleAlignment: switch (_enum('titleAlignment')) {
+          'threeLine' => ListTileTitleAlignment.threeLine,
+          'titleHeight' => ListTileTitleAlignment.titleHeight,
+          'top' => ListTileTitleAlignment.top,
+          'center' => ListTileTitleAlignment.center,
+          'bottom' => ListTileTitleAlignment.bottom,
+          _ => null,
+        },
+        internalAddSemanticForOnTap:
+            _boolean('internalAddSemanticForOnTap') ?? true,
+      ),
+    );
   }
 
   Widget _radio(BuildContext context) {

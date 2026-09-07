@@ -165,6 +165,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
             Map.entry("flutter.material.Radio", STATIC_EDITABLE),
             Map.entry("flutter.widgets.RadioGroup", STATIC_EDITABLE),
+            Map.entry("flutter.material.ListTile", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
             Map.entry("flutter.material.Slider", STATIC_EDITABLE),
             Map.entry("flutter.material.RangeSlider", STATIC_EDITABLE),
@@ -338,6 +339,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
             Map.entry("flutter.material.Radio", radioProjection()),
             Map.entry("flutter.widgets.RadioGroup", radioGroupProjection()),
+            Map.entry("flutter.material.ListTile", listTileProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
             Map.entry("flutter.material.Slider", sliderProjection()),
             Map.entry("flutter.material.RangeSlider", rangeSliderProjection()),
@@ -2385,6 +2387,73 @@ public final class BuiltInWidgetCapabilityCatalog {
             properties.put(name, value);
         }
         return projection(properties, Map.of());
+    }
+
+    private static CanvasProjection listTileProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        var text = badgeProjection();
+        var shapes = cardProjection();
+        var checkbox = checkboxProjection();
+        for (String name : ListTileWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            var family = ListTileWidgetPropertySchema.textStyleFamily(new PropertyName(name));
+            if (family.isPresent()) {
+                value = text.propertyContracts().get(new PropertyName("textStyle" + name.substring(family.orElseThrow().length())));
+            } else if (ListTileWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                value = shapes.propertyContracts().get(new PropertyName(name));
+            } else if (ListTileWidgetPropertySchema.stateColorFamilies().stream().anyMatch(key -> ListTileWidgetPropertySchema.colorStateProperties(key).contains(name))) {
+                value = colorOrThemeProperty(name).getValue();
+            } else if (ListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name) || name.equals("mouseCursor")) {
+                value = checkbox.propertyContracts().get(new PropertyName("mouseCursor"));
+            } else if (ListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                value = listTileAddReference(colorOrThemeProperty(name).getValue(), "Color");
+            } else if (ListTileWidgetPropertySchema.geometryProperties().contains(name)) {
+                var number = cardNumberSchema(null, null);
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,nan,negativeInfinity");
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+            } else {
+                value = switch (name) {
+                    case "visualDensity" -> listTileReference("VisualDensity");
+                    case "visualDensityHorizontal", "visualDensityVertical" -> checkbox.propertyContracts().get(new PropertyName(name));
+                    case "shape" -> listTileReference("ShapeBorder");
+                    case "titleTextStyle", "subtitleTextStyle", "leadingAndTrailingTextStyle" -> listTileReference("TextStyle");
+                    case "contentPadding" -> listTileAddReference(edgeInsetsProperty(name, false).getValue(), "EdgeInsetsGeometry");
+                    case "style" -> materialEnumProperty(name, "ListTileStyle", "list", "drawer").getValue();
+                    case "titleAlignment" -> materialEnumProperty(name, "ListTileTitleAlignment", "threeLine", "titleHeight", "top", "center", "bottom").getValue();
+                    case "focusNode" -> listTileReference("FocusNode");
+                    case "statesController" -> listTileReference("WidgetStatesController");
+                    case "isThreeLine", "dense", "enableFeedback" -> new CanvasPropertyContract(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL), false,
+                            Optional.empty(), Map.of(), Map.of(PropertyValueKind.BOOLEAN, "any", PropertyValueKind.NULL, "any"));
+                    case "onTap", "onLongPress", "onFocusChange" -> {
+                        var reference = listTileReference(name.equals("onFocusChange") ? "ValueChanged<bool>" : "VoidCallback");
+                        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                        constraints.putAll(reference.constraintFingerprints());
+                        constraints.put(PropertyValueKind.STRING, "pattern:" + base64("noop"));
+                        constraints.put(PropertyValueKind.NULL, "any");
+                        yield new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+                    }
+                    default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of("leading", singleSlotSchema(false, 0), "title", singleSlotSchema(false, 0),
+                "subtitle", singleSlotSchema(false, 0), "trailing", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasPropertyContract listTileReference(String type) {
+        return constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX + type
+                + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+    }
+
+    private static CanvasPropertyContract listTileAddReference(CanvasPropertyContract local, String type) {
+        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+        constraints.putAll(local.constraintFingerprints());
+        constraints.putAll(listTileReference(type).constraintFingerprints());
+        return new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), local.numericBounds(), constraints);
     }
 
     private static CanvasProjection radioGroupProjection() {

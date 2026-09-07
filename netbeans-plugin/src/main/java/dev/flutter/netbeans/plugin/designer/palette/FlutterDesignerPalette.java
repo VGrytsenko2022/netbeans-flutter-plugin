@@ -354,6 +354,9 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.material.Card".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.Card.Name"));
                 setShortDescription(message("Widget.Card.Description"));
+            } else if ("flutter.material.ListTile".equals(definition.typeId().value())) {
+                setDisplayName(message("Widget.ListTile.Name"));
+                setShortDescription(message("Widget.ListTile.Description"));
             } else if ("flutter.widgets.RadioGroup".equals(definition.typeId().value())) {
                 setDisplayName(message("Widget.RadioGroup.Name"));
                 setShortDescription(message("Widget.RadioGroup.Description"));

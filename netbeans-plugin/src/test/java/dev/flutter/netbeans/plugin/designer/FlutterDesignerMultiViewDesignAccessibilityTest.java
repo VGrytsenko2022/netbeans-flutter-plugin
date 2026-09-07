@@ -771,6 +771,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.material.RangeSlider",
                     "flutter.material.Radio",
                     "flutter.widgets.RadioGroup",
+                    "flutter.material.ListTile",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",

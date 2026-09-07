@@ -112,6 +112,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.material.RangeSlider"));
         assertTrue(typeIds(result).contains("flutter.material.Radio"));
         assertTrue(typeIds(result).contains("flutter.widgets.RadioGroup"));
+        assertTrue(typeIds(result).contains("flutter.material.ListTile"));
     }
 
     @Test
@@ -199,7 +200,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(87, result.catalog().definitions().size());
+        assertEquals(88, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -232,7 +233,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(87, result.catalog().definitions().size());
+        assertEquals(88, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

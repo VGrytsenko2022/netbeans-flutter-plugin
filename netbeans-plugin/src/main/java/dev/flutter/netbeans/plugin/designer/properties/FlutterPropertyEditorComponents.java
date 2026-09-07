@@ -101,7 +101,7 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY, NULLABLE_BOOLEAN, NULLABLE_ENUM,
                     EDGE_INSETS, COLOR,
-                    THEME_COLOR, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    THEME_COLOR, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
                     BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE,
@@ -119,6 +119,7 @@ final class FlutterPropertyEditorComponents {
                 : PropertyEnv.create(new FeatureDescriptor());
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
+            case COLOR_REFERENCE, EDGE_INSETS_REFERENCE -> FlutterLocalDartReferenceEditorComponent.customEditor(editor, binding, environment);
             case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_THEME_COLOR -> FlutterNullableColorEditorComponent.customEditor(editor, binding, environment);
             case PRESET_DART_REFERENCE -> FlutterPresetDartReferenceEditorComponent.customEditor(editor, binding, environment);
@@ -1349,6 +1350,7 @@ final class FlutterPropertyEditorComponents {
         private final JTextField[] directional = fields("directional", DIRECTIONAL_NAMES);
         private final JCheckBox useDefault = new JCheckBox(
                 "Use inherited/default value (omit argument)");
+        private final boolean nonNegative;
         private Mode activeMode;
         private boolean updating;
 
@@ -1358,6 +1360,8 @@ final class FlutterPropertyEditorComponents {
                 PropertyEnv environment) {
             super(editor, binding, environment);
             boolean directionalAllowed = binding.directionalEdgeInsetsAllowed();
+            nonNegative = binding.definition().constraints().stream().filter(PropertyValueConstraint.EdgeInsetsValues.class::isInstance)
+                    .map(PropertyValueConstraint.EdgeInsetsValues.class::cast).findFirst().orElseThrow().nonNegative();
             mode = new JComboBox<>(directionalAllowed
                     ? Mode.values()
                     : new Mode[]{Mode.ALL, Mode.SYMMETRIC, Mode.PHYSICAL});
@@ -1405,7 +1409,7 @@ final class FlutterPropertyEditorComponents {
             all.setName(EDGE_ALL_NAME);
             all.getAccessibleContext().setAccessibleName("All edge insets");
             all.getAccessibleContext().setAccessibleDescription(
-                    "One non-negative padding value for every side.");
+                    nonNegative ? "One non-negative padding value for every side." : "One signed inset value for every side.");
             horizontal.setName("flutter.edgeInsets.horizontal");
             vertical.setName("flutter.edgeInsets.vertical");
             cards.add(singleFieldPanel("All sides:", all), Mode.ALL.name());
@@ -1500,12 +1504,12 @@ final class FlutterPropertyEditorComponents {
                 String label = activeLabels(selected)[index];
                 try {
                     values[index] = new BigDecimal(field.getText().strip());
-                    if (values[index].signum() < 0) {
+                    if (nonNegative && values[index].signum() < 0) {
                         throw new IllegalArgumentException(
                                 label + " inset must be non-negative.");
                     }
                     clearInvalid(field, label
-                            + " padding in non-negative logical pixels.");
+                            + (nonNegative ? " padding in non-negative logical pixels." : " signed insets in logical pixels."));
                 } catch (NumberFormatException failure) {
                     valid = false;
                     markInvalid(label + " inset must be a decimal number.", field);
@@ -1569,7 +1573,7 @@ final class FlutterPropertyEditorComponents {
 
         private void clearAllInvalid() {
             for (JTextField field : allFields()) {
-                clearInvalid(field, "Non-negative padding in logical pixels.");
+                clearInvalid(field, nonNegative ? "Non-negative padding in logical pixels." : "Signed insets in logical pixels.");
             }
         }
 
@@ -1625,9 +1629,9 @@ final class FlutterPropertyEditorComponents {
 
         private JPanel twoFieldPanel() {
             horizontal.getAccessibleContext().setAccessibleDescription(
-                    "Non-negative horizontal padding in logical pixels.");
+                    nonNegative ? "Non-negative horizontal padding in logical pixels." : "Signed horizontal insets in logical pixels.");
             vertical.getAccessibleContext().setAccessibleDescription(
-                    "Non-negative vertical padding in logical pixels.");
+                    nonNegative ? "Non-negative vertical padding in logical pixels." : "Signed vertical insets in logical pixels.");
             return fieldPanel(
                     new String[]{"Horizontal:", "Vertical:"},
                     new JTextField[]{horizontal, vertical});
@@ -1641,7 +1645,7 @@ final class FlutterPropertyEditorComponents {
             for (int index = 0; index < names.length; index++) {
                 labels[index] = capitalize(names[index]) + ':';
                 fields[index].getAccessibleContext().setAccessibleDescription(
-                        "Non-negative "
+                        (nonNegative ? "Non-negative " : "Signed ")
                         + (textDirectionAware ? "directional " : "physical ")
                         + names[index] + " padding in logical pixels.");
             }

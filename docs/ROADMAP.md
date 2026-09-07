@@ -1974,6 +1974,14 @@ accepted architecture is documented in
   atomic three-field type editing, stable Properties, wrapping/history and
   Save/reopen. Use actual SDK Canvas groups with bounded runtime conflict
   diagnostics and no project-code execution. Final gate evidence: ADR-115.
+- [x] Add ListTile at Material/order250 as one complete const-constructor slice:
+  all 37 non-key parameters, 176 typed rows and four optional child slots.
+  Cover local/whole shapes, three complete text styles, state colors/cursors,
+  signed/reference padding, exact nullable/nonfinite geometry and strict source
+  references. Preserve disabled callbacks and conditional Subtitle admission,
+  stable Properties, history, Save/reopen and actual SDK Canvas behavior.
+  Final gate evidence: ADR-116. This adds one admitted widget, not proof that
+  only four widgets remain in the full Flutter palette.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1991,8 +1999,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty-seven admitted built-ins.
-  The 84 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty-eight admitted built-ins.
+  The 85 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

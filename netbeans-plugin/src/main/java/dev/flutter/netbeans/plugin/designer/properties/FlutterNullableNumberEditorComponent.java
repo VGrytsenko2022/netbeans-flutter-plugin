@@ -44,6 +44,7 @@ final class FlutterNullableNumberEditorComponent {
         private final boolean supportsInfinity;
         private final boolean secondaryTrack;
         private final boolean negativeInfinity;
+        private final boolean supportsNaN;
         private final String nullLabel;
 
         NullableNumberPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
@@ -51,6 +52,7 @@ final class FlutterNullableNumberEditorComponent {
             supportsInfinity = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NULLABLE_NUMBER_WITH_INFINITY;
             secondaryTrack = binding.definition().name().value().equals("secondaryTrackValue");
             negativeInfinity = supportsInfinity && binding.definition().constraints().stream().anyMatch(constraint -> constraint instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues values && values.values().contains("negativeInfinity"));
+            supportsNaN = supportsInfinity && binding.definition().constraints().stream().anyMatch(constraint -> constraint instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues values && values.values().contains("nan"));
             nullLabel = secondaryTrack ? SECONDARY_NULL_TEXT : INHERITED;
             stateEntry = dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.outlineWidthStateProperties().contains(binding.definition().name().value());
             omitLabel = stateEntry ? "Not set (omit state entry)" : OMIT;
@@ -62,15 +64,17 @@ final class FlutterNullableNumberEditorComponent {
                     : "Choose constructor omission, explicit inherited null, or a finite number. Drafts remain local until OK; Cancel preserves the original typed state.");
             mode = new JComboBox<>(binding.optional() ? new String[]{omitLabel, nullLabel, NUMBER} : new String[]{nullLabel, NUMBER});
             if (secondaryTrack) getAccessibleContext().setAccessibleDescription("Choose omitted Secondary track value, explicit null with no secondary track, or an exact number including signed Infinity. Values must remain in range; drafts stay local until OK.");
+            if (supportsNaN) getAccessibleContext().setAccessibleDescription("Choose omitted ListTile geometry, explicit inherited null, or an exact signed number including Infinity, -Infinity and NaN. Unsafe mounted geometry is reported by Canvas; drafts stay local until OK.");
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Numeric value source");
             mode.getAccessibleContext().setAccessibleDescription(secondaryTrack
                     ? "Omission and explicit null both disable the secondary track but remain distinct saved states."
                     : "Omission and inherited null are distinct saved states.");
             var sourceLabel = new JLabel("Source:"); sourceLabel.setLabelFor(mode);
             var source = new JPanel(new BorderLayout(8, 0)); source.add(sourceLabel, BorderLayout.WEST); source.add(mode, BorderLayout.CENTER); add(source, BorderLayout.NORTH);
-            number.setName(VALUE_NAME); number.getAccessibleContext().setAccessibleName(negativeInfinity ? "Explicit number or signed Infinity" : supportsInfinity ? "Explicit number or positive Infinity" : "Explicit finite number");
+            number.setName(VALUE_NAME); number.getAccessibleContext().setAccessibleName(supportsNaN ? "Explicit number, signed Infinity or NaN" : negativeInfinity ? "Explicit number or signed Infinity" : supportsInfinity ? "Explicit number or positive Infinity" : "Explicit finite number");
             number.getAccessibleContext().setAccessibleDescription(supportsInfinity
-                    ? negativeInfinity ? "A signed finite integer or decimal, Infinity or -Infinity. NaN and Dart expressions are not accepted."
+                    ? supportsNaN ? "A signed finite integer or decimal, Infinity, -Infinity or NaN. Only the closed double constants are accepted; no Dart expressions."
+                            : negativeInfinity ? "A signed finite integer or decimal, Infinity or -Infinity. NaN and Dart expressions are not accepted."
                             : "A signed finite integer or decimal, or exactly Infinity. Negative Infinity, NaN and Dart expressions are not accepted."
                     : "A signed finite integer or decimal; no null, blank value, Infinity, NaN, or Dart expression in this mode.");
             var valueLabel = new JLabel("Number:"); valueLabel.setLabelFor(number);
@@ -83,7 +87,7 @@ final class FlutterNullableNumberEditorComponent {
                     ? initialValue() : FlutterPropertyCellValue.unset();
             number.setText(initial instanceof PropertyValue.IntegerValue integer ? integer.value().toString()
                     : initial instanceof PropertyValue.DoubleValue decimal ? decimal.value().toPlainString()
-                    : supportsInfinity && initial instanceof PropertyValue.EnumValue enumValue ? enumValue.value().equals("negativeInfinity") ? "-Infinity" : "Infinity" : "0");
+                    : supportsInfinity && initial instanceof PropertyValue.EnumValue enumValue ? enumValue.value().equals("nan") ? "NaN" : enumValue.value().equals("negativeInfinity") ? "-Infinity" : "Infinity" : "0");
             mode.setSelectedItem(initial == null ? binding.optional() ? omitLabel : nullLabel : initial instanceof PropertyValue.NullValue ? nullLabel : NUMBER);
             mode.addActionListener(ignored -> refresh(true));
             number.getDocument().addDocumentListener(new DocumentListener() {
@@ -104,7 +108,9 @@ final class FlutterNullableNumberEditorComponent {
             if (stateEntry && !NUMBER.equals(selected)) description = nullLabel.equals(selected)
                     ? "Stores explicit null. Matching this entry stops lower-priority local states and delegates to SDK/theme fallback."
                     : "Omits this state entry; lower-priority local states remain eligible. This is not explicit null.";
-            if (supportsInfinity && NUMBER.equals(selected)) description = negativeInfinity
+            if (supportsInfinity && NUMBER.equals(selected)) description = supportsNaN
+                    ? "Stores the exact finite number or closed Infinity, -Infinity or NaN constant. Unsafe mounted ListTile geometry is reported by Canvas without rewriting the saved value."
+                    : negativeInfinity
                     ? "Stores the exact finite number, Infinity or -Infinity; it must be within the current slider range. Values are never clamped."
                     : "Stores the exact finite number or positive Infinity. This is distinct from omitted state entry and inherited null.";
             if (secondaryTrack && !NUMBER.equals(selected)) description = nullLabel.equals(selected)
@@ -122,9 +128,11 @@ final class FlutterNullableNumberEditorComponent {
                     var parsed = candidate.explicitValue().orElse(null);
                     if (!(parsed instanceof PropertyValue.IntegerValue || parsed instanceof PropertyValue.DoubleValue
                             || supportsInfinity && (new PropertyValue.EnumValue("double", "infinity").equals(parsed)
-                                    || negativeInfinity && new PropertyValue.EnumValue("double", "negativeInfinity").equals(parsed))))
+                                    || negativeInfinity && new PropertyValue.EnumValue("double", "negativeInfinity").equals(parsed)
+                                    || supportsNaN && new PropertyValue.EnumValue("double", "nan").equals(parsed))))
                         throw new IllegalArgumentException(supportsInfinity
-                                ? negativeInfinity ? "Enter a finite number, Infinity or -Infinity; choose a source mode for null or omission."
+                                ? supportsNaN ? "Enter a number, Infinity, -Infinity or NaN; choose a source mode for null or omission."
+                                        : negativeInfinity ? "Enter a finite number, Infinity or -Infinity; choose a source mode for null or omission."
                                         : "Enter a finite number or Infinity; choose a source mode for inherited null or omission."
                                 : "Enter a finite number; choose an explicit source mode for inherited null or omission.");
                 }

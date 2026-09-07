@@ -28,6 +28,7 @@ import dev.flutter.netbeans.designer.catalog.ImageIconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
@@ -536,6 +537,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addIconButtonPropertySets(sheet, hasSlotTab);
         } else if (RadioWidgetPropertySchema.RADIO_TYPE.equals(widget.type())) {
             addRadioPropertySets(sheet, hasSlotTab);
+        } else if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(widget.type())) {
+            addListTilePropertySets(sheet, hasSlotTab);
         } else if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) {
             addRadioGroupPropertySets(sheet, hasSlotTab);
         } else if (RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.equals(widget.type())) {
@@ -2364,6 +2367,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addListTilePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<ListTileWidgetPropertySchema.Group, Sheet.Set>(ListTileWidgetPropertySchema.Group.class);
+        for (var group : ListTileWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = ListTileWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            var presets = java.util.List.of("onTap", "onLongPress", "onFocusChange").contains(name) ? java.util.List.of("noop")
+                    : name.equals("shapeKind") ? ListTileWidgetPropertySchema.shapeKinds()
+                    : name.equals("mouseCursor") || ListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)
+                            ? ListTileWidgetPropertySchema.mouseCursorPresets()
+                            : java.util.List.<String>of();
+            groups.get(schema.group()).put(projectProperty(property, ListTileWidgetPropertySchema.textStyleBinding(property.name()),
+                    schema.displayName(), schema.description() + " All fields are optional. Whole values and their local projections switch atomically; one Undo restores affected fields. No child or state Default is invented.", false, presets));
+        }
+    }
+
     private void addRangeSliderPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<RangeSliderWidgetPropertySchema.Group, Sheet.Set>(RangeSliderWidgetPropertySchema.Group.class);
         for (var group : RangeSliderWidgetPropertySchema.Group.values()) {
@@ -4004,6 +4026,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         new PatchProperties.SetPatch(color, accepted.explicitValue().orElseThrow())));
             }
         }
+        if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(currentWidget.type())) {
+            return listTilePropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
             return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4419,6 +4444,51 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
         sets.forEach((field, value) -> { if (!value.equals(widget.properties().get(field))) patches.add(new PatchProperties.SetPatch(field, value)); });
         patches.add(setting ? new PatchProperties.SetPatch(name, explicit) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand listTilePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        boolean setting = accepted.explicitValue().isPresent();
+        if (edited.equals("shape") || edited.equals("shapeKind") || ListTileWidgetPropertySchema.isShapeDetailProperty(edited))
+            return cardPropertyCommand(widget, name, accepted);
+        if (edited.equals("isThreeLine") && accepted.explicitValue().filter(new PropertyValue.BooleanValue(true)::equals).isPresent()
+                && (!(widget.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty()))
+            throw new IllegalArgumentException("Cannot enable ListTile Three line: add a widget to Subtitle first. No subtitle is created automatically.");
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        for (String family : ListTileWidgetPropertySchema.styleFamilies()) {
+            var local = ListTileWidgetPropertySchema.localTextStyleProperties(family);
+            if (setting && edited.equals(family)) local.forEach(field -> resets.add(new PropertyName(field)));
+            if (setting && local.contains(edited)) {
+                resets.add(new PropertyName(family));
+                String suffix = edited.substring(family.length());
+                String opposite = switch (suffix) { case "Foreground" -> "Color"; case "Color" -> "Foreground";
+                    case "Background" -> "BackgroundColor"; case "BackgroundColor" -> "Background"; default -> null; };
+                if (opposite != null) resets.add(new PropertyName(family + opposite));
+            }
+        }
+        if (setting && edited.equals("visualDensity")) {
+            resets.add(new PropertyName("visualDensityHorizontal")); resets.add(new PropertyName("visualDensityVertical"));
+        } else if (setting && (edited.equals("visualDensityHorizontal") || edited.equals("visualDensityVertical")))
+            resets.add(new PropertyName("visualDensity"));
+        for (String family : java.util.List.of("iconColor", "textColor", "mouseCursor")) {
+            var local = family.equals("mouseCursor") ? ListTileWidgetPropertySchema.mouseCursorStateProperties()
+                    : ListTileWidgetPropertySchema.colorStateProperties(family);
+            String defaultName = family + "Default";
+            if (setting && edited.equals(family)) local.forEach(field -> resets.add(new PropertyName(field)));
+            if (local.contains(edited)) {
+                if (setting) {
+                    if (!edited.equals(defaultName) && !widget.properties().containsKey(new PropertyName(defaultName)))
+                        throw new IllegalArgumentException("Cannot set ListTile " + edited + ": set " + defaultName + " first. A local state map requires an explicit Default; no color or cursor is invented.");
+                    resets.add(new PropertyName(family));
+                } else if (edited.equals(defaultName) && local.stream().filter(field -> !field.equals(defaultName)).anyMatch(field -> widget.properties().containsKey(new PropertyName(field))))
+                    throw new IllegalArgumentException("Cannot reset ListTile " + defaultName + ": reset its remaining local state entries first, or set the whole " + family + " value.");
+            }
+        }
+        resets.remove(name);
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
         return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 

@@ -54,7 +54,7 @@ final class FlutterPresetDartReferenceEditorComponent {
                     .filter(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)
                     .map(PropertyValueConstraint.DartObjectReferenceValues.class::cast).findFirst().orElseThrow();
             expectedType = referenceConstraint.expectedDartType();
-            nullLabel = isRadioCallback() ? "Explicit null" : NULL;
+            nullLabel = isRadioCallback() || isListTileCallback() ? "Explicit null" : NULL;
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(710, 500)); setName("flutter.presetReference.editor");
             getAccessibleContext().setAccessibleName(binding.definition().name().value() + " preset or Dart reference editor");
             getAccessibleContext().setAccessibleDescription("Choose omission, a reviewed preset, or an analyzer-verified " + expectedType + ". All drafts remain local until OK.");
@@ -99,6 +99,10 @@ final class FlutterPresetDartReferenceEditorComponent {
         }
 
         private boolean isRadioCallback() { return binding.definition().name().value().equals("onChanged") && expectedType.equals("ValueChanged<Object?>"); }
+        private boolean isListTileCallback() {
+            return binding.stringPresets().equals(List.of("noop")) && (List.of("onTap", "onLongPress").contains(binding.definition().name().value()) && expectedType.equals("VoidCallback")
+                    || binding.definition().name().value().equals("onFocusChange") && expectedType.equals("ValueChanged<bool>"));
+        }
 
         @Override boolean prepareCommit() { return refresh(false); }
 
@@ -116,6 +120,11 @@ final class FlutterPresetDartReferenceEditorComponent {
                         : PRESET.equals(selected) ? "Stores the selected reviewed preset explicitly. The default preset is retained as a value; it is not omission."
 : nullLabel.equals(selected) ? isRadioCallback() ? "Stores a null Radio callback. Activation can still come from a registry or inherited RadioGroup; this is not the No-op preset." : "Explicit null stops lower-priority local state entries and lets the SDK resolve its theme/default cursor. It is distinct from an omitted local entry."
                         : "Omits this argument or local entry. Other property values are unchanged; lower-priority local states may still apply.";
+                if (isListTileCallback()) description = PROJECT.equals(selected)
+                        ? "Stores the strictly typed ListTile callback. Disabling the tile retains this argument and its semantic presence. Isolated Canvas never executes project callbacks."
+                        : PRESET.equals(selected) ? "Stores an explicit no-op callback. Gesture callback presence may enable pointer and button semantics, even when the tile is disabled; it is not null or omission."
+                        : nullLabel.equals(selected) ? "Stores explicit null: this callback is absent. This is distinct from the explicit no-op and from omitting the argument."
+                        : "Omits this ListTile callback argument. No handler is injected and all other callback fields remain unchanged.";
                 note.setText(description); note.getAccessibleContext().setAccessibleDescription(description);
                 var candidate = PROJECT.equals(selected) ? requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue()
                         : PRESET.equals(selected) ? FlutterPropertyCellValue.explicit(new PropertyValue.StringValue((String) preset.getSelectedItem()))

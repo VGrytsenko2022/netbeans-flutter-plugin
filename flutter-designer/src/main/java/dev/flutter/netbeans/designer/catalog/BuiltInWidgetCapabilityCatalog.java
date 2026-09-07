@@ -164,6 +164,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
             Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
             Map.entry("flutter.material.Switch", STATIC_EDITABLE),
+            Map.entry("flutter.material.Slider", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -333,6 +334,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.IconButton", iconButtonProjection()),
             Map.entry("flutter.material.Checkbox", checkboxProjection()),
             Map.entry("flutter.material.Switch", switchProjection()),
+            Map.entry("flutter.material.Slider", sliderProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2152,6 +2154,64 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection sliderProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection checkbox = checkboxProjection();
+        for (String name : SliderWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            if (SliderWidgetPropertySchema.overlayColorStateProperties().contains(name)) {
+                var color = colorOrThemeProperty(name).getValue();
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(color.constraintFingerprints());
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+            } else if (SliderWidgetPropertySchema.rangeProperties().contains(name)) {
+                var number = cardNumberSchema(null, null);
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(number.constraintFingerprints());
+                constraints.put(PropertyValueKind.ENUM, "enum:" + base64("dart:core") + ":double:infinity,negativeInfinity");
+                if (name.equals("secondaryTrackValue")) {
+                    constraints.put(PropertyValueKind.NULL, "any");
+                }
+                value = new CanvasPropertyContract(constraints.keySet(), name.equals("value"),
+                        name.equals("value") ? Optional.of("integer:0") : Optional.empty(), number.numericBounds(), constraints);
+            } else {
+                value = switch (name) {
+                    case "enabled" -> requiredDefaultProperty(name, "boolean:true", PropertyValueKind.BOOLEAN).getValue();
+                    case "variant" -> requiredDefaultConstrainedProperty(name, "string:" + base64("standard"),
+                            PropertyValueKind.STRING, "pattern:" + base64("(?:standard|adaptive)")).getValue();
+                    case "onChanged", "onChangeStart", "onChangeEnd", "semanticFormatterCallback", "overlayColor", "focusNode" -> {
+                        String type = switch (name) {
+                            case "onChanged", "onChangeStart", "onChangeEnd" -> "ValueChanged<double>";
+                            case "semanticFormatterCallback" -> "SemanticFormatterCallback";
+                            case "overlayColor" -> "WidgetStateProperty<Color?>";
+                            default -> "FocusNode";
+                        };
+                        yield constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                + type + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                    }
+                    case "activeColor", "inactiveColor", "secondaryActiveColor", "thumbColor" -> colorOrThemeProperty(name).getValue();
+                    case "divisions" -> {
+                        var number = numericSchema(POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER);
+                        Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                        constraints.putAll(number.constraintFingerprints());
+                        constraints.put(PropertyValueKind.NULL, "any");
+                        yield new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), number.numericBounds(), constraints);
+                    }
+                    case "label" -> propertySchema(PropertyValueKind.STRING);
+                    case "mouseCursor" -> checkbox.propertyContracts().get(new PropertyName(name));
+                    case "allowedInteraction" -> enumPropertyForLibrary(name, MATERIAL_LIBRARY, "SliderInteraction", "tapAndSlide", "tapOnly", "slideOnly", "slideThumb").getValue();
+                    case "padding" -> edgeInsetsProperty(name, true).getValue();
+                    case "showValueIndicator" -> enumPropertyForLibrary(name, MATERIAL_LIBRARY, "ShowValueIndicator", "onlyForDiscrete", "onlyForContinuous", "always", "onDrag", "alwaysVisible", "never").getValue();
+                    case "year2023" -> propertySchema(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL);
+                    default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of());
     }
 
     private static CanvasProjection switchProjection() {

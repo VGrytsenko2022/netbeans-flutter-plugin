@@ -1923,12 +1923,27 @@ accepted architecture is documented in
   providers, callback dependencies, exact omitted/null/Icon(null) distinctions,
   SDK adaptations and ignored Icon fields. Verify all-field stable editing,
   atomic family/constructor changes, Save/reopen/further edits, history, Canvas,
-  Dart generation and SVGs. Current totals: 83 widgets, 77 const definitions,
+  Dart generation and SVGs. At that milestone: 83 widgets, 77 const definitions,
   3383 writable rows (3366 outside Scaffold), 80 scalar plus three structural
   definitions, 319 Boolean-only fields, four nullable-Boolean unions and the
   separate Object-tag union. The same 68 destinations form 5644 placements:
   5288 accepted and 356 rejected. Material has 20 items; historical target 83/92
   leaves nine. Existing formats, budgets and deferred physical scope are unchanged.
+- [x] Add Slider at Material/order 210 with both standard/adaptive constructors
+  and all 33 typed rows: 22 direct SDK arguments, two required policies and nine
+  nullable local overlay colors. Preserve signed/infinite range domains, nullable
+  secondary track/divisions, strict double callbacks and semantic formatter,
+  complete interaction/indicator enums and deprecated nullable year2023. Make
+  standard-only Padding and whole/local overlay changes atomic. Reject invalid
+  peer edits without clamping; retain stable editors, native history, Save/reopen,
+  further editing, SVGs and exact actual-SDK Canvas branches. Diagnose contextual
+  unsafe SDK normalization/layout/tick-paint cases without changing model/source.
+  Current totals: 84 widgets, 78 const definitions, 3416 rows (3399 outside
+  Scaffold), 81 scalar plus three structural definitions, 321 Boolean-only fields,
+  five nullable-Boolean unions and the Object-tag union. The unchanged 68
+  destinations form 5712 placements (5354 accepted / 358 rejected); Material has
+  21 items. Historical target 84/92 leaves eight, without claiming recovery of a
+  fixed ordered inventory. Formats, budgets and deferred physical scope stay unchanged.
 - [ ] Pass the complete runner, persistence and cross-platform release gate.
   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
@@ -1946,8 +1961,8 @@ accepted architecture is documented in
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
 - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty-three admitted built-ins.
-  The 80 definitions with scalar fields expose typed Properties; IntrinsicHeight,
+  vertical slices. The current catalog presents all eighty-four admitted built-ins.
+  The 81 definitions with scalar fields expose typed Properties; IntrinsicHeight,
   RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
   imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical

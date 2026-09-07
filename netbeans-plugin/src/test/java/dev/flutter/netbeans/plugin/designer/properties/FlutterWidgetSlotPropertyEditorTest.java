@@ -65,6 +65,61 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void listSlotOffersSliderAsAnImmediateLeafInsertion() throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetNode column = WidgetNodePrototypeFactory.create(
+                columnDefinition,
+                id("c66a2a48-d31e-4c81-bdb8-8c379ee48436"));
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.material.Slider")));
+        List<FlutterWidgetSlotMutation> submitted = new ArrayList<>();
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
+                Children.LEAF,
+                column,
+                columnDefinition,
+                ignored -> { },
+                context,
+                submitted::add);
+        Node.Property<FlutterWidgetSlotCellValue> children =
+                slotProperty(node, "children");
+        PropertyEditor editor = children.getPropertyEditor();
+        editor.setValue(children.getValue());
+        PropertyEnv environment = PropertyEnv.create(descriptor("Children"));
+        ((ExPropertyEditor) editor).attachEnv(environment);
+
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JComboBox<?> addType = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,
+                    JComboBox.class);
+            assertTrue(labels(action).contains("Add new widget"));
+            assertEquals(List.of("Slider"), labels(addType));
+            selectLabel(action, "Add new widget");
+            selectLabel(addType, "Slider");
+            environment.setState(PropertyEnv.STATE_VALID);
+
+            FlutterWidgetSlotMutation.Add add = assertInstanceOf(
+                    FlutterWidgetSlotMutation.Add.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue())
+                            .mutation().orElseThrow());
+            assertEquals(column.id(), add.ownerId());
+            assertEquals(CHILDREN, add.slotName());
+            assertEquals(type("flutter.material.Slider"), add.widgetType());
+            assertEquals(0, add.index());
+            children.setValue((FlutterWidgetSlotCellValue) editor.getValue());
+            assertEquals(List.of(add), submitted);
+            return null;
+        });
+    }
+
+    @Test
     void listSlotOffersSwitchAsAnImmediateLeafInsertion() throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
         WidgetNode column = WidgetNodePrototypeFactory.create(

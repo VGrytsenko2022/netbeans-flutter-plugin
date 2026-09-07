@@ -16,6 +16,7 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -457,6 +458,24 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(SliderWidgetPropertySchema.SLIDER_TYPE.value())) {
+            SliderWidgetPropertySchema.rangeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/value", node.id(), message)));
+            if (new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))
+                    && node.properties().containsKey(new PropertyName("padding"))) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/padding", node.id(),
+                        "Slider.adaptive has no Padding argument. Select Standard or reset Padding."));
+            }
+            if (node.properties().containsKey(new PropertyName("overlayColor"))) {
+                for (String name : SliderWidgetPropertySchema.overlayColorStateProperties()) {
+                    if (node.properties().containsKey(new PropertyName(name))) {
+                        issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/" + name, node.id(),
+                                "Slider Overlay color reference and local state entries are mutually exclusive."));
+                    }
+                }
+            }
+            return;
+        }
         if (type.equals(SwitchWidgetPropertySchema.SWITCH_TYPE.value())) {
             validateSwitch(node, propertiesPath, issues);
             return;

@@ -41,6 +41,7 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -530,6 +531,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type())) {
             addIconButtonPropertySets(sheet, hasSlotTab);
+        } else if (SliderWidgetPropertySchema.SLIDER_TYPE.equals(widget.type())) {
+            addSliderPropertySets(sheet, hasSlotTab);
         } else if (SwitchWidgetPropertySchema.SWITCH_TYPE.equals(widget.type())) {
             addSwitchPropertySets(sheet, hasSlotTab);
         } else if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(widget.type())) {
@@ -2351,6 +2354,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addSliderPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<SliderWidgetPropertySchema.Group, Sheet.Set>(SliderWidgetPropertySchema.Group.class);
+        for (var group : SliderWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = SliderWidgetPropertySchema.find(property.name()).orElseThrow();
+            var presets = switch (property.name().value()) {
+                case "variant" -> SliderWidgetPropertySchema.variants();
+                case "mouseCursor" -> SliderWidgetPropertySchema.mouseCursorPresets();
+                default -> java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Optional fields can be reset. Value, Constructor and Enabled cannot be unset. Setting Padding selects Standard; selecting Adaptive resets only Padding. "
+                    + "Whole overlay references and local states switch atomically; one Undo restores affected fields. Range edits reject inconsistent peers without clamping. Adaptive Apple ignores unsupported rendering parameters but retains their stored values.", false, presets));
+        }
+    }
+
     private void addSwitchPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<SwitchWidgetPropertySchema.Group, Sheet.Set>(SwitchWidgetPropertySchema.Group.class);
         for (var group : SwitchWidgetPropertySchema.Group.values()) {
@@ -3916,6 +3938,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
             return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (SliderWidgetPropertySchema.SLIDER_TYPE.equals(currentWidget.type())) {
+            return sliderPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (SwitchWidgetPropertySchema.SWITCH_TYPE.equals(currentWidget.type())) {
             return switchPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4098,6 +4123,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 accepted.explicitValue().<PatchProperties.Patch>map(value ->
                         new PatchProperties.SetPatch(propertyName, value))
                         .orElseGet(() -> new PatchProperties.ResetPatch(propertyName))));
+    }
+
+    private DesignerCommand sliderPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var explicit = accepted.explicitValue().orElse(null);
+        if (SliderWidgetPropertySchema.rangeProperties().contains(edited)) {
+            var prospective = new java.util.LinkedHashMap<>(widget.properties());
+            if (setting) prospective.put(name, explicit); else prospective.remove(name);
+            var candidate = new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions());
+            SliderWidgetPropertySchema.rangeError(candidate).ifPresent(reason -> {
+                throw new IllegalArgumentException("Cannot edit " + edited + " on Slider '" + widget.id() + "': " + reason);
+            });
+        }
+        var resets = new java.util.LinkedHashSet<PropertyName>(); var sets = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+        if (setting && edited.equals("padding")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("standard"));
+        if (edited.equals("variant") && explicit instanceof PropertyValue.StringValue variant && variant.value().equals("adaptive")) resets.add(new PropertyName("padding"));
+        if (setting && edited.equals("overlayColor")) SliderWidgetPropertySchema.overlayColorStateProperties().forEach(field -> resets.add(new PropertyName(field)));
+        else if (setting && SliderWidgetPropertySchema.overlayColorStateProperties().contains(edited)) resets.add(new PropertyName("overlayColor"));
+        resets.remove(name); sets.remove(name);
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        sets.forEach((field, value) -> { if (!value.equals(widget.properties().get(field))) patches.add(new PatchProperties.SetPatch(field, value)); });
+        patches.add(setting ? new PatchProperties.SetPatch(name, explicit) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 
     private DesignerCommand switchPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {

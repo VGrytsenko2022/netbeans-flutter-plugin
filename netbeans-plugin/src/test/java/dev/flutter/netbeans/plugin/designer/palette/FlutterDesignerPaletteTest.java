@@ -58,6 +58,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.IconButton",
             "flutter.material.Checkbox",
             "flutter.material.Switch",
+            "flutter.material.Slider",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -123,6 +124,17 @@ class FlutterDesignerPaletteTest {
             SingleChildScrollViewWidgetPropertySchema
                     .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
+
+    @Test
+    void sliderPaletteExplainsAll33RowsBothConstructorsControlledRangeAndContinuousModes() throws ReflectiveOperationException {
+        String type = "flutter.material.Slider"; var definition = CATALOG.find(new dev.flutter.netbeans.designer.model.WidgetTypeId(type)).orElseThrow();
+        var node = itemNode(FlutterDesignerPalette.create(CATALOG, item -> type.equals(item.typeId().value())), type);
+        assertEquals("Slider", node.getDisplayName());
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 210, "Slider"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals(33, definition.properties().size()); assertTrue(definition.slots().isEmpty());
+        for (String hint : List.of("Slider.adaptive", "33 typed", "signed Infinity", "without clamping", "nine nullable overlay", "Divisions null", "centered checkboxes", "WidgetStateProperty", "Undo", "Padding"))
+            assertTrue(node.getShortDescription().contains(hint), hint + ": " + node.getShortDescription());
+    }
 
     @Test
     void switchPaletteExplainsAll201RowsBothConstructorsAndExactIconStateModes() throws ReflectiveOperationException {
@@ -460,8 +472,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(83, CATALOG.definitions().size());
-        assertEquals(77, CATALOG.definitions().stream()
+        assertEquals(84, CATALOG.definitions().size());
+        assertEquals(78, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -472,9 +484,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider"),
                 itemLabels(categories[0]));
-        assertEquals(20, itemLabels(categories[0]).size());
+        assertEquals(21, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
@@ -515,7 +527,7 @@ class FlutterDesignerPaletteTest {
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
                         "flutter.basic", "flutter.accessibility"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -2179,7 +2191,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(83, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(84, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

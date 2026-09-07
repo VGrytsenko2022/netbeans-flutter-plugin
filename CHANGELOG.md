@@ -6,6 +6,21 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- Slider at Material/order 210 with standard and adaptive const constructors and
+  33 typed rows: all 22 standard SDK parameters, controlled activation/value,
+  signed ranges, optional secondary track/divisions, strict double callbacks and
+  semantic formatter, all interaction/indicator modes, nullable year2023 and
+  nine presence-aware overlay states. Standard-only padding transitions and
+  whole/local state-color replacement are atomic. Canvas preserves SDK defaults
+  and ignores only the actual Apple branch's ignored fields; unsafe contextual
+  SDK cases have explicit preview diagnostics, never clamped model values.
+  Stable editors, SVGs, insertion, save/reopen/further edits and history are included.
+  Current totals: 84 widgets, 78 const definitions, 3416 rows (3399 outside Scaffold),
+  321 Boolean-only fields and five nullable-Boolean unions plus the Object-tag union.
+  The 68 destinations form 5712 placements (5354 accepted / 358 rejected);
+  Material has 21 items. Historical target 84/92 leaves eight; no fixed ordered
+  inventory is claimed. Existing formats and safety budgets are unchanged.
+
 - Switch at Material/order 200 with both standard and adaptive constructors and
   201 typed rows: every direct SDK parameter, four nullable state-color families,
   nullable state outline widths and nine complete local Icon buckets. Preserve
@@ -13,7 +28,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   callback/state-property references. Constructor, icon-family and image-handler
   dependencies are atomic; stable editors, save/reopen, history, Canvas and four
   SVG assets are included. Optional icon-data editors retain omission separately
-  from None without changing required Icon.icon. Current totals: 83 widgets,
+  from None without changing required Icon.icon. At that milestone: 83 widgets,
   77 const definitions, 3383 rows (3366 outside Scaffold), 319 Boolean-only fields
   and four nullable-Boolean unions plus the Object-tag union. The unchanged 68
   destinations form 5644 placements (5288 accepted / 356 rejected); Material has

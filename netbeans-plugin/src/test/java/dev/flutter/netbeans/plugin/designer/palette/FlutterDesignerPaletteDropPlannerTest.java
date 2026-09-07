@@ -162,8 +162,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             new FlutterDesignerPaletteDropPlanner();
 
     @Test
-    void switchWidgetCompletes5644CellMatrixAsLeafWithThreeRequiredDefaults() {
-        var type = new WidgetTypeId("flutter.material.Switch");
+    void sliderWidgetCompletes5712CellMatrixAsLeafWithThreeRequiredDefaults() {
+        var type = new WidgetTypeId("flutter.material.Slider");
         var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
@@ -178,7 +178,40 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(83, BUILT_INS.definitions().size()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
+        assertEquals(84, BUILT_INS.definitions().size()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
+        assertEquals(5712, accepted + rejected); assertEquals(5354, accepted); assertEquals(358, rejected);
+        var target = target("Column.children", COLUMN, CHILDREN);
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
+        assertEquals(type, created.type()); assertTrue(created.slots().isEmpty());
+        assertEquals(Map.of(new PropertyName("value"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), ENABLED, new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")), created.properties());
+        for (String variant : List.of("standard", "adaptive")) {
+            var sliderWidget = new WidgetNode(ROOT_ID, type, Map.of(new PropertyName("value"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO), ENABLED, new PropertyValue.BooleanValue(true),
+                    new PropertyName("variant"), new PropertyValue.StringValue(variant)), Map.of());
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(sliderWidget), BUILT_INS, TEXT, ROOT_ID, CHILD, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void switchWidgetCompletes5644CellMatrixAsLeafWithThreeRequiredDefaults() {
+        var type = new WidgetTypeId("flutter.material.Switch");
+        var targets = preSliderDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+                .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
+        var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
+        int accepted = 0, rejected = 0, wrappers = 0;
+        for (var definition : preSliderDefinitions().toList()) {
+            boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
+                    == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
+            if (wrapper) wrappers++;
+            for (var target : targets) {
+                var destination = wrapper ? occupiedTarget(target.name(), target.document().root().type(), target.slot()) : target;
+                var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
+                if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
+            }
+        }
+        assertEquals(83, preSliderDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
         assertEquals(5644, accepted + rejected); assertEquals(5288, accepted); assertEquals(356, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
@@ -6122,8 +6155,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         return preIconButtonDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.FloatingActionButton"));
     }
 
+    private static Stream<WidgetDefinition> preSliderDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.Slider"));
+    }
+
     private static Stream<WidgetDefinition> preSwitchDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition -> !definition.typeId().value().equals("flutter.material.Switch"));
+        return preSliderDefinitions().filter(definition -> !definition.typeId().value().equals("flutter.material.Switch"));
     }
 
     private static Stream<WidgetDefinition> preCheckboxDefinitions() {

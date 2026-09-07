@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:ui' show FlutterView;
 
 import 'package:flutter/services.dart';
-import 'package:flutter/material.dart' show Checkbox, Switch;
+import 'package:flutter/material.dart' show Checkbox, Switch, Slider;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/widgets.dart';
 import 'package:netbeans_flutter_canvas_runner/src/canvas_drop.dart';
@@ -5264,6 +5264,76 @@ void main() {
     );
   }
 
+  for (final variant in ['standard', 'adaptive']) {
+    testWidgets(
+      'authoritative Slider $variant is a leaf and rejects fabricated child drop targets',
+      (tester) async {
+        final input = StreamController<List<int>>();
+        final runtime = CanvasRuntimeController(
+          input: input.stream,
+          output: (_) {},
+          flush: () async {},
+          diagnostic: fail,
+        );
+        final running = runtime.start();
+        input.add(
+          encodeNbfcFrame(nbfcControlJson, utf8.encode(jsonEncode(_hello()))),
+        );
+        final model =
+            jsonDecode(
+                  utf8.decode(
+                    fixture.elevatedButtonModelBytesForViewTest(
+                      properties: {
+                        'enabled': {'kind': 'boolean', 'value': true},
+                      },
+                    ),
+                  ),
+                )
+                as Map<String, Object?>;
+        final control = (model['root'] as Map)['slots']['body']['child'] as Map;
+        control['type'] = 'flutter.material.Slider';
+        control['properties'] = {
+          'value': {'kind': 'double', 'value': 0.5},
+          'enabled': {'kind': 'boolean', 'value': true},
+          'variant': {'kind': 'string', 'value': variant},
+        };
+        control['slots'] = <String, Object?>{};
+        _addRender(input, Uint8List.fromList(utf8.encode(jsonEncode(model))));
+        await tester.pumpWidget(NativeCanvasApp(runtime: runtime));
+        for (
+          var attempt = 0;
+          attempt < 20 && runtime.model == null;
+          attempt++
+        ) {
+          await tester.pump(const Duration(milliseconds: 10));
+        }
+        await tester.pump();
+        expect(find.byType(Slider), findsOneWidget);
+        runtime.setDropResolver(
+          (_, _, [_]) => CanvasDropTarget(
+            parentWidgetId: fixture.elevatedButtonWidgetIdForViewTest,
+            slotName: 'child',
+            insertionIndex: 0,
+          ),
+        );
+        expect(
+          await _sourceAwareHover(runtime, input, {
+            'token':
+                'nbfdnd:v1:d40d59ed-9d9c-41b3-9bc7-9c7be768fc65:f6480d29-b8a4-4dc7-85f7-d517b6cdf368',
+            'xMicros': 500000,
+            'yMicros': 500000,
+            'generation': 0,
+            'probeId': 0,
+          }, widgetType: 'flutter.widgets.Text'),
+          isFalse,
+        );
+        await input.close();
+        await running;
+        await tester.pumpWidget(const SizedBox.shrink());
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
   for (final variant in ['standard', 'filled', 'filledTonal', 'outlined']) {
     for (final slotName in ['icon', 'selectedIcon']) {
       testWidgets(

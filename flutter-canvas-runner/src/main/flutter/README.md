@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox` and `Switch`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch` and `Slider`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-83 reviewed Canvas widgets. Palette insertion evaluates 5,644 exact
-source/destination cells across 83 draggable sources and 68 insertable reviewed
-slots; 5,288 are accepted and 356 cells are rejected. Expanded and Flexible are
+84 reviewed Canvas widgets. Palette insertion evaluates 5,712 exact
+source/destination cells across 84 draggable sources and 68 insertable reviewed
+slots; 5,354 are accepted and 358 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1357,11 +1357,11 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 83 widgets and 77 reviewed const definitions,
-with 3383 writable rows (3366 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, twenty Material and six Accessibility items; the
-backlog is 83/92 complete with 9 remaining. The 83 sources across 68
-insertable destinations form 5,644 cells, with 5,288 accepted and 356 rejected.
+The aggregate catalog now has 84 widgets and 78 reviewed const definitions,
+with 3416 writable rows (3399 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, twenty-one Material and six Accessibility items; the
+backlog is 84/92 complete with 8 remaining. The 84 sources across 68
+insertable destinations form 5,712 cells, with 5,354 accepted and 358 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
@@ -1414,3 +1414,20 @@ shape requires the missing direction. Safe explicit shapes override theme shapes
 adaptive Apple ignores CheckboxTheme. Model/source remain exact, and real Checkbox
 State, controlled value and semantics are retained. This path is an explicit
 preview approximation, not exact rendering of an unsupported SDK shape.
+
+## Slider standard/adaptive Canvas
+
+The 33-field closed decoder forwards the real SDK constructors. Material resolves
+actual SliderTheme, platform and Material 2/3 defaults; Apple adaptive rendering
+uses CupertinoSlider inside the SDK's infinite-width wrapper. Only Value, Min/Max,
+Divisions, the three activation callbacks, Active color and Thumb color reach that
+Cupertino branch. Other stored fields remain intact and generate normally.
+
+Canvas controls Value and never runs project callbacks, formatter or factories.
+An isolated persistent focus owner and Slider-only pointer selection preserve
+designer selection without writing gesture values into the document. Unsupported
+project references on the active branch receive precise diagnostics, not fabricated
+success; Apple-ignored references do not report false unavailable warnings.
+Constructor-legal equal bounds work in Material; the raw Apple SDK normalization
+bug and other unsafe normalization/layout/theme contexts are diagnosed without
+changing model/source. There is no global tick-count cap on Divisions.

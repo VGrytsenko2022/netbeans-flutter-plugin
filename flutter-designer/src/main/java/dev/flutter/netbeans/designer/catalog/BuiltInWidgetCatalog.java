@@ -107,6 +107,7 @@ public final class BuiltInWidgetCatalog {
             iconButton(),
             checkbox(),
             switchWidget(),
+            slider(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -771,6 +772,56 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition slider() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (var entry : SliderWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (SliderWidgetPropertySchema.overlayColorStateProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (SliderWidgetPropertySchema.rangeProperties().contains(name)) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"),
+                        List.of("infinity", "negativeInfinity")));
+                if (name.equals("secondaryTrackValue")) {
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+            } else {
+                constraints = switch (name) {
+                    case "onChanged", "onChangeStart", "onChangeEnd" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<double>"));
+                    case "semanticFormatterCallback" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("SemanticFormatterCallback"));
+                    case "overlayColor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"));
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "activeColor", "inactiveColor", "secondaryActiveColor", "thumbColor" -> colorOrTheme();
+                    case "divisions" -> List.of(new PropertyValueConstraint.IntegerRange(BigInteger.ONE,
+                            BigInteger.valueOf(9_007_199_254_740_991L)), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "label" -> any(PropertyValueKind.STRING);
+                    case "mouseCursor" -> checkbox().property(new PropertyName("mouseCursor")).orElseThrow().constraints();
+                    case "allowedInteraction" -> List.of(new PropertyValueConstraint.EnumValues(new DartSymbolReference(MATERIAL_IMPORT, "SliderInteraction"),
+                            List.of("tapAndSlide", "tapOnly", "slideOnly", "slideThumb")));
+                    case "padding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(true));
+                    case "showValueIndicator" -> List.of(new PropertyValueConstraint.EnumValues(new DartSymbolReference(MATERIAL_IMPORT, "ShowValueIndicator"),
+                            List.of("onlyForDiscrete", "onlyForContinuous", "always", "onDrag", "alwaysVisible", "never")));
+                    case "year2023" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "Slider constructor");
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.IntegerValue(BigInteger.ZERO);
+                case "enabled" -> new PropertyValue.BooleanValue(true);
+                case "variant" -> new PropertyValue.StringValue("standard");
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(SliderWidgetPropertySchema.SLIDER_TYPE.value(), "Slider", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 210, "Slider"), properties, List.of());
     }
 
     private static WidgetDefinition switchWidget() {

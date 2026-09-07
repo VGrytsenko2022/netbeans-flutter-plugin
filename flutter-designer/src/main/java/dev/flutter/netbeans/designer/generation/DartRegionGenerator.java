@@ -17,6 +17,7 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -335,7 +336,8 @@ public final class DartRegionGenerator {
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
-                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
+                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
+                || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)) {
             return !name.value().equals("onChanged") || !new PropertyValue.BooleanValue(false).equals(
                     node.properties().get(new PropertyName("enabled")));
         }
@@ -411,6 +413,10 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
+                    && (property.parameter().order() >= 22 || property.name().value().equals("onChanged")
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
             if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                     && (property.parameter().order() >= 28 || property.name().value().equals("onChanged")
                     || property.name().value().equals("mouseCursor")
@@ -567,6 +573,9 @@ public final class DartRegionGenerator {
         if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
             appendSwitchArguments(node, definition, path, context, arguments);
         }
+        if (node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)) {
+            appendSliderArguments(node, definition, path, context, arguments);
+        }
         if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             PropertyDefinition pressed = definition.property(new PropertyName("onPressed")).orElseThrow();
             PropertyValue reference = node.properties().get(pressed.name());
@@ -695,7 +704,8 @@ public final class DartRegionGenerator {
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += "." + member;
         } else if ((node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
-                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE))
+                || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
+                || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
                 && new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":checkboxConstructor",
                     constructor.length() + 1, "adaptive", renderedClass.libraryUri(),
@@ -2088,6 +2098,36 @@ public final class DartRegionGenerator {
             previous = symbols.end();
         }
         rendered.append(source, previous, source.length());
+    }
+
+    private void appendSliderArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
+        PropertyValue reference = node.properties().get(changed.name());
+        boolean enabled = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("enabled")));
+        RenderedValue callback = !enabled
+                ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                : reference == null ? scalar("(_) {}", false, path + "/properties/onChanged", node.id(), context)
+                : renderProperty(reference, changed, path + "/properties/onChanged", node.id(), context);
+        arguments.add(new ConstructorArgument(changed.parameter(), "onChanged", false, callback));
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+        for (String state : SliderWidgetPropertySchema.statePriority()) {
+            String name = "overlayColor" + Character.toUpperCase(state.charAt(0)) + state.substring(1);
+            PropertyValue value = node.properties().get(new PropertyName(name));
+            if (value != null) {
+                entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state,
+                        renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(),
+                                path + "/properties/" + name, node.id(), context)));
+            }
+        }
+        if (!entries.isEmpty()) {
+            arguments.add(new ConstructorArgument(definition.property(new PropertyName("overlayColor")).orElseThrow().parameter(),
+                    "overlayColor", false, renderCheckboxStateMap("WidgetStateProperty", "Color", entries,
+                            path + "/properties/overlayColor", node.id(), context)));
+        }
     }
 
     private void appendSwitchArguments(WidgetNode node, WidgetDefinition definition, String path,
@@ -6134,11 +6174,13 @@ public final class DartRegionGenerator {
                     + "' has no Dart enum symbol binding.")));
             if (binding.dartType().libraryUri().equals("dart:core")
                     && binding.dartType().name().equals("double")
-                    && enumValue.type().equals("double") && enumValue.value().equals("infinity")) {
+                    && enumValue.type().equals("double")
+                    && (enumValue.value().equals("infinity") || enumValue.value().equals("negativeInfinity"))) {
                 // A prefixed dart:core import suppresses Dart's implicit core scope.
-                // This fixed, compile-time IEEE expression preserves positive infinity
+                // These fixed, compile-time IEEE expressions preserve signed infinity
                 // without changing user imports or accepting arbitrary expressions.
-                return scalar("(1.0 / 0.0)", true, path, widgetId, context);
+                return scalar(enumValue.value().equals("negativeInfinity") ? "(-1.0 / 0.0)" : "(1.0 / 0.0)",
+                        true, path, widgetId, context);
             }
             RenderedSymbol symbol = context.planner().renderedSymbol(binding.dartType());
             return scalar(
@@ -6972,7 +7014,8 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
-                            || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE))
+                            || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
+                            || definition.typeId().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

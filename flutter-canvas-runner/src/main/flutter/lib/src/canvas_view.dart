@@ -83,6 +83,188 @@ const _checkboxStateLayers = <WidgetState, String>{
   WidgetState.focused: 'Focused',
 };
 
+double? _sliderNumber(CanvasNode node, String name) =>
+    switch (node.properties[name]?.value) {
+      CanvasEnumValue(value: 'infinity') => double.infinity,
+      CanvasEnumValue(value: 'negativeInfinity') => double.negativeInfinity,
+      num value => value.toDouble(),
+      _ => null,
+    };
+
+String? _sliderGeometryMessage(
+  CanvasNode node,
+  BuildContext? context, [
+  BoxConstraints? constraints,
+]) {
+  final apple = _checkboxUsesCupertino(node, context);
+  final min = _sliderNumber(node, 'min') ?? 0;
+  final max = _sliderNumber(node, 'max') ?? 1;
+  final value = _sliderNumber(node, 'value')!;
+  final secondary = _sliderNumber(node, 'secondaryTrackValue');
+  double normalize(double value) => max > min ? (value - min) / (max - min) : 0;
+  String? reason;
+  if (apple && min == max) {
+    reason =
+        'min/max: Flutter 3.44.8 CupertinoSlider divides by the zero range and produces NaN, even for a disabled equal range';
+  } else if (!normalize(value).isFinite) {
+    reason =
+        'value/min/max: Flutter 3.44.8 range normalization produces NaN or infinity';
+  } else if (!apple && secondary != null && !normalize(secondary).isFinite) {
+    reason =
+        'secondaryTrackValue: Flutter 3.44.8 range normalization produces NaN or infinity';
+  } else if (node.properties['enabled']?.value != false &&
+      max > min &&
+      (apple ? (!min.isFinite || !max.isFinite) : !(max - min).isFinite)) {
+    reason =
+        'min/max: the SDK inverse range conversion produces nonfinite gesture values or fails interpolation during interaction';
+  } else if (apple && constraints != null && !constraints.hasBoundedWidth) {
+    reason =
+        'parent width: Slider.adaptive uses an infinitely wide CupertinoSlider and requires a bounded width';
+  }
+  if (reason == null && !apple && context != null) {
+    final theme = SliderTheme.of(context);
+    final localPadding = node.properties['padding']?.value;
+    final (horizontal, vertical) = switch (localPadding) {
+      CanvasEdgeInsets() => (
+        localPadding.left + localPadding.right,
+        localPadding.top + localPadding.bottom,
+      ),
+      CanvasEdgeInsetsDirectional() => (
+        localPadding.start + localPadding.end,
+        localPadding.top + localPadding.bottom,
+      ),
+      _ => (theme.padding?.horizontal ?? 0.0, theme.padding?.vertical ?? 0.0),
+    };
+    if (constraints != null &&
+        ((horizontal.isInfinite && !constraints.hasBoundedWidth) ||
+            (vertical.isInfinite && !constraints.hasBoundedHeight))) {
+      reason =
+          'padding: the resolved padding sum overflows on an unbounded parent axis';
+    }
+    final divisions = node.properties['divisions']?.value as int?;
+    if (reason == null && divisions != null && divisions > 10000) {
+      final year2023 =
+          (node.properties['year2023']?.value as bool?) ??
+          // The SDK still resolves this constructor/theme flag in 3.44.8.
+          // ignore: deprecated_member_use
+          theme.year2023 ??
+          true;
+      final resolved = theme.copyWith(
+        trackHeight:
+            theme.trackHeight ??
+            (Theme.of(context).useMaterial3 && !year2023 ? 16 : 4),
+      );
+      final ticks =
+          theme.tickMarkShape ??
+          (Theme.of(context).useMaterial3 && !year2023
+              ? const RoundSliderTickMarkShape(tickMarkRadius: 2)
+              : const RoundSliderTickMarkShape());
+      final interactive =
+          node.properties['enabled']?.value != false && max > min;
+      final tickWidth = ticks
+          .getPreferredSize(isEnabled: interactive, sliderTheme: resolved)
+          .width;
+      final thumb =
+          theme.thumbShape ??
+          (Theme.of(context).useMaterial3 && !year2023
+              ? const HandleThumbShape()
+              : const RoundSliderThumbShape());
+      final overlay = theme.overlayShape ?? const RoundSliderOverlayShape();
+      final largestPart = [
+        tickWidth,
+        for (final enabled in {false, interactive}) ...[
+          thumb.getPreferredSize(enabled, true).width,
+          overlay.getPreferredSize(enabled, true).width,
+        ],
+      ].reduce(math.max);
+      // SDK intrinsic width is 144 plus its widest part. Base track shapes
+      // swap their endpoints below that width, so retain the part width in
+      // this conservative upper bound, including zero-width parents. This
+      // mirrors the SDK density predicate without ever entering its loop.
+      final renderWidth = constraints?.hasBoundedWidth == true
+          ? constraints!.maxWidth
+          : 144 + largestPart;
+      final trackWidthUpperBound = math.max(renderWidth, largestPart);
+      if (trackWidthUpperBound / divisions >= 3.0 * tickWidth) {
+        reason =
+            'divisions/SliderTheme.tickMarkShape: the resolved tick width and parent geometry cannot guarantee SDK density suppression within the isolated Canvas 10,000-division paint budget';
+      }
+    }
+  }
+  return reason == null
+      ? null
+      : 'Render Slider ${node.id}: preview unavailable. $reason. Stored values and generated Dart are unchanged.';
+}
+
+String? _sliderReferenceMessage(CanvasNode node, BuildContext? context) {
+  final apple = _checkboxUsesCupertino(node, context);
+  final refs = node.properties.entries
+      .where(
+        (entry) =>
+            entry.value.kind == 'dartObjectReferencePresence' &&
+            !(entry.key == 'onChanged' &&
+                node.properties['enabled']?.value == false) &&
+            !(apple &&
+                {
+                  'overlayColor',
+                  'mouseCursor',
+                  'focusNode',
+                  'semanticFormatterCallback',
+                }.contains(entry.key)),
+      )
+      .map((entry) => entry.key)
+      .toSet();
+  if (refs.isEmpty) return null;
+  return 'Slider ${node.id} preview limitation: isolated Canvas never executes project or dependency Dart. '
+      '${refs.any((name) => {'onChanged', 'onChangeStart', 'onChangeEnd'}.contains(name)) ? 'Project value callbacks are not invoked; benign local callbacks retain controlled SDK interaction without changing stored value. ' : ''}'
+      '${refs.contains('overlayColor') ? 'Project overlay appearance is unavailable; the actual SDK uses an explicitly approximate direct color/theme/default overlay. ' : ''}'
+      '${refs.contains('semanticFormatterCallback') ? 'Project semantics formatter is not invoked; the SDK default percentage is an explicit preview approximation. ' : ''}'
+      '${refs.contains('focusNode') ? 'Project focus ownership is unavailable; a persistent isolated FocusNode is used. ' : ''}'
+      '${refs.contains('mouseCursor') ? 'Project cursor is unavailable; the SDK theme/default cursor is used. ' : ''}'
+      'Stored values and generated Dart are unchanged.';
+}
+
+class _SliderPreview extends StatefulWidget {
+  const _SliderPreview({
+    required this.builder,
+    required this.cupertino,
+    required this.message,
+  });
+  final Widget Function(FocusNode) builder;
+  final bool cupertino;
+  final String message;
+  @override
+  State<_SliderPreview> createState() => _SliderPreviewState();
+}
+
+class _SliderPreviewState extends State<_SliderPreview> {
+  final _focus = FocusNode(debugLabel: 'Isolated Canvas Slider');
+  bool _resetConfiguration = false;
+  @override
+  void didUpdateWidget(_SliderPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.cupertino != widget.cupertino) _resetConfiguration = true;
+  }
+
+  @override
+  void dispose() {
+    _focus.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => _TextButtonPreview(
+    message: [
+      widget.message,
+      if (_resetConfiguration)
+        'Slider preview lifecycle guard: Flutter 3.44.8 retains a stale Material thumb position after Cupertino value edits. '
+            'Canvas recreates only the SDK animation shell on an effective Material/Cupertino boundary, retaining isolated focus ownership, selection and stored values. '
+            'Cupertino continues to ignore focus as specified by the SDK.',
+    ].where((value) => value.isNotEmpty).join(' '),
+    child: widget.builder(_focus),
+  );
+}
+
 class _SwitchPreview extends StatefulWidget {
   const _SwitchPreview({
     required this.cupertino,
@@ -552,6 +734,10 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? _switchPaddingMessage(node, context, constraints) ??
               _switchPreviewMessage(node, context)
         : _switchPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.Slider') {
+    return _sliderGeometryMessage(node, context, constraints) ??
+        _sliderReferenceMessage(node, context);
   }
   if (node.type == 'flutter.widgets.Icon' && context != null) {
     return _iconButtonMountedIconMessage(node, context);
@@ -1567,6 +1753,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
+        node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
         node.type == 'flutter.material.CircularProgressIndicator' ||
         node.type == 'flutter.material.RefreshProgressIndicator' ||
@@ -3537,6 +3724,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
+      'flutter.material.Slider' => _slider(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
@@ -4097,6 +4285,123 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       );
     }
     return entries.isEmpty ? null : WidgetStateProperty<Icon?>.fromMap(entries);
+  }
+
+  Widget _slider(BuildContext context) => _SliderPreview(
+    cupertino: _checkboxUsesCupertino(node, context),
+    message: _sliderReferenceMessage(node, context) ?? '',
+    builder: (focusNode) => _RefreshLayoutObserver(
+      builder: (context, constraints) =>
+          _buildSlider(context, focusNode, constraints),
+    ),
+  );
+
+  Widget _buildSlider(
+    BuildContext context,
+    FocusNode focusNode,
+    BoxConstraints constraints,
+  ) {
+    final geometry = _sliderGeometryMessage(node, context, constraints);
+    if (geometry != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'Slider',
+        expectedType: 'safe SDK slider geometry',
+        previewLabel: 'Slider\npreview unavailable',
+        messageOverride: geometry,
+      );
+    }
+    final adaptive = _string('variant') == 'adaptive';
+    final allowed = switch (_enum('allowedInteraction')) {
+      'tapAndSlide' => SliderInteraction.tapAndSlide,
+      'tapOnly' => SliderInteraction.tapOnly,
+      'slideOnly' => SliderInteraction.slideOnly,
+      'slideThumb' => SliderInteraction.slideThumb,
+      _ => null,
+    };
+    final indicator = switch (_enum('showValueIndicator')) {
+      'onlyForDiscrete' => ShowValueIndicator.onlyForDiscrete,
+      'onlyForContinuous' => ShowValueIndicator.onlyForContinuous,
+      // Preserve the SDK deprecated enum member as a distinct stored value.
+      // ignore: deprecated_member_use
+      'always' => ShowValueIndicator.always,
+      'onDrag' => ShowValueIndicator.onDrag,
+      'alwaysVisible' => ShowValueIndicator.alwaysVisible,
+      'never' => ShowValueIndicator.never,
+      _ => null,
+    };
+    final Widget control = adaptive
+        ? Slider.adaptive(
+            key: ValueKey(_checkboxUsesCupertino(node, context)),
+            value: _sliderNumber(node, 'value')!,
+            secondaryTrackValue: _sliderNumber(node, 'secondaryTrackValue'),
+            onChanged: _boolean('enabled') == false
+                ? null
+                : (_) => onSelected(node.id),
+            onChangeStart: node.properties.containsKey('onChangeStart')
+                ? (_) {}
+                : null,
+            onChangeEnd: node.properties.containsKey('onChangeEnd')
+                ? (_) {}
+                : null,
+            min: _sliderNumber(node, 'min') ?? 0,
+            max: _sliderNumber(node, 'max') ?? 1,
+            divisions: _integer('divisions'),
+            label: _string('label'),
+            activeColor: _resolvedColor(context, 'activeColor'),
+            inactiveColor: _resolvedColor(context, 'inactiveColor'),
+            secondaryActiveColor: _resolvedColor(
+              context,
+              'secondaryActiveColor',
+            ),
+            thumbColor: _resolvedColor(context, 'thumbColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            focusNode: focusNode,
+            autofocus: _boolean('autofocus') ?? false,
+            allowedInteraction: allowed,
+            showValueIndicator: indicator,
+            // ignore: deprecated_member_use
+            year2023: _boolean('year2023'),
+          )
+        : Slider(
+            key: ValueKey(_checkboxUsesCupertino(node, context)),
+            value: _sliderNumber(node, 'value')!,
+            secondaryTrackValue: _sliderNumber(node, 'secondaryTrackValue'),
+            onChanged: _boolean('enabled') == false
+                ? null
+                : (_) => onSelected(node.id),
+            onChangeStart: node.properties.containsKey('onChangeStart')
+                ? (_) {}
+                : null,
+            onChangeEnd: node.properties.containsKey('onChangeEnd')
+                ? (_) {}
+                : null,
+            min: _sliderNumber(node, 'min') ?? 0,
+            max: _sliderNumber(node, 'max') ?? 1,
+            divisions: _integer('divisions'),
+            label: _string('label'),
+            activeColor: _resolvedColor(context, 'activeColor'),
+            inactiveColor: _resolvedColor(context, 'inactiveColor'),
+            secondaryActiveColor: _resolvedColor(
+              context,
+              'secondaryActiveColor',
+            ),
+            thumbColor: _resolvedColor(context, 'thumbColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            mouseCursor: _mouseCursor('mouseCursor'),
+            focusNode: focusNode,
+            autofocus: _boolean('autofocus') ?? false,
+            allowedInteraction: allowed,
+            padding: _edgeInsetsGeometry('padding'),
+            showValueIndicator: indicator,
+            // ignore: deprecated_member_use
+            year2023: _boolean('year2023'),
+          );
+    return Listener(
+      behavior: HitTestBehavior.translucent,
+      onPointerDown: (_) => onSelected(node.id),
+      child: control,
+    );
   }
 
   Widget _switch(BuildContext context) => _SwitchPreview(

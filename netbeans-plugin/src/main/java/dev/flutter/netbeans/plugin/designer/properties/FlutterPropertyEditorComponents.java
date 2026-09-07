@@ -717,7 +717,10 @@ final class FlutterPropertyEditorComponents {
     private enum NullableIntegerMode {
         DEFAULT("Use Flutter default 0 (omit argument)"),
         NULL("Show no child (explicit null)"),
-        INTEGER("Show child at index");
+        INTEGER("Show child at index"),
+        DIVISIONS_DEFAULT("Continuous (omit divisions)"),
+        DIVISIONS_NULL("Continuous (explicit null)"),
+        DIVISIONS_INTEGER("Discrete (positive division count)");
 
         private final String label;
 
@@ -733,8 +736,8 @@ final class FlutterPropertyEditorComponents {
 
     private static final class NullableIntegerCustomEditor
             extends CommitOnValidPanel {
-        private final JComboBox<NullableIntegerMode> mode =
-                new JComboBox<>(NullableIntegerMode.values());
+        private final JComboBox<NullableIntegerMode> mode;
+        private final boolean divisions;
         private final JTextField index = new JTextField(12);
         private boolean updating;
 
@@ -745,36 +748,40 @@ final class FlutterPropertyEditorComponents {
             super(editor, binding, environment);
             setLayout(new GridBagLayout());
             setPreferredSize(new Dimension(480, 150));
+            divisions = binding.definition().name().value().equals("divisions");
+            mode = new JComboBox<>(divisions
+                    ? new NullableIntegerMode[]{NullableIntegerMode.DIVISIONS_DEFAULT, NullableIntegerMode.DIVISIONS_NULL, NullableIntegerMode.DIVISIONS_INTEGER}
+                    : new NullableIntegerMode[]{NullableIntegerMode.DEFAULT, NullableIntegerMode.NULL, NullableIntegerMode.INTEGER});
             setName("flutter.nullableInteger.editor");
             getAccessibleContext().setAccessibleName(
-                    "Flutter nullable child-index editor");
+                    divisions ? "Slider nullable division-count editor" : "Flutter nullable child-index editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Chooses between an omitted default, explicit null, and a "
-                    + "non-negative child index without changing the property until OK.");
+                    divisions ? "Choose continuous mode by omission or explicit null, or a positive discrete division count. Drafts stay local until OK."
+                            : "Chooses between an omitted default, explicit null, and a non-negative child index without changing the property until OK.");
 
             mode.setName(NULLABLE_INTEGER_MODE_NAME);
-            mode.getAccessibleContext().setAccessibleName("Child index mode");
+            mode.getAccessibleContext().setAccessibleName(divisions ? "Slider divisions mode" : "Child index mode");
             mode.getAccessibleContext().setAccessibleDescription(
-                    "Choose Flutter default zero, explicit null, or an explicit child index.");
+                    divisions ? "Choose omitted continuous mode, explicit continuous null, or a positive division count." : "Choose Flutter default zero, explicit null, or an explicit child index.");
             index.setName(NULLABLE_INTEGER_VALUE_NAME);
-            index.getAccessibleContext().setAccessibleName("Zero-based child index");
+            index.getAccessibleContext().setAccessibleName(divisions ? "Positive division count" : "Zero-based child index");
 
             addRow(this, 0, "Value:", mode,
-                    "Omit the argument, emit null, or emit a non-negative integer.");
-            addRow(this, 1, "Child index:", index,
-                    "Zero-based index; it must address an existing child when children exist.");
+                    divisions ? "Omit divisions, emit null, or emit a positive integer." : "Omit the argument, emit null, or emit a non-negative integer.");
+            addRow(this, 1, divisions ? "Divisions:" : "Child index:", index,
+                    divisions ? "Positive whole-number interval count; no artificial UI cap." : "Zero-based index; it must address an existing child when children exist.");
 
             PropertyValue initial = initialValue().explicitValue().orElse(null);
             updating = true;
             try {
                 if (initial == null) {
-                    mode.setSelectedItem(NullableIntegerMode.DEFAULT);
-                    index.setText("0");
+                    mode.setSelectedItem(divisions ? NullableIntegerMode.DIVISIONS_DEFAULT : NullableIntegerMode.DEFAULT);
+                    index.setText(divisions ? "1" : "0");
                 } else if (initial instanceof PropertyValue.NullValue) {
-                    mode.setSelectedItem(NullableIntegerMode.NULL);
-                    index.setText("0");
+                    mode.setSelectedItem(divisions ? NullableIntegerMode.DIVISIONS_NULL : NullableIntegerMode.NULL);
+                    index.setText(divisions ? "1" : "0");
                 } else {
-                    mode.setSelectedItem(NullableIntegerMode.INTEGER);
+                    mode.setSelectedItem(divisions ? NullableIntegerMode.DIVISIONS_INTEGER : NullableIntegerMode.INTEGER);
                     index.setText(((PropertyValue.IntegerValue) initial)
                             .value().toString());
                 }
@@ -800,22 +807,21 @@ final class FlutterPropertyEditorComponents {
 
         private boolean refreshDraft(boolean requestValidation) {
             NullableIntegerMode selected = (NullableIntegerMode) mode.getSelectedItem();
-            boolean integerMode = selected == NullableIntegerMode.INTEGER;
+            boolean integerMode = selected == NullableIntegerMode.INTEGER || selected == NullableIntegerMode.DIVISIONS_INTEGER;
             index.setEnabled(integerMode);
             clearInvalid(index,
-                    "Enter a non-negative, zero-based child index. The selected index "
-                    + "must be below the current child count.");
+                    divisions ? "Enter a positive whole-number division count." : "Enter a non-negative, zero-based child index. The selected index must be below the current child count.");
             try {
                 FlutterPropertyCellValue candidate = switch (
                         Objects.requireNonNull(selected, "nullable integer mode")) {
-                    case DEFAULT -> FlutterPropertyCellValue.unset();
-                    case NULL -> FlutterPropertyCellValue.explicit(
+                    case DEFAULT, DIVISIONS_DEFAULT -> FlutterPropertyCellValue.unset();
+                    case NULL, DIVISIONS_NULL -> FlutterPropertyCellValue.explicit(
                             new PropertyValue.NullValue());
-                    case INTEGER -> {
+                    case INTEGER, DIVISIONS_INTEGER -> {
                         String text = index.getText().strip();
                         if (text.isEmpty()) {
                             throw new IllegalArgumentException(
-                                    "Enter a non-negative child index.");
+                                    divisions ? "Enter a positive whole-number division count." : "Enter a non-negative child index.");
                         }
                         try {
                             yield FlutterPropertyCellValue.explicit(
@@ -823,7 +829,7 @@ final class FlutterPropertyEditorComponents {
                                             new java.math.BigInteger(text)));
                         } catch (NumberFormatException failure) {
                             throw new IllegalArgumentException(
-                                    "Child index must be a whole number.", failure);
+                                    divisions ? "Division count must be a positive whole number." : "Child index must be a whole number.", failure);
                         }
                     }
                 };

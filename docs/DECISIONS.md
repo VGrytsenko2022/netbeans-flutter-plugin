@@ -7062,3 +7062,222 @@ hash, not the previous build. All 1619 frozen non-Markdown inputs (including the
 40 analyzer/core/root-POM inputs) are unchanged after packaging; all 40 source
 and 35 Web manifest entries were reverified. No interactive IDE acceptance or
 installed-userdir verification is claimed.
+
+## ADR-112 — Slider ranges, interaction and adaptive rendering
+
+Status: Accepted. Scope: the next complete palette slice after Switch, reviewed
+against Flutter 3.44.8 and the public
+[standard constructor](https://api.flutter.dev/flutter/material/Slider/Slider.html),
+[adaptive constructor](https://api.flutter.dev/flutter/material/Slider/Slider.adaptive.html)
+and [Slider API](https://api.flutter.dev/flutter/material/Slider-class.html).
+
+### Complete constructor and property contract
+
+Admit flutter.material.Slider as Material/order 210, a scalar leaf with two
+const-capable constructors. The 33 rows are all 22 non-key standard arguments,
+required constructor selector and Enabled policy, plus nine local overlay colors.
+Adaptive has 21 arguments: padding is absent, not merely ignored at runtime.
+Creation stores exactly variant=standard, enabled=true and value=0. Min/Max and
+other SDK defaults remain unstored. There are no child slots or synthetic Key row.
+
+Value, Min, Max and nullable Secondary track value accept signed finite numbers
+and the narrowly closed dart:core double.infinity/negativeInfinity members.
+Fixed arithmetic lowering preserves infinities without requiring a visible
+unshadowed double type or admitting arbitrary expressions. Prospective validation
+compares effective SDK doubles: min<=max, both present track values within range,
+and divisions either null or positive. Invalid peer edits/resets submit nothing
+and never clamp or rewrite another field. Divisions use the existing shared
+native/Web exact integer upper bound 9007199254740991; there is no artificial
+global tick-count restriction. Secondary values below Value are legal and let the
+SDK suppress the secondary track. Nullable fields preserve explicit null versus
+unset even when the SDK effect is the same; an empty label is also retained.
+
+All four SliderInteraction and six ShowValueIndicator constants are admitted,
+including deprecated always. The deprecated nullable year2023 parameter remains
+editable and generated. Colors reuse literal/semantic theme values, padding
+reuses non-negative physical/directional EdgeInsetsGeometry, and Mouse cursor
+has all 41 reviewed presets or a strict project reference.
+
+The three activation callbacks use strict ValueChanged<double>; the semantic
+formatter uses strict SemanticFormatterCallback (String Function(double)).
+FocusNode, MouseCursor and WidgetStateProperty<Color?> retain non-null public
+reference/zero-argument-factory proof. Disabled onChanged alone becomes inactive:
+metadata is retained but its import, evaluation and symbol/type proof disappear
+from generated Dart, where onChanged:null is emitted. Enabled without a project
+callback emits a benign no-op. Start/End and semantic formatter remain emitted
+and proved even when disabled, matching supplied SDK arguments rather than
+inventing broader callback suppression. Existing analyzer witness grammar and
+nested dart:core double qualification are reused unchanged. The plugin proof
+planner now includes the Material-only SemanticFormatterCallback typedef in its
+existing candidate-wide Material umbrella selection; every witness shares that
+library regardless of occurrence order. Navigation roots remain bound to each
+original symbol, and candidates without the formatter keep their Widgets proof
+umbrella. Real SDK tests assert this selection and strict acceptance/rejection.
+
+Whole overlay references and nine local nullable states are exclusive.
+Local presence-aware priority is disabled, error, dragged, pressed, selected,
+scrolledUnder, hovered, focused, default. Omission continues searching; explicit
+null stops lower local entries and lets the actual SDK resolve its fallback.
+No implicit disabled:null is added. The runtime currently requests only its
+actual disabled/hovered/focused/dragged state combinations; the complete reviewed
+local protocol is retained, and whole references can express arbitrary sets.
+
+### Stable editing and isolated actual-SDK preview
+
+All 33 cells use the catalog-backed stable Properties bridge. Scalar edits do not
+recreate the property set or replace its cells. Explicit Booleans remain centered
+checkboxes, including nullable year2023's explicit values. Nullable division and
+secondary-track panels have field-specific null/default text rather than the
+old IndexedStack-index and inherited-radius wording. Negative Infinity is enabled
+only by the exact corresponding catalog enum constraint, not globally.
+
+Setting Padding atomically selects Standard; choosing Adaptive atomically resets
+Padding. Whole/local overlay replacement resets only conflicting local state or
+whole-reference data. Both operations are one native Undo entry. Other fields
+ignored by adaptive Apple rendering remain stored through constructor switches.
+
+Canvas instantiates the actual Material Slider or the SDK's adaptive Apple
+SizedBox(width:infinity, child:CupertinoSlider(...)) branch. Material resolves
+SliderTheme, Material 2/3, year2023 and platform defaults normally. Cupertino
+receives only Value, Min/Max, Divisions, the three activation callbacks,
+Active color and Thumb color. The SDK ignores all other shared arguments there,
+including focus/autofocus, cursor, overlay, formatter, label, secondary track,
+interaction, indicator and year2023. There is no Switch-style Theme Adaptation
+lookup for Slider.
+
+Canvas never executes project callbacks, factories or formatters, nor writes
+gesture values into the model. A Slider-only pointer listener handles selection
+even for equal-value taps that the SDK does not report via onChanged. A persistent
+isolated local FocusNode avoids the raw Material supplied-node-to-null lifecycle
+fault without remounting ordinary Slider State. A second raw public-shape control
+found stale thumb position after Material(.2) -> Cupertino(.8) -> Material(.8):
+the outer SDK position controller retains .2. Canvas rekeys only the public SDK
+shell at an effective Material/Cupertino branch boundary, retaining its outer
+stable ID, model selection and isolated FocusNode identity. Same-branch ordinary
+value/theme edits and standard/adaptive switches on Material retain SDK State.
+Apple still ignores focus; no Apple focus behavior is fabricated. An explicit
+lifecycle diagnostic documents this Canvas-only workaround, and no key or SDK
+repair is emitted into project Dart. Actual Apple-ignored references
+produce no false unavailable warning. Active references that cannot be executed
+in isolation receive a concrete diagnostic and documented preview behavior.
+
+Constructor legality is not universal mount/paint safety. Raw pinned-SDK probes
+confirm equal finite and equal signed-infinite bounds render disabled Material
+sliders; Cupertino normalization divides by zero for any equal range. Unequal
+infinite ranges and extreme finite subtraction can produce NaN normalized values
+or non-finite inverse gesture values. The adaptive infinite-width wrapper also
+cannot lay out in an unconstrained Row. Those contextual SDK limits preserve the
+exact model/generated source and receive explicit preview-unavailable reasons.
+A huge discrete count with zero-width or sufficiently tiny positive themed ticks
+can force an unbounded SDK paint loop. For counts above 10,000, Canvas checks the
+SDK density predicate against a conservative width bound derived from public
+constraints and preferred part sizes; combinations that cannot guarantee density
+suppression receive a diagnostic instead of changing divisions or silently
+replacing the theme. Ordinary large counts with density-suppressed SDK ticks and
+Cupertino rendering remain admitted. Finite-span overflow on Cupertino is also
+retained when normalization is finite: its stable inverse interpolation differs
+from Material's non-finite inverse conversion.
+
+### Aggregate and scope boundaries
+
+The catalog contains 84 widgets, 78 const-capable definitions, 3416 writable rows
+(3399 outside Scaffold), 81 scalar plus three structural definitions, 321
+Boolean-only rows, five nullable-Boolean unions and the separate Object-tag union.
+The unchanged 68 destinations (66 ANY/two trait-bound) produce 5712 candidates:
+5354 accepted and 358 rejected. Categories are Material21, Layout31, Scrolling3,
+Basic23 and Accessibility6. Thirteen generic/fifteen total creation wrappers stay
+unchanged. Historical target 84/92 leaves eight; this is not a recovered fixed
+ordered inventory. FD13, Catalog API14, Canvas model18, NBFC1, metadata1024,
+512-value/patch, 2048-probe, 2-MiB and 45-second bounds stay unchanged.
+User IDE/userdir and Flutter application files are outside this slice.
+Previously deferred global physical acceptance remains deferred.
+
+### Focused verification and frozen artifacts
+
+The full core install passed 1643 tests, including 19 new Slider cases, with no
+failures/errors/skips. The Properties/palette/editor gate produced all 25 fresh
+reports: 887 tests, zero failures/errors/skips. Its terminal exit status was lost
+during agent context compaction, so the reports, not an unavailable Maven status,
+are the evidence for that focused gate; the final reactor reruns the whole scope.
+
+The five real-SDK methods exercised 52 candidates: 37 valid candidates accepted,
+15 intentional invalid candidates rejected. Together with three live pair-history
+methods, the focused Maven gate passed all eight methods in 1 minute 49 seconds.
+It covers every field, dense constructors, strict references/factories, wrong,
+dynamic and nullable-outer witnesses, callback isolation, nullable/empty values,
+all enum members, portable division limits and constructor-legal extreme ranges.
+Candidate overlays leave source, pubspec and package config unchanged.
+The live tests preserve exact Dart/FD bytes through insertion, each of the 33
+cells, invalid changes, native history, Save/reopen/further edits, atomic padding
+transitions, whole/local overlay replacement and inactive callback endpoints.
+The formatter's Material proof umbrella is asserted across every typed probe.
+
+After the final lifecycle repair, the complete Flutter suite passed 1525 visible
+tests (45 additional hidden loader entries are not tests) in 26.393 seconds,
+including 30 dedicated Slider tests. Flutter analysis is clean. Coverage includes
+32 exact raw SDK pixel comparisons, all 256 overlay-state combinations, both
+constructor branches, M2/M3, year2023, all interaction/indicator modes, controlled
+selection, ordinary retained State, focus ownership, contextual numeric/layout/
+tick limits and the independently reproduced boundary-position regression.
+All 3564 previously reviewed capability records remain unchanged; the 34 new
+Slider records exactly match an independently compiled Java snapshot.
+
+Offline Web release succeeded in 15.6 seconds. main.dart.js is 3157840 bytes,
+SHA-256 d81431f39c2ea48fa2c29c9d145d67775fcfbbb0f34515e0bb8c6e9a5590ac6b.
+All 40 source and 35 Web manifest entries were independently checked for exact
+scoped paths, sizes and hashes. Source manifest SHA-256:
+d11baf980db0ced49f06e53ba51119ca90b2dac0d434f2193fc79cef4a829469.
+Web manifest SHA-256:
+0e7ec234c3fbf4ddbe7a700e0d3bf1a2f8979b70cf5a1533af81c6f8365b9d75.
+After installing that Canvas JAR, all 26 Java/Dart parity and Web artifact methods
+passed with Maven exit zero in 12.229 seconds. All 1631 non-Markdown source inputs
+are frozen for the final reactor/package checks.
+
+The analyzer itself is unchanged from Switch's fresh 65-test gate on this same
+SDK at 08:27:56–08:42:21 UTC. Its 40 analyzer/core-API/root-POM input hashes match
+that baseline exactly; this is retained evidence, not a claimed new analyzer run.
+The plugin proof planner change is covered by the fresh SDK candidate tests above.
+
+### Final reactor, retry and package verification
+
+The unfiltered remaining ten-module reactor started at 09:44:54 UTC and ran for
+15 minutes 48 seconds. Its only error was the unchanged
+FlutterDesignerMoveDependencyGuardTest.exclusiveProofPreventsARelevantFolderFromBeingRenamed
+at line 483: the post-admission rename Future did not complete within five seconds.
+The exclusion assertion had already passed. No worker stack identified the cause,
+and no Slider relation or justified lock change was found; this is an observed
+timeout, not a diagnosed production bug or a claimed repair.
+
+Without changing source or timeouts, the entire 38-test dependency-guard class was
+rerun in a new Maven process together with all three downstream packaging/runtime
+modules. All 38 tests passed in 2.200 seconds. The nine package metadata tests and
+six runtime cases (one permitted optional skip) also passed; the three-module
+install exited zero in 53.401 seconds at 10:02:01 UTC. All 129 live mutation/history
+tests and the Slider SDK gate passed in the original unfiltered run. The final
+evidence therefore combines the unfiltered run, the exact unchanged-class retry,
+downstream gates and the explicitly retained analyzer baseline; it is not a claim
+that the initial full reactor was clean on its first attempt.
+
+The final 402 XML reports record 4381 tests: 4374 executed, seven permitted optional
+skips, zero failures/errors. Of those executed tests, 4309 are fresh in this slice
+and 65 are the hash-matched analyzer baseline. The plugin has 2498 Surefire tests
+and nine package integration tests. Every non-analyzer report meets the 09:44:54
+UTC freshness cutoff; the eight retained analyzer reports meet their documented
+08:27:56 UTC baseline cutoff. Freshness checks were not disabled.
+
+Root and module nbm:cluster succeeded. tools/verify-release.ps1 passed, including
+source/report/package freshness and metadata. NBM:
+7696625 bytes, SHA-256
+0C0E1E81FF2C271030091418657542F179E27E8B50E391B3BE8A42243C606079.
+The embedded module matches all four package/development/runtime module copies:
+3435879 bytes, SHA-256
+99C00CF92FA3DB8B069A7F45DD3CBE0C1FEB46838E1499107A8417ED251B7842.
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR, and all four
+Slider SVG assets are present. The embedded Canvas matches its built JAR:
+344569 bytes, SHA-256
+5957B74EFF926220AEF816789D5C432F8278F6B6CF9BD19EBA1898F86DBF8238.
+The embedded analyzer is the unchanged 87439-byte baseline JAR, SHA-256
+466C88A04BCE84A2C31B52E177AC995BADA0055E6E67C37D07027FD792DA02F7.
+All 1631 frozen non-Markdown inputs, including the 40 analyzer/core/root-POM
+inputs, remain unchanged after packaging. All 75 source/Web manifest entries were
+reverified. No interactive IDE or installed-userdir acceptance is claimed.

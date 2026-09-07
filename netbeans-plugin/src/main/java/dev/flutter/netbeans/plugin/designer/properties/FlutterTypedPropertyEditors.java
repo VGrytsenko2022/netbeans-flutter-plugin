@@ -97,7 +97,7 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.ENUM, PropertyValueKind.NULL))
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.EnumValues values
                         && values.dartType().libraryUri().equals("dart:core") && values.dartType().name().equals("double")
-                        && values.values().equals(List.of("infinity")))) {
+                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))))) {
             editorKind = EditorKind.NULLABLE_NUMBER_WITH_INFINITY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER,
                 PropertyValueKind.DOUBLE, PropertyValueKind.ENUM))
@@ -105,7 +105,7 @@ final class FlutterTypedPropertyEditors {
                         value instanceof PropertyValueConstraint.EnumValues values
                         && values.dartType().libraryUri().equals("dart:core")
                         && values.dartType().name().equals("double")
-                        && values.values().equals(List.of("infinity")))) {
+                        && (values.values().equals(List.of("infinity")) || values.values().equals(List.of("infinity", "negativeInfinity"))))) {
             editorKind = EditorKind.NUMBER_WITH_INFINITY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ENUM))
                 && definition.constraints().getFirst()
@@ -694,7 +694,7 @@ final class FlutterTypedPropertyEditors {
                         new BigInteger(normalized)));
             } catch (NumberFormatException failure) {
                 throw new IllegalArgumentException(
-                        "Expected null or a whole-number child index.", failure);
+                        binding.definition().name().value().equals("divisions") ? "Expected null or a positive whole-number division count." : "Expected null or a whole-number child index.", failure);
             }
         }
     }
@@ -736,8 +736,8 @@ final class FlutterTypedPropertyEditors {
             return explicitValue().map(value -> switch (value) {
                 case PropertyValue.IntegerValue integer -> integer.value().toString();
                 case PropertyValue.DoubleValue decimal -> decimal.value().toPlainString();
-                case PropertyValue.EnumValue infinity -> "Infinity";
-                case PropertyValue.NullValue ignored -> FlutterNullableNumberEditorComponent.INHERITED_TEXT;
+                case PropertyValue.EnumValue infinity -> infinity.value().equals("negativeInfinity") ? "-Infinity" : "Infinity";
+                case PropertyValue.NullValue ignored -> FlutterNullableNumberEditorComponent.nullText(binding);
                 default -> throw new IllegalStateException(
                         "Unexpected numeric value " + value.kind());
             }).orElseGet(this::unsetText);
@@ -751,13 +751,13 @@ final class FlutterTypedPropertyEditors {
             String normalized = text.strip();
             if ((binding.editorKind() == EditorKind.NULLABLE_NUMBER || binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY)
                     && (normalized.equalsIgnoreCase("null")
-                    || normalized.equalsIgnoreCase(FlutterNullableNumberEditorComponent.INHERITED_TEXT))) {
+                    || normalized.equalsIgnoreCase(FlutterNullableNumberEditorComponent.nullText(binding)))) {
                 setExplicit(new PropertyValue.NullValue());
                 return;
             }
             if ((binding.editorKind() == EditorKind.NUMBER_WITH_INFINITY || binding.editorKind() == EditorKind.NULLABLE_NUMBER_WITH_INFINITY)
-                    && normalized.equalsIgnoreCase("infinity")) {
-                setExplicit(new PropertyValue.EnumValue("double", "infinity"));
+                    && (normalized.equalsIgnoreCase("infinity") || normalized.equalsIgnoreCase("-infinity"))) {
+                setExplicit(new PropertyValue.EnumValue("double", normalized.startsWith("-") ? "negativeInfinity" : "infinity"));
                 return;
             }
             try {

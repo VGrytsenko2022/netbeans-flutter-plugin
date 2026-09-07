@@ -75,6 +75,80 @@ import org.openide.nodes.Node;
 class FlutterPropertyEditorComponentsTest {
 
     @Test
+    void sliderDivisionsDialogHasContinuousNullAndPositiveCountWithoutChildIndexWordingOrCaps() throws Exception {
+        var editor = binding(SliderPropertyContractTest.field("divisions")).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+        var env = PropertyEnv.create(descriptor("Divisions", "Continuous or discrete.")); ((ExPropertyEditor) editor).attachEnv(env);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterPropertyEditorComponents.NULLABLE_INTEGER_MODE_NAME);
+            var count = findNamed(panel, JTextField.class, FlutterPropertyEditorComponents.NULLABLE_INTEGER_VALUE_NAME);
+            assertEquals(List.of("Continuous (omit divisions)", "Continuous (explicit null)", "Discrete (positive division count)"), comboLabels(mode));
+            assertFalse(panel.getAccessibleContext().getAccessibleDescription().contains("child")); assertEquals("1", count.getText()); assertFalse(count.isEnabled());
+            selectLabel(mode, "Discrete (positive division count)");
+            for (String invalid : List.of("0", "-1", "1.5", "Infinity", "9007199254740992")) { count.setText(invalid); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); }
+            count.setText("9007199254740991"); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+            env.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.IntegerValue(new BigInteger("9007199254740991"))), editor.getValue()); return null;
+        });
+        for (boolean explicitNull : List.of(true, false)) {
+            var next = PropertyEnv.create(descriptor("Divisions", "Continuous state.")); ((ExPropertyEditor) editor).attachEnv(next);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterPropertyEditorComponents.NULLABLE_INTEGER_MODE_NAME);
+                selectLabel(mode, explicitNull ? "Continuous (explicit null)" : "Continuous (omit divisions)");
+                next.setState(PropertyEnv.STATE_VALID);
+                assertEquals(explicitNull ? FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()) : FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+    }
+
+    @Test
+    void sliderSecondaryTrackEditorRetainsSignedInfinityAndDisplaysDisabledNullWithoutThemeInheritance() throws Exception {
+        var editor = binding(SliderPropertyContractTest.field("secondaryTrackValue")).createEditor();
+        var negative = FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "negativeInfinity")); editor.setValue(negative);
+        var env = PropertyEnv.create(descriptor("Secondary track value", "Separate secondary track.")); ((ExPropertyEditor) editor).attachEnv(env);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME);
+            var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+            assertEquals("-Infinity", number.getText()); assertTrue(number.getAccessibleContext().getAccessibleName().contains("signed Infinity"));
+            assertEquals(FlutterNullableNumberEditorComponent.SECONDARY_NULL_TEXT, mode.getItemAt(1)); assertFalse(panel.getAccessibleContext().getAccessibleDescription().contains("theme"));
+            env.setState(PropertyEnv.STATE_VALID); assertEquals(negative, editor.getValue()); return null;
+        });
+        var nullEnv = PropertyEnv.create(descriptor("Secondary", "Explicit null.")); ((ExPropertyEditor) editor).attachEnv(nullEnv);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME);
+            var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+            number.setText("arbitrary()"); assertEquals(PropertyEnv.STATE_INVALID, nullEnv.getState()); assertEquals(negative, editor.getValue());
+            mode.setSelectedItem(FlutterNullableNumberEditorComponent.SECONDARY_NULL_TEXT); assertFalse(number.isEnabled());
+            nullEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+            assertEquals(FlutterNullableNumberEditorComponent.SECONDARY_NULL_TEXT, editor.getAsText()); return null;
+        });
+        var numericEnv = PropertyEnv.create(descriptor("Secondary", "Numeric state.")); ((ExPropertyEditor) editor).attachEnv(numericEnv);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableNumberEditorComponent.MODE_NAME);
+            var number = findNamed(panel, JTextField.class, FlutterNullableNumberEditorComponent.VALUE_NAME);
+            mode.setSelectedItem(FlutterNullableNumberEditorComponent.NUMBER); number.setText("Infinity");
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+            numericEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.EnumValue("double", "infinity")), editor.getValue()); return null;
+        });
+        var oldWidth = binding(property("flutter.material.RefreshProgressIndicator", "strokeWidth")).createEditor(); oldWidth.setAsText("null");
+        assertEquals(FlutterNullableNumberEditorComponent.INHERITED_TEXT, oldWidth.getAsText());
+    }
+
+    @Test
+    void sliderChangedReferenceUsesActivationPolicyButStartEndAndFormatterUseOrdinaryOmission() throws Exception {
+        for (String name : List.of("onChanged", "onChangeStart", "onChangeEnd", "semanticFormatterCallback")) {
+            var editor = binding(SliderPropertyContractTest.field(name)).createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "Strict reference.")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var omit = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                assertEquals(name.equals("onChanged") ? "Use Designer activation default" : "Use Flutter default (omit " + name + ")", omit.getText());
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); return null;
+            });
+        }
+        var appearance = binding(SliderPropertyContractTest.field("year2023")).createEditor();
+        for (String state : List.of("true", "false", "null", FlutterPropertyCellValue.NOT_SET_TEXT)) { appearance.setAsText(state); assertTrue(appearance.isPaintable()); }
+    }
+
+
+    @Test
     void switchOptionalIconDataPreservesOmissionNoneGlyphAndCancelWithoutWideningRequiredIcon() throws Exception {
         for (String state : dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema.thumbIconStates()) {
             var field = SwitchPropertyContractTest.field("thumbIcon" + state + "Data");
@@ -3941,7 +4015,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(319, booleanProperties.size(),
+        assertEquals(321, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

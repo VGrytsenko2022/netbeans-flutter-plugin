@@ -96,6 +96,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.IconButton",
             "flutter.material.Checkbox",
             "flutter.material.Switch",
+            "flutter.material.Slider",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3688,6 +3689,55 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void sliderBothConstructorsPreserveAllLocalFieldsAndOnlyReferencePresenceWithoutResources() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema.variants()) {
+            var fields = dev.flutter.netbeans.designer.catalog.SliderTestValues.full(variant);
+            var node = dev.flutter.netbeans.designer.catalog.SliderTestValues.node(fields);
+            var codec = new CanvasModelPayloadCodec();
+            var request = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            String json = new String(codec.encode(request), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(request), codec.encode(request));
+            for (var name : fields.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+            for (String name : List.of("onChanged", "onChangeStart", "onChangeEnd", "semanticFormatterCallback", "focusNode", "mouseCursor")) {
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), name);
+            }
+            for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "imageProvider", "resources")) assertFalse(json.contains(absent), absent);
+            assertTrue(json.contains("\"protocolVersion\":18"));
+            assertEquals(variant.equals("standard"), json.contains("\"padding\":"));
+        }
+    }
+
+    @Test
+    void sliderSignedInfinitiesExplicitNullsAndWholeOverlayRemainExactWireValues() throws Exception {
+        for (boolean negative : List.of(false, true)) {
+            var infinity = dev.flutter.netbeans.designer.catalog.SliderTestValues.infinity(negative);
+            var node = dev.flutter.netbeans.designer.catalog.SliderTestValues.node(Map.of(
+                    new PropertyName("min"), infinity, new PropertyName("max"), infinity, new PropertyName("value"), infinity,
+                    new PropertyName("secondaryTrackValue"), new PropertyValue.NullValue(),
+                    new PropertyName("divisions"), new PropertyValue.NullValue(), new PropertyName("year2023"), new PropertyValue.NullValue(),
+                    new PropertyName("overlayColor"), dev.flutter.netbeans.designer.catalog.SliderTestValues.reference("overlay")));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"type\":\"double\",\"value\":\"" + (negative ? "negativeInfinity" : "infinity") + "\""));
+            for (String name : List.of("secondaryTrackValue", "divisions", "year2023")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+            assertTrue(json.contains("\"overlayColor\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        }
+    }
+
+    @Test
+    void sliderMalformedRangesConstructorConflictsAndRawCallbacksFailBeforeEncoding() {
+        for (var fields : List.of(Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("min"), new PropertyValue.DoubleValue(BigDecimal.TEN)),
+                Map.of(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"),
+                        new PropertyName("padding"), dev.flutter.netbeans.designer.catalog.SliderTestValues.value("padding")),
+                Map.of(new PropertyName("overlayColor"), dev.flutter.netbeans.designer.catalog.SliderTestValues.reference("overlay"),
+                        new PropertyName("overlayColorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.CallbackValue("legacy")))) {
+            var node = dev.flutter.netbeans.designer.catalog.SliderTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     @Test

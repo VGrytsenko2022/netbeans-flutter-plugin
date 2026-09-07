@@ -106,6 +106,7 @@ class NetBeansWidgetCatalogProviderTest {
         assertTrue(typeIds(result).contains("flutter.material.FilledButton"));
         assertTrue(typeIds(result).contains("flutter.material.FloatingActionButton"));
         assertTrue(typeIds(result).contains("flutter.material.IconButton"));
+        assertTrue(typeIds(result).contains("flutter.material.Checkbox"));
     }
 
     @Test
@@ -193,7 +194,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(81, result.catalog().definitions().size());
+        assertEquals(82, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<lookup>",
@@ -226,7 +227,7 @@ class NetBeansWidgetCatalogProviderTest {
 
         CatalogBuildResult result = provider.snapshotAsync().toCompletableFuture().join();
 
-        assertEquals(81, result.catalog().definitions().size());
+        assertEquals(82, result.catalog().definitions().size());
         assertEquals(List.of(new CatalogDiagnostic(
                 CatalogDiagnosticCode.INVALID_CONTRIBUTOR,
                 "<composition>",

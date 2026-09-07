@@ -73,6 +73,120 @@ import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 
 class FlutterPropertyEditorComponentsTest {
+    @Test
+    void checkboxMouseCursorAll41PresetsAndProjectFactoriesStayClosedAndCancelSafe() throws Exception {
+        var definition = property("flutter.material.Checkbox", "mouseCursor");
+        var presets = dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema.mouseCursorPresets();
+        var binding = FlutterTypedPropertyEditors.binding(definition, Optional.empty(), false, presets).orElseThrow();
+        assertEquals(41, presets.size()); assertEquals(FlutterTypedPropertyEditors.EditorKind.PRESET_DART_REFERENCE, binding.editorKind());
+        for (String preset : presets) {
+            var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var environment = PropertyEnv.create(descriptor("mouseCursor", "Typed MouseCursor")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor();
+                findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).setSelectedItem(FlutterPresetDartReferenceEditorComponent.PRESET);
+                findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.PRESET_NAME).setSelectedItem(preset);
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(preset)), editor.getValue());
+                return null;
+            });
+        }
+        var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("click")));
+        var environment = PropertyEnv.create(descriptor("mouseCursor", "Typed MouseCursor")); ((ExPropertyEditor) editor).attachEnv(environment);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor();
+            findNamed(panel, JComboBox.class, FlutterPresetDartReferenceEditorComponent.MODE_NAME).setSelectedItem(FlutterPresetDartReferenceEditorComponent.PROJECT);
+            findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:icon_buttons/cursors.dart");
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME).setText("Cursors");
+            findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText("primary");
+            findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("click")), editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+            assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:icon_buttons/cursors.dart"), "Cursors",
+                    Optional.of("primary"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false))), editor.getValue());
+            return null;
+        });
+        assertThrows(IllegalArgumentException.class, () -> editor.setAsText("MouseCursor.defer"));
+        var legacy = property("flutter.widgets.DefaultSelectionStyle", "mouseCursor");
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.STRING_PRESET,
+                FlutterTypedPropertyEditors.binding(legacy, Optional.empty(), false, presets).orElseThrow().editorKind());
+    }
+
+
+    @Test
+    void checkboxRequiredMixedBooleanHasNoOmitModeAndConcreteValuesUseCenteredCheckbox() throws Exception {
+        var binding = binding(property("flutter.material.Checkbox", "value")); var editor = binding.createEditor();
+        assertEquals(FlutterTypedPropertyEditors.EditorKind.NULLABLE_BOOLEAN, binding.editorKind()); assertFalse(binding.optional());
+        for (var initial : List.of(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)))) {
+            editor.setValue(initial); var environment = PropertyEnv.create(descriptor("Value", "Required Checkbox mixed Boolean")); ((ExPropertyEditor) editor).attachEnv(environment);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var mode = findNamed(panel, JComboBox.class, FlutterNullableChoiceEditorComponent.MODE_NAME);
+                assertEquals(2, mode.getItemCount()); assertEquals(FlutterNullableChoiceEditorComponent.NULL, mode.getItemAt(0)); assertEquals(FlutterNullableChoiceEditorComponent.VALUE, mode.getItemAt(1));
+                assertTrue(findNamed(panel, JTextArea.class, FlutterNullableChoiceEditorComponent.NOTE_NAME).getText().contains("cannot be omitted"));
+                mode.setSelectedItem(FlutterNullableChoiceEditorComponent.NULL); assertEquals(initial, editor.getValue()); environment.setState(PropertyEnv.STATE_VALID);
+                assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+                var inplace = FlutterPropertyEditorComponents.inplaceFactory(binding).orElseThrow().getInplaceEditor(); inplace.connect(editor, environment);
+                var box = assertInstanceOf(JCheckBox.class, inplace.getComponent()); assertEquals(SwingConstants.CENTER, box.getHorizontalAlignment()); assertEquals("Explicit null", box.getText());
+                box.doClick(); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(true)), inplace.getValue()); assertEquals("", box.getText());
+                box.doClick(); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)), inplace.getValue()); assertEquals("", box.getText()); inplace.clear();
+                return null;
+            });
+        }
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(FlutterPropertyCellValue.unset()));
+    }
+
+    @Test
+    void checkboxAll18NullableStateColorEditorsRetainNullLiteralThemeOmissionAndCancelDrafts() throws Exception {
+        for (String family : List.of("fillColor", "overlayColor")) for (String name : dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema.colorStateProperties(family)) {
+            var binding = binding(property("flutter.material.Checkbox", name)); assertEquals(FlutterTypedPropertyEditors.EditorKind.NULLABLE_THEME_COLOR, binding.editorKind());
+            for (var initial : List.of(FlutterPropertyCellValue.unset(), FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0x40302010L)), FlutterPropertyCellValue.explicit(new PropertyValue.ThemeTokenValue(new ThemeToken("material.colorScheme.primary"))))) {
+                var editor = binding.createEditor(); editor.setValue(initial); var env = PropertyEnv.create(descriptor(name, "Nullable state color")); ((ExPropertyEditor) editor).attachEnv(env);
+                var commits = new AtomicInteger(); editor.addPropertyChangeListener(ignored -> commits.incrementAndGet());
+                onEdt(() -> {
+                    var panel = editor.getCustomEditor(); assertAccessibleNameContains(panel, "nullable", "state", "color");
+                    var mode = findNamed(panel, JComboBox.class, FlutterNullableColorEditorComponent.MODE_NAME); assertEquals(3, mode.getItemCount());
+                    env.setState(PropertyEnv.STATE_VALID); assertEquals(initial, editor.getValue());
+                    var editEnv = PropertyEnv.create(descriptor(name, "Edit reopened nullable state color")); ((ExPropertyEditor) editor).attachEnv(editEnv);
+                    panel = editor.getCustomEditor(); mode = findNamed(panel, JComboBox.class, FlutterNullableColorEditorComponent.MODE_NAME);
+                    var expectedCommits = commits.get();
+                    mode.setSelectedItem(FlutterNullableColorEditorComponent.INHERIT); assertEquals(initial, editor.getValue()); assertEquals(expectedCommits, commits.get());
+                    assertTrue(findNamed(panel, JTextArea.class, FlutterNullableColorEditorComponent.NOTE_NAME).getText().contains("stops local state resolution"));
+                    editEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue()); assertEquals("Inherit (null)", editor.getAsText());
+                    var reopenedEnv = PropertyEnv.create(descriptor(name, "Reopened state color")); ((ExPropertyEditor) editor).attachEnv(reopenedEnv);
+                    var reopened = editor.getCustomEditor(); var reopenedMode = findNamed(reopened, JComboBox.class, FlutterNullableColorEditorComponent.MODE_NAME);
+                    reopenedMode.setSelectedItem(FlutterNullableColorEditorComponent.COLOR);
+                    var argb = findNamed(reopened, JTextField.class, FlutterComplexPropertyEditorComponents.THEME_COLOR_ARGB_NAME); argb.setText("not a color");
+                    reopenedEnv.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, reopenedEnv.getState()); assertEquals(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue()), editor.getValue());
+                    reopenedMode.setSelectedItem(FlutterNullableColorEditorComponent.OMIT); reopenedEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                    return null;
+                });
+            }
+        }
+    }
+
+    @Test
+    void checkboxSixTypedReferencesSupportPackageFactoriesAndActivationDefaultWithoutRawCode() throws Exception {
+        for (String name : List.of("onChanged", "focusNode", "shape", "side", "fillColor", "overlayColor")) {
+            var binding = binding(property("flutter.material.Checkbox", name)); var editor = binding.createEditor(); editor.setValue(FlutterPropertyCellValue.unset());
+            var env = PropertyEnv.create(descriptor(name, "Strict Checkbox reference")); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var clear = findNamed(panel, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME);
+                if (name.equals("onChanged")) { assertEquals("Use Designer activation default", clear.getText()); assertTrue(findNamed(panel, JLabel.class, FlutterDartObjectReferenceEditorComponent.PREVIEW_NAME).getText().startsWith("onChanged: <generated from Enabled")); }
+                clear.doClick(); var symbol = findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.ROOT_SYMBOL_NAME); symbol.setText("(_) => null");
+                env.setState(PropertyEnv.STATE_VALID); assertEquals(PropertyEnv.STATE_INVALID, env.getState()); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.SCOPE_NAME).setSelectedIndex(1);
+                findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.LIBRARY_URI_NAME).setText("package:checks/values.dart"); symbol.setText("Checks");
+                findNamed(panel, JTextField.class, FlutterDartObjectReferenceEditorComponent.MEMBER_NAME).setText(name);
+                findNamed(panel, JComboBox.class, FlutterDartObjectReferenceEditorComponent.ACCESS_NAME).setSelectedIndex(1);
+                assertEquals(FlutterPropertyCellValue.unset(), editor.getValue()); env.setState(PropertyEnv.STATE_VALID);
+                var expected = FlutterPropertyCellValue.explicit(new PropertyValue.DartObjectReferenceValue(Optional.of("package:checks/values.dart"), "Checks", Optional.of(name), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+                assertEquals(expected, editor.getValue());
+                var reopenEnv = PropertyEnv.create(descriptor(name, "Reopened factory")); ((ExPropertyEditor) editor).attachEnv(reopenEnv); var reopened = editor.getCustomEditor();
+                findNamed(reopened, JCheckBox.class, FlutterDartObjectReferenceEditorComponent.DEFAULT_NAME).doClick(); assertEquals(expected, editor.getValue()); reopenEnv.setState(PropertyEnv.STATE_VALID); assertEquals(FlutterPropertyCellValue.unset(), editor.getValue());
+                return null;
+            });
+        }
+    }
 
     @Test
     void refreshPredicateUnionCommitsPresetsOmissionAndCurrentOrPackageReferencesOnce() throws Exception {
@@ -3706,7 +3820,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(302, booleanProperties.size(),
+        assertEquals(307, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

@@ -121,6 +121,9 @@ final class FlutterTypedPropertyEditors {
                         instanceof PropertyValueConstraint.DartObjectReferenceValues reference
                         && reference.expectedDartType().equals("Animation<Color?>"))) {
             editorKind = EditorKind.COLOR_ANIMATION;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.ThemeTokenValues.class::isInstance)) {
+            editorKind = EditorKind.NULLABLE_THEME_COLOR;
         } else if (kinds.equals(EnumSet.of(
                 PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN))
                 && definition.constraints().stream().anyMatch(
@@ -221,6 +224,7 @@ final class FlutterTypedPropertyEditors {
         EDGE_INSETS,
         COLOR,
         THEME_COLOR,
+        NULLABLE_THEME_COLOR,
         COLOR_ANIMATION,
         THEME_TOKEN,
         CALLBACK,
@@ -357,7 +361,7 @@ final class FlutterTypedPropertyEditors {
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
                         ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
                         MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, PRESET_DART_REFERENCE, OBJECT_TAG ->
+                        DART_OBJECT_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG ->
                     new StructuredEditor(this);
             };
         }
@@ -446,13 +450,14 @@ final class FlutterTypedPropertyEditors {
                     || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
                     || binding.editorKind() == EditorKind.COLOR_ANIMATION
+                    || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR
                     || FlutterPropertyValuePreview.isPaintable(
                             binding.editorKind());
         }
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
+            if (binding.editorKind() == EditorKind.COLOR_ANIMATION || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
                 if (explicitValue().orElse(null) instanceof PropertyValue.ColorValue
                         || explicitValue().orElse(null) instanceof PropertyValue.ThemeTokenValue) {
                     FlutterPropertyEditorComponents.paintColorValue(graphics, box, cellValue());
@@ -1038,6 +1043,10 @@ final class FlutterTypedPropertyEditors {
                     case PropertyValue.BooleanValue bool -> "Boolean: " + bool.value();
                     default -> PropertyValueFormatter.format(value);
                 }).orElseGet(this::unsetText);
+            }
+            if (binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue
+                        ? "Inherit (null)" : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
                 return explicitValue().map(value -> value instanceof PropertyValue.StringValue preset

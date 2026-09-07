@@ -149,7 +149,8 @@ final class FlutterDartObjectReferenceEditorComponent {
             shapeBranch = "shape".equals(argumentName)
                     && "ShapeBorder".equals(expectedDartType);
             noOpRefreshBranch = "onRefresh".equals(argumentName) && "RefreshCallback".equals(expectedDartType);
-            buttonActivationBranch = "onPressed".equals(argumentName) && "VoidCallback".equals(expectedDartType);
+            buttonActivationBranch = "onPressed".equals(argumentName) && "VoidCallback".equals(expectedDartType)
+                    || "onChanged".equals(argumentName) && "ValueChanged<bool?>".equals(expectedDartType);
             useDefault = new JCheckBox(noOpRefreshBranch ? "Use generated no-op refresh callback"
                     : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default (omit " + argumentName + ")");
 
@@ -345,7 +346,7 @@ final class FlutterDartObjectReferenceEditorComponent {
             String rendered;
             if (unset) {
                 rendered = noOpRefreshBranch ? "onRefresh: () async {}"
-                        : buttonActivationBranch ? "onPressed: <generated from Enabled and activation policy>"
+                        : buttonActivationBranch ? argumentName + ": <generated from Enabled and activation policy>"
                         : shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
                         : argumentName + ": <Flutter default null>";
             } else {

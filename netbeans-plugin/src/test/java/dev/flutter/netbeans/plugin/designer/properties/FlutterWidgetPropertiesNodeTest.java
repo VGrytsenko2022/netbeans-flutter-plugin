@@ -1531,6 +1531,10 @@ class FlutterWidgetPropertiesNodeTest {
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("elevated")));
         requiredValues.put("flutter.material.CircularProgressIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
+        requiredValues.put("flutter.material.Checkbox", Map.of(
+                new PropertyName("value"), new PropertyValue.BooleanValue(false),
+                new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.IconButton", Map.of(
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
@@ -1567,6 +1571,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.FilledButton",
                 "flutter.material.FloatingActionButton",
                 "flutter.material.IconButton",
+                "flutter.material.Checkbox",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1664,7 +1669,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(3076, writableCount,
+        assertEquals(3182, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1677,7 +1682,7 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(3059, nonScaffoldWritableCount,
+        assertEquals(3165, nonScaffoldWritableCount,
                 "all non-Scaffold built-ins expose their complete writable surface");
     }
 
@@ -6483,6 +6488,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.material.FilledButton",
                 "flutter.material.FloatingActionButton",
                 "flutter.material.IconButton",
+                "flutter.material.Checkbox",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -6575,7 +6581,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(81, iconPaths.size(),
+        assertEquals(82, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

@@ -152,6 +152,27 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
             id("cce2050f-8846-4378-843e-58371d52d1c5");
 
     @Test
+    void checkboxTreeDropCreatesAControlledFalseLeafWithoutWrapping() {
+        for (var root : List.of(column(List.of()), withSlot(prototype(CENTER), CHILD, WidgetSlot.SingleSlot.empty()))) {
+            var fixture = fixture(new WidgetTypeId("flutter.material.Checkbox"));
+            var transfer = new StringSelection(fixture.token());
+            var document = document(root);
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, document, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            AtomicInteger allocations = new AtomicInteger();
+            var added = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, document, CATALOG,
+                            () -> { allocations.incrementAndGet(); return NEW_ID; })).command().widget();
+            assertEquals(1, allocations.get());
+            assertEquals(new WidgetTypeId("flutter.material.Checkbox"), added.type());
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"), new PropertyName("enabled"), new PropertyValue.BooleanValue(true), new PropertyName("value"), new PropertyValue.BooleanValue(false)), added.properties());
+            assertTrue(added.slots().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
     void iconButtonTreeDropWrapsRootListAndSingleWidgetInIconWithoutInventingASelectedIcon() {
         for (DesignerDocument document : List.of(document(text(ROOT_ID, "root")),
                 document(column(List.of(text(FIRST_ID, "list")))), document(center(text(FIRST_ID, "single"))))) {

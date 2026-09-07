@@ -1219,6 +1219,258 @@ class FlutterDesignerMutationControllerIntegrationTest {
     }
 
     @Test
+    void paletteCheckboxAll106FieldsBothConstructorsSaveReopenHistoryAndRollback() throws Exception {
+        var id = StableId.parse("d7900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Checkbox");
+        ExactPair pair;
+        try (var fixture = fixture("checkbox_palette_insert", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready();
+            var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyCheckboxMutation(fixture, ready, plan.command(), id);
+            var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("standard"),
+                    new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                    new PropertyName("value"), new PropertyValue.BooleanValue(false)), widget.properties());
+            assertTrue(widget.slots().isEmpty());
+            var history = fixture.dataObject().getCombinedUndoRedo(); var token = current.token().orElseThrow();
+            onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+            pair = savePhysicalModelPair(fixture);
+        }
+        ExactPair sparsePair = pair;
+        var visited = new java.util.HashSet<String>();
+        try (var fixture = fixture("checkbox_reopened_dense_families", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var history = fixture.dataObject().getCombinedUndoRedo(); int index = 0;
+            for (String variant : List.of("standard", "adaptive")) {
+                for (String shape : List.of("roundedSuperellipse", "circle", "star", "linear")) {
+                    var before = findModelWidget(current.document().orElseThrow().root(), id);
+                    var target = dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.full(variant, shape, index++ % 2 == 0);
+                    target.put(new PropertyName("enabled"), new PropertyValue.BooleanValue(true));
+                    var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>();
+                    for (var name : before.properties().keySet()) if (!target.containsKey(name)) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name));
+                    target.forEach((name, value) -> { if (!value.equals(before.properties().get(name))) patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(name, value)); });
+                    current = applyCheckboxMutation(fixture, current, new dev.flutter.netbeans.designer.command.PatchProperties(id, patches), id);
+                    byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                    var token = current.token().orElseThrow(); onEdt(history::undo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                    token = current.token().orElseThrow(); onEdt(history::redo);
+                    current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                    pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+                    try (var reopened = fixture("checkbox_dense_family_" + index, pair)) {
+                        assertEquals(target, findModelWidget(reopened.ready().document().orElseThrow().root(), id).properties());
+                        assertArrayEquals(pair.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+                    }
+                }
+            }
+            try (var sparse = fixture("checkbox_all_sparse_live_cells", sparsePair)) {
+                sparse.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, sparse.frameworkFile())));
+                var currentSparse = sparse.ready(); var sparseHistory = sparse.dataObject().getCombinedUndoRedo();
+                var initial = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, initial, definition, commands::add);
+                var sets = properties.getPropertySets();
+                for (var field : definition.properties()) {
+                    String name = field.name().value();
+                    var prerequisites = dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.sparsePrerequisites(name);
+                    byte[] initialDart = sparse.editor().liveSnapshot().markerBearingUtf8(), initialFd = refreshProgressFdBytes(sparse);
+                    int prerequisiteEdits = 0;
+                    for (var prerequisite : prerequisites.entrySet()) {
+                        var widget = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                        if (prerequisite.getValue().equals(widget.properties().get(prerequisite.getKey()))) continue;
+                        currentSparse = applyCheckboxMutation(sparse, currentSparse, new SetProperty(id, prerequisite.getKey(), prerequisite.getValue()), id);
+                        prerequisiteEdits++;
+                    }
+                    var before = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var cell = cellProperty(properties, name); var editor = cell.getPropertyEditor().getClass();
+                    byte[] beforeDart = sparse.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(sparse);
+                    var value = dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.value(field);
+                    commands.clear(); cell.setValue(FlutterPropertyCellValue.explicit(value)); assertEquals(1, commands.size(), name);
+                    currentSparse = applyCheckboxMutation(sparse, currentSparse, commands.getFirst(), id);
+                    var edited = findModelWidget(currentSparse.document().orElseThrow().root(), id);
+                    assertEquals(value, edited.properties().get(field.name()), name); assertTrue(edited.slots().isEmpty());
+                    properties.refreshPresentation(edited, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    var token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                    currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    assertEquals(before, findModelWidget(currentSparse.document().orElseThrow().root(), id), name);
+                    assertArrayEquals(beforeDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(beforeFd, refreshProgressFdBytes(sparse));
+                    for (int i = 0; i < prerequisiteEdits; i++) {
+                        token = currentSparse.token().orElseThrow(); onEdt(sparseHistory::undo);
+                        currentSparse = awaitReadyWithColumnChildIdsAfterToken(sparse.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                    }
+                    assertEquals(initial, findModelWidget(currentSparse.document().orElseThrow().root(), id));
+                    assertArrayEquals(initialDart, sparse.editor().liveSnapshot().markerBearingUtf8());
+                    assertArrayEquals(initialFd, refreshProgressFdBytes(sparse));
+                    properties.refreshPresentation(initial, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+                    assertSame(cell, cellProperty(properties, name)); assertEquals(editor, cell.getPropertyEditor().getClass());
+                    assertEquals(List.of(sets), List.of(properties.getPropertySets())); assertTrue(visited.add(name));
+                }
+            }
+            assertEquals(106, visited.size());
+        }
+        try (var fixture = fixture("checkbox_whole_families_and_rollback", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var definition = current.catalog().orElseThrow().find(type).orElseThrow();
+            var commands = new ArrayList<DesignerCommand>(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add); var history = fixture.dataObject().getCombinedUndoRedo();
+            for (String name : List.of("fillColor", "overlayColor", "side", "shape")) {
+                var before = widget;
+                commands.clear(); cellProperty(properties, name).setValue(FlutterPropertyCellValue.explicit(
+                        dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.reference("_" + name)));
+                current = applyCheckboxMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertTrue(widget.properties().keySet().stream().noneMatch(key -> key.value().startsWith(name) && !key.value().equals(name)), name);
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo);
+                current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture); String undo = history.getUndoPresentationName();
+            for (DesignerCommand invalid : List.of(new ResetProperty(id, new PropertyName("value")),
+                    new ResetProperty(id, new PropertyName("variant")), new ResetProperty(id, new PropertyName("enabled")),
+                    new SetProperty(id, new PropertyName("visualDensityHorizontal"), new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(5))),
+                    new SetProperty(id, new PropertyName("onChanged"), new PropertyValue.CallbackValue("rawCallback")))) {
+                var rejected = fixture.mutations().submit(current.token().orElseThrow(), invalid, "Checkbox rejected change").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected::reason); current = awaitReady(fixture.mutations());
+                assertEquals(widget, findModelWidget(current.document().orElseThrow().root(), id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                assertEquals(undo, history.getUndoPresentationName());
+            }
+            commands.clear(); cellProperty(properties, "fillColorDefault").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.ColorValue(0xff556677L)));
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(rejectedDiagnosticAnalysis(request, "checkbox_color_refused", "Checkbox color replacement rejected")));
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), commands.getFirst(), "Checkbox atomic family rollback").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertEquals(widget, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), id));
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            assertEquals(undo, history.getUndoPresentationName()); pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("checkbox_final_reopen_further_edit", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = applyCheckboxMutation(fixture, fixture.ready(), new SetProperty(id, new PropertyName("semanticLabel"), new PropertyValue.StringValue("Edited after reopening")), id);
+            assertEquals(new PropertyValue.StringValue("Edited after reopening"), findModelWidget(current.document().orElseThrow().root(), id).properties().get(new PropertyName("semanticLabel")));
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteCheckboxTristateAtomicTransitionsPreserveNullThroughConstructorsAndReopen() throws Exception {
+        var id = StableId.parse("d8900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Checkbox"); ExactPair pair;
+        try (var fixture = fixture("checkbox_tristate", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var plan = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(), type, COLUMN_ID, CHILDREN, 2, () -> id));
+            var current = applyCheckboxMutation(fixture, ready, plan.command(), id);
+            var definition = current.catalog().orElseThrow().find(type).orElseThrow(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            var commands = new ArrayList<DesignerCommand>(); var properties = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, commands::add);
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            for (var value : List.<PropertyValue>of(new PropertyValue.BooleanValue(true), new PropertyValue.NullValue(), new PropertyValue.BooleanValue(false), new PropertyValue.NullValue())) {
+                var before = widget; commands.clear(); cellProperty(properties, "value").setValue(FlutterPropertyCellValue.explicit(value));
+                assertEquals(1, commands.size()); current = applyCheckboxMutation(fixture, current, commands.getFirst(), id);
+                widget = findModelWidget(current.document().orElseThrow().root(), id); assertEquals(value, widget.properties().get(new PropertyName("value")));
+                if (value instanceof PropertyValue.NullValue) assertEquals(new PropertyValue.BooleanValue(true), widget.properties().get(new PropertyName("tristate")));
+                byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+                var token = current.token().orElseThrow(); onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                token = current.token().orElseThrow(); onEdt(history::redo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            for (boolean reset : List.of(false, true)) {
+                var before = widget; commands.clear();
+                if (reset) cellProperty(properties, "tristate").restoreDefaultValue();
+                else cellProperty(properties, "tristate").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.BooleanValue(false)));
+                assertEquals(1, commands.size()); current = applyCheckboxMutation(fixture, current, commands.getFirst(), id);
+                var edited = findModelWidget(current.document().orElseThrow().root(), id);
+                assertEquals(new PropertyValue.BooleanValue(false), edited.properties().get(new PropertyName("value")));
+                assertEquals(reset ? null : new PropertyValue.BooleanValue(false), edited.properties().get(new PropertyName("tristate")));
+                var token = current.token().orElseThrow(); onEdt(history::undo); current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, id));
+                assertEquals(before, findModelWidget(current.document().orElseThrow().root(), id));
+                properties.refreshPresentation(before, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            for (String variant : List.of("adaptive", "standard", "adaptive")) {
+                commands.clear(); cellProperty(properties, "variant").setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue(variant)));
+                current = applyCheckboxMutation(fixture, current, commands.getFirst(), id); widget = findModelWidget(current.document().orElseThrow().root(), id);
+                assertInstanceOf(PropertyValue.NullValue.class, widget.properties().get(new PropertyName("value")));
+                properties.refreshPresentation(widget, definition, commands::add, null, null, FlutterImageAssetChoices.empty());
+            }
+            byte[] exactDart = fixture.editor().liveSnapshot().markerBearingUtf8(), exactFd = refreshProgressFdBytes(fixture);
+            var rejected = fixture.mutations().submit(current.token().orElseThrow(), new SetProperty(id, new PropertyName("tristate"), new PropertyValue.BooleanValue(false)), "Invalid direct tristate change").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(exactDart, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(exactFd, refreshProgressFdBytes(fixture));
+            pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("checkbox_mixed_reopen", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var current = fixture.ready(); var widget = findModelWidget(current.document().orElseThrow().root(), id);
+            assertInstanceOf(PropertyValue.NullValue.class, widget.properties().get(new PropertyName("value")));
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("Checkbox.adaptive("));
+            applyCheckboxMutation(fixture, current, new SetProperty(id, new PropertyName("value"), new PropertyValue.BooleanValue(true)), id);
+            savePhysicalModelPair(fixture);
+        }
+    }
+
+    @Test
+    void paletteCheckboxInactiveCallbackEditWhilePairedChangesAreUnsavedKeepsHistoryAndRollback() throws Exception {
+        StableId buttonId = StableId.parse("d9900004-e530-4b9b-92fa-49e3c491f094");
+        var type = new WidgetTypeId("flutter.material.Checkbox"); var callback = new PropertyName("onChanged");
+        ExactPair pair;
+        try (var fixture = fixture("checkbox_inactive_unsaved", columnExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            var ready = fixture.ready(); var accepted = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    new FlutterDesignerPaletteDropPlanner().plan(ready.document().orElseThrow(), ready.catalog().orElseThrow(),
+                            type, COLUMN_ID, CHILDREN, 2, () -> buttonId));
+            var current = applyCheckboxMutation(fixture, ready, accepted.command(), buttonId);
+            current = applyCheckboxMutation(fixture, current, new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(false)), buttonId);
+            byte[] beforeDart = fixture.editor().liveSnapshot().markerBearingUtf8(), beforeFd = refreshProgressFdBytes(fixture);
+            var before = findModelWidget(current.document().orElseThrow().root(), buttonId);
+            current = applyCheckboxMutation(fixture, current, new SetProperty(buttonId, callback,
+                    dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.reference("_disabledCallback")), buttonId);
+            assertArrayEquals(beforeDart, fixture.editor().liveSnapshot().markerBearingUtf8(), "Inactive callback changes only FD while paired source remains unsaved");
+            assertFalse(Arrays.equals(beforeFd, refreshProgressFdBytes(fixture)));
+            var after = findModelWidget(current.document().orElseThrow().root(), buttonId); var history = fixture.dataObject().getCombinedUndoRedo();
+            var token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(after, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            pair = savePhysicalModelPair(fixture); current = awaitReady(fixture.mutations());
+            // Saving must retain the same-source predecessor as an exact undoable FD-only endpoint.
+            token = current.token().orElseThrow(); onEdt(history::undo);
+            current = awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId)); assertEquals(before, findModelWidget(current.document().orElseThrow().root(), buttonId));
+            token = current.token().orElseThrow(); onEdt(history::redo);
+            awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), token, List.of(FIRST_ID, SECOND_ID, buttonId));
+            if (fixture.coordinator().stagedEvidence() != null) pair = savePhysicalModelPair(fixture);
+        }
+        try (var fixture = fixture("checkbox_inactive_saved_reopened", pair)) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(passingAnalysis(request, fixture.frameworkFile())));
+            assertEquals(dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.reference("_disabledCallback"),
+                    findModelWidget(fixture.ready().document().orElseThrow().root(), buttonId).properties().get(callback));
+            var current = applyCheckboxMutation(fixture, fixture.ready(), new SetProperty(buttonId, new PropertyName("enabled"), new PropertyValue.BooleanValue(true)), buttonId);
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_disabledCallback"));
+        }
+    }
+
+    private static FlutterDesignerMutationController.Snapshot applyCheckboxMutation(MutationFixture fixture,
+            FlutterDesignerMutationController.Snapshot before, DesignerCommand command, StableId id) throws Exception {
+        var result = fixture.mutations().submit(before.token().orElseThrow(), command, "Checkbox complete property contract").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), () -> command + ": " + result.reason());
+        return awaitReadyWithColumnChildIdsAfterToken(fixture.mutations(), before.token().orElseThrow(), List.of(FIRST_ID, SECOND_ID, id));
+    }
+
+    @Test
     void paletteIconButtonAll524FieldsFourConstructorsSaveReopenHistoryAndRollback() throws Exception {
         StableId buttonId = StableId.parse("9e8e8e8e-8e8e-4e8e-8e8e-8e8e8e8e8e9e");
         var type = new WidgetTypeId("flutter.material.IconButton"); var variant = new PropertyName("variant");

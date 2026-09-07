@@ -105,6 +105,7 @@ public final class BuiltInWidgetCatalog {
             fullStyleButton("FilledButton"),
             floatingActionButton(),
             iconButton(),
+            checkbox(),
             textField()));
 
     private BuiltInWidgetCatalog() {
@@ -769,6 +770,66 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition checkbox() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition shapes = card();
+        for (var entry : CheckboxWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (CheckboxWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                constraints = shapes.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (CheckboxWidgetPropertySchema.colorStateProperties("fillColor").contains(name)
+                    || CheckboxWidgetPropertySchema.colorStateProperties("overlayColor").contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (CheckboxWidgetPropertySchema.sideLocalProperties().contains(name) && !name.equals("sideStateful")) {
+                constraints = name.endsWith("Mode") ? stringPattern("(?:border|inherit)", "Checkbox side state mode")
+                        : name.endsWith("Color") ? colorOrTheme()
+                        : name.endsWith("Width") ? nonNegativeNumbers()
+                        : name.endsWith("Style") ? enumValues("BorderStyle", "none", "solid")
+                        : cardNumbers(null, null);
+            } else {
+                constraints = switch (name) {
+                    case "value" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "onChanged" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool?>"));
+                    case "fillColor", "overlayColor" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"));
+                    case "shape" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("OutlinedBorder"));
+                    case "side" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("BorderSide"));
+                    case "focusNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode"));
+                    case "activeColor", "checkColor", "focusColor", "hoverColor" -> colorOrTheme();
+                    case "splashRadius" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(cardNumbers(null, null));
+                        values.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity")));
+                        yield List.copyOf(values);
+                    }
+                    case "visualDensityHorizontal", "visualDensityVertical" -> minusFourToFourDoubles();
+                    case "materialTapTargetSize" -> materialEnumValues("MaterialTapTargetSize", "padded", "shrinkWrap");
+                    case "mouseCursor" -> {
+                        List<PropertyValueConstraint> values = new ArrayList<>(stringPattern(
+                                DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset"));
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"));
+                        yield List.copyOf(values);
+                    }
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "Checkbox constructor");
+                    case "semanticLabel" -> any(PropertyValueKind.STRING);
+                    default -> any(PropertyValueKind.BOOLEAN);
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.BooleanValue(false);
+                case "enabled" -> new PropertyValue.BooleanValue(true);
+                case "variant" -> new PropertyValue.StringValue("standard");
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value(), "Checkbox", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 190, "Checkbox"), properties, List.of());
     }
 
     private static WidgetDefinition iconButton() {

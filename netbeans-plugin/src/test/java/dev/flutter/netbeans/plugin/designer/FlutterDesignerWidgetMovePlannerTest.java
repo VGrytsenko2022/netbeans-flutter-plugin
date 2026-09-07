@@ -193,6 +193,22 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void checkboxBothConstructorsMoveAsLeavesButNeverAcceptAnInventedChildSlot() {
+        for (String variant : List.of("standard", "adaptive")) {
+            var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
+            var checkbox = new WidgetNode(B_ID, type("flutter.material.Checkbox"),
+                    dev.flutter.netbeans.plugin.designer.properties.CheckboxPropertyContractTest.full(variant, "roundedRectangle", true), Map.of());
+            var root = listParent(ROOT_ID, COLUMN, CHILDREN, List.of(source, checkbox, listParent(C_ID, STACK, CHILDREN, List.of())));
+            var document = document(root);
+            assertAcceptedCommandApplies(document, BUILT_INS, checkbox,
+                    planner.plan(document, BUILT_INS, B_ID, new FlutterDesignerWidgetMovePlanner.On(C_ID)));
+            assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class,
+                    planner.plan(document, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.IntoSlot(B_ID, CHILD, 0)));
+            assertTrue(checkbox.slots().isEmpty());
+        }
+    }
+
+    @Test
     void iconButtonAllConstructorsProtectRequiredIconAndRetainSelectedIconAcrossWholeMoves() {
         for (String variant : List.of("standard", "filled", "filledTonal", "outlined")) {
             var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);

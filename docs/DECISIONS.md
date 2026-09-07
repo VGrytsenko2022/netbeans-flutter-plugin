@@ -43,8 +43,8 @@ surface: 1454 typed rows across seventy-seven widgets, seventy-one const-constru
 definitions and 4,774 Palette/DnD candidates, including 4,448 accepted and 326
 rejected cells. Its 1437 non-`Scaffold` rows sat beside the 17 closed scalar
 `Scaffold` fields. ADR-106 adds OutlinedButton, ADR-107 adds FilledButton,
-ADR-108 adds FloatingActionButton and ADR-109 adds IconButton: the current
-surface is 81 widgets, 3076 rows and 5508 placement candidates. ADR-036
+ADR-108 adds FloatingActionButton, ADR-109 adds IconButton and ADR-110 adds
+Checkbox: the current surface is 82 widgets, 3182 rows and 5576 placement candidates. ADR-036
 authorizes the Windows-only capability-gated inline
 editor for one selected existing `Text.data`; its deterministic product slice
 is accepted while physical CJK IME acceptance remains open. ADR-028 authorizes
@@ -472,8 +472,9 @@ ADR-105 establishes the historical seventy-seven-source, 4,774-candidate matrix
 ADR-106 records the historical 78-source, 4,914-candidate matrix (4,583 accepted /
 331 rejected), and ADR-107 records 79 sources and 5,135 candidates (4,796 accepted /
 339 rejected). ADR-108 records the historical 80-source, 5,360-candidate matrix
-(5,013 accepted / 347 rejected). ADR-109 establishes the current 81-source,
-5,508-candidate matrix (5,156 accepted / 352 rejected).
+(5,013 accepted / 347 rejected). ADR-109 records the historical 81-source,
+5,508-candidate matrix (5,156 accepted / 352 rejected). ADR-110 establishes the
+current 82-source, 5,576-candidate matrix (5,222 accepted / 354 rejected).
 Same-tree existing-widget movement is separately
 enabled by ADR-028.
 A separate post-handshake runtime control codec publishes one exact
@@ -484,7 +485,7 @@ protocol-v18 model payload accepts only exact reviewed Canvas-capable built-ins:
 `Icon`, `Image`, `Padding`, `Center`, `Align`, `FractionallySizedBox`, `SizedBox`,
 `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`,
 `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`, `Transform`, `RotatedBox`, `ListBody`, `OverflowBar`, `SafeArea`, `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `FittedBox`,
-`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Container` and `Opacity`; the
+`ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`, `ColoredBox`, `Placeholder`, `Directionality`, `DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Container` and `Opacity`; the
 isolated runner independently enforces the same schema and receives neither
 project code nor file authority. `CATALOG_JSON` remains reserved for a future
 versioned catalog contract. Under negotiated `asset.imageBytes.v1`, exact
@@ -498,12 +499,12 @@ bounded SDK-keyed build cache and an isolated child-runner lifecycle per open
 `.fd` Design MultiView. Cache reuse requires a bounded SHA-256 manifest for the
 complete launch runtime, and deterministic tests fence
 close/build/launch/attach/exit races plus two simultaneous sessions. The native
-Canvas now renders the validated eighty-one-widget model for Mobile, Tablet,
+Canvas now renders the validated eighty-two-widget model for Mobile, Tablet,
 Desktop and Web responsive preview profiles and synchronizes selection with the
 Explorer/Nodes tree and standard Properties window. The Palette exposes exactly
-those eighty-one Create-capable definitions, and the DnD-capable set uses the
-reviewed 5,508-cell candidate matrix across sixty-six insertable any-widget and two
-trait-bound destination slots; 5,156 cells are accepted and 352 rejected.
+those eighty-two Create-capable definitions, and the DnD-capable set uses the
+reviewed 5,576-cell candidate matrix across sixty-six insertable any-widget and two
+trait-bound destination slots; 5,222 cells are accepted and 354 rejected.
 Expanded and Flexible each enter only direct Row/Column wrapper targets, while
 Spacer inserts only into direct Row/Column children. Expanded and Flexible's
 required child slots are replacement-only rather than insertable. SafeArea,
@@ -6678,3 +6679,180 @@ Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
 IconButton SVG assets are present. All 40 source and 35 Web manifest entries
 are reverified against the final artifacts. No interactive IDE acceptance or
 installed-userdir verification is claimed.
+
+## ADR-110 — Checkbox controlled nullable value and state properties
+
+### Scope and public SDK contract
+
+Admit `flutter.material.Checkbox` at Material/order 190 as a slotless leaf with
+both public const constructors, Standard and Adaptive. The pinned Flutter 3.44.8
+implementation and the official [Checkbox API](https://api.flutter.dev/flutter/material/Checkbox-class.html),
+[standard constructor](https://api.flutter.dev/flutter/material/Checkbox/Checkbox.html)
+and [adaptive constructor](https://api.flutter.dev/flutter/material/Checkbox/Checkbox.adaptive.html)
+have the same 19 non-key constructor parameters. Stable Designer identity remains
+the Key policy, not a free-form source argument. There is no invented child/label.
+
+Expose 106 typed rows: 22 direct/policy rows (19 SDK parameters with density split
+into two axes plus Constructor/Enabled), 21 local outlined-shape leaves, 18 nullable
+fill/overlay state-color rows and 45 local plain/stateful-side rows. Ten shared
+shape families remain fully editable; whole shape requires OutlinedBorder, not
+merely ShapeBorder. Prototype values are Standard, Enabled true and Value false.
+
+### Controlled value, null and atomic editing
+
+Value, Constructor and Enabled are required. Value admits false, true and explicit
+null; null is mixed and requires Tristate true. Core validation rejects invalid
+direct commands. Setting mixed in Properties also sets Tristate true in one Patch;
+disabling/resetting Tristate while mixed sets Value false in the same Patch. One
+Undo restores both values. Required nullable Value cannot be omitted. Concrete
+Boolean values remain centered checkboxes, including after save/reopen and edits.
+
+The generated and preview widgets remain controlled. Enabled without onChanged
+gets a benign `(_) {}`; the application must still update its value in its own
+callback. Disabled emits onChanged:null without evaluating, importing or proving
+the retained inactive callback reference. FD-only callback edits retain paired
+source history. Canvas interaction never silently rewrites the model Value.
+
+### Complete local state alternatives and strict references
+
+Whole fillColor/overlayColor use strict non-null WidgetStateProperty<Color?>
+references or supported zero-argument invocations. Each excludes its own nine
+local nullable-color rows. State priority is disabled, error, dragged, pressed,
+selected, scrolledUnder, hovered, focused, default. An omitted entry continues;
+explicit null terminates local resolution and lets the real SDK proceed through
+its own fallback chain. No synthetic disabled override or button styleFrom rule
+is reused. All 256 combinations remain deterministic; arbitrary project resolvers
+are supported through strictly analyzed whole references, never opaque source text.
+
+Whole side is a strict BorderSide reference, including WidgetStateBorderSide
+subtypes, exclusive with all local side fields. Base Color/Width/Style/StrokeAlign
+construct a plain BorderSide using its SDK defaults. SideStateful false/unset
+preserves the SDK's unselected-only plain-side behavior. SideStateful true uses
+the public WidgetStateBorderSide.fromMap and also resolves selected states.
+Each of eight state buckets has Mode border/inherit plus four side leaves.
+Inherit returns explicit null and clears bucket details; a detail selects Border
+and enables Stateful atomically. Missing details use that BorderSide constructor's
+defaults rather than partially inheriting a different state, the base or theme.
+Resetting/disabling Stateful clears state buckets but preserves the base side.
+Whole/local color, side and shape switches are atomic and independently undoable.
+
+ValueChanged<bool?>, WidgetStateProperty<Color?>, OutlinedBorder, BorderSide,
+MouseCursor and FocusNode use the existing closed generic/static witness pipeline.
+Dynamic, nullable outer reference types, wrong generics and wrong callback
+signatures remain rejected. No analyzer grammar, timeout, candidate budget or
+raw-expression escape hatch is added. Both literal public state-map constructors
+remain const-capable when all members are const.
+
+### Actual SDK Canvas behavior
+
+The isolated runner constructs real Checkbox/Checkbox.adaptive widgets and never
+executes project callbacks, factories or objects; unavailable project effects are
+diagnosed. SDK theme/default precedence, plain-versus-stateful sides and selection
+semantics are retained. Adaptive's Cupertino branch ignores fillColor, hoverColor,
+overlayColor, splashRadius, materialTapTargetSize, visualDensity and isError while
+keeping every corresponding model field. Shape and side still apply. Theme.platform
+chooses adaptation; Cupertino tap sizing also depends on the SDK's separate host
+defaultTargetPlatform. Tests vary both rather than fabricating a platform rule.
+
+An explicit density axis uses zero for its omitted peer. Signed finite and
+positive-infinite splashRadius values are retained: actual Material SDK tests
+exercise hover, focus, held press, painting, release and callback without clamping.
+Negative/zero values suppress reaction painting through the SDK's own guard.
+Existing shape resource budgets remain enforced without changing source values.
+
+Pinned Flutter 3.44.8's Material and Cupertino Checkbox painters omit TextDirection
+when painting an OutlinedBorder. Raw SDK controls and pinned source inspection
+identify this limitation for
+LinearBorder and directional/mixed corner geometry in RoundedRectangleBorder,
+BeveledRectangleBorder, ContinuousRectangleBorder and RoundedSuperellipseBorder.
+Canvas diagnoses this limitation at Checkbox.shape and uses an explicit SDK-default
+RoundedRectangleBorder (radius 1 for M2, 2 for M3, 4 for Cupertino). This is a
+documented preview approximation, not claimed pixel parity for those unsafe shapes.
+It retains the real Checkbox State, value, semantics, model fields and exact Dart
+generation. Safe physical-corner shapes remain supported, and an explicit safe
+shape overrides an unsafe CheckboxTheme shape. The guard checks effective theme
+fallbacks without executing project code; adaptive Apple ignores CheckboxTheme.
+No custom wrapper or source rewrite attempts to repair the upstream SDK painter.
+
+### Aggregate surface and verification boundary
+
+Current totals are 82 widgets, 76 const definitions, 3182 writable rows (3165
+outside Scaffold), 79 scalar plus three structural definitions, 307 Boolean-only
+rows, three nullable-Boolean unions and the separate Object-tag union. The same
+68 insertable destinations (66 ANY plus two trait-bound) form 5576 placements:
+5222 accepted and 354 rejected. Categories are Material19, Layout31, Scrolling3,
+Basic23 and Accessibility6. Thirteen generic/fifteen total creation wrappers are
+unchanged. The historical practical 92-widget target leaves ten; no recovered
+fixed-order inventory is claimed. FD13, Catalog API14, Canvas model18, NBFC1 and
+the 512-value/2048-probe/2-MiB/45-second budgets remain unchanged.
+
+The slice includes typed stable cells, all-field edits, dependent atomic changes,
+Save/reopen/continued edits, native Undo/Redo and rollback, real-SDK generated
+candidates, actual-SDK Canvas parity and all four SVG assets. Deferred physical
+desktop acceptance and platform-provider work remain outside this palette change.
+No user IDE/userdir or Flutter application is modified.
+
+### Checkbox verification evidence (2026-09-07)
+
+The focused core install passed 1602 tests; the final UI/palette/editor selection
+passed 836 tests across 22 classes. Three live paired-mutation tests cover all
+106 stable property rows, constructors, dependent edits, save/reopen/continued
+editing, native Undo/Redo and rejection rollback. Four real-SDK test methods
+cover 25 same-file candidate analyses: 16 accepted and nine deliberately rejected.
+Incompatible arguments require a blocking argument-type diagnostic at the exact
+reference span; Dart-assignable dynamic/nullable outer references must instead
+fail the stricter typed witness. The combined seven live/SDK methods passed.
+Initial focus failures exposed two UI fixture/dispatch omissions and one SDK-test
+expectation that incorrectly required symbol evidence after compilation already
+failed; the corrected focused selections were rerun in full before the final gate.
+
+Flutter analysis is clean; all 1457 Flutter tests passed, including 34 dedicated
+Checkbox tests and two runtime leaf-admission tests. Coverage includes 192 default
+SDK pixel combinations, 24 plain/stateful-side pixel combinations, 24 themed/null
+color/density combinations, all 256 color and 256 side state subsets, semantics,
+controlled callbacks, retained State/value, TickerMode, signed/infinite splash and
+the diagnosed upstream shape limitation. The 5576-cell runtime placement matrix
+passes. All 3255 prior contract records are unchanged; the 107 new records match
+the compiled Java catalog exactly.
+
+The source manifest verifies all 40 entries (SHA-256
+`7b40047f88de02cdf5986c090740ffb626dbc0c2cc287441372f28574637d29f`),
+and the offline release Web manifest verifies all 35 entries (SHA-256
+`ef12f6efa1333f04ed6049e8ea033cb32b72269f774177533151337ed457b010`).
+The Web entry point is 3064148 bytes, SHA-256
+`28e3f45662e9f946ff66b1c1947376abe6bd410adc1618f6a3280c3b9e246486`.
+Both Java artifact pins are updated. Before the final Java reactor, all 1608
+non-Markdown source/build inputs were snapshotted for post-build comparison.
+
+The unchanged analyzer gate is retained rather than counted as freshly rerun:
+63 tests in eight reports. All 39 relevant source/build hashes and both target
+and installed analyzer JARs were rechecked; their identical JAR SHA-256 remains
+`6DCE65A3EC1B43733C67290DB090B65A390D55FE347D80C788EE91A3C7AD8C5F`.
+Fresh Checkbox candidates exercise the new types through that same analyzer.
+
+The unfiltered remaining reactor (`mvn --no-transfer-progress install -pl
+"!:dart-analysis"` with the pinned Dart/Flutter/pub-cache/Web SDK flags) completed
+successfully in 13:00 at 10:47:26 +03:00. Final XML evidence has 4287 recorded
+tests across 394 reports, zero failures/errors and seven allowed optional skips:
+4217 fresh passes plus the 63 unchanged retained analyzer passes. All other
+386 reports postdate the final gate start. This includes all 123 paired-mutation
+integration tests, the Java/Flutter parity gate, real Web artifact gate and
+assembled NetBeans runtime tests. The unchanged 38-test move-dependency guard
+passed on its first full run; no test retry or timeout adjustment was needed.
+Surefire reported forced fork termination after its 30-second post-System.exit(0)
+exit wait; all test reports and the complete build succeeded. This is recorded as
+an observed shutdown warning, not a claimed production fix or diagnosed cause.
+
+Root and module `nbm:cluster` both succeeded, and `tools/verify-release.ps1` passed
+with freshness checks enabled. The final NBM is 7646684 bytes, SHA-256
+`929B6A787C3DAB6A68D936F6AA99DCCF91FE60D54F1B9A138F7FA4AA5A913B18`.
+Its embedded module matches all four package/development/runtime module copies:
+3424897 bytes, SHA-256
+`22146EF7D49F840480B15CF70A1B6736B130B3AF642D1D64EC66ECDFC9529632`.
+Only META-INF/MANIFEST.MF differs from the ordinary Maven module JAR; all four
+Checkbox SVG assets are present. The embedded Canvas runner exactly matches its
+built JAR (333460 bytes, SHA-256
+`BAC0370FF26B7A03E26333A812A0F06DF6EA19C617DE0FA0689257A13EB4C0F9`).
+All 1608 frozen non-Markdown inputs are unchanged after packaging; all 40 source
+and 35 Web manifest entries were independently reverified. No interactive IDE
+acceptance or installed-userdir verification is claimed.

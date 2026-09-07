@@ -53,6 +53,15 @@ class FlutterWidgetIconRegistryTest {
     }
 
     @Test
+    void checkboxFamilyUsesReviewedRoundedCheckGeometryAndThemePaint() throws Exception {
+        String base = ICON_ROOT + "checkbox.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16); var large = readSvg(variant(base, true, false), 32);
+        assertEquals(List.of("g[stroke-linecap=round, stroke-linejoin=round, stroke-width=1.25, transform=scale(1)]", "rect[height=12, rx=2, width=12, x=2, y=2]", "path[d=M4.5 8l2.25 2.25L11.5 5.5]"), light.geometry());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(light.topology(), large.topology());
+        assertTrue(light.paint().toString().contains("#146FA8")); assertTrue(dark.paint().toString().contains("#9BD6FF"));
+    }
+
+    @Test
     void leavesUnknownAndUnreviewedTypesUnmapped() {
         assertTrue(FlutterWidgetIconRegistry.findIconPath(
                 new WidgetTypeId("example.extension.Calendar")).isEmpty());
@@ -1877,6 +1886,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.FilledButton", ICON_ROOT + "filledbutton.svg");
         expected.put("flutter.material.FloatingActionButton", ICON_ROOT + "floatingactionbutton.svg");
         expected.put("flutter.material.IconButton", ICON_ROOT + "iconbutton.svg");
+        expected.put("flutter.material.Checkbox", ICON_ROOT + "checkbox.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");

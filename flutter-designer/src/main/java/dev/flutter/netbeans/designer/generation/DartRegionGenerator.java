@@ -15,6 +15,7 @@ import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
@@ -332,6 +333,10 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
+        if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
+            return !name.value().equals("onChanged") || !new PropertyValue.BooleanValue(false).equals(
+                    node.properties().get(new PropertyName("enabled")));
+        }
         return !(OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)
                 || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE))
                 || !new PropertyValue.BooleanValue(false).equals(
@@ -404,6 +409,11 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                    && (property.parameter().order() >= 20
+                    || Set.of("onChanged", "visualDensityHorizontal", "visualDensityVertical").contains(property.name().value())
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
             if (node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                     && (IconButtonWidgetPropertySchema.isCompound(property.name())
                     || property.name().value().equals("mouseCursor")
@@ -541,8 +551,12 @@ public final class DartRegionGenerator {
                     context, arguments);
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
-                || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
+                || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
+                || node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
             appendCardShape(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
+            appendCheckboxArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)) {
             PropertyDefinition pressed = definition.property(new PropertyName("onPressed")).orElseThrow();
@@ -671,6 +685,12 @@ public final class DartRegionGenerator {
                     constructor.length() + 1, member, renderedClass.libraryUri(),
                     path + "/properties/variant", Optional.of(node.id())));
             constructor += "." + member;
+        } else if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
+                && new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":checkboxConstructor",
+                    constructor.length() + 1, "adaptive", renderedClass.libraryUri(),
+                    path + "/properties/variant", Optional.of(node.id())));
+            constructor += ".adaptive";
         } else if (node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)) {
             String member = IconButtonWidgetPropertySchema.constructorName(node);
             if (!member.isEmpty()) {
@@ -2058,6 +2078,119 @@ public final class DartRegionGenerator {
             previous = symbols.end();
         }
         rendered.append(source, previous, source.length());
+    }
+
+    private void appendCheckboxArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition changed = definition.property(new PropertyName("onChanged")).orElseThrow();
+        PropertyValue reference = node.properties().get(changed.name());
+        boolean enabled = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("enabled")));
+        RenderedValue callback = !enabled
+                ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                : reference == null ? scalar("(_) {}", false, path + "/properties/onChanged", node.id(), context)
+                : renderProperty(reference, changed, path + "/properties/onChanged", node.id(), context);
+        arguments.add(new ConstructorArgument(DartParameter.named(2, true), "onChanged", false, callback));
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
+            appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) {
+            arguments.add(new ConstructorArgument(DartParameter.named(12, false), "visualDensity", false, density));
+        }
+        for (String family : List.of("fillColor", "overlayColor")) {
+            ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : CheckboxWidgetPropertySchema.statePriority()) {
+                String suffix = Character.toUpperCase(state.charAt(0)) + state.substring(1);
+                PropertyName name = new PropertyName(family + suffix);
+                PropertyValue value = node.properties().get(name);
+                if (value != null) {
+                    entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state,
+                            renderProperty(value, definition.property(name).orElseThrow(),
+                                    path + "/properties/" + name.value(), node.id(), context)));
+                }
+            }
+            if (!entries.isEmpty()) {
+                arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),
+                        family, false, renderCheckboxStateMap("WidgetStateProperty", "Color", entries,
+                                path + "/properties/" + family, node.id(), context)));
+            }
+        }
+        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
+        RenderedValue baseSide = renderCheckboxSide(node, definition, "side", path, indent, context, false);
+        if (!stateful) {
+            if (baseSide != null) {
+                arguments.add(new ConstructorArgument(DartParameter.named(17, false), "side", false, baseSide));
+            }
+            return;
+        }
+        ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+        for (String state : CheckboxWidgetPropertySchema.sideStates()) {
+            String prefix = "side" + state;
+            PropertyValue mode = node.properties().get(new PropertyName(prefix + "Mode"));
+            RenderedValue value = new PropertyValue.StringValue("inherit").equals(mode)
+                    ? scalar("null", true, path + "/properties/" + prefix + "Mode", node.id(), context)
+                    : renderCheckboxSide(node, definition, prefix, path, indent, context,
+                            new PropertyValue.StringValue("border").equals(mode));
+            if (value != null) {
+                entries.add(new ElevatedButtonStateEntry(Character.toLowerCase(state.charAt(0)) + state.substring(1), value));
+            }
+        }
+        entries.add(new ElevatedButtonStateEntry("any", baseSide == null
+                ? scalar("null", true, path + "/properties/sideStateful", node.id(), context) : baseSide));
+        arguments.add(new ConstructorArgument(DartParameter.named(17, false), "side", false,
+                renderCheckboxStateMap("WidgetStateBorderSide", "BorderSide", entries,
+                        path + "/properties/side", node.id(), context)));
+    }
+
+    private RenderedValue renderCheckboxSide(WidgetNode node, WidgetDefinition definition, String prefix,
+            String path, int indent, GenerationContext context, boolean force) {
+        ArrayList<CompositeMember> members = new ArrayList<>();
+        for (String suffix : List.of("Color", "Width", "Style", "StrokeAlign")) {
+            addCardMember(members, node, definition, path, prefix + suffix,
+                    Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1), members.size(), indent, context);
+        }
+        return members.isEmpty() && !force ? null : renderNamedCompositeMembers("BorderSide", Optional.empty(),
+                members, indent, path + "/properties/" + prefix, node.id(), context);
+    }
+
+    /** Literal maps remain const; explicit null wins the first-match rule and defers to the SDK. */
+    private RenderedValue renderCheckboxStateMap(String owner, String valueType,
+            List<ElevatedButtonStateEntry> entries, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol propertyType = context.planner().renderedSymbol(MATERIAL_IMPORT, owner);
+        RenderedSymbol valueSymbol = context.planner().renderedSymbol(WIDGETS_IMPORT, valueType);
+        RenderedSymbol constraintType = context.planner().renderedSymbol(MATERIAL_IMPORT, "WidgetStatesConstraint");
+        RenderedSymbol stateType = context.planner().renderedSymbol(MATERIAL_IMPORT, "WidgetState");
+        boolean constant = entries.stream().allMatch(entry -> entry.value().constant());
+        StringBuilder rendered = new StringBuilder(constant ? "const " : "");
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        String id = "widget:" + widgetId + ":checkbox-map:" + path;
+        appendElevatedSymbol(rendered, occurrences, propertyType, id + ":owner", path, widgetId);
+        if (owner.equals("WidgetStateProperty")) {
+            rendered.append('<');
+            appendElevatedSymbol(rendered, occurrences, valueSymbol, id + ":value-type", path, widgetId);
+            rendered.append("?>");
+        }
+        rendered.append('.');
+        occurrences.add(occurrence(id + ":factory", rendered.length(), "fromMap", propertyType.libraryUri(), path, Optional.of(widgetId)));
+        rendered.append("fromMap(<");
+        appendElevatedSymbol(rendered, occurrences, constraintType, id + ":constraint-type", path, widgetId);
+        rendered.append(", ");
+        appendElevatedSymbol(rendered, occurrences, valueSymbol, id + ":map-value-type", path, widgetId);
+        rendered.append("?>{");
+        for (int i = 0; i < entries.size(); i++) {
+            if (i > 0) {
+                rendered.append(", ");
+            }
+            ElevatedButtonStateEntry entry = entries.get(i);
+            appendElevatedSymbol(rendered, occurrences, stateType, id + ":state:" + entry.state(), path, widgetId);
+            rendered.append('.');
+            occurrences.add(occurrence(id + ":state-member:" + entry.state(), rendered.length(), entry.state(),
+                    stateType.libraryUri(), path, Optional.of(widgetId)));
+            rendered.append(entry.state()).append(": ");
+            appendRendered(rendered, occurrences, entry.value());
+        }
+        rendered.append("})");
+        return scalar(rendered.toString(), constant, path, widgetId, context, occurrences);
     }
 
     private RenderedValue renderIconButtonDirectDensity(WidgetNode node,
@@ -6726,7 +6859,8 @@ public final class DartRegionGenerator {
                             || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
                             || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
-                            || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE))
+                            || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
+                            || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE))
                             && uri.equals("dart:core") && !uris.contains(uri)) {
                         continue;
                     }

@@ -162,6 +162,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FilledButton", STATIC_EDITABLE),
             Map.entry("flutter.material.FloatingActionButton", STATIC_EDITABLE),
             Map.entry("flutter.material.IconButton", STATIC_EDITABLE),
+            Map.entry("flutter.material.Checkbox", STATIC_EDITABLE),
             Map.entry("flutter.material.TextField", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Column", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Row", STATIC_EDITABLE),
@@ -329,6 +330,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.FilledButton", fullStyleButtonProjection("FilledButton")),
             Map.entry("flutter.material.FloatingActionButton", floatingActionButtonProjection()),
             Map.entry("flutter.material.IconButton", iconButtonProjection()),
+            Map.entry("flutter.material.Checkbox", checkboxProjection()),
             Map.entry("flutter.material.TextField", textFieldProjection()),
             Map.entry("flutter.widgets.Column", flexProjection()),
             Map.entry("flutter.widgets.Row", flexProjection()),
@@ -2148,6 +2150,57 @@ public final class BuiltInWidgetCapabilityCatalog {
                 numericProperty("maxCount", POSITIVE_INTEGER_BOUNDS, PropertyValueKind.INTEGER)));
         appendTextStyleProjection(properties, "textStyle");
         return projection(properties, Map.of("label", singleSlotSchema(false, 0), "child", singleSlotSchema(false, 0)));
+    }
+
+    private static CanvasProjection checkboxProjection() {
+        Map<String, CanvasPropertyContract> properties = new LinkedHashMap<>();
+        CanvasProjection shapes = cardProjection();
+        CanvasProjection icon = iconButtonProjection();
+        for (String name : CheckboxWidgetPropertySchema.definitions().keySet()) {
+            CanvasPropertyContract value;
+            if (CheckboxWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                value = shapes.propertyContracts().get(new PropertyName(name));
+            } else if (CheckboxWidgetPropertySchema.colorStateProperties("fillColor").contains(name)
+                    || CheckboxWidgetPropertySchema.colorStateProperties("overlayColor").contains(name)) {
+                var color = colorOrThemeProperty(name).getValue();
+                Map<PropertyValueKind, String> constraints = new java.util.EnumMap<>(PropertyValueKind.class);
+                constraints.putAll(color.constraintFingerprints());
+                constraints.put(PropertyValueKind.NULL, "any");
+                value = new CanvasPropertyContract(constraints.keySet(), false, Optional.empty(), Map.of(), constraints);
+            } else if (CheckboxWidgetPropertySchema.sideLocalProperties().contains(name) && !name.equals("sideStateful")) {
+                value = name.endsWith("Mode") ? constrainedSchema(PropertyValueKind.STRING, "pattern:" + base64("(?:border|inherit)"))
+                        : name.endsWith("Color") ? colorOrThemeProperty(name).getValue()
+                        : name.endsWith("Width") ? cardNumberSchema(BigDecimal.ZERO, null)
+                        : name.endsWith("Style") ? enumProperty(name, "BorderStyle", "none", "solid").getValue()
+                        : cardNumberSchema(null, null);
+            } else {
+                value = switch (name) {
+                    case "value" -> requiredDefaultProperty(name, "boolean:false", PropertyValueKind.BOOLEAN, PropertyValueKind.NULL).getValue();
+                    case "enabled" -> requiredDefaultProperty(name, "boolean:true", PropertyValueKind.BOOLEAN).getValue();
+                    case "variant" -> requiredDefaultConstrainedProperty(name, "string:" + base64("standard"),
+                            PropertyValueKind.STRING, "pattern:" + base64("(?:standard|adaptive)")).getValue();
+                    case "onChanged", "fillColor", "overlayColor", "shape", "side", "focusNode" -> {
+                        String type = switch (name) {
+                            case "onChanged" -> "ValueChanged<bool?>";
+                            case "fillColor", "overlayColor" -> "WidgetStateProperty<Color?>";
+                            case "shape" -> "OutlinedBorder";
+                            case "side" -> "BorderSide";
+                            default -> "FocusNode";
+                        };
+                        yield constrainedSchema(PropertyValueKind.DART_OBJECT_REFERENCE, DART_OBJECT_REFERENCE_CONTRACT_PREFIX
+                                + type + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)");
+                    }
+                    case "activeColor", "checkColor", "focusColor", "hoverColor" -> colorOrThemeProperty(name).getValue();
+                    case "splashRadius" -> withPositiveInfinity(cardNumberSchema(null, null));
+                    case "visualDensityHorizontal", "visualDensityVertical", "mouseCursor" -> icon.propertyContracts().get(new PropertyName(name));
+                    case "materialTapTargetSize" -> materialEnumProperty(name, "MaterialTapTargetSize", "padded", "shrinkWrap").getValue();
+                    case "semanticLabel" -> propertySchema(PropertyValueKind.STRING);
+                    default -> propertySchema(PropertyValueKind.BOOLEAN);
+                };
+            }
+            properties.put(name, value);
+        }
+        return projection(properties, Map.of());
     }
 
     private static CanvasProjection iconButtonProjection() {

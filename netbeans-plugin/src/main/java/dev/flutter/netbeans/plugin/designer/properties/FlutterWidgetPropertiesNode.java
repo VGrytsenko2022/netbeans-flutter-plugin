@@ -39,6 +39,7 @@ import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -528,6 +529,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type())) {
             addIconButtonPropertySets(sheet, hasSlotTab);
+        } else if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(widget.type())) {
+            addCheckboxPropertySets(sheet, hasSlotTab);
         } else if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(widget.type())) {
             addFilledButtonPropertySets(sheet, hasSlotTab);
         } else if (FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.equals(widget.type())) {
@@ -2345,6 +2348,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addCheckboxPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<CheckboxWidgetPropertySchema.Group, Sheet.Set>(CheckboxWidgetPropertySchema.Group.class);
+        for (var group : CheckboxWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = CheckboxWidgetPropertySchema.find(property.name()).orElseThrow();
+            var presets = switch (property.name().value()) {
+                case "variant" -> CheckboxWidgetPropertySchema.variants();
+                case "shapeKind" -> CheckboxWidgetPropertySchema.shapeKinds();
+                case "mouseCursor" -> CheckboxWidgetPropertySchema.mouseCursorPresets();
+                default -> property.name().value().endsWith("Mode") ? java.util.List.of("border", "inherit") : java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Optional fields can be reset. Value, Constructor and Enabled cannot be unset. Null Value enables Tristate; disabling/resetting Tristate while mixed sets Value false. "
+                    + "Whole references and local families switch atomically; one Undo restores all affected fields. Both constructors preserve explicit values. Project references are analyzed but never executed in isolated Canvas.", false, presets));
+        }
+    }
+
     private void addIconButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<IconButtonWidgetPropertySchema.Group, Sheet.Set>(IconButtonWidgetPropertySchema.Group.class);
         for (var group : IconButtonWidgetPropertySchema.Group.values()) {
@@ -3870,6 +3893,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(currentWidget.type())) {
             return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(currentWidget.type())) {
+            return checkboxPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (isModernButton(currentWidget)) {
             return modernButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4046,6 +4072,54 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 accepted.explicitValue().<PatchProperties.Patch>map(value ->
                         new PatchProperties.SetPatch(propertyName, value))
                         .orElseGet(() -> new PatchProperties.ResetPatch(propertyName))));
+    }
+
+    private DesignerCommand checkboxPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        if (edited.equals("shape") || CheckboxWidgetPropertySchema.builtInShapePropertyNames().contains(edited)) {
+            return cardPropertyCommand(widget, name, accepted);
+        }
+        boolean setting = accepted.explicitValue().isPresent();
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        var sets = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+        var explicit = accepted.explicitValue().orElse(null);
+        if (edited.equals("value") && explicit instanceof PropertyValue.NullValue) {
+            sets.put(new PropertyName("tristate"), new PropertyValue.BooleanValue(true));
+        }
+        if (edited.equals("tristate") && (!setting || explicit.equals(new PropertyValue.BooleanValue(false)))
+                && widget.properties().get(new PropertyName("value")) instanceof PropertyValue.NullValue) {
+            sets.put(new PropertyName("value"), new PropertyValue.BooleanValue(false));
+        }
+        for (String family : java.util.List.of("fillColor", "overlayColor")) {
+            var local = CheckboxWidgetPropertySchema.colorStateProperties(family);
+            if (setting && edited.equals(family)) local.forEach(field -> resets.add(new PropertyName(field)));
+            else if (setting && local.contains(edited)) resets.add(new PropertyName(family));
+        }
+        if (setting && edited.equals("side")) {
+            CheckboxWidgetPropertySchema.sideLocalProperties().forEach(field -> resets.add(new PropertyName(field)));
+        } else if (CheckboxWidgetPropertySchema.sideLocalProperties().contains(edited)) {
+            if (setting) resets.add(new PropertyName("side"));
+            if (edited.equals("sideStateful") && (!setting || explicit.equals(new PropertyValue.BooleanValue(false)))) {
+                CheckboxWidgetPropertySchema.sideStateProperties().forEach(field -> resets.add(new PropertyName(field)));
+            }
+            for (String state : CheckboxWidgetPropertySchema.sideStates()) {
+                var bucket = CheckboxWidgetPropertySchema.sideBucketProperties(state);
+                if (!setting || !bucket.contains(edited)) continue;
+                sets.put(new PropertyName("sideStateful"), new PropertyValue.BooleanValue(true));
+                String mode = bucket.getFirst();
+                if (edited.equals(mode) && explicit.equals(new PropertyValue.StringValue("inherit"))) {
+                    bucket.stream().skip(1).forEach(field -> resets.add(new PropertyName(field)));
+                } else if (!edited.equals(mode)) {
+                    sets.put(new PropertyName(mode), new PropertyValue.StringValue("border"));
+                }
+            }
+        }
+        resets.remove(name); sets.remove(name);
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        sets.forEach((field, value) -> { if (!value.equals(widget.properties().get(field))) patches.add(new PatchProperties.SetPatch(field, value)); });
+        patches.add(setting ? new PatchProperties.SetPatch(name, explicit) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 
     private DesignerCommand cardPropertyCommand(

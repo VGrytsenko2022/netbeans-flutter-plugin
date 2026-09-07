@@ -80,7 +80,7 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
 `ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton` and `IconButton`,
+`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton` and `Checkbox`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -241,9 +241,9 @@ still works without this disposable projection.
 The runner receives no project path, Dart source, file handle, `SaveCookie`,
 Undo/Redo or Designer-command authority. NetBeans owns editable Properties and
 the catalog-admitted Palette insertions and existing-widget moves for the exact
-81 reviewed Canvas widgets. Palette insertion evaluates 5,508 exact
-source/destination cells across 81 draggable sources and 68 insertable reviewed
-slots; 5,156 are accepted and 352 cells are rejected. Expanded and Flexible are
+82 reviewed Canvas widgets. Palette insertion evaluates 5,576 exact
+source/destination cells across 82 draggable sources and 68 insertable reviewed
+slots; 5,222 are accepted and 354 cells are rejected. Expanded and Flexible are
 admitted only as atomic wrappers over an existing direct Row/Column child,
 cannot wrap either wrapper type, and expose required replacement-only child
 slots that are excluded from the insertion matrix. They also cannot wrap
@@ -1357,11 +1357,39 @@ its dynamic control; bool callback arguments use the same qualified core scope.
 Original implicit/explicit imports, including adjacent and multiline URI literals,
 remain unchanged. Formats remain .fd 13, Catalog API 14 and Canvas model 18.
 
-The aggregate catalog now has 81 widgets and 75 reviewed const definitions,
-with 3076 writable rows (3059 outside Scaffold). Palette contains 31 Layout,
-three Scrolling, twenty-three Basic, eighteen Material and six Accessibility items; the
-backlog is 81/92 complete with 11 remaining. The 81 sources across 68
-insertable destinations form 5,508 cells, with 5,156 accepted and 352 rejected.
+The aggregate catalog now has 82 widgets and 76 reviewed const definitions,
+with 3182 writable rows (3165 outside Scaffold). Palette contains 31 Layout,
+three Scrolling, twenty-three Basic, nineteen Material and six Accessibility items; the
+backlog is 82/92 complete with 10 remaining. The 82 sources across 68
+insertable destinations form 5,576 cells, with 5,222 accepted and 354 rejected.
 PhysicalShape's structured clipper previously established Catalog API 14, `.fd`
 schema v13 and Canvas model protocol v18; these versions remain unchanged.
 NBFC framing, control and wire remain v1.
+
+## Checkbox standard/adaptive Canvas
+
+The runner constructs the real Checkbox or Checkbox.adaptive with controlled
+stored Value, not a preview-generated application variable. Enabled callbacks are
+local no-ops; project callbacks/objects are diagnosed and never executed. Both
+constructors retain all explicit properties. Adaptive Cupertino ignores fillColor,
+hoverColor, overlayColor, splashRadius, materialTapTargetSize, visualDensity and
+isError exactly as the SDK does, but retains the metadata and forwards shape/side.
+
+Presence-aware fill/overlay maps return explicit null without falling through to
+lower local buckets; the actual SDK then resolves component themes/defaults. Plain
+BorderSide only applies unselected; stateful sides use public WidgetStateBorderSide
+and preserve explicit inherit buckets. Shared outlined shapes and resource guards
+remain unchanged. Density omitted peers are zero when the other axis is explicit.
+Signed finite and positive-infinite splashRadius values are preserved without
+clamping. Platform selection follows Theme.platform; Cupertino tap sizing also
+depends on the SDK host defaultTargetPlatform, which parity tests vary separately.
+### Checkbox SDK shape limitation
+
+The pinned Flutter 3.44.8 Checkbox painters omit TextDirection for shape painting.
+LinearBorder and directional/mixed corner radii therefore assert in raw SDK controls.
+Canvas emits a Checkbox.shape diagnostic and uses the SDK-default rounded shape
+(M2 radius 1, M3 radius 2, Cupertino radius 4) only when the effective local/theme
+shape requires the missing direction. Safe explicit shapes override theme shapes;
+adaptive Apple ignores CheckboxTheme. Model/source remain exact, and real Checkbox
+State, controlled value and semantics are retained. This path is an explicit
+preview approximation, not exact rendering of an unsupported SDK shape.

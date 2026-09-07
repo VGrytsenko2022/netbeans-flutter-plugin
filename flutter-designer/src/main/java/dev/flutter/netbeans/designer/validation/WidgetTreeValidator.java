@@ -14,6 +14,7 @@ import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
@@ -455,6 +456,11 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (type.equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE.value())) {
+            validateCheckbox(node, propertiesPath, issues);
+            validateCardShape(node, propertiesPath, issues);
+            return;
+        }
         if (type.equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE.value())) {
             String variant = FloatingActionButtonWidgetPropertySchema.variant(node);
             for (PropertyName property : node.properties().keySet()) {
@@ -1396,9 +1402,46 @@ public final class WidgetTreeValidator {
         }
     }
 
+    private static void validateCheckbox(WidgetNode node, String path, IssueCollector issues) {
+        if (node.properties().get(new PropertyName("value")) instanceof PropertyValue.NullValue
+                && !new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("tristate")))) {
+            issues.add(issue(PROPERTY_DEPENDENCY, path + "/value", node.id(),
+                    "Checkbox null Value requires Tristate true. Set a concrete false/true value before disabling Tristate."));
+        }
+        for (String family : List.of("fillColor", "overlayColor", "side")) {
+            if (!node.properties().containsKey(new PropertyName(family))) {
+                continue;
+            }
+            List<String> locals = family.equals("side") ? CheckboxWidgetPropertySchema.sideLocalProperties()
+                    : CheckboxWidgetPropertySchema.colorStateProperties(family);
+            for (String name : locals) {
+                if (node.properties().containsKey(new PropertyName(name))) {
+                    issues.add(issue(PROPERTY_CONFLICT, path + "/" + name, node.id(),
+                            "Checkbox " + family + " reference and local fields are mutually exclusive."));
+                }
+            }
+        }
+        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
+        for (String state : CheckboxWidgetPropertySchema.sideStates()) {
+            List<String> bucket = CheckboxWidgetPropertySchema.sideBucketProperties(state);
+            if (!stateful && bucket.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/side" + state + "Mode", node.id(),
+                        "Checkbox state-specific side fields require Side Stateful true."));
+            }
+            if (new PropertyValue.StringValue("inherit").equals(node.properties().get(new PropertyName(bucket.getFirst())))) {
+                for (String detail : bucket.subList(1, bucket.size())) {
+                    if (node.properties().containsKey(new PropertyName(detail))) {
+                        issues.add(issue(PROPERTY_CONFLICT, path + "/" + detail, node.id(),
+                                "Checkbox Inherit side mode returns null and cannot contain border details."));
+                    }
+                }
+            }
+        }
+    }
+
     private static void validateCardShape(WidgetNode node, String path, IssueCollector issues) {
         String family = node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
-                ? "FloatingActionButton" : "Card";
+                ? "FloatingActionButton" : node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE) ? "Checkbox" : "Card";
         PropertyValue kindValue = node.properties().get(new PropertyName("shapeKind"));
         String kind = kindValue instanceof PropertyValue.StringValue value ? value.value() : null;
         boolean reference = node.properties().containsKey(new PropertyName("shape"));

@@ -100,7 +100,7 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_BOOLEAN, NULLABLE_ENUM,
                     EDGE_INSETS, COLOR,
-                    THEME_COLOR, COLOR_ANIMATION, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    THEME_COLOR, COLOR_ANIMATION, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
                     FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
                     SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
                     BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE,
@@ -119,6 +119,7 @@ final class FlutterPropertyEditorComponents {
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
             case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
+            case NULLABLE_THEME_COLOR -> FlutterNullableColorEditorComponent.customEditor(editor, binding, environment);
             case PRESET_DART_REFERENCE -> FlutterPresetDartReferenceEditorComponent.customEditor(editor, binding, environment);
             case OBJECT_TAG -> FlutterObjectTagEditorComponent.customEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);

@@ -94,6 +94,7 @@ class CanvasModelPayloadCodecTest {
             "flutter.material.FilledButton",
             "flutter.material.FloatingActionButton",
             "flutter.material.IconButton",
+            "flutter.material.Checkbox",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -3686,6 +3687,57 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
                 new PropertyName("variant"), new PropertyValue.StringValue("tonalIcon")), prototype.slots());
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), iconPrototype))));
+    }
+
+    @Test
+    void checkboxFullFamiliesKeepEveryLocalPropertyAndOnlyClosedReferencePresence() throws Exception {
+        for (String variant : dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema.variants()) {
+            for (String shape : dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema.shapeKinds()) {
+                var properties = dev.flutter.netbeans.designer.catalog.CheckboxTestValues.full(variant, shape);
+                var node = dev.flutter.netbeans.designer.catalog.CheckboxTestValues.node(properties);
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                for (String name : List.of("onChanged", "focusNode", "mouseCursor")) {
+                    assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                }
+                for (String forbidden : List.of("buttonValues", "package:buttons", "imageProvider", "MaterialIcons", "libraryUri")) {
+                    assertFalse(json.contains(forbidden), forbidden);
+                }
+                assertTrue(json.contains("\"protocolVersion\":18"));
+            }
+        }
+    }
+
+    @Test
+    void checkboxNullValueStateColorsInfinityAndWholeReferencesRemainDistinctWireValues() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.CheckboxTestValues.node(Map.of(
+                new PropertyName("value"), new PropertyValue.NullValue(), new PropertyName("tristate"), new PropertyValue.BooleanValue(true),
+                new PropertyName("fillColorDisabled"), new PropertyValue.NullValue(),
+                new PropertyName("splashRadius"), new PropertyValue.EnumValue("double", "infinity"),
+                new PropertyName("side"), dev.flutter.netbeans.designer.catalog.CheckboxTestValues.reference("side"),
+                new PropertyName("shape"), dev.flutter.netbeans.designer.catalog.CheckboxTestValues.reference("shape"),
+                new PropertyName("overlayColor"), dev.flutter.netbeans.designer.catalog.CheckboxTestValues.reference("overlay")));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        for (String name : List.of("value", "fillColorDisabled")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+        for (String name : List.of("side", "shape", "overlayColor")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertTrue(json.contains("\"splashRadius\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"));
+        assertFalse(json.contains("buttonValues"));
+    }
+
+    @Test
+    void checkboxInvalidRelationsAndForgedCallbackFormsFailBeforePayloadEncoding() {
+        for (var properties : List.of(
+                Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("sideDisabledMode"), new PropertyValue.StringValue("border")),
+                Map.of(new PropertyName("fillColor"), dev.flutter.netbeans.designer.catalog.CheckboxTestValues.reference("fill"),
+                        new PropertyName("fillColorDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.CallbackValue("legacy")),
+                Map.of(new PropertyName("sideWidth"), new PropertyValue.DoubleValue(BigDecimal.ONE.negate())))) {
+            var node = dev.flutter.netbeans.designer.catalog.CheckboxTestValues.node(new LinkedHashMap<>(properties));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
     }
 
     @Test

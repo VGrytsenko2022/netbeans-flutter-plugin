@@ -6,6 +6,20 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
 
 ### Added
 
+- Checkbox at Material/order 190 with standard and adaptive const constructors,
+  all 19 SDK parameters and 106 typed rows: nullable controlled value, strict
+  ValueChanged<bool?>, full outlined shape families, nullable fill/overlay state
+  maps and plain/stateful BorderSide projections. Whole typed references and
+  local alternatives switch atomically; mixed value/tristate dependencies share
+  one Undo step. Both real SDK branches retain their exact defaults and ignored
+  fields; isolated Canvas never executes project code. Stable editors, SVGs,
+  insertion, save/reopen/further edits and history belong to the slice.
+  Current totals: 82 widgets, 76 const definitions, 3182 rows (3165 outside
+  Scaffold), 307 Boolean-only fields, three nullable-Boolean unions and the
+  Object-tag union; 68 destinations, 5576 placements (5222 accepted / 354
+  rejected), Material 19. Historical target 82/92 leaves 10; no recovered fixed
+  order is claimed. Formats 13/14/18 and existing safety budgets are unchanged.
+
 - IconButton at Material/order 180 with all four const constructors (standard,
   filled, filledTonal, outlined) and all 524 typed rows: complete direct controls,
   nine state/default style buckets, common layout/builders and strict whole-style
@@ -15,7 +29,7 @@ All notable changes to the NetBeans Flutter plugin are documented in this file.
   stable cells, save/reopen/continued editing, history and four SVGs are covered.
   Catalog metadata permits 1024 rows, independently of unchanged 512 stored-value,
   validation and atomic-patch limits; dense compatible maps contain at most 505.
-  Current totals: 81 widgets, 75 const definitions, 3076 rows (3059 outside Scaffold),
+  At that milestone: 81 widgets, 75 const definitions, 3076 rows (3059 outside Scaffold),
   302 Boolean-only fields plus two nullable-Boolean unions and the Object-tag union,
   68 destinations and 5,508 placements (5,156 accepted / 352 rejected), Material 18.
   Historical target 81/92 leaves 11; no recovered fixed order is claimed. Formats

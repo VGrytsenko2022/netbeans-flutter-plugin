@@ -72,6 +72,81 @@ const _textButtonStateLayers = <WidgetState, String>{
   WidgetState.focused: 'styleFocused',
 };
 
+const _checkboxStateLayers = <WidgetState, String>{
+  WidgetState.disabled: 'Disabled',
+  WidgetState.error: 'Error',
+  WidgetState.dragged: 'Dragged',
+  WidgetState.pressed: 'Pressed',
+  WidgetState.selected: 'Selected',
+  WidgetState.scrolledUnder: 'ScrolledUnder',
+  WidgetState.hovered: 'Hovered',
+  WidgetState.focused: 'Focused',
+};
+
+bool _checkboxUsesCupertino(CanvasNode node, BuildContext? context) =>
+    node.properties['variant']?.value == 'adaptive' &&
+    context != null &&
+    {
+      TargetPlatform.iOS,
+      TargetPlatform.macOS,
+    }.contains(Theme.of(context).platform);
+
+String? _checkboxPreviewMessage(CanvasNode node, BuildContext? context) {
+  final apple = _checkboxUsesCupertino(node, context);
+  final refs = [
+    for (final entry in node.properties.entries)
+      if (entry.value.kind == 'dartObjectReferencePresence' &&
+          !(entry.key == 'onChanged' &&
+              node.properties['enabled']?.value == false) &&
+          !(apple && {'fillColor', 'overlayColor'}.contains(entry.key)))
+        entry.key,
+  ];
+  final shape = _cardShapePreviewUnavailableMessage(
+    node,
+    widgetName: 'Checkbox',
+  )?.replaceAll('ShapeBorder', 'OutlinedBorder');
+  final direction = _checkboxShapeDirectionMessage(node, context);
+  if (refs.isEmpty && shape == null && direction == null) return null;
+  return 'Checkbox ${node.id} preview limitation: isolated Canvas never executes project or dependency Dart. '
+      '${refs.any((name) => {'fillColor', 'overlayColor', 'side', 'shape'}.contains(name)) || shape != null ? 'Configured project appearance is unavailable; the real SDK checkbox uses an explicitly approximate theme/default preview. ' : ''}'
+      '${refs.contains('onChanged') ? 'Project onChanged is not invoked; a benign local callback preserves enabled behavior without changing the controlled stored value. ' : ''}'
+      '${refs.contains('focusNode') ? 'Project focus ownership is unavailable; isolated SDK focus state is used. ' : ''}'
+      '${refs.contains('mouseCursor') ? 'Project cursor is unavailable; the SDK default cursor is used. ' : ''}'
+      '${shape ?? ''}${direction ?? ''} Stored values and generated Dart are unchanged.';
+}
+
+String? _checkboxShapeDirectionMessage(CanvasNode node, BuildContext? context) {
+  String? unsafe;
+  final localKind = node.properties['shapeKind']?.value;
+  final availableLocal =
+      localKind != null &&
+      _cardShapePreviewUnavailableMessage(node, widgetName: 'Checkbox') == null;
+  if (availableLocal) {
+    if (localKind == 'linear') unsafe = 'LinearBorder';
+    if (node.properties['shapeRadius']?.value
+        is CanvasDirectionalBorderRadiusValue) {
+      unsafe = '$localKind with directional corner radii';
+    }
+  } else if (context != null && !_checkboxUsesCupertino(node, context)) {
+    final shape = CheckboxTheme.of(context).shape;
+    final radius = switch (shape) {
+      RoundedRectangleBorder() => shape.borderRadius,
+      BeveledRectangleBorder() => shape.borderRadius,
+      ContinuousRectangleBorder() => shape.borderRadius,
+      RoundedSuperellipseBorder() => shape.borderRadius,
+      _ => null,
+    };
+    if (shape is LinearBorder || (radius != null && radius is! BorderRadius)) {
+      unsafe = 'CheckboxTheme.${shape.runtimeType} with directional geometry';
+    }
+  }
+  return unsafe == null
+      ? null
+      : 'Checkbox.shape preview limitation: $unsafe requires TextDirection, '
+            'but the Flutter 3.44.8 Material and Cupertino checkbox painters do not pass it. '
+            'The real checkbox uses an explicit SDK default-shape approximation; the configured shape is not rendered. ';
+}
+
 final Object _defaultFabHeroTag = const FloatingActionButton(
   onPressed: null,
 ).heroTag!;
@@ -309,6 +384,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? _iconButtonPreviewMessage(node, context)
         : _iconButtonM2GeometryMessage(node, context) ??
               _iconButtonPreviewMessage(node, context);
+  }
+  if (node.type == 'flutter.material.Checkbox') {
+    return _checkboxPreviewMessage(node, context);
   }
   if (node.type == 'flutter.widgets.Icon' && context != null) {
     return _iconButtonMountedIconMessage(node, context);
@@ -3291,6 +3369,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.OutlinedButton' => _textButton(context),
       'flutter.material.FilledButton' => _textButton(context),
       'flutter.material.IconButton' => _iconButton(context),
+      'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.FloatingActionButton' => _floatingActionButton(context),
       'flutter.widgets.Column' => _column(),
       'flutter.widgets.Row' => _row(),
@@ -3712,6 +3791,122 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
               Size(constraints.maxWidth, constraints.maxHeight),
             ),
       visualDensity: _iconButtonDirectDensity(context),
+    );
+  }
+
+  WidgetStateProperty<Color?>? _checkboxStateColor(
+    BuildContext context,
+    String family,
+  ) {
+    final entries = <WidgetStatesConstraint, Color?>{};
+    for (final entry in _checkboxStateLayers.entries) {
+      final name = '$family${entry.value}';
+      // Presence, not a non-null resolved color, defines an explicit map entry.
+      if (node.properties.containsKey(name)) {
+        entries[entry.key] = _resolvedColor(context, name);
+      }
+    }
+    if (node.properties.containsKey('${family}Default')) {
+      entries[WidgetState.any] = _resolvedColor(context, '${family}Default');
+    }
+    return entries.isEmpty
+        ? null
+        : WidgetStateProperty<Color?>.fromMap(entries);
+  }
+
+  bool _checkboxHasSideDetails(String prefix) => [
+    'Color',
+    'Width',
+    'Style',
+    'StrokeAlign',
+  ].any((suffix) => node.properties.containsKey('$prefix$suffix'));
+
+  BorderSide _checkboxLocalSide(
+    BuildContext context,
+    String prefix,
+  ) => BorderSide(
+    color: _resolvedColor(context, '${prefix}Color') ?? const Color(0xff000000),
+    width: _number('${prefix}Width') ?? 1,
+    style: _enum('${prefix}Style') == 'none'
+        ? BorderStyle.none
+        : BorderStyle.solid,
+    strokeAlign:
+        _number('${prefix}StrokeAlign') ?? BorderSide.strokeAlignInside,
+  );
+
+  BorderSide? _checkboxSide(BuildContext context) {
+    final base = _checkboxHasSideDetails('side')
+        ? _checkboxLocalSide(context, 'side')
+        : null;
+    if (_boolean('sideStateful') != true) return base;
+    final entries = <WidgetStatesConstraint, BorderSide?>{};
+    for (final entry in _checkboxStateLayers.entries) {
+      final prefix = 'side${entry.value}';
+      final mode = _string('${prefix}Mode');
+      if (mode == 'inherit') {
+        entries[entry.key] = null;
+      } else if (mode == 'border' || _checkboxHasSideDetails(prefix)) {
+        entries[entry.key] = _checkboxLocalSide(context, prefix);
+      }
+    }
+    entries[WidgetState.any] = base;
+    return WidgetStateBorderSide.fromMap(entries);
+  }
+
+  Widget _checkbox(BuildContext context) {
+    final create = _string('variant') == 'adaptive'
+        ? Checkbox.adaptive
+        : Checkbox.new;
+    final horizontal = _number('visualDensityHorizontal');
+    final vertical = _number('visualDensityVertical');
+    final shapeUnavailable =
+        _cardShapePreviewUnavailableMessage(node, widgetName: 'Checkbox') !=
+        null;
+    final missingDirection =
+        _checkboxShapeDirectionMessage(node, context) != null;
+    final control = create(
+      value: _boolean('value'),
+      tristate: _boolean('tristate') ?? false,
+      onChanged: _boolean('enabled') == false ? null : (_) {},
+      mouseCursor: _mouseCursor('mouseCursor'),
+      activeColor: _resolvedColor(context, 'activeColor'),
+      fillColor: _checkboxStateColor(context, 'fillColor'),
+      checkColor: _resolvedColor(context, 'checkColor'),
+      focusColor: _resolvedColor(context, 'focusColor'),
+      hoverColor: _resolvedColor(context, 'hoverColor'),
+      overlayColor: _checkboxStateColor(context, 'overlayColor'),
+      splashRadius: node.properties['splashRadius']?.kind == 'enum'
+          ? double.infinity
+          : _number('splashRadius'),
+      materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+        'padded' => MaterialTapTargetSize.padded,
+        'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+        _ => null,
+      },
+      visualDensity: horizontal == null && vertical == null
+          ? null
+          : VisualDensity(horizontal: horizontal ?? 0, vertical: vertical ?? 0),
+      autofocus: _boolean('autofocus') ?? false,
+      shape: missingDirection
+          ? RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                _checkboxUsesCupertino(node, context)
+                    ? 4
+                    : Theme.of(context).useMaterial3
+                    ? 2
+                    : 1,
+              ),
+            )
+          : shapeUnavailable
+          ? null
+          : _cardShape(context) as OutlinedBorder?,
+      side: _checkboxSide(context),
+      isError: _boolean('isError') ?? false,
+      semanticLabel: _string('semanticLabel'),
+    );
+    return _TextButtonPreview(
+      message: _checkboxPreviewMessage(node, context) ?? '',
+      child: control,
     );
   }
 

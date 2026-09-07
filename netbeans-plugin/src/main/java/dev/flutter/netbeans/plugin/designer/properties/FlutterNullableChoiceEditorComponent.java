@@ -48,7 +48,8 @@ final class FlutterNullableChoiceEditorComponent {
             enumValue = new JComboBox<>(booleanKind ? new String[0] : enumConstraint.values().toArray(String[]::new));
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(560, 210)); setName("flutter.nullableChoice.editor");
             getAccessibleContext().setAccessibleName(binding.definition().name().value() + " nullable " + (booleanKind ? "Boolean" : "enum") + " editor");
-            getAccessibleContext().setAccessibleDescription("Choose omission, explicit null, or a concrete value. Cancel preserves all saved states; only OK commits.");
+            getAccessibleContext().setAccessibleDescription((binding.optional() ? "Choose omission, explicit null, or a concrete value. " : "Choose explicit null or a concrete value; this required argument cannot be omitted. ")
+                    + "Cancel preserves all saved states; only OK commits.");
             mode = new JComboBox<>(binding.optional() ? new String[]{OMIT, NULL, VALUE} : new String[]{NULL, VALUE});
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Value source");
             var source = new JPanel(new BorderLayout(8, 0)); var sourceLabel = new JLabel("Source:"); sourceLabel.setLabelFor(mode);
@@ -77,7 +78,9 @@ final class FlutterNullableChoiceEditorComponent {
                     ? "Omission uses true. Explicit null suppresses the button role announcement; true and false remain explicit Boolean values."
                     : property.equals("clipBehavior")
                             ? "Omission keeps the active widget and constructor default described in the property help. Explicit null is retained and uses SDK automatic clipping; it is not converted to Clip.none."
-                            : "Omission preserves the constructor default. Explicit null and each concrete value remain distinct.";
+                            : !binding.optional()
+                                    ? "This required value cannot be omitted. Explicit null and true/false remain distinct; the property's dependent fields update atomically when accepted."
+                                    : "Omission preserves the constructor default. Explicit null and each concrete value remain distinct.";
             note.setText(semantics); note.getAccessibleContext().setAccessibleDescription(semantics);
             booleanValue.getAccessibleContext().setAccessibleDescription("Boolean value " + booleanValue.isSelected() + "; centered checkbox.");
             try {

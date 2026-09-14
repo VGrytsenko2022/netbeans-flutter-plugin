@@ -8,7 +8,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PageViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListWheelScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CustomScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliverToBoxAdapterWidgetPropertySchema;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,6 +46,61 @@ class FlutterWidgetIconRegistryTest {
     private static final Map<String, String> EXPECTED = expectedMappings();
 
     @Test
+    void sliverAppBarVariantsHaveDistinctExpandedHeightsAndTwelveReviewedVectors() throws Exception {
+        var geometries = new HashSet<List<String>>();
+        for (String name : List.of("sliverappbar", "sliverappbarmedium", "sliverappbarlarge")) {
+            String base = ICON_ROOT + name + ".svg";
+            var light=readSvg(base,16);var dark=readSvg(variant(base,false,true),16);
+            var large=readSvg(variant(base,true,false),32);var largeDark=readSvg(variant(base,true,true),32);
+            assertEquals(light.geometry(),dark.geometry());assertEquals(large.geometry(),largeDark.geometry());
+            assertEquals(light.topology(),large.topology());assertNotEquals(light.paint(),dark.paint());
+            assertTrue(geometries.add(light.geometry()));
+        }
+    }
+
+    @Test
+    void sliverOffstageHasDistinctSliverBandsAndCrossedEyeInFourVectorAssets() throws Exception {
+        String base = ICON_ROOT + "sliveroffstage.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("circle[")).count());
+        assertEquals(3, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "sliveropacity.svg", 16).geometry(), light.geometry());
+        assertNotEquals(readSvg(ICON_ROOT + "sliverignorepointer.svg", 16).geometry(), light.geometry());
+    }
+
+    @Test
+    void sliverVisibilityVariantsHaveDistinctReviewedEyeAndRetentionMarks() throws Exception {
+        for (String name : List.of("slivervisibility", "slivervisibilitymaintain")) {
+            String base = ICON_ROOT + name + ".svg";
+            var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+            var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+            assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("circle[")).count());
+            assertEquals(3, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+            assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+            assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+            assertNotEquals(readSvg(ICON_ROOT + "sliveroffstage.svg", 16).geometry(), light.geometry());
+        }
+        assertNotEquals(readSvg(ICON_ROOT + "slivervisibility.svg", 16).geometry(),
+                readSvg(ICON_ROOT + "slivervisibilitymaintain.svg", 16).geometry());
+    }
+
+    @Test
+    void sliverSafeAreaShowsPhysicalInsetRailsAndInnerSliverInFourVectorAssets() throws Exception {
+        String base=ICON_ROOT+"sliversafearea.svg";
+        var light=readSvg(base,16);var dark=readSvg(variant(base,false,true),16);
+        var large=readSvg(variant(base,true,false),32);var largeDark=readSvg(variant(base,true,true),32);
+        assertEquals(2,light.geometry().stream().filter(shape->shape.startsWith("rect[")).count());
+        assertEquals(2,light.geometry().stream().filter(shape->shape.startsWith("path[")).count());
+        assertEquals(light.geometry(),dark.geometry());assertEquals(large.geometry(),largeDark.geometry());
+        assertEquals(light.topology(),large.topology());assertNotEquals(light.paint(),dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT+"sliverpadding.svg",16).geometry(),light.geometry());
+        assertNotEquals(readSvg(ICON_ROOT+"safearea.svg",16).geometry(),light.geometry());
+    }
+
+    @Test
     void mapsExactlyTheReviewedWidgetsToUniqueIconBases() {
         LinkedHashMap<String, String> actual = new LinkedHashMap<>();
         BuiltInWidgetCatalog.getDefault().definitions().forEach(definition ->
@@ -50,6 +110,111 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(EXPECTED, actual);
         assertEquals(EXPECTED.size(), new HashSet<>(actual.values()).size(),
                 "each reviewed widget must have a dedicated icon base");
+    }
+
+    @Test void crossFadeHasTwoOverlappingFramesAndDirectionArrowInFourReviewedSvgs() throws Exception {
+        var base=ICON_ROOT+"animatedcrossfade.svg";
+        var light=readSvg(base,16);var dark=readSvg(variant(base,false,true),16);
+        var large=readSvg(variant(base,true,false),32);var largeDark=readSvg(variant(base,true,true),32);
+        assertEquals(2,light.geometry().stream().filter(s->s.startsWith("rect[")).count());
+        assertEquals(1,light.geometry().stream().filter(s->s.startsWith("path[")).count());
+        assertEquals(light.geometry(),dark.geometry());assertEquals(large.geometry(),largeDark.geometry());
+        assertEquals(light.topology(),large.topology());assertNotEquals(light.paint(),dark.paint());
+    }
+
+    @Test
+    void mouseRegionUsesReviewedMouseWithinABoundaryInAllFourVectorAssets() throws Exception {
+        String base = ICON_ROOT + "mouseregion.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(2, light.geometry().stream().filter(shape -> shape.startsWith("rect[")).count());
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertTrue(light.geometry().stream().anyMatch(shape -> shape.contains("stroke-dasharray=2 1")));
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "listener.svg", 16).geometry(), light.geometry());
+    }
+
+    @Test
+    void menuItemButtonUsesDistinctReviewedMenuAndActivationArrowInFourSvgAssets() throws Exception {
+        String base = ICON_ROOT + "menuitembutton.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "textbutton.svg", 16).geometry(), light.geometry());
+        assertEquals(3, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+    }
+
+    @Test
+    void tooltipThemeUsesDistinctReviewedBubbleAndBrushInAllFourSvgAssets() throws Exception {
+        String base = ICON_ROOT + "tooltiptheme.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "tooltip.svg", 16).geometry(), light.geometry());
+        assertNotEquals(readSvg(ICON_ROOT + "tooltipvisibility.svg", 16).geometry(), light.geometry());
+        assertEquals(4, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+    }
+
+    @Test
+    void tooltipVisibilityUsesDistinctReviewedScopeEyeAndCheckInAllFourSvgAssets() throws Exception {
+        String base = ICON_ROOT + "tooltipvisibility.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "tooltip.svg", 16).geometry(), light.geometry());
+        assertEquals(3, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("circle[")).count());
+    }
+
+    @Test
+    void focusUsesFocusedCenterAndCornerBracketsAcrossFourReviewedSvgAssets() throws Exception {
+        String base = ICON_ROOT + "focus.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(2, light.geometry().stream().filter(shape -> shape.startsWith("rect[")).count());
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "excludefocus.svg", 16).geometry(), light.geometry());
+    }
+
+    @Test
+    void notificationListenerUsesBubbleAndUpwardPropagationArrowInFourVectorAssets() throws Exception {
+        String base = ICON_ROOT + "notificationlistener.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("rect[")).count());
+        assertEquals(2, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "listener.svg", 16).geometry(), light.geometry());
+    }
+
+    @Test
+    void listenerUsesReviewedPointerAndSignalRaysDistinctFromGestureDetector() throws Exception {
+        String base = ICON_ROOT + "listener.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("rect[")).count());
+        assertEquals(2, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
+        assertNotEquals(readSvg(ICON_ROOT + "gesturedetector.svg", 16).geometry(), light.geometry());
+    }
+
+    @Test
+    void gestureDetectorUsesReviewedHandAndGestureArcInAllFourVectorAssets() throws Exception {
+        String base = ICON_ROOT + "gesturedetector.svg";
+        var light = readSvg(base, 16); var dark = readSvg(variant(base, false, true), 16);
+        var large = readSvg(variant(base, true, false), 32); var largeDark = readSvg(variant(base, true, true), 32);
+        assertEquals(1, light.geometry().stream().filter(shape -> shape.startsWith("rect[")).count());
+        assertEquals(2, light.geometry().stream().filter(shape -> shape.startsWith("path[")).count());
+        assertEquals(light.geometry(), dark.geometry()); assertEquals(large.geometry(), largeDark.geometry());
+        assertEquals(light.topology(), large.topology()); assertNotEquals(light.paint(), dark.paint());
     }
 
     @Test
@@ -1902,6 +2067,11 @@ class FlutterWidgetIconRegistryTest {
     private static Map<String, String> expectedMappings() {
         LinkedHashMap<String, String> expected = new LinkedHashMap<>();
         expected.put("flutter.material.AppBar", ICON_ROOT + "appbar.svg");
+        expected.put("flutter.material.FlexibleSpaceBar", ICON_ROOT + "flexiblespacebar.svg");
+        expected.put("flutter.material.FlexibleSpaceBarSettings", ICON_ROOT + "flexiblespacebarsettings.svg");
+        expected.put("flutter.material.SliverAppBar", ICON_ROOT + "sliverappbar.svg");
+        expected.put("flutter.material.SliverAppBar.medium", ICON_ROOT + "sliverappbarmedium.svg");
+        expected.put("flutter.material.SliverAppBar.large", ICON_ROOT + "sliverappbarlarge.svg");
         expected.put("flutter.material.ElevatedButton",
                 ICON_ROOT + "elevatedbutton.svg");
         expected.put("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg");
@@ -1931,6 +2101,22 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.DefaultTextHeightBehavior", ICON_ROOT + "defaulttextheightbehavior.svg");
         expected.put("flutter.widgets.DefaultSelectionStyle", ICON_ROOT + "defaultselectionstyle.svg");
         expected.put("flutter.widgets.IconTheme", ICON_ROOT + "icontheme.svg");
+        expected.put("flutter.widgets.DefaultTextStyle", ICON_ROOT + "defaulttextstyle.svg");
+        expected.put("flutter.widgets.FadeTransition", ICON_ROOT + "fadetransition.svg");
+        expected.put("flutter.widgets.SlideTransition", ICON_ROOT + "slidetransition.svg");
+        expected.put("flutter.widgets.ScaleTransition", ICON_ROOT + "scaletransition.svg");
+        expected.put("flutter.widgets.RotationTransition", ICON_ROOT + "rotationtransition.svg");
+        expected.put("flutter.widgets.SizeTransition", ICON_ROOT + "sizetransition.svg");
+        expected.put("flutter.widgets.PositionedTransition", ICON_ROOT + "positionedtransition.svg");
+        expected.put("flutter.widgets.RelativePositionedTransition", ICON_ROOT + "relativepositionedtransition.svg");
+        expected.put("flutter.widgets.DecoratedBoxTransition", ICON_ROOT + "decoratedboxtransition.svg");
+        expected.put("flutter.widgets.AlignTransition", ICON_ROOT + "aligntransition.svg");
+        expected.put("flutter.widgets.MatrixTransition", ICON_ROOT + "matrixtransition.svg");
+        expected.put("flutter.widgets.ModalBarrier", ICON_ROOT + "modalbarrier.svg");
+        expected.put("flutter.widgets.AnimatedModalBarrier", ICON_ROOT + "animatedmodalbarrier.svg");
+        expected.put("flutter.widgets.SliverFadeTransition", ICON_ROOT + "sliverfadetransition.svg");
+        expected.put("flutter.widgets.DefaultTextStyleTransition", ICON_ROOT + "defaulttextstyletransition.svg");
+        expected.put("flutter.widgets.DefaultTextStyle.merge", ICON_ROOT + "defaulttextstylemerge.svg");
         expected.put("flutter.widgets.ImageIcon", ICON_ROOT + "imageicon.svg");
         expected.put("flutter.material.Divider", ICON_ROOT + "divider.svg");
         expected.put("flutter.material.VerticalDivider", ICON_ROOT + "verticaldivider.svg");
@@ -1953,9 +2139,32 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Radio", ICON_ROOT + "radio.svg");
         expected.put("flutter.widgets.RadioGroup", ICON_ROOT + "radio_group.svg");
         expected.put("flutter.material.ListTile", ICON_ROOT + "list_tile.svg");
+        expected.put("flutter.material.Material", ICON_ROOT + "material.svg");
         expected.put("flutter.material.CheckboxListTile",
                 ICON_ROOT + "checkbox_list_tile.svg");
+        expected.put("flutter.material.SwitchListTile", ICON_ROOT + "switch_list_tile.svg");
+        expected.put("flutter.material.RadioListTile", ICON_ROOT + "radio_list_tile.svg");
+        expected.put("flutter.material.ExpansionTile", ICON_ROOT + "expansion_tile.svg");
+        expected.put("flutter.material.Tooltip", ICON_ROOT + "tooltip.svg");
+        expected.put("flutter.material.TooltipVisibility", ICON_ROOT + "tooltipvisibility.svg");
+        expected.put("flutter.material.TooltipTheme", ICON_ROOT + "tooltiptheme.svg");
+        expected.put("flutter.material.MenuItemButton", ICON_ROOT + "menuitembutton.svg");
+        expected.put("flutter.material.MenuAnchor", ICON_ROOT + "menuanchor.svg");
+        expected.put("flutter.material.SubmenuButton", ICON_ROOT + "submenubutton.svg");
+        expected.put("flutter.material.MenuBar", ICON_ROOT + "menubar.svg");
+        expected.put("flutter.material.NavigationBar", ICON_ROOT + "navigationbar.svg");
+        expected.put("flutter.material.NavigationRail", ICON_ROOT + "navigationrail.svg");
+        expected.put("flutter.material.NavigationDrawer", ICON_ROOT + "navigationdrawer.svg");
+        expected.put("flutter.material.Drawer", ICON_ROOT + "drawer.svg");
+        expected.put("flutter.material.BottomAppBar", ICON_ROOT + "bottomappbar.svg");
+        expected.put("flutter.material.BottomNavigationBar", ICON_ROOT + "bottomnavigationbar.svg");
+        expected.put("flutter.material.Scrollbar", ICON_ROOT + "scrollbar.svg");
         expected.put("flutter.widgets.IgnorePointer", ICON_ROOT + "ignorepointer.svg");
+        expected.put("flutter.widgets.GestureDetector", ICON_ROOT + "gesturedetector.svg");
+        expected.put("flutter.widgets.Listener", ICON_ROOT + "listener.svg");
+        expected.put("flutter.widgets.MouseRegion", ICON_ROOT + "mouseregion.svg");
+        expected.put("flutter.widgets.Focus", ICON_ROOT + "focus.svg");
+        expected.put("flutter.widgets.NotificationListener", ICON_ROOT + "notificationlistener.svg");
         expected.put("flutter.widgets.AbsorbPointer", ICON_ROOT + "absorbpointer.svg");
         expected.put("flutter.widgets.BlockSemantics", ICON_ROOT + "blocksemantics.svg");
         expected.put("flutter.widgets.ExcludeSemantics",
@@ -1992,15 +2201,98 @@ class FlutterWidgetIconRegistryTest {
                 ICON_ROOT + "sizedoverflowbox.svg");
         expected.put("flutter.widgets.Transform", ICON_ROOT + "transform.svg");
         expected.put("flutter.widgets.RotatedBox", ICON_ROOT + "rotatedbox.svg");
+        expected.put("flutter.widgets.PreferredSize", ICON_ROOT + "preferredsize.svg");
+        expected.put("flutter.widgets.Builder", ICON_ROOT + "builder.svg");
         expected.put("flutter.widgets.ListBody", ICON_ROOT + "listbody.svg");
         expected.put("flutter.widgets.OverflowBar", ICON_ROOT + "overflowbar.svg");
         expected.put("flutter.widgets.SafeArea", ICON_ROOT + "safearea.svg");
         expected.put("flutter.widgets.ListView", ICON_ROOT + "listview.svg");
         expected.put(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 ICON_ROOT + "gridviewcount.svg");
+        expected.put(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value(),
+                ICON_ROOT + "gridviewextent.svg");
         expected.put(SingleChildScrollViewWidgetPropertySchema
                         .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
                 ICON_ROOT + "singlechildscrollview.svg");
+        expected.put(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.value(),
+                ICON_ROOT + "pageview.svg");
+        expected.put(ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE.value(),
+                ICON_ROOT + "listwheelscrollview.svg");
+        expected.put("flutter.widgets.SliverList", ICON_ROOT + "sliverlist.svg");
+        expected.put("flutter.widgets.SliverGrid", ICON_ROOT + "slivergrid.svg");
+        expected.put("flutter.widgets.SliverGrid.extent", ICON_ROOT + "slivergridextent.svg");
+        expected.put("flutter.widgets.SliverList.builder", ICON_ROOT + "list_builder.svg");
+        expected.put("flutter.widgets.SliverList.separated", ICON_ROOT + "list_separated.svg");
+        expected.put("flutter.widgets.SliverList.delegate", ICON_ROOT + "list_delegate.svg");
+        expected.put("flutter.widgets.SliverGrid.builder", ICON_ROOT + "grid_builder.svg");
+        expected.put("flutter.widgets.SliverGrid.list", ICON_ROOT + "grid_list.svg");
+        expected.put("flutter.widgets.SliverGrid.delegate", ICON_ROOT + "grid_delegate.svg");
+        expected.put(CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE.value(),
+                ICON_ROOT + "customscrollview.svg");
+        expected.put(SliverToBoxAdapterWidgetPropertySchema.SLIVER_TO_BOX_ADAPTER_TYPE.value(),
+                ICON_ROOT + "slivertoboxadapter.svg");
+        expected.put("flutter.widgets.SliverIgnorePointer", ICON_ROOT + "sliverignorepointer.svg");
+        expected.put("flutter.widgets.SliverOffstage", ICON_ROOT + "sliveroffstage.svg");
+        expected.put("flutter.widgets.SliverVisibility", ICON_ROOT + "slivervisibility.svg");
+        expected.put("flutter.widgets.SliverVisibility.maintain", ICON_ROOT + "slivervisibilitymaintain.svg");
+        expected.put("flutter.widgets.SliverSafeArea", ICON_ROOT + "sliversafearea.svg");
+        expected.put("flutter.widgets.AnimatedAlign", ICON_ROOT + "animatedalign.svg");
+        expected.put("flutter.widgets.AnimatedPadding", ICON_ROOT + "animatedpadding.svg");
+        expected.put("flutter.widgets.AnimatedSlide", ICON_ROOT + "animatedslide.svg");
+        expected.put("flutter.widgets.AnimatedScale", ICON_ROOT + "animatedscale.svg");
+        expected.put("flutter.widgets.AnimatedRotation", ICON_ROOT + "animatedrotation.svg");
+        expected.put("flutter.widgets.AnimatedPositioned", ICON_ROOT + "animatedpositioned.svg");
+        expected.put("flutter.widgets.AnimatedPositioned.fromRect", ICON_ROOT + "animatedpositionedrect.svg");
+        expected.put("flutter.widgets.AnimatedPositionedDirectional", ICON_ROOT + "animatedpositioneddirectional.svg");
+        expected.put("flutter.widgets.AnimatedSize", ICON_ROOT + "animatedsize.svg");
+        expected.put("flutter.widgets.AnimatedDefaultTextStyle", ICON_ROOT + "animateddefaulttextstyle.svg");
+        expected.put("flutter.widgets.AnimatedPhysicalModel", ICON_ROOT + "animatedphysicalmodel.svg");
+        expected.put("flutter.widgets.AnimatedFractionallySizedBox", ICON_ROOT + "animatedfractionallysizedbox.svg");
+        expected.put("flutter.widgets.AnimatedCrossFade", ICON_ROOT + "animatedcrossfade.svg");
+        expected.put("flutter.widgets.AnimatedSwitcher", ICON_ROOT + "animatedswitcher.svg");
+        expected.put("flutter.material.AnimatedTheme", ICON_ROOT + "animatedtheme.svg");
+        expected.put("flutter.material.Theme", ICON_ROOT + "theme.svg");
+        expected.put("flutter.widgets.FadeInImage", ICON_ROOT + "fadeinimage.svg");
+        expected.put("flutter.widgets.RawImage", ICON_ROOT + "rawimage.svg");
+        expected.put("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg");
+        expected.put("flutter.widgets.AnimatedContainer", ICON_ROOT + "animatedcontainer.svg");
+        expected.put("flutter.widgets.AnimatedOpacity", ICON_ROOT + "animatedopacity.svg");
+        expected.put("flutter.widgets.SliverAnimatedOpacity", ICON_ROOT + "sliveranimatedopacity.svg");
+        expected.put("flutter.widgets.LayoutBuilder", ICON_ROOT + "layoutbuilder.svg");
+        expected.put("flutter.widgets.OrientationBuilder", ICON_ROOT + "orientationbuilder.svg");
+        expected.put("flutter.widgets.TweenAnimationBuilder", ICON_ROOT + "tweenanimationbuilder.svg");
+        expected.put("flutter.widgets.TweenAnimationBuilder.sliver", ICON_ROOT + "slivertweenanimationbuilder.svg");
+        expected.put("flutter.widgets.ValueListenableBuilder", ICON_ROOT + "valuelistenablebuilder.svg");
+        expected.put("flutter.widgets.ValueListenableBuilder.sliver", ICON_ROOT + "slivervaluelistenablebuilder.svg");
+        expected.put("flutter.widgets.AnimatedBuilder", ICON_ROOT + "animatedbuilder.svg");
+        expected.put("flutter.widgets.AnimatedBuilder.sliver", ICON_ROOT + "sliveranimatedbuilder.svg");
+        expected.put("flutter.widgets.ListenableBuilder", ICON_ROOT + "listenablebuilder.svg");
+        expected.put("flutter.widgets.ListenableBuilder.sliver", ICON_ROOT + "sliverlistenablebuilder.svg");
+        expected.put("flutter.widgets.DeviceOrientationBuilder", ICON_ROOT + "deviceorientationbuilder.svg");
+        expected.put("flutter.widgets.DeviceOrientationBuilder.sliver", ICON_ROOT + "sliverdeviceorientationbuilder.svg");
+        expected.put("flutter.widgets.SliverLayoutBuilder", ICON_ROOT + "sliverlayoutbuilder.svg");
+        expected.put("flutter.widgets.SliverPersistentHeader", ICON_ROOT + "sliverpersistentheader.svg");
+        expected.put("flutter.widgets.SliverResizingHeader", ICON_ROOT + "sliverresizingheader.svg");
+        expected.put("flutter.widgets.PinnedHeaderSliver", ICON_ROOT + "pinnedheadersliver.svg");
+        expected.put("flutter.widgets.SliverFloatingHeader", ICON_ROOT + "sliverfloatingheader.svg");
+        expected.put("flutter.widgets.SliverOpacity", ICON_ROOT + "sliveropacity.svg");
+        expected.put("flutter.widgets.SliverPadding", ICON_ROOT + "sliverpadding.svg");
+        expected.put("flutter.widgets.SliverFillRemaining", ICON_ROOT + "sliverfillremaining.svg");
+        expected.put("flutter.widgets.SliverFillViewport", ICON_ROOT + "sliverfillviewport.svg");
+        expected.put("flutter.widgets.SliverFillViewport.delegate", ICON_ROOT + "sliverfillviewportdelegate.svg");
+        expected.put("flutter.widgets.SliverFixedExtentList", ICON_ROOT + "sliverfixedextentlist.svg");
+        expected.put("flutter.widgets.SliverFixedExtentList.builder", ICON_ROOT + "sliverfixedextentbuilder.svg");
+        expected.put("flutter.widgets.SliverFixedExtentList.delegate", ICON_ROOT + "sliverfixedextentdelegate.svg");
+        expected.put("flutter.widgets.SliverPrototypeExtentList", ICON_ROOT + "sliverprototypeextentlist.svg");
+        expected.put("flutter.widgets.SliverVariedExtentList", ICON_ROOT + "slivervariedextentlist.svg");
+        expected.put("flutter.widgets.SliverPrototypeExtentList.builder", ICON_ROOT + "sliverprototypeextentbuilder.svg");
+        expected.put("flutter.widgets.SliverVariedExtentList.builder", ICON_ROOT + "slivervariedextentbuilder.svg");
+        expected.put("flutter.widgets.SliverPrototypeExtentList.delegate", ICON_ROOT + "sliverprototypeextentdelegate.svg");
+        expected.put("flutter.widgets.SliverVariedExtentList.delegate", ICON_ROOT + "slivervariedextentdelegate.svg");
+        expected.put("flutter.widgets.SliverMainAxisGroup", ICON_ROOT + "slivermainaxisgroup.svg");
+        expected.put("flutter.widgets.SliverConstrainedCrossAxis", ICON_ROOT + "sliverconstrainedcrossaxis.svg");
+        expected.put("flutter.widgets.SliverCrossAxisExpanded", ICON_ROOT + "slivercrossaxisexpanded.svg");
+        expected.put("flutter.widgets.SliverCrossAxisGroup", ICON_ROOT + "slivercrossaxisgroup.svg");
         expected.put("flutter.widgets.Text", ICON_ROOT + "text.svg");
         return Map.copyOf(expected);
     }

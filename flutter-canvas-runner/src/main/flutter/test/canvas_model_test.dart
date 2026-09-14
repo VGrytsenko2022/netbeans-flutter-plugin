@@ -6,11 +6,90 @@ import 'package:netbeans_flutter_canvas_runner/src/canvas_model.dart';
 import 'package:netbeans_flutter_canvas_runner/src/sha256.dart';
 
 void main() {
-  test('Canvas model protocol v18 is exact and rejects v17 payloads', () {
-    expect(canvasModelProtocolVersion, 18);
+  test('SliverPadding has required nonnegative geometry and an optional sliver-only slot', () {
+    final p = <String, Object?>{'kind': 'edgeInsetsDirectional', 'start': 12.0, 'top': 14.0, 'end': 20.0, 'bottom': 16.0};
+    final sliver = _node('0e78b7c2-3e04-4566-b687-c84eb75aa3f0', 'flutter.widgets.SliverPadding',
+        properties: {'padding': p}, slots: {'sliver': _single(null)});
+    final model = _modelJson();
+    model['root'] = _node('a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1', 'flutter.widgets.CustomScrollView',
+        slots: {'slivers': _list([sliver])});
+    expect(() => _decode(model), returnsNormally);
+    for (final properties in [
+      <String, Object?>{},
+      {'padding': {'kind': 'null'}},
+      {'padding': {...p, 'start': -1.0}},
+      {'padding': {'kind': 'string', 'value': 'EdgeInsets.zero'}},
+    ]) {
+      sliver['properties'] = properties;
+      expect(() => _decode(model), throwsFormatException);
+    }
+    sliver['properties'] = {'padding': {'kind': 'dartObjectReferencePresence'}};
+    expect(() => _decode(model), returnsNormally);
+    sliver['properties'] = {'padding': p};
+    sliver['slots'] = {'sliver': _single(_node('1c8e2375-4a20-4f30-928c-a80353cc4bc0', 'flutter.widgets.SliverToBoxAdapter'))};
+    expect(() => _decode(model), returnsNormally);
+    sliver['slots'] = {'sliver': _single(_node('1c8e2375-4a20-4f30-928c-a80353cc4bc0', 'flutter.widgets.Text',
+        properties: {'data': {'kind': 'string', 'value': 'Box'}}))};
+    expect(() => _decode(model), throwsFormatException);
+    sliver['slots'] = {'sliver': _list([])};
+    expect(() => _decode(model), throwsFormatException);
+    sliver['slots'] = <String, Object?>{};
+    expect(() => _decode(model), returnsNormally);
+    model['root'] = sliver;
+    expect(() => _decode(model), throwsFormatException);
+  });
+
+  test('dynamic sliver constructors reject invalid presets counts null required delegates and callback conflicts', () {
+    final presets = <String, Map<String, Object?>>{
+    'flutter.widgets.SliverList.builder': {'itemBuilder': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverList.separated': {'itemBuilder': {'kind': 'string', 'value': 'empty'}, 'separatorBuilder': {'kind': 'string', 'value': 'shrink'}},
+    'flutter.widgets.SliverList.delegate': {'delegate': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverGrid.builder': {'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}, 'itemBuilder': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverGrid.list': {'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}},
+    'flutter.widgets.SliverGrid.delegate': {'delegate': {'kind': 'string', 'value': 'empty'}, 'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}},
+    };
+    for (final entry in presets.entries) {
+      final sliver = _node('1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0', entry.key,
+          properties: entry.value, slots: {if (entry.key.endsWith('Grid.list')) 'children': _list([])});
+      final json = _modelJson();
+      json['root'] = _node('a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1', 'flutter.widgets.CustomScrollView',
+          slots: {'slivers': _list([sliver])});
+      expect(() => _decode(json), returnsNormally);
+      for (final field in entry.value.keys) {
+        for (final invalid in [
+          {...entry.value}..remove(field),
+          {...entry.value, field: {'kind': 'null'}},
+          {...entry.value, field: {'kind': 'string', 'value': 'unreviewed'}},
+        ]) {
+          sliver['properties'] = invalid;
+          expect(() => _decode(json), throwsFormatException, reason: '${entry.key} $field');
+        }
+      }
+      if (entry.key.endsWith('.builder') || entry.key.endsWith('.separated')) {
+        for (final value in [-1, 9007199254740992]) {
+          sliver['properties'] = {...entry.value, 'itemCount': {'kind': 'integer', 'value': value}};
+          expect(() => _decode(json), throwsFormatException);
+        }
+      }
+      if (entry.key.endsWith('.separated')) {
+        sliver['properties'] = {...entry.value,
+          'findChildIndexCallback': {'kind': 'dartObjectReferencePresence'},
+          'findItemIndexCallback': {'kind': 'dartObjectReferencePresence'}};
+        expect(() => _decode(json), throwsFormatException);
+        (sliver['properties'] as Map<String, Object?>)['findChildIndexCallback'] = {'kind': 'null'};
+        expect(() => _decode(json), returnsNormally);
+      }
+      sliver['properties'] = entry.value;
+      json['root'] = sliver;
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
+  test('Canvas model protocol v19 is exact and rejects v18 payloads', () {
+    expect(canvasModelProtocolVersion, 19);
     expect(() => _decode(_modelJson()), returnsNormally);
 
-    final oldProtocol = _modelJson()..['protocolVersion'] = 17;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 18;
     expect(() => _decode(oldProtocol), throwsFormatException);
   });
 
@@ -126,10 +205,10 @@ void main() {
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final bytes = utf8.encode(contract.substring(start, end));
-    expect(bytes, hasLength(50905));
+    expect(bytes, hasLength(51103));
     expect(
       sha256Hex(bytes),
-      'efcbcdee37b660a8ec4f8cb85b152aa92009033b6ae498b6c25861d7efbdb3be',
+      '19632f2ff4daf6903b85971205427bf98f2320180fdf55c0dd4378fe20314bcd',
     );
   });
 
@@ -530,7 +609,7 @@ void main() {
   test('Align reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Align\n');
-    final end = contract.indexOf('W|flutter.widgets.AspectRatio\n', start);
+    final end = contract.indexOf('W|flutter.widgets.AlignTransition\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -670,7 +749,7 @@ void main() {
   test('FractionallySizedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.FractionallySizedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.GridView\n', start);
+    final end = contract.indexOf('W|flutter.widgets.GestureDetector\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -2749,7 +2828,7 @@ void main() {
   test('UnconstrainedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.UnconstrainedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.Visibility\n', start);
+    final end = contract.indexOf('W|flutter.widgets.ValueListenableBuilder\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -3588,7 +3667,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Expanded\n');
-      final end = contract.indexOf('W|flutter.widgets.FittedBox\n', start);
+      final end = contract.indexOf('\nW|', start) + 1;
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(
@@ -3775,10 +3854,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Flexible\n');
-      final end = contract.indexOf(
-        'W|flutter.widgets.FractionallySizedBox\n',
-        start,
-      );
+      final end = contract.indexOf('W|flutter.widgets.Focus\n', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(
@@ -4384,7 +4460,7 @@ void main() {
   test('IntrinsicWidth reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.IntrinsicWidth\n');
-    final end = contract.indexOf('W|flutter.widgets.LimitedBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.LayoutBuilder\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -4664,7 +4740,7 @@ void main() {
   test('RotatedBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.RotatedBox\n');
-    final end = contract.indexOf('W|flutter.widgets.Row\n', start);
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -4862,7 +4938,8 @@ void main() {
   test('SizedOverflowBox reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.SizedOverflowBox\n');
-    final end = contract.indexOf('W|flutter.widgets.Spacer\n', start);
+    // The next admitted sliver may change; this widget's exact record may not.
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -5165,7 +5242,7 @@ void main() {
   test('Transform reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Transform\n');
-    final end = contract.indexOf('W|flutter.widgets.UnconstrainedBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.TweenAnimationBuilder\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -5185,7 +5262,7 @@ void main() {
     );
   });
 
-  test('decodes all 17 reviewed ListView leaves and its ordered children', () {
+  test('decodes all 18 reviewed ListView leaves and its ordered children', () {
     final json = _modelJson();
     json['root'] = _node(
       '810bc9c3-0189-4bc4-bf7f-cea660474a58',
@@ -5208,6 +5285,7 @@ void main() {
           'bottom': 4,
         },
         'itemExtent': {'kind': 'double', 'value': 48.5},
+        'itemExtentBuilder': {'kind': 'null'},
         'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
         'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
         'addSemanticIndexes': {'kind': 'boolean', 'value': false},
@@ -5252,7 +5330,7 @@ void main() {
     );
 
     final listView = _decode(json).root;
-    expect(listView.properties, hasLength(17));
+    expect(listView.properties, hasLength(18));
     expect(listView.slot('children')!.children, hasLength(2));
     expect(listView.properties['physics']!.value, 'rangeMaintaining');
     expect(listView.properties['scrollCacheExtent']!.value, 240);
@@ -5320,11 +5398,14 @@ void main() {
   test('ListView reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ListView\n');
-    final end = contract.indexOf('W|flutter.widgets.MergeSemantics\n', start);
+    final end = contract.indexOf(
+      'W|flutter.widgets.ListWheelScrollView\n',
+      start,
+    );
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);
-    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(17));
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(18));
     expect(block, contains('S|children|list|0|0|10000|any\n'));
     expect(block, contains('P|scrollCacheExtent|double,integer|0|-|'));
   });
@@ -5504,7 +5585,7 @@ void main() {
   test('GridView.count reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.GridView\n');
-    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    final end = contract.indexOf('W|flutter.widgets.GridView.extent\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);
@@ -5512,6 +5593,222 @@ void main() {
     expect(block, contains('S|children|list|0|0|10000|any\n'));
     expect(block, isNot(contains('controller')));
     expect(block, isNot(contains('cacheExtent|')));
+  });
+
+  test('GridView.extent decodes its required maximum extent and children', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      '7c5646ab-89dc-45b0-b147-f46604fc411f',
+      'flutter.widgets.GridView.extent',
+      properties: {
+        'maxCrossAxisExtent': {'kind': 'double', 'value': 240.0},
+        'mainAxisSpacing': {'kind': 'double', 'value': 8.0},
+      },
+      slots: {'children': _list([])},
+    );
+
+    final grid = _decode(json).root;
+    expect(grid.type, 'flutter.widgets.GridView.extent');
+    expect(grid.properties['maxCrossAxisExtent']!.value, 240.0);
+    expect(grid.properties['mainAxisSpacing']!.value, 8.0);
+    expect(grid.slot('children')!.children, isEmpty);
+  });
+
+  test(
+    'requires positive GridView.extent maxCrossAxisExtent with default 200',
+    () {
+      Map<String, Object?> model(Map<String, Object?> properties) {
+        final json = _modelJson();
+        json['root'] = _node(
+          '7c5646ab-89dc-45b0-b147-f46604fc411f',
+          'flutter.widgets.GridView.extent',
+          properties: properties,
+          slots: {'children': _list([])},
+        );
+        return json;
+      }
+
+      expect(() => _decode(model({})), throwsFormatException);
+      expect(
+        () => _decode(
+          model({
+            'maxCrossAxisExtent': {'kind': 'double', 'value': 0.0},
+          }),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        () => _decode(
+          model({
+            'maxCrossAxisExtent': {'kind': 'integer', 'value': 200},
+          }),
+        ),
+        throwsFormatException,
+      );
+      expect(
+        canvasRuntimeWidgetSchemaContractForTesting(),
+        contains('P|maxCrossAxisExtent|double|1|double:200|double:0:0:*:1'),
+      );
+    },
+  );
+
+  test('GridView.extent reviewed contract is exact and closed', () {
+    final contract = canvasRuntimeWidgetSchemaContractForTesting();
+    final start = contract.indexOf('W|flutter.widgets.GridView.extent\n');
+    final end = contract.indexOf('W|flutter.widgets.Icon\n', start);
+    expect(start, greaterThanOrEqualTo(0));
+    expect(end, greaterThan(start));
+    final block = contract.substring(start, end);
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(21));
+    expect(block, contains('S|children|list|0|0|10000|any\n'));
+    expect(block, contains('P|maxCrossAxisExtent|double|1|double:200|'));
+    expect(block, isNot(contains('crossAxisCount|')));
+  });
+
+  test('static sliver values are closed and slivers cannot leak into box slots or root', () {
+    for (final type in ['flutter.widgets.SliverList', 'flutter.widgets.SliverGrid', 'flutter.widgets.SliverGrid.extent']) {
+      final properties = <String, Object?>{
+        if (type.endsWith('SliverGrid')) 'crossAxisCount': {'kind': 'integer', 'value': 2},
+        if (type.endsWith('.extent')) 'maxCrossAxisExtent': {'kind': 'double', 'value': 200.0},
+      };
+      final sliver = _node('1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0', type,
+          properties: properties, slots: {'children': _list([])});
+      final json = _modelJson();
+      json['root'] = _node('a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1', 'flutter.widgets.CustomScrollView',
+          slots: {'slivers': _list([sliver])});
+      expect(() => _decode(json), returnsNormally);
+      final invalidProperties = [
+        {...properties, 'itemBuilder': {'kind': 'string', 'value': 'unsupported'}},
+        if (type.endsWith('SliverGrid')) {...properties, 'crossAxisCount': {'kind': 'integer', 'value': 0}},
+        if (type.endsWith('.extent')) {...properties, 'maxCrossAxisExtent': {'kind': 'double', 'value': 0.0}},
+        if (!type.endsWith('SliverList')) ...[
+          {...properties, 'childAspectRatio': {'kind': 'double', 'value': 0.0}},
+          {...properties, 'mainAxisSpacing': {'kind': 'double', 'value': -1.0}},
+          {...properties, 'crossAxisSpacing': {'kind': 'double', 'value': -1.0}},
+          <String, Object?>{},
+        ],
+      ];
+      for (final invalid in invalidProperties) {
+        sliver['properties'] = invalid;
+        expect(() => _decode(json), throwsFormatException, reason: '$type $invalid');
+      }
+      sliver['properties'] = properties;
+      json['root'] = sliver;
+      expect(() => _decode(json), throwsFormatException);
+      json['root'] = _node('a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1', 'flutter.widgets.Center',
+          slots: {'child': _single(sliver)});
+      expect(() => _decode(json), throwsFormatException);
+      json['root'] = _node('a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1', 'flutter.widgets.CustomScrollView',
+          slots: {'slivers': _list([sliver])});
+      sliver['slots'] = {'children': _list([
+        _node('5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd', 'flutter.widgets.SliverToBoxAdapter'),
+      ])};
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
+  test('CustomScrollView decodes sliver children and all reviewed leaves', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      'a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1',
+      'flutter.widgets.CustomScrollView',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'horizontal',
+        },
+        'reverse': {'kind': 'boolean', 'value': true},
+        'primary': {'kind': 'boolean', 'value': false},
+        'physics': {'kind': 'string', 'value': 'bouncing'},
+        'shrinkWrap': {'kind': 'boolean', 'value': true},
+        'anchor': {'kind': 'double', 'value': 0.25},
+        'scrollCacheExtent': {'kind': 'integer', 'value': 480},
+        'paintOrder': {
+          'kind': 'enum',
+          'type': 'SliverPaintOrder',
+          'value': 'lastIsTop',
+        },
+        'semanticChildCount': {'kind': 'integer', 'value': 25},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'keyboardDismissBehavior': {
+          'kind': 'enum',
+          'type': 'ScrollViewKeyboardDismissBehavior',
+          'value': 'onDrag',
+        },
+        'restorationId': {'kind': 'string', 'value': 'custom-scroll'},
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'hardEdge'},
+        'hitTestBehavior': {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'opaque',
+        },
+      },
+      slots: {
+        'slivers': _list([
+          _node(
+            '1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0',
+            'flutter.widgets.SliverToBoxAdapter',
+            slots: {
+              'child': _single(
+                _node(
+                  '5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd',
+                  'flutter.widgets.Text',
+                  properties: {
+                    'data': {'kind': 'string', 'value': 'Sliver body'},
+                  },
+                ),
+              ),
+            },
+          ),
+        ]),
+      },
+    );
+
+    final scrollView = _decode(json).root;
+    expect(scrollView.properties, hasLength(14));
+    expect(scrollView.properties['anchor']!.value, 0.25);
+    expect(scrollView.properties['paintOrder']!.value, isA<CanvasEnumValue>());
+    expect(scrollView.properties['semanticChildCount']!.value, 25);
+    expect(scrollView.slot('slivers')!.children, hasLength(1));
+    expect(
+      scrollView.slot('slivers')!.children.single.type,
+      'flutter.widgets.SliverToBoxAdapter',
+    );
+  });
+
+  test('CustomScrollView rejects ordinary widgets in its slivers slot', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      'c7ed9c0b-24d0-4391-a350-3401c97d3f63',
+      'flutter.widgets.CustomScrollView',
+      slots: {
+        'slivers': _list([
+          _node(
+            '5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Invalid'},
+            },
+          ),
+        ]),
+      },
+    );
+
+    expect(
+      () => _decode(json),
+      throwsA(
+        isA<FormatException>().having(
+          (failure) => failure.message,
+          'message',
+          contains('slot rejects child type flutter.widgets.Text'),
+        ),
+      ),
+    );
   });
 
   test('decodes all 10 SingleChildScrollView leaves and optional child', () {
@@ -5591,6 +5888,97 @@ void main() {
     expect(scrollView.slot('child')!.child, isNull);
   });
 
+  test('decodes all PageView leaves and ordered pages', () {
+    final json = _modelJson();
+    json['root'] = _node(
+      'e50f8c65-77bc-4bb8-ae42-6c26c4f8b2a1',
+      'flutter.widgets.PageView',
+      properties: {
+        'scrollDirection': {
+          'kind': 'enum',
+          'type': 'Axis',
+          'value': 'vertical',
+        },
+        'reverse': {'kind': 'boolean', 'value': true},
+        'controller': {'kind': 'dartObjectReferencePresence'},
+        'physics': {'kind': 'string', 'value': 'bouncing'},
+        'pageSnapping': {'kind': 'boolean', 'value': false},
+        'onPageChanged': {'kind': 'callbackPresence'},
+        'dragStartBehavior': {
+          'kind': 'enum',
+          'type': 'DragStartBehavior',
+          'value': 'down',
+        },
+        'allowImplicitScrolling': {'kind': 'boolean', 'value': true},
+        'scrollCacheExtent': {'kind': 'double', 'value': 48.5},
+        'restorationId': {'kind': 'string', 'value': 'pages'},
+        'clipBehavior': {'kind': 'enum', 'type': 'Clip', 'value': 'none'},
+        'hitTestBehavior': {
+          'kind': 'enum',
+          'type': 'HitTestBehavior',
+          'value': 'translucent',
+        },
+        'scrollBehavior': {'kind': 'dartObjectReferencePresence'},
+        'padEnds': {'kind': 'boolean', 'value': false},
+      },
+      slots: {
+        'children': _list([
+          _node(
+            '0b1a3a62-9996-45b8-89ee-f45d29a2c21e',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'One'},
+            },
+          ),
+          _node(
+            '7f01b0f3-7ebd-4d4d-8b57-90ea7554b07f',
+            'flutter.widgets.Text',
+            properties: {
+              'data': {'kind': 'string', 'value': 'Two'},
+            },
+          ),
+        ]),
+      },
+    );
+
+    final pageView = _decode(json).root;
+    expect(pageView.type, 'flutter.widgets.PageView');
+    expect(pageView.properties, hasLength(14));
+    expect(pageView.properties['physics']!.value, 'bouncing');
+    expect(pageView.properties['onPageChanged']!.kind, 'callbackPresence');
+    expect(pageView.properties['scrollCacheExtent']!.value, 48.5);
+    expect(pageView.slot('children')!.children, hasLength(2));
+    expect(pageView.slot('children')!.children[1].type, 'flutter.widgets.Text');
+  });
+
+  test('rejects values outside the PageView closed projection', () {
+    Map<String, Object?> invalid(String name, Map<String, Object?> value) {
+      final json = _modelJson();
+      json['root'] = _node(
+        'e50f8c65-77bc-4bb8-ae42-6c26c4f8b2a1',
+        'flutter.widgets.PageView',
+        properties: {name: value},
+        slots: {'children': _list([])},
+      );
+      return json;
+    }
+
+    for (final json in <Map<String, Object?>>[
+      invalid('physics', {'kind': 'string', 'value': 'custom'}),
+      invalid('scrollCacheExtent', {'kind': 'double', 'value': -0.01}),
+      invalid('restorationId', {'kind': 'string', 'value': ''}),
+      invalid('onPageChanged', {'kind': 'string', 'value': 'handler'}),
+      invalid('scrollDirection', {
+        'kind': 'enum',
+        'type': 'Axis',
+        'value': 'diagonal',
+      }),
+      invalid('unknown', {'kind': 'boolean', 'value': true}),
+    ]) {
+      expect(() => _decode(json), throwsFormatException);
+    }
+  });
+
   test(
     'rejects values outside the SingleChildScrollView closed projection',
     () {
@@ -5648,7 +6036,7 @@ void main() {
   test('SingleChildScrollView reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.SingleChildScrollView\n');
-    final end = contract.indexOf('W|flutter.widgets.SizedBox\n', start);
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -5682,7 +6070,7 @@ void main() {
     );
   });
 
-  test('decodes all 54 reviewed TextField constructor leaves exactly', () {
+  test('decodes all 56 reviewed TextField constructor leaves exactly', () {
     final json = _modelJson();
     json['root'] = _node(
       '73d9ec43-3d37-4304-8998-71fe51804284',
@@ -5785,12 +6173,14 @@ void main() {
         'enableIMEPersonalizedLearning': {'kind': 'boolean', 'value': false},
         'enableInlinePrediction': {'kind': 'boolean', 'value': true},
         'canRequestFocus': {'kind': 'boolean', 'value': false},
+        'buildCounter': {'kind': 'dartObjectReferencePresence'},
+        'contextMenuBuilder': {'kind': 'null'},
       },
     );
 
     final textField = _decode(json).root;
     expect(textField.type, 'flutter.material.TextField');
-    expect(textField.properties, hasLength(54));
+    expect(textField.properties, hasLength(56));
     expect(textField.slots, isEmpty);
     expect(textField.properties['maxLength']!.value, -1);
     expect(textField.properties['cursorWidth']!.kind, 'integer');
@@ -5938,17 +6328,17 @@ void main() {
   test('TextField reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.TextField\n');
-    final end = contract.indexOf('W|flutter.material.VerticalDivider\n', start);
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final block = contract.substring(start, end);
     final bytes = utf8.encode(block);
-    expect(bytes, hasLength(8076));
+    expect(bytes, hasLength(8551));
     expect(
       sha256Hex(bytes),
-      '0cae00ba20bef22302e2b2db29fafbe19a535e51d9791416d670e6881162f61f',
+      'd0dec15bddd81f244694a5e78021c19ea87eed27b1b59cf2e786f9b05687beda',
     );
-    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(54));
+    expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(56));
     expect(RegExp(r'^S\|', multiLine: true).allMatches(block), isEmpty);
     expect(RegExp(r'^R\|', multiLine: true).allMatches(block), isEmpty);
   });
@@ -6358,7 +6748,7 @@ void main() {
   test('Opacity reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Opacity\n');
-    final end = contract.indexOf('W|flutter.widgets.OverflowBar\n', start);
+    final end = contract.indexOf('W|flutter.widgets.OrientationBuilder\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -6546,7 +6936,7 @@ void main() {
   test('Placeholder reviewed schema is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Placeholder\n');
-    final end = contract.indexOf('W|flutter.widgets.RadioGroup\n', start);
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);
@@ -7068,10 +7458,7 @@ void main() {
   test('SafeArea reviewed schema and wrapper creation contract are exact', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.SafeArea\n');
-    final end = contract.indexOf(
-      'W|flutter.widgets.SingleChildScrollView\n',
-      start,
-    );
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(
@@ -7217,7 +7604,7 @@ void main() {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.DecoratedBox\n');
     final end = contract.indexOf(
-      'W|flutter.widgets.DefaultSelectionStyle\n',
+      'W|flutter.widgets.DecoratedBoxTransition\n',
       start,
     );
     expect(start, greaterThanOrEqualTo(0));
@@ -7893,7 +8280,7 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf('W|flutter.widgets.DecoratedBox\n', start);
+    final end = contract.indexOf('W|flutter.widgets.CustomScrollView\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);
@@ -8136,7 +8523,7 @@ void main() {
   });
 
   test(
-    'ElevatedButton reviewed contract is exact and closed at 286 leaves',
+    'ElevatedButton reviewed contract is exact and closed at 288 leaves',
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.material.ElevatedButton\n');
@@ -8146,7 +8533,7 @@ void main() {
       final section = contract.substring(start, end);
       expect(
         section.split('\n').where((line) => line.startsWith('P|')),
-        hasLength(286),
+        hasLength(288),
       );
       expect(
         section,
@@ -8160,16 +8547,16 @@ void main() {
     },
   );
 
-  test('Scaffold reviewed contract is exact and closed at 17 leaves', () {
+  test('Scaffold reviewed contract is exact and closed at 18 leaves', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.material.Scaffold\n');
-    final end = contract.indexOf('W|flutter.material.Slider\n', start);
+    final end = contract.indexOf('W|flutter.material.Scrollbar\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final section = contract.substring(start, end);
     expect(
       section.split('\n').where((line) => line.startsWith('P|')),
-      hasLength(17),
+      hasLength(18),
     );
     expect(
       section,
@@ -10329,7 +10716,7 @@ class _AbsentTestValue {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 18,
+  'protocolVersion': 19,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

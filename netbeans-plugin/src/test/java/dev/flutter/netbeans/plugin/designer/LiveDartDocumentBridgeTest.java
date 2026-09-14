@@ -16,9 +16,21 @@ import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
 import dev.flutter.netbeans.designer.generation.DartRegionGenerator;
+import dev.flutter.netbeans.designer.generation.DartGenerationResult;
 import dev.flutter.netbeans.designer.generation.GeneratedDartRegions;
+import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.ManagedRegion;
+import dev.flutter.netbeans.designer.model.ManagedRegions;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
+import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
+import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityGate;
+import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlan;
+import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlanner;
+import dev.flutter.netbeans.designer.transition.DartSourceTransitionStatus;
+import dev.flutter.netbeans.designer.transition.DartUserSourceProjection;
+import dev.flutter.netbeans.designer.validation.ValidationResult;
 import dev.flutter.netbeans.plugin.dart.DartEditorKit;
 import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
 import java.awt.EventQueue;
@@ -132,6 +144,106 @@ class LiveDartDocumentBridgeTest {
         });
         assertNotNull(rejected.get(),
                 "programmatic Designer apply must not remove the user guard");
+    }
+
+    @Test
+    void provedHandlerAndImportAndManagedChangesHaveOneNativeUndoRedoEdge() throws Exception {
+        DartSourceTransitionPlan transition = eventTransition();
+        Loaded loaded = load(new String(transition.liveSource().original().orElseThrow().copyBytes(),
+                StandardCharsets.UTF_8));
+        LiveDartDocumentSnapshot before = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        NativeUndoProbe nativeUndo = trackNativeUndo(loaded.document());
+
+        LiveDartDocumentSnapshot applied = onEdt(() -> LiveDartDocumentBridge.applyManagedRegions(
+                loaded.provider(), before, transition.generation().generated().orElseThrow(),
+                transition.candidateBytes(), transition, exact -> { }));
+
+        assertArrayEquals(transition.candidateBytes(), applied.markerBearingUtf8());
+        String candidateText = new String(applied.markerBearingUtf8(), StandardCharsets.UTF_8);
+        assertTrue(candidateText.startsWith("import 'dart:async';\n"));
+        assertTrue(candidateText.contains("void _onChanged(String value)"));
+        assertTrue(candidateText.contains("// User body Привіт 😀"));
+        assertTrue(candidateText.contains("ChangedWidget"));
+        assertTrue(candidateText.contains("package:changed/widgets.dart"));
+        assertEquals(1, nativeUndo.events().get(), "all proved user and guarded edits are one native edge");
+        assertTrue(nativeUndo.history().canUndo());
+
+        onEdt(() -> { nativeUndo.history().undo(); return null; });
+        assertExactPredecessor(before, LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider()));
+        assertFalse(nativeUndo.history().canUndo());
+        assertTrue(nativeUndo.history().canRedo());
+
+        onEdt(() -> { nativeUndo.history().redo(); return null; });
+        LiveDartDocumentSnapshot redone = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        assertArrayEquals(applied.markerBearingUtf8(), redone.markerBearingUtf8());
+        assertSame(before.imports().sectionIdentity(), redone.imports().sectionIdentity());
+        assertSame(before.build().sectionIdentity(), redone.build().sectionIdentity());
+        assertFalse(nativeUndo.history().canRedo());
+    }
+
+    @Test
+    void provedHandlerFinalizerFailureRollsBackUserImportsMethodsAndManagedRegions() throws Exception {
+        DartSourceTransitionPlan transition = eventTransition();
+        Loaded loaded = load(new String(transition.liveSource().original().orElseThrow().copyBytes(),
+                StandardCharsets.UTF_8));
+        LiveDartDocumentSnapshot before = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        NativeUndoProbe nativeUndo = trackNativeUndo(loaded.document());
+        AtomicReference<LiveDartDocumentSnapshot> rejected = new AtomicReference<>();
+
+        IOException failure = assertThrows(IOException.class, () -> onEdt(() ->
+                LiveDartDocumentBridge.applyManagedRegions(loaded.provider(), before,
+                        transition.generation().generated().orElseThrow(), transition.candidateBytes(), transition,
+                        exact -> {
+                            rejected.set(exact);
+                            assertArrayEquals(transition.candidateBytes(), exact.markerBearingUtf8());
+                            throw new IOException("synthetic event-source finalizer rejection");
+                        })));
+
+        assertTrue(failure.getMessage().contains("synthetic event-source finalizer rejection"));
+        assertNotNull(rejected.get());
+        LiveDartDocumentSnapshot restored = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        assertExactPredecessor(before, restored);
+        assertTrue(restored.documentVersion() > rejected.get().documentVersion());
+        assertNoNativeUndo(nativeUndo);
+    }
+
+    @Test
+    void explicitRestoreRevertsProvedHandlerAndImportAlongsideGeneratedRegions() throws Exception {
+        DartSourceTransitionPlan transition = eventTransition();
+        Loaded loaded = load(new String(transition.liveSource().original().orElseThrow().copyBytes(),
+                StandardCharsets.UTF_8));
+        LiveDartDocumentSnapshot before = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        LiveDartDocumentSnapshot applied = onEdt(() -> LiveDartDocumentBridge.applyManagedRegions(
+                loaded.provider(), before, transition.generation().generated().orElseThrow(),
+                transition.candidateBytes(), transition, exact -> { }));
+        AtomicReference<LiveDartDocumentSnapshot> finalized = new AtomicReference<>();
+
+        LiveDartDocumentSnapshot restored = onEdt(() -> LiveDartDocumentBridge.restoreManagedRegions(
+                loaded.provider(), applied, before, finalized::set));
+
+        assertSame(finalized.get(), restored);
+        assertExactPredecessor(before, restored);
+        assertTrue(restored.documentVersion() > applied.documentVersion());
+        assertFalse(new String(restored.markerBearingUtf8(), StandardCharsets.UTF_8).contains("_onChanged"));
+    }
+
+    @Test
+    void provedHandlerApplyRejectsAnUnprovedCandidateBeforePublishingNativeUndo() throws Exception {
+        DartSourceTransitionPlan transition = eventTransition();
+        Loaded loaded = load(new String(transition.liveSource().original().orElseThrow().copyBytes(),
+                StandardCharsets.UTF_8));
+        LiveDartDocumentSnapshot before = LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider());
+        NativeUndoProbe nativeUndo = trackNativeUndo(loaded.document());
+        byte[] forgedCandidate = (new String(transition.candidateBytes(), StandardCharsets.UTF_8)
+                + "// unproved source change\n").getBytes(StandardCharsets.UTF_8);
+
+        IOException failure = assertThrows(IOException.class, () -> onEdt(() ->
+                LiveDartDocumentBridge.applyManagedRegions(loaded.provider(), before,
+                        transition.generation().generated().orElseThrow(), forgedCandidate, transition, exact -> { })));
+
+        assertTrue(failure.getMessage().contains("event source proof"));
+        assertTrue(before.sameEvidence(LiveDartDocumentBridge.snapshot(loaded.document(), loaded.provider())));
+        assertNoNativeUndo(nativeUndo);
     }
 
     @Test
@@ -709,6 +821,10 @@ class LiveDartDocumentBridgeTest {
     }
 
     private static GeneratedDartRegions generatedExampleRegions() throws Exception {
+        return generatedExampleRegions("SampleWidget", "package:example/widgets.dart");
+    }
+
+    private static GeneratedDartRegions generatedExampleRegions(String dartClass, String importUri) throws Exception {
         String modelJson = """
                 {
                   "format": "netbeans-flutter-designer",
@@ -736,11 +852,11 @@ class LiveDartDocumentBridgeTest {
         DesignerDocument document = decoded.document();
         WidgetDefinition definition = new WidgetDefinition(
                 new WidgetTypeId("example.widgets.SampleWidget"),
-                "SampleWidget",
+                dartClass,
                 Optional.empty(),
                 true,
-                "package:example/widgets.dart",
-                List.of("package:example/widgets.dart"),
+                importUri,
+                List.of(importUri),
                 Set.of(),
                 new PaletteMetadata("example", 10, 10, "Sample Widget"),
                 List.of(),
@@ -749,6 +865,29 @@ class LiveDartDocumentBridgeTest {
                 .generate(document, WidgetCatalog.strict(List.of(definition)))
                 .generated()
                 .orElseThrow();
+    }
+
+    private static DartSourceTransitionPlan eventTransition() throws Exception {
+        GeneratedDartRegions baselineGenerated = generatedExampleRegions();
+        GeneratedDartRegions nextGenerated = generatedExampleRegions("ChangedWidget", "package:changed/widgets.dart");
+        byte[] original = candidate(baselineGenerated);
+        var descriptor = new DartSourceDescriptor("home_page.dart", "HomePage", WidgetClassKind.STATELESS,
+                Optional.of(DartRegionGenerator.PROFILE_ID), new ManagedRegions(
+                        new ManagedRegion(baselineGenerated.imports().normalizedSha256()),
+                        new ManagedRegion(baselineGenerated.build().normalizedSha256())));
+        var baselineGeneration = new DartGenerationResult(new ValidationResult(List.of()),
+                Optional.of(baselineGenerated), List.of());
+        var prospectiveGeneration = new DartGenerationResult(new ValidationResult(List.of()),
+                Optional.of(nextGenerated), List.of());
+        var baseline = new DartThreeWayIntegrityGate().evaluate(
+                new DartSourceIntegrityScanner().scan(original, descriptor), descriptor, baselineGeneration);
+        var projection = DartUserSourceProjection.identity(original, descriptor).insertHandler(
+                "HomePage", "_onChanged", "void _onChanged(String value) {\n  // User body Привіт 😀\n}",
+                List.of("dart:async"));
+        var result = new DartSourceTransitionPlanner().plan(baseline, original, descriptor,
+                prospectiveGeneration, projection);
+        assertEquals(DartSourceTransitionStatus.READY, result.status(), result.diagnostics().toString());
+        return result.plan().orElseThrow();
     }
 
     private static byte[] candidate(GeneratedDartRegions generated) {

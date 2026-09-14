@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer.palette;
 
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipOvalWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipPathWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ClipRRectWidgetPropertySchema;
@@ -103,6 +104,8 @@ class FlutterDesignerPaletteDropPlannerTest {
     private static final WidgetTypeId GRID_VIEW = type("flutter.widgets.GridView");
     private static final WidgetTypeId SINGLE_CHILD_SCROLL_VIEW =
             type("flutter.widgets.SingleChildScrollView");
+    private static final WidgetTypeId PAGE_VIEW =
+            type("flutter.widgets.PageView");
     private static final WidgetTypeId ICON = type("flutter.widgets.Icon");
     private static final WidgetTypeId IMAGE = type("flutter.widgets.Image");
     private static final WidgetTypeId COLORED_BOX = type("flutter.widgets.ColoredBox");
@@ -169,11 +172,11 @@ class FlutterDesignerPaletteDropPlannerTest {
     @Test
     void listTileCompletes6336PlacementsWithFourOptionalDestinationsAndNoCreatedContent() {
         var type = new WidgetTypeId("flutter.material.ListTile");
-        var targets = BUILT_INS.definitions().stream().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
+        var targets = preGestureDetectorDefinitions().flatMap(definition -> definition.slots().stream().filter(slot -> slot.minChildren() == 0)
                 .map(slot -> target(definition.palette().displayName() + "." + slot.name().value(), definition.typeId(), slot.name()))).toList();
         var choices = new FlutterImageAssetChoices(List.of(new FlutterImageAssetChoices.Choice(Optional.empty(), "assets/matrix.png", "Matrix asset")), Optional.empty());
         int accepted = 0, rejected = 0, wrappers = 0;
-        for (var definition : BUILT_INS.definitions()) {
+        for (var definition : preGestureDetectorDefinitions().toList()) {
             boolean wrapper = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(definition)
                     == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD;
             if (wrapper) wrappers++;
@@ -183,14 +186,57 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(89, BUILT_INS.definitions().size()); assertEquals(75, targets.size()); assertEquals(16, wrappers);
-        assertEquals(6675, accepted + rejected); assertEquals(6286, accepted); assertEquals(389, rejected);
+        assertEquals(92, preGestureDetectorDefinitions().count()); assertEquals(80, targets.size()); assertEquals(16, wrappers);
+        assertEquals(7360, accepted + rejected); assertEquals(6950, accepted); assertEquals(410, rejected);
         var empty = target("Column.children", COLUMN, CHILDREN);
         var planned = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
         assertTrue(planned.command().widget().properties().isEmpty());
         assertEquals(Set.of(new SlotName("leading"), new SlotName("title"), new SlotName("subtitle"), new SlotName("trailing")), planned.command().widget().slots().keySet());
         planned.command().widget().slots().values().forEach(slot -> assertTrue(((WidgetSlot.SingleSlot) slot).child().isEmpty()));
+    }
+
+    @Test
+    void pageViewIsAcceptedAsAStaticPaletteSourceAndItsChildrenSlotAcceptsOrderedPages() {
+        var columnTarget = target("Column.children", COLUMN, CHILDREN);
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(columnTarget.document(), BUILT_INS, PAGE_VIEW, ROOT_ID,
+                        CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID))
+                .command().widget();
+        assertEquals(PAGE_VIEW, created.type());
+        assertTrue(created.slots().get(CHILDREN) instanceof WidgetSlot.ListSlot);
+        assertTrue(((WidgetSlot.ListSlot) created.slots().get(CHILDREN)).children().isEmpty());
+
+        var pageTarget = target("PageView.children", PAGE_VIEW, CHILDREN);
+        var inserted = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(pageTarget.document(), BUILT_INS, TEXT, ROOT_ID,
+                        CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        assertEquals(TEXT, inserted.command().widget().type());
+        assertEquals(ROOT_ID, inserted.command().destination().parentId());
+        assertEquals(CHILDREN, inserted.command().destination().slotName());
+        assertEquals(0, inserted.command().destination().index());
+    }
+
+    @Test
+    void preferredSizeWrapsAnExistingChildAndRejectsEmptySlotInsertion() {
+        var type = type("flutter.widgets.PreferredSize");
+        var empty = target("Column.children", COLUMN, CHILDREN);
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0,
+                        FlutterImageAssetChoices.empty(), () -> NEW_ID));
+
+        var occupied = occupiedTarget("Column.children", COLUMN, CHILDREN);
+        var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(occupied.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0,
+                        FlutterImageAssetChoices.empty(), () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, wrapped.widgetId());
+        assertEquals(type, wrapped.wrapper().type());
+        assertEquals(CHILD, wrapped.wrapperSlot());
+        assertEquals(NEW_ID, wrapped.wrapper().id());
+        assertEquals(Map.of(new PropertyName("preferredSize"),
+                        new PropertyValue.SizeValue(BigDecimal.valueOf(100), BigDecimal.valueOf(56))),
+                wrapped.wrapper().properties());
+        assertTrue(((WidgetSlot.SingleSlot) wrapped.wrapper().slots().get(CHILD)).child().isEmpty());
     }
 
     @Test
@@ -222,6 +268,76 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
     }
 
+    @Test
+    void expansionTileWrapsTheSelectedWidgetAsRequiredTitleAndAdmitsOtherFourDestinationsIndependently() {
+        var type = type("flutter.material.ExpansionTile"); var empty = target("Column.children", COLUMN, CHILDREN);
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        var selected = text(FIRST_ID, "Keep my exact Title"); var occupied = new WidgetNode(ROOT_ID, COLUMN, Map.of(), Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(selected))));
+        var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(document(occupied), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, wrapped.widgetId()); assertEquals(TITLE, wrapped.wrapperSlot()); assertEquals(type, wrapped.wrapper().type());
+        assertEquals(NEW_ID, wrapped.wrapper().id()); assertTrue(wrapped.wrapper().properties().isEmpty());
+        assertEquals(5, wrapped.wrapper().slots().size()); assertTrue(((WidgetSlot.SingleSlot) wrapped.wrapper().slots().get(TITLE)).child().isEmpty());
+        assertTrue(((WidgetSlot.ListSlot) wrapped.wrapper().slots().get(CHILDREN)).children().isEmpty(), "No fake Title or expanded child is created.");
+        assertEquals(FIRST_ID, assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.planWrapTarget(document(selected), BUILT_INS, type, FIRST_ID, () -> NEW_ID)).command().widgetId());
+        var prototype = dev.flutter.netbeans.plugin.designer.properties.ExpansionTilePropertyContractTest.prototype();
+        for (String destination : List.of("leading", "subtitle", "trailing", "children")) {
+            var slot = new SlotName(destination); var slots = new java.util.LinkedHashMap<>(prototype.slots());
+            slots.put(slot, destination.equals("children") ? new WidgetSlot.ListSlot(List.of()) : WidgetSlot.SingleSlot.empty());
+            var parent = new WidgetNode(ROOT_ID, type, prototype.properties(), slots);
+            var inserted = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(parent), BUILT_INS, TEXT, ROOT_ID, slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+            assertEquals(slot, inserted.command().destination().slotName()); assertEquals(TEXT, inserted.command().widget().type());
+            assertEquals(prototype.slots().get(TITLE), parent.slots().get(TITLE));
+        }
+        var parent = new WidgetNode(ROOT_ID, type, prototype.properties(), prototype.slots());
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent), BUILT_INS, TEXT, ROOT_ID, TITLE, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        assertEquals(prototype.slots(), parent.slots());
+    }
+
+    @Test
+    void radioListTileAddsWithoutAssetsAndBothConstructorsAdmitThreeIndependentSlots() {
+        var type = type("flutter.material.RadioListTile"); var target = target("Column.children", COLUMN, CHILDREN);
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
+        assertEquals(Map.of(new PropertyName("value"), new PropertyValue.StringValue("option"), new PropertyName("valueType"), new PropertyValue.StringValue("String"), new PropertyName("onChanged"), new PropertyValue.StringValue("noop"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")), created.properties());
+        assertEquals(Map.of(TITLE, WidgetSlot.SingleSlot.empty(), SUBTITLE, WidgetSlot.SingleSlot.empty(), SECONDARY, WidgetSlot.SingleSlot.empty()), created.slots());
+        for (String variant : List.of("standard", "adaptive")) for (var slot : List.of(TITLE, SUBTITLE, SECONDARY)) {
+            var properties = new java.util.LinkedHashMap<>(created.properties()); properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            var parent = new WidgetNode(ROOT_ID, type, properties, created.slots());
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(parent), BUILT_INS, TEXT, ROOT_ID, slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+            assertEquals(slot, added.command().destination().slotName()); assertEquals(TEXT, added.command().widget().type());
+            var occupied = new java.util.LinkedHashMap<>(parent.slots()); occupied.put(slot, WidgetSlot.SingleSlot.of(text(FIRST_ID, "Retain me")));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, planner.plan(document(new WidgetNode(ROOT_ID, type, properties, occupied)),
+                    BUILT_INS, TEXT, ROOT_ID, slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void switchListTileAddsWithoutAssetsAndBothConstructorsAdmitThreeIndependentSlots() {
+        var type = type("flutter.material.SwitchListTile"); var target = target("Column.children", COLUMN, CHILDREN);
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
+        assertEquals(Map.of(new PropertyName("value"), new PropertyValue.BooleanValue(false), new PropertyName("onChanged"), new PropertyValue.StringValue("noop"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")), created.properties());
+        assertEquals(Map.of(TITLE, WidgetSlot.SingleSlot.empty(), SUBTITLE, WidgetSlot.SingleSlot.empty(), SECONDARY, WidgetSlot.SingleSlot.empty()), created.slots());
+        for (String variant : List.of("standard", "adaptive")) for (var slot : List.of(TITLE, SUBTITLE, SECONDARY)) {
+            var properties = new java.util.LinkedHashMap<>(created.properties()); properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            var parent = new WidgetNode(ROOT_ID, type, properties, created.slots());
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(parent), BUILT_INS, TEXT, ROOT_ID, slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+            assertEquals(slot, added.command().destination().slotName()); assertEquals(TEXT, added.command().widget().type());
+            var occupied = new java.util.LinkedHashMap<>(parent.slots()); occupied.put(slot, WidgetSlot.SingleSlot.of(text(FIRST_ID, "Retain me")));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, planner.plan(document(new WidgetNode(ROOT_ID, type, properties, occupied)),
+                    BUILT_INS, TEXT, ROOT_ID, slot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+        }
+    }
+
 
 
     @Test
@@ -241,8 +357,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(87, preListTileDefinitions().count()); assertEquals(68, targets.size()); assertEquals(16, wrappers);
-        assertEquals(5916, accepted + rejected); assertEquals(5552, accepted); assertEquals(364, rejected);
+        assertEquals(90, preListTileDefinitions().count()); assertEquals(73, targets.size()); assertEquals(16, wrappers);
+        assertEquals(6570, accepted + rejected); assertEquals(6185, accepted); assertEquals(385, rejected);
         var empty = target("Column.children", COLUMN, CHILDREN);
         assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
                 planner.plan(empty.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
@@ -274,8 +390,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(86, preRadioGroupDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5848, accepted + rejected); assertEquals(5486, accepted); assertEquals(362, rejected);
+        assertEquals(89, preRadioGroupDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6497, accepted + rejected); assertEquals(6114, accepted); assertEquals(383, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -305,8 +421,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(85, preRadioDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5780, accepted + rejected); assertEquals(5420, accepted); assertEquals(360, rejected);
+        assertEquals(88, preRadioDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6424, accepted + rejected); assertEquals(6043, accepted); assertEquals(381, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -338,8 +454,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(84, preRangeSliderDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5712, accepted + rejected); assertEquals(5354, accepted); assertEquals(358, rejected);
+        assertEquals(87, preRangeSliderDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6351, accepted + rejected); assertEquals(5972, accepted); assertEquals(379, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -371,8 +487,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(83, preSliderDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5644, accepted + rejected); assertEquals(5288, accepted); assertEquals(356, rejected);
+        assertEquals(86, preSliderDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6278, accepted + rejected); assertEquals(5901, accepted); assertEquals(377, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -404,8 +520,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(82, preSwitchDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5576, accepted + rejected); assertEquals(5222, accepted); assertEquals(354, rejected);
+        assertEquals(85, preSwitchDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6205, accepted + rejected); assertEquals(5830, accepted); assertEquals(375, rejected);
         var target = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(target.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -437,8 +553,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(81, preCheckboxDefinitions().count()); assertEquals(68, targets.size()); assertEquals(15, wrappers);
-        assertEquals(5508, accepted + rejected); assertEquals(5156, accepted); assertEquals(352, rejected);
+        assertEquals(84, preCheckboxDefinitions().count()); assertEquals(73, targets.size()); assertEquals(15, wrappers);
+        assertEquals(6132, accepted + rejected); assertEquals(5759, accepted); assertEquals(373, rejected);
         var iconSlot = new SlotName("icon");
         var selectedIconSlot = new SlotName("selectedIcon");
         for (String variant : List.of("standard", "filled", "filledTonal", "outlined")) {
@@ -472,8 +588,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(80, preIconButtonDefinitions().count()); assertEquals(67, targets.size()); assertEquals(14, wrappers);
-        assertEquals(5360, accepted + rejected); assertEquals(5013, accepted); assertEquals(347, rejected);
+        assertEquals(83, preIconButtonDefinitions().count()); assertEquals(72, targets.size()); assertEquals(14, wrappers);
+        assertEquals(5976, accepted + rejected); assertEquals(5608, accepted); assertEquals(368, rejected);
         var emptyList = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(emptyList.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -514,8 +630,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(79, preFloatingActionButtonDefinitions().count()); assertEquals(65, targets.size()); assertEquals(14, wrappers);
-        assertEquals(5135, accepted + rejected); assertEquals(4796, accepted); assertEquals(339, rejected);
+        assertEquals(82, preFloatingActionButtonDefinitions().count()); assertEquals(70, targets.size()); assertEquals(14, wrappers);
+        assertEquals(5740, accepted + rejected); assertEquals(5380, accepted); assertEquals(360, rejected);
         var emptyList = target("Column.children", COLUMN, CHILDREN);
         var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(emptyList.document(), BUILT_INS, type, ROOT_ID, CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID)).command().widget();
@@ -556,8 +672,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(78, preFilledButtonDefinitions().count()); assertEquals(63, targets.size()); assertEquals(14, wrappers);
-        assertEquals(4914, accepted + rejected); assertEquals(4583, accepted); assertEquals(331, rejected);
+        assertEquals(81, preFilledButtonDefinitions().count()); assertEquals(68, targets.size()); assertEquals(14, wrappers);
+        assertEquals(5508, accepted + rejected); assertEquals(5156, accepted); assertEquals(352, rejected);
         var iconSlot = new SlotName("icon"); var iconParent = prototype(type);
         assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(document(iconParent), BUILT_INS, TEXT, ROOT_ID, iconSlot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
@@ -591,8 +707,8 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(77, preOutlinedButtonDefinitions().count()); assertEquals(62, targets.size()); assertEquals(13, wrappers);
-        assertEquals(4774, accepted + rejected); assertEquals(4448, accepted); assertEquals(326, rejected);
+        assertEquals(80, preOutlinedButtonDefinitions().count()); assertEquals(67, targets.size()); assertEquals(13, wrappers);
+        assertEquals(5360, accepted + rejected); assertEquals(5013, accepted); assertEquals(347, rejected);
         var iconSlot = new SlotName("icon"); var iconParent = prototype(type);
         assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
                 planner.plan(document(iconParent), BUILT_INS, TEXT, ROOT_ID, iconSlot, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
@@ -626,11 +742,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
             }
         }
-        assertEquals(76, preTextButtonDefinitions().toList().size()); assertEquals(61, targets.size()); assertEquals(12, wrappers);
+        assertEquals(79, preTextButtonDefinitions().toList().size()); assertEquals(66, targets.size()); assertEquals(12, wrappers);
         assertEquals(10, preTextButtonDefinitions().filter(d ->
                 dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.creationMode(d) == dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD)
                 .filter(d -> !List.of("flutter.widgets.Expanded", "flutter.widgets.Flexible").contains(d.typeId().value())).count());
-        assertEquals(4636, accepted + rejected); assertEquals(4315, accepted); assertEquals(321, rejected);
+        assertEquals(5214, accepted + rejected); assertEquals(4872, accepted); assertEquals(342, rejected);
         for (var target : targets) {
             var destination = occupiedTarget(target.name(), target.document().root().type(), target.slot());
             var result = planner.plan(destination.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
@@ -660,8 +776,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
         }
-        assertEquals(75, preRefreshIndicatorDefinitions().count()); assertEquals(61, targets.size());
-        assertEquals(4575, accepted + rejected); assertEquals(4256, accepted); assertEquals(319, rejected);
+        assertEquals(78, preRefreshIndicatorDefinitions().count()); assertEquals(66, targets.size());
+        assertEquals(5148, accepted + rejected); assertEquals(4808, accepted); assertEquals(340, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
             if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
@@ -683,8 +799,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
         }
-        assertEquals(74, preRefreshProgressIndicatorDefinitions().count()); assertEquals(61, targets.size());
-        assertEquals(4514, accepted + rejected); assertEquals(4197, accepted); assertEquals(317, rejected);
+        assertEquals(77, preRefreshProgressIndicatorDefinitions().count()); assertEquals(66, targets.size());
+        assertEquals(5082, accepted + rejected); assertEquals(4744, accepted); assertEquals(338, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
             if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
@@ -706,8 +822,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             var result = planner.plan(destination.document(), BUILT_INS, definition.typeId(), ROOT_ID, target.slot(), 0, choices, () -> NEW_ID);
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++; else accepted++;
         }
-        assertEquals(73, preCircularProgressIndicatorDefinitions().count()); assertEquals(61, targets.size());
-        assertEquals(4453, accepted + rejected); assertEquals(4138, accepted); assertEquals(315, rejected);
+        assertEquals(76, preCircularProgressIndicatorDefinitions().count()); assertEquals(66, targets.size());
+        assertEquals(5016, accepted + rejected); assertEquals(4680, accepted); assertEquals(336, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, type, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
             if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
@@ -730,8 +846,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++;
             else { accepted++; assertTrue(result instanceof FlutterDesignerPaletteDropPlanner.Accepted || result instanceof FlutterDesignerPaletteDropPlanner.Wrapped); }
         }
-        assertEquals(72, preLinearProgressIndicatorDefinitions().count()); assertEquals(61, targets.size());
-        assertEquals(4392, accepted + rejected); assertEquals(4079, accepted); assertEquals(313, rejected);
+        assertEquals(75, preLinearProgressIndicatorDefinitions().count()); assertEquals(66, targets.size());
+        assertEquals(4950, accepted + rejected); assertEquals(4616, accepted); assertEquals(334, rejected);
         for (var target : targets) {
             var result = planner.plan(target.document(), BUILT_INS, avatar, ROOT_ID, target.slot(), 0, FlutterImageAssetChoices.empty(), () -> NEW_ID);
             if (target.name().equals("Scaffold.appBar") || target.name().equals("AppBar.bottom")) {
@@ -759,8 +875,8 @@ class FlutterDesignerPaletteDropPlannerTest {
             if (result instanceof FlutterDesignerPaletteDropPlanner.Rejected) rejected++;
             else { accepted++; assertTrue(result instanceof FlutterDesignerPaletteDropPlanner.Accepted || result instanceof FlutterDesignerPaletteDropPlanner.Wrapped); }
         }
-        assertEquals(71, preCircleAvatarDefinitions().count()); assertEquals(60, targets.size());
-        assertEquals(4260, accepted + rejected); assertEquals(3952, accepted); assertEquals(308, rejected);
+        assertEquals(74, preCircleAvatarDefinitions().count()); assertEquals(65, targets.size());
+        assertEquals(4810, accepted + rejected); assertEquals(4481, accepted); assertEquals(329, rejected);
         var seed = target("Badge.label", badge, new SlotName("label"));
         WidgetNode owner = seed.document().root();
         var countOwner = new WidgetNode(owner.id(), owner.type(), Map.of(new PropertyName("count"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)), owner.slots());
@@ -815,11 +931,11 @@ class FlutterDesignerPaletteDropPlannerTest {
                 destinationAccepted++;
             }
         }
-        assertEquals(70, preBadgeDefinitions().count()); assertEquals(58, targets.size());
-        assertEquals(56, sourceAccepted); assertEquals(2, sourceRejected);
-        assertEquals(67, destinationAccepted); assertEquals(3, destinationRejected);
-        assertEquals(4060, 70 * targets.size());
-        assertEquals(3760, 3638 + sourceAccepted + destinationAccepted - 1);
+        assertEquals(73, preBadgeDefinitions().count()); assertEquals(63, targets.size());
+        assertEquals(61, sourceAccepted); assertEquals(2, sourceRejected);
+        assertEquals(70, destinationAccepted); assertEquals(3, destinationRejected);
+        assertEquals(4410, 70 * targets.size());
+        assertEquals(3768, 3638 + sourceAccepted + destinationAccepted - 1);
         assertEquals(300, 295 + sourceRejected + destinationRejected);
     }
 
@@ -868,12 +984,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(69, Math.toIntExact(preCardDefinitions().count())),
-                () -> assertEquals(57, targets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(72, Math.toIntExact(preCardDefinitions().count())),
+                () -> assertEquals(62, targets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3933, 69 * targets.size()),
-                () -> assertEquals(3638, 3583 + accepted.get()),
+                () -> assertEquals(4340, 70 * targets.size()),
+                () -> assertEquals(3643, 3583 + accepted.get()),
                 () -> assertEquals(295, 293 + rejected.get()));
     }
 
@@ -922,12 +1038,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(68, Math.toIntExact(preVerticalDividerDefinitions().count())),
-                () -> assertEquals(57, targets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(71, Math.toIntExact(preVerticalDividerDefinitions().count())),
+                () -> assertEquals(62, targets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3876, 68 * targets.size()),
-                () -> assertEquals(3583, 3528 + accepted.get()),
+                () -> assertEquals(4278, 69 * targets.size()),
+                () -> assertEquals(3588, 3528 + accepted.get()),
                 () -> assertEquals(293, 291 + rejected.get()));
     }
 
@@ -976,11 +1092,11 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(57, targets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(62, targets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3819, 67 * targets.size()),
-                () -> assertEquals(3528, 3473 + accepted.get()),
+                () -> assertEquals(4216, 68 * targets.size()),
+                () -> assertEquals(3533, 3473 + accepted.get()),
                 () -> assertEquals(291, 289 + rejected.get()));
     }
 
@@ -1037,12 +1153,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(66, Math.toIntExact(preImageIconDefinitions().count())),
-                () -> assertEquals(57, optionalTargets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(69, Math.toIntExact(preImageIconDefinitions().count())),
+                () -> assertEquals(62, optionalTargets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3762, 66 * optionalTargets.size()),
-                () -> assertEquals(3473, 3418 + accepted.get()),
+                () -> assertEquals(4154, 67 * optionalTargets.size()),
+                () -> assertEquals(3478, 3418 + accepted.get()),
                 () -> assertEquals(289, 287 + rejected.get()));
     }
 
@@ -1137,12 +1253,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(65, Math.toIntExact(preIconThemeDefinitions().count())),
-                () -> assertEquals(57, optionalTargets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(68, Math.toIntExact(preIconThemeDefinitions().count())),
+                () -> assertEquals(62, optionalTargets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3705, 65 * optionalTargets.size()),
-                () -> assertEquals(3418, 3363 + accepted.get()),
+                () -> assertEquals(4092, 66 * optionalTargets.size()),
+                () -> assertEquals(3423, 3363 + accepted.get()),
                 () -> assertEquals(287, 285 + rejected.get()));
     }
 
@@ -1237,12 +1353,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(64, Math.toIntExact(preDefaultSelectionStyleDefinitions().count())),
-                () -> assertEquals(57, optionalTargets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(67, Math.toIntExact(preDefaultSelectionStyleDefinitions().count())),
+                () -> assertEquals(62, optionalTargets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3648, 64 * optionalTargets.size()),
-                () -> assertEquals(3363, 3308 + accepted.get()),
+                () -> assertEquals(4030, 65 * optionalTargets.size()),
+                () -> assertEquals(3368, 3308 + accepted.get()),
                 () -> assertEquals(285, 283 + rejected.get()));
     }
 
@@ -1337,12 +1453,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(63, Math.toIntExact(preDefaultTextHeightBehaviorDefinitions().count())),
-                () -> assertEquals(57, optionalTargets.size()),
-                () -> assertEquals(55, accepted.get()),
+                () -> assertEquals(66, Math.toIntExact(preDefaultTextHeightBehaviorDefinitions().count())),
+                () -> assertEquals(62, optionalTargets.size()),
+                () -> assertEquals(60, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3591, 63 * optionalTargets.size()),
-                () -> assertEquals(3308, 3253 + accepted.get()),
+                () -> assertEquals(3968, 64 * optionalTargets.size()),
+                () -> assertEquals(3313, 3253 + accepted.get()),
                 () -> assertEquals(283, 281 + rejected.get()));
     }
 
@@ -1482,14 +1598,14 @@ class FlutterDesignerPaletteDropPlannerTest {
                 targetAccepted++;
             }
         }
-        assertEquals(62, Math.toIntExact(preTickerModeDefinitions().count()));
-        assertEquals(57, targets.size());
-        assertEquals(55, sourceAccepted);
+        assertEquals(65, Math.toIntExact(preTickerModeDefinitions().count()));
+        assertEquals(62, targets.size());
+        assertEquals(60, sourceAccepted);
         assertEquals(2, sourceRejected);
-        assertEquals(58, targetAccepted);
+        assertEquals(61, targetAccepted);
         assertEquals(3, targetRejected);
-        assertEquals(3534, 62 * targets.size());
-        assertEquals(3253, 3140 + sourceAccepted + targetAccepted);
+        assertEquals(3906, 63 * targets.size());
+        assertEquals(3261, 3140 + sourceAccepted + targetAccepted);
         assertEquals(281, 276 + sourceRejected + targetRejected);
     }
 
@@ -2435,6 +2551,24 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     @Test
+    void gridViewExtentCreatesRequiredPositiveExtentAndOrderedChildren() {
+        WidgetTypeId extent = GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE;
+        MatrixTargetCase columnTarget = target("Column.children", COLUMN, CHILDREN);
+        FlutterDesignerPaletteDropPlanner.Accepted accepted = assertInstanceOf(
+                FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(columnTarget.document(), BUILT_INS, extent, ROOT_ID,
+                        CHILDREN, 0, FlutterImageAssetChoices.empty(), () -> NEW_ID));
+
+        WidgetNode widget = accepted.command().widget();
+        assertEquals(extent, widget.type());
+        assertEquals(new PropertyValue.DoubleValue(BigDecimal.valueOf(200.0)),
+                widget.properties().get(new PropertyName("maxCrossAxisExtent")));
+        WidgetSlot.ListSlot children = assertInstanceOf(
+                WidgetSlot.ListSlot.class, widget.slots().get(CHILDREN));
+        assertTrue(children.children().isEmpty());
+    }
+
+    @Test
     void singleChildScrollViewCompletesExact1482CellModelWithOptionalChild() {
         List<MatrixTargetCase> previousTargets = preIndexedStackDefinitions()
                 .filter(definition -> !SINGLE_CHILD_SCROLL_VIEW.equals(definition.typeId()))
@@ -2541,16 +2675,16 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(37, previousTargets.size()),
-                () -> assertEquals(35, sourceAccepted.get()),
+                () -> assertEquals(42, previousTargets.size()),
+                () -> assertEquals(40, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(39, allSources.size()),
-                () -> assertEquals(36, targetAccepted.get()),
+                () -> assertEquals(42, allSources.size()),
+                () -> assertEquals(39, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1482,
+                () -> assertEquals(1490,
                         1406 + previousTargets.size() + allSources.size()),
-                () -> assertEquals(1304,
-                        1233 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(1310,
+                        1231 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(178,
                         173 + sourceRejected.get() + targetRejected.get()));
     }
@@ -2662,15 +2796,15 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(38, previousTargets.size()),
-                () -> assertEquals(36, sourceAccepted.get()),
+                () -> assertEquals(43, previousTargets.size()),
+                () -> assertEquals(41, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(40, allSources.size()),
-                () -> assertEquals(37, targetAccepted.get()),
+                () -> assertEquals(43, allSources.size()),
+                () -> assertEquals(40, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1560,
+                () -> assertEquals(1568,
                         1482 + previousTargets.size() + allSources.size()),
-                () -> assertEquals(1377,
+                () -> assertEquals(1385,
                         1304 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(183,
                         178 + sourceRejected.get() + targetRejected.get()));
@@ -2759,12 +2893,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(60, Math.toIntExact(preExcludeFocusTraversalDefinitions().count())),
-                () -> assertEquals(56, optionalTargets.size()),
-                () -> assertEquals(54, accepted.get()),
+                () -> assertEquals(63, Math.toIntExact(preExcludeFocusTraversalDefinitions().count())),
+                () -> assertEquals(61, optionalTargets.size()),
+                () -> assertEquals(59, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3360, 60 * optionalTargets.size()),
-                () -> assertEquals(3086, 3032 + accepted.get()),
+                () -> assertEquals(3660, 60 * optionalTargets.size()),
+                () -> assertEquals(3091, 3032 + accepted.get()),
                 () -> assertEquals(274, 272 + rejected.get()));
     }
 
@@ -2821,12 +2955,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(61, Math.toIntExact(preVisibilityDefinitions().count())),
-                () -> assertEquals(56, optionalTargets.size()),
-                () -> assertEquals(54, accepted.get()),
+                () -> assertEquals(64, Math.toIntExact(preVisibilityDefinitions().count())),
+                () -> assertEquals(61, optionalTargets.size()),
+                () -> assertEquals(59, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(3416, 61 * optionalTargets.size()),
-                () -> assertEquals(3140, 3086 + accepted.get()),
+                () -> assertEquals(3721, 61 * optionalTargets.size()),
+                () -> assertEquals(3145, 3086 + accepted.get()),
                 () -> assertEquals(276, 274 + rejected.get()));
     }
 
@@ -2886,12 +3020,12 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, preIndexedStackWidgetCount() - 2),
-                () -> assertEquals(39, optionalTargets.size()),
-                () -> assertEquals(37, accepted.get()),
+                () -> assertEquals(46, preIndexedStackWidgetCount() - 2),
+                () -> assertEquals(44, optionalTargets.size()),
+                () -> assertEquals(42, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(1599, 41 * optionalTargets.size()),
-                () -> assertEquals(1414, 1377 + accepted.get()),
+                () -> assertEquals(1804, 41 * optionalTargets.size()),
+                () -> assertEquals(1419, 1377 + accepted.get()),
                 () -> assertEquals(185, 183 + rejected.get()));
     }
 
@@ -3009,16 +3143,16 @@ class FlutterDesignerPaletteDropPlannerTest {
         assertEquals(SAFE_AREA, safeArea.command().wrapper().type());
 
         assertAll(
-                () -> assertEquals(39, previousTargets.size()),
-                () -> assertEquals(37, sourceAccepted.get()),
+                () -> assertEquals(44, previousTargets.size()),
+                () -> assertEquals(42, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(41, ordinarySources.size()),
-                () -> assertEquals(38, targetAccepted.get()),
+                () -> assertEquals(44, ordinarySources.size()),
+                () -> assertEquals(41, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1680,
+                () -> assertEquals(1688,
                         1599 + previousTargets.size()
                                 + preIndexedStackWidgetCount() - 3),
-                () -> assertEquals(1490,
+                () -> assertEquals(1498,
                         1414 + sourceAccepted.get() + targetAccepted.get() + 1),
                 () -> assertEquals(190,
                         185 + sourceRejected.get() + targetRejected.get()));
@@ -3083,13 +3217,13 @@ class FlutterDesignerPaletteDropPlannerTest {
         }));
 
         assertAll(
-                () -> assertEquals(43, preIndexedStackWidgetCount() - 2),
-                () -> assertEquals(40, optionalTargets.size()),
-                () -> assertEquals(38, accepted.get()),
+                () -> assertEquals(46, preIndexedStackWidgetCount() - 2),
+                () -> assertEquals(45, optionalTargets.size()),
+                () -> assertEquals(43, accepted.get()),
                 () -> assertEquals(2, rejected.get()),
-                () -> assertEquals(1720,
+                () -> assertEquals(2070,
                         (preIndexedStackWidgetCount() - 2) * optionalTargets.size()),
-                () -> assertEquals(1528, 1490 + accepted.get()),
+                () -> assertEquals(1533, 1490 + accepted.get()),
                 () -> assertEquals(192, 190 + rejected.get()));
     }
 
@@ -3205,17 +3339,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(44, preIndexedStackWidgetCount() - 1),
-                () -> assertEquals(40, previousTargets.size()),
-                () -> assertEquals(38, sourceAccepted.get()),
+                () -> assertEquals(47, preIndexedStackWidgetCount() - 1),
+                () -> assertEquals(45, previousTargets.size()),
+                () -> assertEquals(43, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(42, ordinarySources.size()),
-                () -> assertEquals(41, targetAccepted.get()),
+                () -> assertEquals(45, ordinarySources.size()),
+                () -> assertEquals(44, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1804,
+                () -> assertEquals(1812,
                         1720 + previousTargets.size()
                                 + preIndexedStackWidgetCount() - 1),
-                () -> assertEquals(1607,
+                () -> assertEquals(1615,
                         1528 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(197,
                         192 + sourceRejected.get() + targetRejected.get()));
@@ -3330,17 +3464,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(45, preIndexedStackWidgetCount()),
-                () -> assertEquals(42, allTargets.size()),
-                () -> assertEquals(40, sourceAccepted.get()),
+                () -> assertEquals(48, preIndexedStackWidgetCount()),
+                () -> assertEquals(47, allTargets.size()),
+                () -> assertEquals(45, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(42, previousOrdinarySources.size()),
-                () -> assertEquals(41, targetAccepted.get()),
+                () -> assertEquals(45, previousOrdinarySources.size()),
+                () -> assertEquals(44, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1890,
+                () -> assertEquals(1898,
                         1804 + allTargets.size()
                                 + preIndexedStackWidgetCount() - 1),
-                () -> assertEquals(1688,
+                () -> assertEquals(1696,
                         1607 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(202,
                         197 + sourceRejected.get() + targetRejected.get()));
@@ -3463,17 +3597,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(46, preClipRectWidgetCount()),
-                () -> assertEquals(43, allTargets.size()),
-                () -> assertEquals(41, sourceAccepted.get()),
+                () -> assertEquals(49, preClipRectWidgetCount()),
+                () -> assertEquals(48, allTargets.size()),
+                () -> assertEquals(46, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(43, previousOrdinarySources.size()),
-                () -> assertEquals(42, targetAccepted.get()),
+                () -> assertEquals(46, previousOrdinarySources.size()),
+                () -> assertEquals(45, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(1978,
+                () -> assertEquals(1986,
                         1890 + allTargets.size()
                                 + preClipRectWidgetCount() - 1),
-                () -> assertEquals(1771,
+                () -> assertEquals(1779,
                         1688 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(207,
                         202 + sourceRejected.get() + targetRejected.get()));
@@ -3595,18 +3729,18 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(47, preClipOvalWidgetCount()),
-                () -> assertEquals(44, allTargets.size()),
-                () -> assertEquals(42, sourceAccepted.get()),
+                () -> assertEquals(50, preClipOvalWidgetCount()),
+                () -> assertEquals(49, allTargets.size()),
+                () -> assertEquals(47, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(44, previousOrdinarySources.size()),
-                () -> assertEquals(43, targetAccepted.get()),
+                () -> assertEquals(47, previousOrdinarySources.size()),
+                () -> assertEquals(46, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2068,
+                () -> assertEquals(2076,
                         1978 + allTargets.size()
                                 + preClipOvalWidgetCount() - 1),
-                () -> assertEquals(1856,
-                        1771 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(1863,
+                        1770 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(212,
                         207 + sourceRejected.get() + targetRejected.get()));
     }
@@ -3726,17 +3860,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(48, preClipRRectWidgetCount()),
-                () -> assertEquals(45, allTargets.size()),
-                () -> assertEquals(43, sourceAccepted.get()),
+                () -> assertEquals(51, preClipRRectWidgetCount()),
+                () -> assertEquals(50, allTargets.size()),
+                () -> assertEquals(48, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(45, previousOrdinarySources.size()),
-                () -> assertEquals(44, targetAccepted.get()),
+                () -> assertEquals(48, previousOrdinarySources.size()),
+                () -> assertEquals(47, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2160,
+                () -> assertEquals(2168,
                         2068 + allTargets.size()
                                 + preClipRRectWidgetCount() - 1),
-                () -> assertEquals(1943,
+                () -> assertEquals(1951,
                         1856 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(217,
                         212 + sourceRejected.get() + targetRejected.get()));
@@ -3855,18 +3989,18 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(49, preClipPathWidgetCount()),
-                () -> assertEquals(46, allTargets.size()),
-                () -> assertEquals(44, sourceAccepted.get()),
+                () -> assertEquals(52, preClipPathWidgetCount()),
+                () -> assertEquals(51, allTargets.size()),
+                () -> assertEquals(49, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(46, previousOrdinarySources.size()),
-                () -> assertEquals(45, targetAccepted.get()),
+                () -> assertEquals(49, previousOrdinarySources.size()),
+                () -> assertEquals(48, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2254,
+                () -> assertEquals(2262,
                         2160 + allTargets.size()
                                 + preClipPathWidgetCount() - 1),
-                () -> assertEquals(2032,
-                        1943 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(2038,
+                        1941 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(222,
                         217 + sourceRejected.get() + targetRejected.get()));
     }
@@ -3984,18 +4118,18 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(50, preClipRSuperellipseWidgetCount()),
-                () -> assertEquals(47, allTargets.size()),
-                () -> assertEquals(45, sourceAccepted.get()),
+                () -> assertEquals(53, preClipRSuperellipseWidgetCount()),
+                () -> assertEquals(52, allTargets.size()),
+                () -> assertEquals(50, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(47, previousOrdinarySources.size()),
-                () -> assertEquals(46, targetAccepted.get()),
+                () -> assertEquals(50, previousOrdinarySources.size()),
+                () -> assertEquals(49, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2350,
+                () -> assertEquals(2358,
                         2254 + allTargets.size()
                                 + preClipRSuperellipseWidgetCount() - 1),
-                () -> assertEquals(2123,
-                        2032 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(2129,
+                        2030 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(227,
                         222 + sourceRejected.get() + targetRejected.get()));
     }
@@ -4113,18 +4247,18 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(51, prePhysicalModelWidgetCount()),
-                () -> assertEquals(48, allTargets.size()),
-                () -> assertEquals(46, sourceAccepted.get()),
+                () -> assertEquals(54, prePhysicalModelWidgetCount()),
+                () -> assertEquals(53, allTargets.size()),
+                () -> assertEquals(51, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(48, previousOrdinarySources.size()),
-                () -> assertEquals(47, targetAccepted.get()),
+                () -> assertEquals(51, previousOrdinarySources.size()),
+                () -> assertEquals(50, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2448,
+                () -> assertEquals(2456,
                         2350 + allTargets.size()
                                 + prePhysicalModelWidgetCount() - 1),
-                () -> assertEquals(2216,
-                        2123 + sourceAccepted.get() + targetAccepted.get()),
+                () -> assertEquals(2222,
+                        2121 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(232,
                         227 + sourceRejected.get() + targetRejected.get()));
     }
@@ -4244,17 +4378,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(59, Math.toIntExact(preExcludeFocusDefinitions().count())),
-                () -> assertEquals(56, allTargets.size()),
-                () -> assertEquals(54, sourceAccepted.get()),
+                () -> assertEquals(62, Math.toIntExact(preExcludeFocusDefinitions().count())),
+                () -> assertEquals(61, allTargets.size()),
+                () -> assertEquals(59, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(56, previousOrdinarySources.size()),
-                () -> assertEquals(55, targetAccepted.get()),
+                () -> assertEquals(59, previousOrdinarySources.size()),
+                () -> assertEquals(58, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(3304,
+                () -> assertEquals(3312,
                         3190 + allTargets.size()
                                 + Math.toIntExact(preExcludeFocusDefinitions().count()) - 1),
-                () -> assertEquals(3032,
+                () -> assertEquals(3040,
                         2923 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(272,
                         267 + sourceRejected.get() + targetRejected.get()));
@@ -4374,17 +4508,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(58, Math.toIntExact(preIndexedSemanticsDefinitions().count())),
-                () -> assertEquals(55, allTargets.size()),
-                () -> assertEquals(53, sourceAccepted.get()),
+                () -> assertEquals(61, Math.toIntExact(preIndexedSemanticsDefinitions().count())),
+                () -> assertEquals(60, allTargets.size()),
+                () -> assertEquals(58, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(55, previousOrdinarySources.size()),
-                () -> assertEquals(54, targetAccepted.get()),
+                () -> assertEquals(58, previousOrdinarySources.size()),
+                () -> assertEquals(57, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(3190,
+                () -> assertEquals(3198,
                         3078 + allTargets.size()
                                 + Math.toIntExact(preIndexedSemanticsDefinitions().count()) - 1),
-                () -> assertEquals(2923,
+                () -> assertEquals(2931,
                         2816 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(267,
                         262 + sourceRejected.get() + targetRejected.get()));
@@ -4504,17 +4638,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(57, Math.toIntExact(preMergeSemanticsDefinitions().count())),
-                () -> assertEquals(54, allTargets.size()),
-                () -> assertEquals(52, sourceAccepted.get()),
+                () -> assertEquals(60, Math.toIntExact(preMergeSemanticsDefinitions().count())),
+                () -> assertEquals(59, allTargets.size()),
+                () -> assertEquals(57, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(54, previousOrdinarySources.size()),
-                () -> assertEquals(53, targetAccepted.get()),
+                () -> assertEquals(57, previousOrdinarySources.size()),
+                () -> assertEquals(56, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(3078,
+                () -> assertEquals(3086,
                         2968 + allTargets.size()
                                 + Math.toIntExact(preMergeSemanticsDefinitions().count()) - 1),
-                () -> assertEquals(2816,
+                () -> assertEquals(2824,
                         2711 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(262,
                         257 + sourceRejected.get() + targetRejected.get()));
@@ -4634,17 +4768,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(56, Math.toIntExact(preBlockSemanticsDefinitions().count())),
-                () -> assertEquals(53, allTargets.size()),
-                () -> assertEquals(51, sourceAccepted.get()),
+                () -> assertEquals(59, Math.toIntExact(preBlockSemanticsDefinitions().count())),
+                () -> assertEquals(58, allTargets.size()),
+                () -> assertEquals(56, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(53, previousOrdinarySources.size()),
-                () -> assertEquals(52, targetAccepted.get()),
+                () -> assertEquals(56, previousOrdinarySources.size()),
+                () -> assertEquals(55, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2968,
+                () -> assertEquals(2976,
                         2860 + allTargets.size()
                                 + Math.toIntExact(preBlockSemanticsDefinitions().count()) - 1),
-                () -> assertEquals(2711,
+                () -> assertEquals(2719,
                         2608 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(257,
                         252 + sourceRejected.get() + targetRejected.get()));
@@ -4764,17 +4898,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(55, Math.toIntExact(preAbsorbPointerDefinitions().count())),
-                () -> assertEquals(52, allTargets.size()),
-                () -> assertEquals(50, sourceAccepted.get()),
+                () -> assertEquals(58, Math.toIntExact(preAbsorbPointerDefinitions().count())),
+                () -> assertEquals(57, allTargets.size()),
+                () -> assertEquals(55, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(52, previousOrdinarySources.size()),
-                () -> assertEquals(51, targetAccepted.get()),
+                () -> assertEquals(55, previousOrdinarySources.size()),
+                () -> assertEquals(54, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2860,
+                () -> assertEquals(2868,
                         2754 + allTargets.size()
                                 + Math.toIntExact(preAbsorbPointerDefinitions().count()) - 1),
-                () -> assertEquals(2608,
+                () -> assertEquals(2616,
                         2507 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(252,
                         247 + sourceRejected.get() + targetRejected.get()));
@@ -4894,17 +5028,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(54, Math.toIntExact(preIgnorePointerDefinitions().count())),
-                () -> assertEquals(51, allTargets.size()),
-                () -> assertEquals(49, sourceAccepted.get()),
+                () -> assertEquals(57, Math.toIntExact(preIgnorePointerDefinitions().count())),
+                () -> assertEquals(56, allTargets.size()),
+                () -> assertEquals(54, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(51, previousOrdinarySources.size()),
-                () -> assertEquals(50, targetAccepted.get()),
+                () -> assertEquals(54, previousOrdinarySources.size()),
+                () -> assertEquals(53, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2754,
+                () -> assertEquals(2762,
                         2650 + allTargets.size()
                                 + Math.toIntExact(preIgnorePointerDefinitions().count()) - 1),
-                () -> assertEquals(2507,
+                () -> assertEquals(2515,
                         2408 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(247,
                         242 + sourceRejected.get() + targetRejected.get()));
@@ -5026,17 +5160,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(53, Math.toIntExact(preRepaintBoundaryDefinitions().count())),
-                () -> assertEquals(50, allTargets.size()),
-                () -> assertEquals(48, sourceAccepted.get()),
+                () -> assertEquals(56, Math.toIntExact(preRepaintBoundaryDefinitions().count())),
+                () -> assertEquals(55, allTargets.size()),
+                () -> assertEquals(53, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(50, previousOrdinarySources.size()),
-                () -> assertEquals(49, targetAccepted.get()),
+                () -> assertEquals(53, previousOrdinarySources.size()),
+                () -> assertEquals(52, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2650,
+                () -> assertEquals(2658,
                         2548 + allTargets.size()
                                 + Math.toIntExact(preRepaintBoundaryDefinitions().count()) - 1),
-                () -> assertEquals(2408,
+                () -> assertEquals(2416,
                         2311 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(242,
                         237 + sourceRejected.get() + targetRejected.get()));
@@ -5157,17 +5291,17 @@ class FlutterDesignerPaletteDropPlannerTest {
         }
 
         assertAll(
-                () -> assertEquals(52, Math.toIntExact(prePhysicalShapeDefinitions().count())),
-                () -> assertEquals(49, allTargets.size()),
-                () -> assertEquals(47, sourceAccepted.get()),
+                () -> assertEquals(55, Math.toIntExact(prePhysicalShapeDefinitions().count())),
+                () -> assertEquals(54, allTargets.size()),
+                () -> assertEquals(52, sourceAccepted.get()),
                 () -> assertEquals(2, sourceRejected.get()),
-                () -> assertEquals(49, previousOrdinarySources.size()),
-                () -> assertEquals(48, targetAccepted.get()),
+                () -> assertEquals(52, previousOrdinarySources.size()),
+                () -> assertEquals(51, targetAccepted.get()),
                 () -> assertEquals(3, targetRejected.get()),
-                () -> assertEquals(2548,
+                () -> assertEquals(2556,
                         2448 + allTargets.size()
                                 + Math.toIntExact(prePhysicalShapeDefinitions().count()) - 1),
-                () -> assertEquals(2311,
+                () -> assertEquals(2319,
                         2216 + sourceAccepted.get() + targetAccepted.get()),
                 () -> assertEquals(237,
                         232 + sourceRejected.get() + targetRejected.get()));
@@ -6316,9 +6450,30 @@ class FlutterDesignerPaletteDropPlannerTest {
     }
 
     private static Stream<WidgetDefinition> preListTileDefinitions() {
-        return BUILT_INS.definitions().stream().filter(definition ->
+        return preGestureDetectorDefinitions().filter(definition ->
                 !Set.of("flutter.material.ListTile", "flutter.material.CheckboxListTile")
                         .contains(definition.typeId().value()));
+    }
+
+    @Test void crossFadePaletteInsertionPersistsTwoRequiredChildrenAndConsumesOneId() {
+        var type=dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.TYPE;
+        var allocations=new AtomicInteger();var planner=new FlutterDesignerPaletteDropPlanner();
+        var destination=target("Column.children",COLUMN,CHILDREN);
+        var accepted=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+            planner.plan(destination.document(),BUILT_INS,type,ROOT_ID,CHILDREN,0,FlutterImageAssetChoices.empty(),
+                ()->{allocations.incrementAndGet();return NEW_ID;}));
+        assertEquals(1,allocations.get());var widget=accepted.command().widget();assertEquals(type,widget.type());
+        for(String name:List.of("firstChild","secondChild")){
+            var child=assertInstanceOf(WidgetSlot.SingleSlot.class,widget.slots().get(new SlotName(name))).child().orElseThrow();
+            assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.starterChild(NEW_ID,name),child);
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(widget),BUILT_INS,TEXT,
+                    widget.id(),new SlotName(name),0,FlutterImageAssetChoices.empty(),()->StableId.random()));
+        }
+    }
+
+    private static Stream<WidgetDefinition> preGestureDetectorDefinitions() {
+        return BUILT_INS.definitions().stream().filter(definition -> !Set.of("flutter.widgets.GestureDetector", "flutter.widgets.Listener", "flutter.widgets.MouseRegion", "flutter.widgets.Focus", "flutter.widgets.NotificationListener", "flutter.material.SwitchListTile", "flutter.material.RadioListTile", "flutter.material.ExpansionTile", "flutter.material.Tooltip", "flutter.material.TooltipVisibility", "flutter.material.TooltipTheme", "flutter.material.MenuItemButton", "flutter.material.MenuAnchor", "flutter.material.SubmenuButton", "flutter.material.MenuBar", "flutter.material.NavigationDrawer", "flutter.material.Drawer", "flutter.material.BottomAppBar", "flutter.material.BottomNavigationBar", "flutter.material.Material", "flutter.material.Scrollbar", "flutter.widgets.PageView", "flutter.widgets.PreferredSize", "flutter.widgets.Builder", GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value(), "flutter.widgets.CustomScrollView", "flutter.widgets.SliverToBoxAdapter", "flutter.widgets.SliverList", "flutter.widgets.SliverGrid", "flutter.widgets.SliverGrid.extent", "flutter.widgets.SliverList.builder", "flutter.widgets.SliverList.separated", "flutter.widgets.SliverList.delegate", "flutter.widgets.SliverGrid.builder", "flutter.widgets.SliverGrid.list", "flutter.widgets.SliverGrid.delegate", "flutter.widgets.SliverPadding", "flutter.widgets.SliverFillRemaining", "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate", "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.DefaultTextStyle", "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.SlideTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SliverFadeTransition", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.SliverLayoutBuilder", "flutter.widgets.SliverPersistentHeader", "flutter.widgets.SliverResizingHeader", "flutter.widgets.PinnedHeaderSliver", "flutter.widgets.SliverFloatingHeader", "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings").contains(definition.typeId().value()));
     }
 
     private static Stream<WidgetDefinition> preRadioGroupDefinitions() {
@@ -6471,6 +6626,1061 @@ class FlutterDesignerPaletteDropPlannerTest {
                 ? singleParent(parentType, slot, target)
                 : listParent(parentType, slot, List.of(target));
         return new MatrixTargetCase(name, document(parent), slot);
+    }
+
+    @Test
+    void sliverPaddingCreatesWithInsetsAndAcceptsOnlyAnUnoccupiedNestedSliverSlot() {
+        var type = new WidgetTypeId("flutter.widgets.SliverPadding");
+        var slivers = new SlotName("slivers"); var slot = new SlotName("sliver");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.SliverPaddingWidgetPropertySchema.padding().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("padding")));
+        var withPadding = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"),
+                new WidgetTypeId("flutter.widgets.SliverList"), new WidgetTypeId("flutter.widgets.SliverGrid.builder"))) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withPadding), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(TEXT, COLUMN, EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withPadding), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void sliverIgnorePointerCreatesWithNativeDefaultsAndAcceptsOnlyAnUnoccupiedNestedSliverSlot() {
+        var type = new WidgetTypeId("flutter.widgets.SliverIgnorePointer");
+        var slivers = new SlotName("slivers"); var slot = new SlotName("sliver");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertTrue(created.properties().isEmpty());
+        var withIgnore = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"),
+                new WidgetTypeId("flutter.widgets.SliverList"), new WidgetTypeId("flutter.widgets.SliverGrid.builder"))) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withIgnore), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(TEXT, COLUMN, EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withIgnore), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void sliverOffstageCreatesWithNativeDefaultsAndAcceptsOnlyAnUnoccupiedNestedSliverSlot() {
+        var type = new WidgetTypeId("flutter.widgets.SliverOffstage");
+        var slivers = new SlotName("slivers"); var slot = new SlotName("sliver");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertTrue(created.properties().isEmpty());
+        var withIgnore = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"),
+                new WidgetTypeId("flutter.widgets.SliverList"), new WidgetTypeId("flutter.widgets.SliverGrid.builder"))) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withIgnore), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(TEXT, COLUMN, EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withIgnore), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void layoutBuilderInsertsWithTypedEmptyPresetAndDoesNotInventChildSlots() {
+        var type = dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE;
+        for (String parent : List.of("Column", "Center")) {
+            var slot = new SlotName(parent.equals("Column") ? "children" : "child");
+            WidgetSlot empty = parent.equals("Column") ? new WidgetSlot.ListSlot(List.of()) : WidgetSlot.SingleSlot.empty();
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(), Map.of(slot, empty));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(destination), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("empty"), created.properties().get(new PropertyName("builder")));
+            assertTrue(created.slots().isEmpty());
+            for (String invented : List.of("child", "children", "sliver")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(created), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void orientationBuilderInsertsWithTypedEmptyPresetAndDoesNotInventChildSlots() {
+        var type = dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.TYPE;
+        for (String parent : List.of("Column", "Center")) {
+            var slot = new SlotName(parent.equals("Column") ? "children" : "child");
+            WidgetSlot empty = parent.equals("Column") ? new WidgetSlot.ListSlot(List.of()) : WidgetSlot.SingleSlot.empty();
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(), Map.of(slot, empty));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(destination), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("empty"), created.properties().get(new PropertyName("builder")));
+            assertTrue(created.slots().isEmpty());
+            for (String invented : List.of("child", "children", "sliver")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(created), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void listenableBuilderInsertsBothProjectionsAndAcceptsOnlyMatchingChildProtocol() {
+        for(boolean sliver:List.of(false,true)) {
+            var type=sliver?dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.SLIVER_TYPE
+                    :dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.TYPE;
+            var slot=new SlotName(sliver?"slivers":"children");
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId(sliver?"flutter.widgets.CustomScrollView":"flutter.widgets.Column"),
+                    Map.of(),Map.of(slot,new WidgetSlot.ListSlot(List.of())));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(root),BUILT_INS,type,ROOT_ID,slot,0,()->NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("none"),created.properties().get(new PropertyName("listenable")));
+            assertEquals(new PropertyValue.StringValue("child"),created.properties().get(new PropertyName("builder")));
+            assertEquals(Set.of(new SlotName("child")),created.slots().keySet());
+            var attached=new WidgetNode(root.id(),root.type(),root.properties(),Map.of(slot,new WidgetSlot.ListSlot(List.of(created))));
+            var good=new WidgetTypeId(sliver?"flutter.widgets.SliverToBoxAdapter":"flutter.widgets.Text");
+            var wrong=new WidgetTypeId(sliver?"flutter.widgets.Text":"flutter.widgets.SliverToBoxAdapter");
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(attached),BUILT_INS,good,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(attached),BUILT_INS,wrong,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+        }
+    }
+
+    @Test
+    void animatedBuilderInsertsBothProjectionsAndAcceptsOnlyMatchingChildProtocol() {
+        for(boolean sliver:List.of(false,true)) {
+            var type=sliver?dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.SLIVER_TYPE
+                    :dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.TYPE;
+            var slot=new SlotName(sliver?"slivers":"children");
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId(sliver?"flutter.widgets.CustomScrollView":"flutter.widgets.Column"),
+                    Map.of(),Map.of(slot,new WidgetSlot.ListSlot(List.of())));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(root),BUILT_INS,type,ROOT_ID,slot,0,()->NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("none"),created.properties().get(new PropertyName("animation")));
+            assertEquals(new PropertyValue.StringValue("child"),created.properties().get(new PropertyName("builder")));
+            assertEquals(Set.of(new SlotName("child")),created.slots().keySet());
+            var attached=new WidgetNode(root.id(),root.type(),root.properties(),Map.of(slot,new WidgetSlot.ListSlot(List.of(created))));
+            var good=new WidgetTypeId(sliver?"flutter.widgets.SliverToBoxAdapter":"flutter.widgets.Text");
+            var wrong=new WidgetTypeId(sliver?"flutter.widgets.Text":"flutter.widgets.SliverToBoxAdapter");
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(attached),BUILT_INS,good,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(attached),BUILT_INS,wrong,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+        }
+    }
+
+    @Test
+    void valueListenableBuilderInsertsBothProjectionsAndAcceptsOnlyMatchingChildProtocol() {
+        for(boolean sliver:List.of(false,true)) {
+            var type=sliver?dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.SLIVER_TYPE
+                    :dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.TYPE;
+            var slot=new SlotName(sliver?"slivers":"children");
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId(sliver?"flutter.widgets.CustomScrollView":"flutter.widgets.Column"),
+                    Map.of(),Map.of(slot,new WidgetSlot.ListSlot(List.of())));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(root),BUILT_INS,type,ROOT_ID,slot,0,()->NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("constant"),created.properties().get(new PropertyName("valueListenable")));
+            assertEquals(new PropertyValue.StringValue("child"),created.properties().get(new PropertyName("builder")));
+            assertEquals(Set.of(new SlotName("child")),created.slots().keySet());
+            var attached=new WidgetNode(root.id(),root.type(),root.properties(),Map.of(slot,new WidgetSlot.ListSlot(List.of(created))));
+            var good=new WidgetTypeId(sliver?"flutter.widgets.SliverToBoxAdapter":"flutter.widgets.Text");
+            var wrong=new WidgetTypeId(sliver?"flutter.widgets.Text":"flutter.widgets.SliverToBoxAdapter");
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(attached),BUILT_INS,good,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(attached),BUILT_INS,wrong,NEW_ID,new SlotName("child"),0,()->FIRST_ID));
+        }
+    }
+
+    @Test
+    void deviceOrientationBuilderInsertsWithTypedEmptyPresetAndDoesNotInventChildSlots() {
+        var type = dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.TYPE;
+        for (String parent : List.of("Column", "Center")) {
+            var slot = new SlotName(parent.equals("Column") ? "children" : "child");
+            WidgetSlot empty = parent.equals("Column") ? new WidgetSlot.ListSlot(List.of()) : WidgetSlot.SingleSlot.empty();
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(), Map.of(slot, empty));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(destination), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("empty"), created.properties().get(new PropertyName("builder")));
+            assertTrue(created.slots().isEmpty());
+            for (String invented : List.of("child", "children", "sliver")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(created), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void sliverLayoutBuilderInsertsIntoEverySliverListButCannotOwnDesignerChildren() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE;
+        var slot = new SlotName("slivers");
+        for (String parent : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of())));
+            var docRoot = parent.equals("CustomScrollView") ? destination :
+                    new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                            Map.of(slot, new WidgetSlot.ListSlot(List.of(destination))));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(docRoot), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("empty"), created.properties().get(new PropertyName("builder")));
+            assertTrue(created.slots().isEmpty());
+            var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of(created))));
+            for (String invented : List.of("child", "sliver", "children")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(viewport), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void deviceOrientationBuilderSliverInsertsIntoEverySliverListButCannotOwnDesignerChildren() {
+        var type = dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.SLIVER_TYPE;
+        var slot = new SlotName("slivers");
+        for (String parent : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of())));
+            var docRoot = parent.equals("CustomScrollView") ? destination :
+                    new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                            Map.of(slot, new WidgetSlot.ListSlot(List.of(destination))));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(docRoot), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(new PropertyValue.StringValue("empty"), created.properties().get(new PropertyName("builder")));
+            assertTrue(created.slots().isEmpty());
+            var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of(created))));
+            for (String invented : List.of("child", "sliver", "children")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(viewport), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void flexibleSpaceBarSettingsWrapsExistingBoxAtomicallyAndNeverInventsRequiredChild() {
+        var type = dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarSettingsWidgetPropertySchema.TYPE;
+        var leaf = new WidgetNode(FIRST_ID, TEXT, Map.of(new PropertyName("data"), new PropertyValue.StringValue("Title")), Map.of());
+        var root = new WidgetNode(ROOT_ID, COLUMN, Map.of(), Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(leaf))));
+        var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(document(root), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID)).command();
+        assertEquals(FIRST_ID, command.widgetId());assertEquals(CHILD,command.wrapperSlot());
+        assertEquals(type,command.wrapper().type());assertEquals(4,command.wrapper().properties().size());
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(root), BUILT_INS, type, ROOT_ID, CHILDREN, 1, () -> NEW_ID));
+        var empty = new WidgetNode(ROOT_ID, COLUMN, Map.of(), Map.of(CHILDREN,new WidgetSlot.ListSlot(List.of())));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(empty), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void flexibleSpaceBarInsertsIntoFourAppBarsWithIndependentBoxSlots() {
+        var type = dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.TYPE;
+        var owners = new ArrayList<>(List.of("flutter.material.AppBar"));
+        owners.addAll(dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.TYPES);
+        for (String ownerType : owners) {
+            var owner = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    BUILT_INS.find(new WidgetTypeId(ownerType)).orElseThrow(), ROOT_ID);
+            var root = ownerType.endsWith(".AppBar")
+                    ? new WidgetNode(StableId.random(), SCAFFOLD, Map.of(), Map.of(APP_BAR_SLOT, WidgetSlot.SingleSlot.of(owner)))
+                    : new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                        Map.of(new SlotName("slivers"), new WidgetSlot.ListSlot(List.of(owner))));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(root), BUILT_INS, type, ROOT_ID, FLEXIBLE_SPACE, 0, () -> NEW_ID)).command().widget();
+            assertTrue(created.properties().isEmpty());
+            assertEquals(Set.of(TITLE, new SlotName("background")), created.slots().keySet());
+            // A root may receive settings from an outer application; no generated wrapper is invented.
+            for (String name : List.of("title", "background")) {
+                var slot = new SlotName(name);
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        planner.plan(document(created), BUILT_INS, TEXT, NEW_ID, slot, 0, () -> FIRST_ID));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(created), BUILT_INS, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), NEW_ID, slot, 0, () -> FIRST_ID));
+                var occupied = new WidgetNode(NEW_ID, type, Map.of(), Map.of(slot, WidgetSlot.SingleSlot.of(
+                        dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(TEXT).orElseThrow(), FIRST_ID))));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(occupied), BUILT_INS, TEXT, NEW_ID, slot, 0, () -> StableId.random()));
+            }
+        }
+    }
+
+    @Test
+    void sliverAppBarsInsertIntoSliverListsAndEnforceAllFiveSlotContracts() {
+        var slivers = new SlotName("slivers");
+        for (String typeName : dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.TYPES) {
+            var type = new WidgetTypeId(typeName);
+            for (String parent : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+                var owner = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent),
+                        Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+                var viewport = parent.equals("CustomScrollView") ? owner : new WidgetNode(StableId.random(),
+                        new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                        Map.of(slivers, new WidgetSlot.ListSlot(List.of(owner))));
+                var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID))
+                        .command().widget();
+                assertEquals(type, created.type());
+                assertTrue(created.properties().isEmpty(), "Native constructor defaults must remain unset");
+                assertEquals(Set.of(LEADING, TITLE, ACTIONS, FLEXIBLE_SPACE, BOTTOM), created.slots().keySet());
+                var root = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"),
+                        Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+                for (var slot : List.of(LEADING, TITLE, ACTIONS, FLEXIBLE_SPACE, BOTTOM)) {
+                    var childType = slot.equals(BOTTOM) ? APP_BAR : TEXT;
+                    var child = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            planner.plan(document(root), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID))
+                            .command().widget();
+                    assertEquals(childType, child.type());
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                            planner.plan(document(root), BUILT_INS, type, NEW_ID, slot, 0, () -> FIRST_ID));
+                }
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(root), BUILT_INS, TEXT, NEW_ID, BOTTOM, 0, () -> FIRST_ID));
+            }
+            var box = new WidgetNode(ROOT_ID, COLUMN, Map.of(),
+                    Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(box), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+            var scaffold = new WidgetNode(ROOT_ID, SCAFFOLD, Map.of(),
+                    Map.of(APP_BAR_SLOT, new WidgetSlot.SingleSlot(Optional.empty())));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(scaffold), BUILT_INS, type, ROOT_ID, APP_BAR_SLOT, 0, () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void floatingHeaderInsertsWithExplicitRequiredSeedAndRejectsAppendingToOccupiedChild() {
+        var type=dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE;
+        var slivers=new SlotName("slivers");
+        for(String parent:List.of("CustomScrollView","SliverMainAxisGroup","SliverCrossAxisGroup")) {
+            var owner=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets."+parent),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of())));
+            var viewport=parent.equals("CustomScrollView")?owner:new WidgetNode(StableId.random(),
+                    new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),Map.of(slivers,new WidgetSlot.ListSlot(List.of(owner))));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport),BUILT_INS,type,ROOT_ID,slivers,0,()->NEW_ID)).command().widget();
+            assertTrue(created.properties().isEmpty());assertEquals(1,created.slots().size());
+            assertTrue(((WidgetSlot.SingleSlot)created.slots().get(new SlotName("child"))).child().isPresent());
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of(created))));
+            for(String slot:List.of("child")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(root),BUILT_INS,new WidgetTypeId("flutter.widgets.Text"),NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(root),BUILT_INS,type,NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void pinnedHeaderCreatesOptionalChildWithExactDestinations() {
+        var type=dev.flutter.netbeans.designer.catalog.PinnedHeaderSliverWidgetSchema.TYPE;
+        var slivers=new SlotName("slivers");
+        for(String parent:List.of("CustomScrollView","SliverMainAxisGroup","SliverCrossAxisGroup")) {
+            var owner=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets."+parent),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of())));
+            var viewport=parent.equals("CustomScrollView")?owner:new WidgetNode(StableId.random(),
+                    new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),Map.of(slivers,new WidgetSlot.ListSlot(List.of(owner))));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport),BUILT_INS,type,ROOT_ID,slivers,0,()->NEW_ID)).command().widget();
+            assertTrue(created.properties().isEmpty());assertEquals(1,created.slots().size());
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of(created))));
+            for(String slot:List.of("child")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        planner.plan(document(root),BUILT_INS,new WidgetTypeId("flutter.widgets.Text"),NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(root),BUILT_INS,type,NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void resizingHeaderCreatesThreeOptionalBoxSlotsWithExactDestinations() {
+        var type=dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.TYPE;
+        var slivers=new SlotName("slivers");
+        for(String parent:List.of("CustomScrollView","SliverMainAxisGroup","SliverCrossAxisGroup")) {
+            var owner=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets."+parent),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of())));
+            var viewport=parent.equals("CustomScrollView")?owner:new WidgetNode(StableId.random(),
+                    new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),Map.of(slivers,new WidgetSlot.ListSlot(List.of(owner))));
+            var created=assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport),BUILT_INS,type,ROOT_ID,slivers,0,()->NEW_ID)).command().widget();
+            assertTrue(created.properties().isEmpty());assertEquals(3,created.slots().size());
+            var root=new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                    Map.of(slivers,new WidgetSlot.ListSlot(List.of(created))));
+            for(String slot:dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.SLOTS) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                        planner.plan(document(root),BUILT_INS,new WidgetTypeId("flutter.widgets.Text"),NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(root),BUILT_INS,type,NEW_ID,new SlotName(slot),0,()->FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void sliverPersistentHeaderInsertsIntoEverySliverListButCannotOwnDesignerChildren() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.TYPE;
+        var slot = new SlotName("slivers");
+        for (String parent : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var destination = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parent), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of())));
+            var docRoot = parent.equals("CustomScrollView") ? destination :
+                    new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                            Map.of(slot, new WidgetSlot.ListSlot(List.of(destination))));
+            var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(docRoot), BUILT_INS, type, ROOT_ID, slot, 0, () -> NEW_ID)).command().widget();
+            assertEquals(dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.INITIAL_DELEGATE, created.properties().get(new PropertyName("delegate")));
+            assertTrue(created.slots().isEmpty());
+            var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                    Map.of(slot, new WidgetSlot.ListSlot(List.of(created))));
+            for (String invented : List.of("child", "sliver", "children")) {
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(viewport), BUILT_INS, type, NEW_ID, new SlotName(invented), 0, () -> FIRST_ID));
+            }
+        }
+    }
+
+    @Test
+    void animatedSlideCreatesZeroOffsetAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedSlide");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("offset")));
+        var withSlide = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSlide), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withSlide), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void animatedScaleCreatesUnitScaleAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedScale");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("scale")));
+        var withSlide = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSlide), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withSlide), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void animatedRotationCreatesZeroTurnsAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedRotation");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("turns")));
+        var withSlide = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSlide), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withSlide), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void animatedContainerCreatesDurationAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedContainer");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.properties().get(13).creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("durationUs")));
+        var withSlide = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSlide), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withSlide), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void animatedPositionedVariantsWrapExistingStackChildrenOnly() {
+        var child = WidgetNodePrototypeFactory.create(BUILT_INS.find(TEXT).orElseThrow(), FIRST_ID);
+        for (var type : dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.TYPES) {
+            for (var parentType : List.of(STACK, INDEXED_STACK, COLUMN)) {
+                var root = new WidgetNode(ROOT_ID, parentType, Map.of(), Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(child))));
+                var result = planner.plan(document(root), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID);
+                if (parentType.equals(STACK)) {
+                    var wrapped = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result).command();
+                    assertEquals(type, wrapped.wrapper().type());
+                    assertEquals(new PropertyValue.IntegerValue(BigInteger.valueOf(300000)),
+                            wrapped.wrapper().properties().get(new PropertyName("durationUs")));
+                } else assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
+                var empty = new WidgetNode(ROOT_ID, parentType, Map.of(), Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of())));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(empty), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+            }
+        }
+    }
+
+    @Test
+    void animatedSizeCreatesDurationAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedSize");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.properties().get(2).creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("durationUs")));
+        var withSlide = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSlide), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withSlide), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void animatedPaddingCreatesInsetAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedPadding");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("padding")));
+        var withPadding = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withPadding), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withPadding), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+    @Test
+    void animatedAlignCreatesCenteredAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedAlign");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("alignment")));
+        var withOpacity = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withOpacity), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withOpacity), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }    @Test
+    void animatedOpacityCreatesOpaqueAndAcceptsOnlyAnUnoccupiedNestedChildSlot() {
+        var type = new WidgetTypeId("flutter.widgets.AnimatedOpacity");
+        var children = new SlotName("children"); var slot = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.Column"), Map.of(),
+                Map.of(children, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, children, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("opacity")));
+        var withOpacity = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, TEXT, COLUMN)) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withOpacity), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"), EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withOpacity), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(children, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+    @Test
+    void sliverAnimatedOpacityCreatesOpaqueAndAcceptsOnlyAnUnoccupiedNestedSliverSlot() {
+        var type = new WidgetTypeId("flutter.widgets.SliverAnimatedOpacity");
+        var slivers = new SlotName("slivers"); var slot = new SlotName("sliver");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.properties().getFirst().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("opacity")));
+        var withOpacity = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"),
+                new WidgetTypeId("flutter.widgets.SliverList"), new WidgetTypeId("flutter.widgets.SliverGrid.builder"))) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withOpacity), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(TEXT, COLUMN, EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withOpacity), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void sliverOpacityCreatesOpaqueAndAcceptsOnlyAnUnoccupiedNestedSliverSlot() {
+        var type = new WidgetTypeId("flutter.widgets.SliverOpacity");
+        var slivers = new SlotName("slivers"); var slot = new SlotName("sliver");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertEquals(dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.opacity().creationDefault().orElseThrow(),
+                created.properties().get(new PropertyName("opacity")));
+        var withOpacity = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(type, new WidgetTypeId("flutter.widgets.SliverToBoxAdapter"),
+                new WidgetTypeId("flutter.widgets.SliverList"), new WidgetTypeId("flutter.widgets.SliverGrid.builder"))) {
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withOpacity), BUILT_INS, childType, NEW_ID, slot, 0, () -> FIRST_ID));
+        }
+        for (var rejectedType : List.of(TEXT, COLUMN, EXPANDED)) assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(withOpacity), BUILT_INS, rejectedType, NEW_ID, slot, 0, () -> FIRST_ID));
+        var nested = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(slot, WidgetSlot.SingleSlot.of(nested)));
+        var fullViewport = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, NEW_ID, slot, 0, () -> StableId.random()));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(fullViewport), BUILT_INS, type, FIRST_ID, slot, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void mainAxisGroupsCreateEmptyAndNestOnlyInSliverDestinations() {
+        var type = new WidgetTypeId("flutter.widgets.SliverMainAxisGroup");
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertTrue(added.properties().isEmpty());
+        assertEquals(List.of(), ((WidgetSlot.ListSlot) added.slots().get(slivers)).children());
+        var withGroup = new WidgetNode(ROOT_ID, viewport.type(), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(added))));
+        for (var definition : BUILT_INS.definitions()) {
+            var result = planner.plan(document(withGroup), BUILT_INS, definition.typeId(), NEW_ID, slivers, 0, () -> FIRST_ID);
+            assertEquals(dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.isSliverWidget(definition) && dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.supportsDirectPrototypeInsertion(definition),
+                    result instanceof FlutterDesignerPaletteDropPlanner.Accepted, definition.typeId().value());
+        }
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void sliverVisibilityConstructorsWrapsExistingSliversInEveryAdmittedSliverDestination() {
+        for (var type : List.of(dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.TYPE,
+                dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.MAINTAIN_TYPE)) {
+        var slivers = new SlotName("slivers"); var sliver = new SlotName("sliver");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                BUILT_INS.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverCrossAxisGroup", "SliverMainAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(sliver, command.wrapperSlot());
+            assertTrue(command.wrapper().properties().isEmpty());
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 1, () -> NEW_ID));
+            var empty = new WidgetNode(ROOT_ID, parent.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(empty), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+        }
+        var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), ROOT_ID);
+        wrapper = new WidgetNode(ROOT_ID, type, wrapper.properties(), Map.of(sliver, WidgetSlot.SingleSlot.of(child)));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(document(wrapper), BUILT_INS, type, ROOT_ID, sliver, 0, () -> NEW_ID));
+        var expandedType = dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE;
+        var expanded = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(expandedType).orElseThrow(), FIRST_ID);
+        var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.SliverCrossAxisGroup"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(expanded))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID),
+                "Wrapping an Expanded would move it away from its required group parent.");
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of(text(FIRST_ID, "box")))), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void sliverSafeAreaWrapsExistingSliversInEveryAdmittedSliverDestination() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers"); var sliver = new SlotName("sliver");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                BUILT_INS.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverCrossAxisGroup", "SliverMainAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(sliver, command.wrapperSlot());
+            assertTrue(command.wrapper().properties().isEmpty());
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 1, () -> NEW_ID));
+            var empty = new WidgetNode(ROOT_ID, parent.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(empty), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+        }
+        var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), ROOT_ID);
+        wrapper = new WidgetNode(ROOT_ID, type, wrapper.properties(), Map.of(sliver, WidgetSlot.SingleSlot.of(child)));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(document(wrapper), BUILT_INS, type, ROOT_ID, sliver, 0, () -> NEW_ID));
+        var expandedType = dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE;
+        var expanded = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(expandedType).orElseThrow(), FIRST_ID);
+        var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.SliverCrossAxisGroup"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(expanded))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID),
+                "Wrapping an Expanded would move it away from its required group parent.");
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of(text(FIRST_ID, "box")))), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void constrainedCrossAxisWrapsExistingSliversInEveryAdmittedSliverDestination() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers"); var sliver = new SlotName("sliver");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                BUILT_INS.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverCrossAxisGroup", "SliverMainAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(sliver, command.wrapperSlot());
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(120)),
+                    command.wrapper().properties().get(new PropertyName("maxExtent")));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 1, () -> NEW_ID));
+            var empty = new WidgetNode(ROOT_ID, parent.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(empty), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+        }
+        var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(type).orElseThrow(), ROOT_ID);
+        wrapper = new WidgetNode(ROOT_ID, type, wrapper.properties(), Map.of(sliver, WidgetSlot.SingleSlot.of(child)));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class,
+                planner.plan(document(wrapper), BUILT_INS, type, ROOT_ID, sliver, 0, () -> NEW_ID));
+        var expandedType = dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE;
+        var expanded = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(expandedType).orElseThrow(), FIRST_ID);
+        var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.SliverCrossAxisGroup"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(expanded))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID),
+                "Wrapping an Expanded would move it away from its required group parent.");
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of(text(FIRST_ID, "box")))), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void crossAxisExpandedWrapsOnlyExistingDirectCrossGroupChildren() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                BUILT_INS.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("SliverCrossAxisGroup", "SliverMainAxisGroup", "CustomScrollView")) {
+            var group = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var result = planner.plan(document(group), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID);
+            if (parentType.equals("SliverCrossAxisGroup")) {
+                var command = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Wrapped.class, result).command();
+                assertEquals(FIRST_ID, command.widgetId()); assertEquals(new SlotName("sliver"), command.wrapperSlot());
+                assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
+                        command.wrapper().properties().get(new PropertyName("flex")));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(group), BUILT_INS, type, ROOT_ID, slivers, 1, () -> NEW_ID));
+                var empty = new WidgetNode(ROOT_ID, group.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(empty), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID));
+            } else assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class, result);
+        }
+    }
+
+    @Test
+    void crossAxisGroupsCreateEmptyAndNestOnlyInSliverDestinations() {
+        var type = new WidgetTypeId("flutter.widgets.SliverCrossAxisGroup");
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertTrue(added.properties().isEmpty());
+        assertEquals(List.of(), ((WidgetSlot.ListSlot) added.slots().get(slivers)).children());
+        var withGroup = new WidgetNode(ROOT_ID, viewport.type(), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(added))));
+        for (var definition : BUILT_INS.definitions()) {
+            var result = planner.plan(document(withGroup), BUILT_INS, definition.typeId(), NEW_ID, slivers, 0, () -> FIRST_ID);
+            assertEquals(dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.isSliverWidget(definition) && dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.supportsDirectPrototypeInsertion(definition),
+                    result instanceof FlutterDesignerPaletteDropPlanner.Accepted, definition.typeId().value());
+        }
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+    }
+
+    @Test
+    void prototypeExtentVariantsCreateWithSeparateMeasurementAndVisibleChildrenSlots() {
+        var slivers = new SlotName("slivers"); var measurement = new SlotName("prototypeItem");
+        var viewport = new WidgetNode(ROOT_ID,new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                Map.of(slivers,new WidgetSlot.ListSlot(List.of())));
+        for(var kind : dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.Kind.values()) {
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport),BUILT_INS,kind.type(),ROOT_ID,slivers,0,()->NEW_ID)).command().widget();
+            assertTrue(((WidgetSlot.SingleSlot)added.slots().get(measurement)).child().isEmpty());
+            var withList = new WidgetNode(ROOT_ID,viewport.type(),Map.of(),Map.of(slivers,new WidgetSlot.ListSlot(List.of(added))));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withList),BUILT_INS,TEXT,NEW_ID,measurement,0,()->FIRST_ID));
+            assertEquals(kind.hasChildren(), planner.plan(document(withList),BUILT_INS,TEXT,NEW_ID,CHILDREN,0,()->FIRST_ID)
+                    instanceof FlutterDesignerPaletteDropPlanner.Accepted);
+            for(var rejected : List.of(kind.type(),EXPANDED,new WidgetTypeId("flutter.widgets.SliverPadding")))
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(withList),BUILT_INS,rejected,NEW_ID,measurement,0,()->FIRST_ID));
+            var box = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(TEXT).orElseThrow(),FIRST_ID);
+            var slots = new java.util.LinkedHashMap<>(added.slots()); slots.put(measurement,WidgetSlot.SingleSlot.of(box));
+            var occupied = new WidgetNode(added.id(),added.type(),added.properties(),slots);
+            var full = new WidgetNode(ROOT_ID,viewport.type(),Map.of(),Map.of(slivers,new WidgetSlot.ListSlot(List.of(occupied))));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(full),BUILT_INS,TEXT,NEW_ID,measurement,0,StableId::random));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN,List.of())),BUILT_INS,kind.type(),ROOT_ID,CHILDREN,0,()->NEW_ID));
+        }
+    }
+
+    @Test
+    void fixedExtentVariantsPreserveRequiredExtentAndOwnOnlyTheirDeclaredChildren() {
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        for (var kind : dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.Kind.values()) {
+            var type = kind.type();
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+            var withFill = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(added))));
+            assertEquals(new PropertyValue.DoubleValue(new java.math.BigDecimal("48")),
+                    added.properties().get(new PropertyName("itemExtent")));
+            if (!kind.hasChildren()) {
+                assertTrue(added.slots().isEmpty());
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(withFill), BUILT_INS, TEXT, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            } else {
+                assertEquals(1, added.properties().size());
+                for (var source : List.of(TEXT, COLUMN, new WidgetTypeId("flutter.widgets.ListView")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+                for (var source : List.of(type, EXPANDED, new WidgetTypeId("flutter.widgets.SliverFillRemaining")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            }
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void variedExtentVariantsPreserveRequiredExtentAndOwnOnlyTheirDeclaredChildren() {
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        for (var kind : dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.Kind.values()) {
+            var type = kind.type();
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+            var withFill = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(added))));
+            assertEquals(new PropertyValue.StringValue("48"),
+                    added.properties().get(new PropertyName("itemExtentBuilder")));
+            if (!kind.hasChildren()) {
+                assertTrue(added.slots().isEmpty());
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(withFill), BUILT_INS, TEXT, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            } else {
+                assertEquals(1, added.properties().size());
+                for (var source : List.of(TEXT, COLUMN, new WidgetTypeId("flutter.widgets.ListView")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+                for (var source : List.of(type, EXPANDED, new WidgetTypeId("flutter.widgets.SliverFillRemaining")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            }
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void fillViewportVariantsKeepChildrenAndDelegateOwnershipSeparate() {
+        var slivers = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        for (var type : dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.TYPES) {
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+            var withFill = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(added))));
+            if (type.value().endsWith(".delegate")) {
+                assertTrue(added.slots().isEmpty());
+                assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                        planner.plan(document(withFill), BUILT_INS, TEXT, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            } else {
+                assertTrue(added.properties().isEmpty());
+                for (var source : List.of(TEXT, COLUMN, new WidgetTypeId("flutter.widgets.ListView")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+                for (var source : List.of(type, EXPANDED, new WidgetTypeId("flutter.widgets.SliverFillRemaining")))
+                    assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                            planner.plan(document(withFill), BUILT_INS, source, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            }
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+        }
+    }
+
+    @Test
+    void sliverFillRemainingCreatesInSliverSlotsAndAcceptsOnlyOneBoxChild() {
+        var type = new WidgetTypeId("flutter.widgets.SliverFillRemaining");
+        var slivers = new SlotName("slivers"); var child = new SlotName("child");
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of())));
+        var created = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, slivers, 0, () -> NEW_ID)).command().widget();
+        assertTrue(created.properties().isEmpty(), "Omission preserves both native defaults.");
+        var withFill = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(created))));
+        for (var childType : List.of(TEXT, COLUMN, new WidgetTypeId("flutter.widgets.ListView")))
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withFill), BUILT_INS, childType, NEW_ID, child, 0, () -> FIRST_ID));
+        for (var rejected : List.of(type, new WidgetTypeId("flutter.widgets.SliverPadding"), EXPANDED))
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(withFill), BUILT_INS, rejected, NEW_ID, child, 0, () -> FIRST_ID));
+        var box = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BUILT_INS.find(TEXT).orElseThrow(), FIRST_ID);
+        var occupied = new WidgetNode(created.id(), created.type(), created.properties(), Map.of(child, WidgetSlot.SingleSlot.of(box)));
+        var full = new WidgetNode(ROOT_ID, viewport.type(), Map.of(), Map.of(slivers, new WidgetSlot.ListSlot(List.of(occupied))));
+        assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                planner.plan(document(full), BUILT_INS, TEXT, NEW_ID, child, 0, () -> StableId.random()));
+    }
+
+    @Test
+    void staticSliversAreCreatedOnlyInSliverSlotsAndAcceptOrdinaryChildren() {
+        var viewportType = type("flutter.widgets.CustomScrollView");
+        var sliversSlot = new SlotName("slivers");
+        var viewport = new WidgetNode(ROOT_ID, viewportType, Map.of(),
+                Map.of(sliversSlot, new WidgetSlot.ListSlot(List.of())));
+        for (var type : dev.flutter.netbeans.designer.catalog.SliverChildrenWidgetPropertySchema.TYPES) {
+            var added = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(viewport), BUILT_INS, type, ROOT_ID, sliversSlot, 0, () -> NEW_ID));
+            var sliver = added.command().widget();
+            assertEquals(type, sliver.type());
+            var withSliver = new WidgetNode(ROOT_ID, viewportType, Map.of(),
+                    Map.of(sliversSlot, new WidgetSlot.ListSlot(List.of(sliver))));
+            var child = assertInstanceOf(FlutterDesignerPaletteDropPlanner.Accepted.class,
+                    planner.plan(document(withSliver), BUILT_INS, TEXT, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            assertEquals(TEXT, child.command().widget().type());
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(withSliver), BUILT_INS, type, NEW_ID, CHILDREN, 0, () -> FIRST_ID));
+            assertInstanceOf(FlutterDesignerPaletteDropPlanner.Rejected.class,
+                    planner.plan(document(parent(COLUMN, List.of())), BUILT_INS, type, ROOT_ID, CHILDREN, 0, () -> NEW_ID));
+        }
     }
 
     private static DesignerDocument document(WidgetNode root) {

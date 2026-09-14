@@ -6,6 +6,7 @@ import dev.flutter.netbeans.designer.model.DartSourceDescriptor;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
 import dev.flutter.netbeans.designer.source.OriginalDartBytes;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -20,6 +21,9 @@ public final class DartSourceTransitionPlan {
     private final DartSourceDescriptor prospectiveDescriptor;
     private final OriginalDartBytes candidate;
     private final DartSourceIntegrityResult candidateIntegrity;
+    private final DartUserSourceProjection userSourceProjection;
+    private final byte[] userSourceBytes;
+    private final DartSourceDescriptor baselineDescriptor;
 
     DartSourceTransitionPlan(
             DartThreeWayIntegrityResult baseline,
@@ -27,7 +31,10 @@ public final class DartSourceTransitionPlan {
             DartGenerationResult generation,
             DartSourceDescriptor prospectiveDescriptor,
             OriginalDartBytes candidate,
-            DartSourceIntegrityResult candidateIntegrity) {
+            DartSourceIntegrityResult candidateIntegrity,
+            DartUserSourceProjection userSourceProjection,
+            byte[] userSourceBytes,
+            DartSourceDescriptor baselineDescriptor) {
         this.baseline = Objects.requireNonNull(baseline, "baseline");
         this.liveSource = Objects.requireNonNull(liveSource, "liveSource");
         this.generation = Objects.requireNonNull(generation, "generation");
@@ -36,12 +43,22 @@ public final class DartSourceTransitionPlan {
         this.candidate = Objects.requireNonNull(candidate, "candidate");
         this.candidateIntegrity = Objects.requireNonNull(
                 candidateIntegrity, "candidateIntegrity");
+        this.userSourceProjection = Objects.requireNonNull(
+                userSourceProjection, "userSourceProjection");
+        this.userSourceBytes = Objects.requireNonNull(userSourceBytes, "userSourceBytes").clone();
+        this.baselineDescriptor = Objects.requireNonNull(baselineDescriptor, "baselineDescriptor");
 
         if (!baseline.onDiskThreeWayMatch()) {
             throw new IllegalArgumentException("baseline must be an on-disk three-way match");
         }
         if (!liveSource.onDiskDeclaredMatch()) {
             throw new IllegalArgumentException("live source must match the baseline descriptor");
+        }
+        if (!Arrays.equals(userSourceProjection.applyTo(
+                liveSource.original().orElseThrow().copyBytes(), baselineDescriptor), this.userSourceBytes)
+                || !userSourceProjection.targetMatches(candidate.copyBytes(), prospectiveDescriptor)) {
+            throw new IllegalArgumentException(
+                    "User-source proof must describe the exact live-to-candidate envelope.");
         }
         if (!generation.successful()) {
             throw new IllegalArgumentException("prospective generation must be successful");
@@ -92,5 +109,19 @@ public final class DartSourceTransitionPlan {
 
     public byte[] candidateBytes() {
         return candidate.copyBytes();
+    }
+
+    /** Exact live-relative proof; applying it never replaces generated payloads. */
+    public DartUserSourceProjection userSourceProjection() {
+        return userSourceProjection;
+    }
+
+    /** Projected user edits with the original live managed payloads, clone-safe. */
+    public byte[] userSourceBytes() {
+        return userSourceBytes.clone();
+    }
+
+    public DartSourceDescriptor baselineDescriptor() {
+        return baselineDescriptor;
     }
 }

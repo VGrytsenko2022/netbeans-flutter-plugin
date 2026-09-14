@@ -51,9 +51,9 @@ class RefreshIndicatorContractTest {
         assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD, WidgetPlacementRules.creationMode(definition));
         assertTrue(WidgetPlacementRules.capabilityFingerprintLines(definition).contains(
                 "C|flutter.material.RefreshIndicator|paletteCreate|wrapExistingChild|child"));
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test
@@ -187,11 +187,11 @@ class RefreshIndicatorContractTest {
         var slot = definition.slots().getFirst();
         int accepted = 0;
         for (var child : BuiltInWidgetCatalog.getDefault().definitions()) {
-            boolean expected = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(child.typeId().value());
+            boolean expected = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child) && !WidgetPlacementRules.isSliverWidget(child);
             assertEquals(expected, WidgetPlacementRules.accepts(definition, slot, child));
             if (expected) accepted++;
         }
-        assertEquals(86, accepted);
+        assertEquals(155, accepted);
         assertTrue(valid(node(Map.of())), "Any Widget child is legal even without scrollables; runtime then has no pull gesture");
     }
 

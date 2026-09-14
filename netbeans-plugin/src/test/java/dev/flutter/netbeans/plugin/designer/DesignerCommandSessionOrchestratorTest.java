@@ -2004,6 +2004,156 @@ class DesignerCommandSessionOrchestratorTest {
         }
     }
 
+    @Test
+    void sourceRestagePinsTheLogicalCursorAndAbortDoesNotAdmitItsPhysicalPair()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        try (var owner = new DesignerCommandSessionOrchestrator(session(), combined)) {
+            applyAndAdopt(owner, new SetProperty(ROOT_ID, DATA, new PropertyValue.StringValue("staged")));
+            var logical = owner.currentRevision();
+            var original = logical.preparedPair().orElseThrow();
+            byte[] observed = sourceOverlay(logical, "// User-owned edit before first Save\n");
+            var lease = owner.beginSourceRestage(logical, original, observed);
+            assertSame(logical, lease.revision());
+            assertSame(logical, owner.currentRevision());
+            assertSame(original, lease.predecessorPair());
+            assertNotSame(logical, lease.physicalRevision());
+            assertEquals(logical.revisionId(), lease.physicalRevision().revisionId());
+            assertArrayEquals(observed, lease.preparedPair().prospectiveDartBytes());
+            assertTrue(lease.ownsExactActiveRevision());
+            assertBusyCursorTransition(owner);
+
+            lease.abortDeferredEffects().publish();
+            lease.close();
+            assertSame(logical, owner.currentRevision());
+            assertFalse(lease.ownsExactActiveRevision());
+            assertTrue(owner.canUndo());
+            assertThrows(IllegalArgumentException.class, () -> owner.beginDurableSave(lease.preparedPair()));
+            try (var save = owner.beginDurableSave(original)) {
+                assertSame(logical, save.revision());
+            }
+        }
+    }
+
+    @Test
+    void sourceRestageAdoptsExactAnalyzedBytesWithoutAnExtraSemanticUndoEdge()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        try (var owner = new DesignerCommandSessionOrchestrator(session(), combined)) {
+            var initial = owner.currentRevision();
+            applyAndAdopt(owner, new SetProperty(ROOT_ID, DATA, new PropertyValue.StringValue("staged")));
+            var logical = owner.currentRevision();
+            byte[] observed = sourceOverlay(logical, "// Edited while the Designer pair is pending\n");
+            var lease = owner.beginSourceRestage(logical, logical.preparedPair().orElseThrow(), observed);
+            var evidence = evidenceFor(lease.physicalRevision());
+            AtomicInteger peerCommits = new AtomicInteger();
+            AtomicInteger callbacks = new AtomicInteger();
+            owner.addChangeListener(event -> callbacks.incrementAndGet());
+            var effects = lease.adoptAnalyzedDeferredEffects(evidence, () -> {
+                assertTrue(lease.ownsExactActiveRevision());
+                assertSame(logical, owner.currentRevision());
+                peerCommits.incrementAndGet();
+            });
+            assertEquals(1, peerCommits.get());
+            assertEquals(0, callbacks.get());
+            assertSame(logical, owner.currentRevision(), "Source restaging must retain the logical revision object");
+            assertFalse(lease.ownsExactActiveRevision());
+            effects.publish();
+            effects.publish();
+            assertEquals(1, callbacks.get());
+
+            try (var save = owner.beginDurableSave(lease.preparedPair())) {
+                assertArrayEquals(observed, save.reanchoredRevision(logical.revisionId()).dartCandidateBytes());
+                save.adoptCommitted();
+            }
+            assertFalse(owner.dirty());
+            assertArrayEquals(observed, owner.currentRevision().dartCandidateBytes());
+            owner.undo();
+            assertEquals(initial.revisionId(), owner.currentRevision().revisionId());
+            assertArrayEquals(initial.dartCandidateBytes(), owner.currentRevision().dartCandidateBytes());
+            assertFalse(owner.canUndo(), "Source adoption is not another semantic command");
+        }
+    }
+
+    @Test
+    void sourceRestageRejectsStaleGuardedAndForeignEvidenceWithoutConsumingTheLease()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        try (var owner = new DesignerCommandSessionOrchestrator(session(), combined)) {
+            var stale = owner.currentRevision();
+            applyAndAdopt(owner, new SetProperty(ROOT_ID, DATA, new PropertyValue.StringValue("staged")));
+            var logical = owner.currentRevision();
+            var original = logical.preparedPair().orElseThrow();
+            byte[] observed = sourceOverlay(logical, "// User source\n");
+            assertThrows(DesignerCommandSessionOrchestrator.StaleRevisionException.class,
+                    () -> owner.beginSourceRestage(stale, original, observed));
+            byte[] guardedEdit = new String(observed, StandardCharsets.UTF_8)
+                    .replace("'staged'", "'guard changed'").getBytes(StandardCharsets.UTF_8);
+            assertThrows(IllegalArgumentException.class,
+                    () -> owner.beginSourceRestage(logical, original, guardedEdit));
+            assertSame(logical, owner.currentRevision());
+            assertTrue(owner.canUndo());
+            var lease = owner.beginSourceRestage(logical, original, observed);
+            AtomicInteger peerCommits = new AtomicInteger();
+            assertThrows(IllegalArgumentException.class,
+                    () -> lease.adoptAnalyzedDeferredEffects(evidenceFor(logical), peerCommits::incrementAndGet));
+            assertEquals(0, peerCommits.get());
+            assertTrue(lease.ownsExactActiveRevision());
+            lease.adoptAnalyzedDeferredEffects(evidenceFor(lease.physicalRevision()), peerCommits::incrementAndGet).publish();
+            assertEquals(1, peerCommits.get());
+            assertSame(logical, owner.currentRevision());
+        }
+    }
+
+    @Test
+    void sourceRestageStrictAdoptionRejectsPendingCloseBeforePeerChanges()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        var owner = new DesignerCommandSessionOrchestrator(session(), combined);
+        applyAndAdopt(owner, new SetProperty(ROOT_ID, DATA, new PropertyValue.StringValue("staged")));
+        var logical = owner.currentRevision();
+        var lease = owner.beginSourceRestage(logical, logical.preparedPair().orElseThrow(),
+                sourceOverlay(logical, "// User source before closing\n"));
+        var evidence = evidenceFor(lease.physicalRevision());
+        AtomicInteger peerCommits = new AtomicInteger();
+        owner.close();
+        assertThrows(IllegalStateException.class,
+                () -> lease.adoptAnalyzedDeferredEffects(evidence, peerCommits::incrementAndGet));
+        assertEquals(0, peerCommits.get());
+        assertSame(logical, owner.currentRevision());
+        assertTrue(lease.ownsExactActiveRevision());
+        assertTrue(combined.designerSessionActive());
+        lease.close();
+        assertFalse(combined.designerSessionActive());
+        assertThrows(IllegalStateException.class, owner::currentRevision);
+    }
+
+    @Test
+    void sourceRestageCloseAwareAdoptionDefersOutwardCloseUntilPublication()
+            throws Exception {
+        DesignerCombinedUndoRedo combined = new DesignerCombinedUndoRedo(new UndoRedo.Manager());
+        var owner = new DesignerCommandSessionOrchestrator(session(), combined);
+        applyAndAdopt(owner, new SetProperty(ROOT_ID, DATA, new PropertyValue.StringValue("staged")));
+        var logical = owner.currentRevision();
+        var lease = owner.beginSourceRestage(logical, logical.preparedPair().orElseThrow(),
+                sourceOverlay(logical, "// Last edit before closing\n"));
+        var evidence = evidenceFor(lease.physicalRevision());
+        owner.close();
+        assertTrue(combined.designerSessionActive());
+        AtomicBoolean closingObserved = new AtomicBoolean();
+        var effects = lease.adoptAnalyzedCloseAwareDeferredEffects(evidence, closing -> {
+            assertTrue(closing);
+            assertTrue(lease.ownsExactActiveRevision());
+            closingObserved.set(closing);
+        });
+        assertTrue(closingObserved.get());
+        assertThrows(IllegalStateException.class, owner::currentRevision);
+        assertTrue(combined.designerSessionActive());
+        effects.publish();
+        assertFalse(combined.designerSessionActive());
+        lease.close();
+    }
+
     private static void assertBusyCursorTransition(
             DesignerCommandSessionOrchestrator orchestrator) {
         assertFalse(orchestrator.canUndo());

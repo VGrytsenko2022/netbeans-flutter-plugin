@@ -17,7 +17,7 @@ public class FloatingActionButtonPropertyContractTest {
 
     @Test void all78RowsHaveStableTypedCellsWithIndependentResetAndRequiredConstructorActivation() throws Exception {
         var initial = withLabel(); var commands = new ArrayList<DesignerCommand>(); var node = node(initial, commands); var sets = node.getPropertySets();
-        assertEquals(78, DEF.properties().size()); assertEquals(8, sets.length);
+        assertEquals(78, DEF.properties().size()); assertEquals(9, sets.length);
         assertEquals(22, Arrays.stream(sets).filter(s -> s.getName().equals("floatingActionButtonShape")).findFirst().orElseThrow().getProperties().length);
         assertEquals(31, Arrays.stream(sets).filter(s -> s.getName().equals("floatingActionButtonExtendedTextStyle")).findFirst().orElseThrow().getProperties().length);
         for (var field : DEF.properties()) {

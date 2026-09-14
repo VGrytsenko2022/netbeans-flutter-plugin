@@ -28,9 +28,9 @@ class RadioContractTest {
         }
         assertEquals(Map.of(p("value"), s("option"), p("valueType"), s("String"), p("variant"), s("standard"), p("onChanged"), s("noop")), node(Map.of()).properties());
         assertTrue(valid(node(Map.of())));
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
         assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
     }
 

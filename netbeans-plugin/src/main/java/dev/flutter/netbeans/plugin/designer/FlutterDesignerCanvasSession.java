@@ -11,6 +11,7 @@ import dev.flutter.netbeans.designer.canvas.protocol.CanvasWireProtocol;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerRuntimeEvent;
@@ -69,6 +70,24 @@ interface FlutterDesignerCanvasSession extends AutoCloseable {
             CanvasTargetPlatform targetPlatform,
             CanvasResolvedTheme resolvedTheme,
             CanvasImageResourceBundle imageResources);
+
+    /**
+     * Presents the document with an optional transient device orientation.
+     * The override affects only the resolved Canvas viewport and is never
+     * written back to the {@code .fd} document.
+     */
+    default void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources,
+            Optional<CanvasOrientation> orientationOverride) {
+        Objects.requireNonNull(orientationOverride, "orientationOverride");
+        present(document, catalog, previewMode, targetPlatform, resolvedTheme,
+                imageResources);
+    }
 
     void withdraw();
 

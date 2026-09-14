@@ -162,6 +162,44 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         return snapshot;
     }
 
+    /**
+     * Reads the live, marker-bearing Source without acquiring a command session
+     * or making the form dirty. Both sides of the capture retain the same
+     * opaque presentation and pair authority; a stale event picker must retry.
+     */
+    CompletableFuture<byte[]> sourceBytes(RevisionToken expectedToken) {
+        Objects.requireNonNull(expectedToken, "expectedToken");
+        CompletableFuture<byte[]> result = new CompletableFuture<>();
+        worker.post(() -> {
+            try {
+                requireSourceReadAuthority(expectedToken);
+                LiveDartDocumentSnapshot source = editor.liveSnapshot();
+                requireSourceReadAuthority(expectedToken);
+                result.complete(source.markerBearingUtf8().clone());
+            } catch (IOException | RuntimeException failure) {
+                result.completeExceptionally(failure);
+            }
+        });
+        return result;
+    }
+
+    private void requireSourceReadAuthority(RevisionToken expectedToken) throws IOException {
+        PairSaveCoordinator.BindingRevision binding = pairCoordinator.bindingRevision();
+        synchronized (monitor) {
+            if (closed || mutationRunning || snapshot.status() != Status.READY
+                    || snapshot.token().orElse(null) != expectedToken
+                    || expectedToken.ownerIdentity != this
+                    || expectedToken.documentStateIdentity != readyCurrent
+                    || expectedToken.commandRevisionIdentity != boundRevision
+                    || expectedToken.pairEpoch != readyPairEpoch
+                    || expectedToken.pairEpoch != binding.state().epoch()
+                    || !expectedToken.pairRevision.sameRevision(binding.closeRevision())
+                    || readyCurrent == null || documentController.state() != readyCurrent) {
+                throw new IOException("Cannot read event handlers: the selected Flutter Designer revision changed.");
+            }
+        }
+    }
+
     void addPropertyChangeListener(PropertyChangeListener listener) {
         changes.addPropertyChangeListener(Objects.requireNonNull(listener, "listener"));
     }
@@ -467,7 +505,7 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         }
         try (DesignerCommandSessionOrchestrator.PendingCommandLease commandLease =
                         attempt.lease().orElseThrow()) {
-            if (pairCoordinator.retainsMetadataHistory(owner, expectedRevision)
+            if (pairCoordinator.retainsUnchangedSourceHistory(owner, expectedRevision)
                     && commandLease.candidateRevision().persistenceKind()
                         != DesignerRevisionPersistenceKind.PAIRED) {
                 crossCommitBoundary(operationId);
@@ -1185,6 +1223,21 @@ final class FlutterDesignerMutationController implements AutoCloseable {
         Path dartExecutable = status.dartSdk().orElseThrow()
                 .dartExecutable().toRealPath();
         return new AnalysisEnvironment(projectRoot, dartExecutable);
+    }
+
+    /** Save owns its own source-restage lease, independently of an open Design view. */
+    SourceAnalyzerContext sourceAnalyzerContext() throws IOException {
+        AnalysisEnvironment environment = resolveAnalysisEnvironment();
+        synchronized (monitor) {
+            return new SourceAnalyzerContext(environment.projectRoot(),
+                    environment.dartExecutable(), analyzerFactory);
+        }
+    }
+
+    record SourceAnalyzerContext(Path projectRoot, Path dartExecutable, AnalyzerFactory factory) {
+        DartCandidateAnalysisOperation analyze(PairCandidateAnalysisTicket ticket) {
+            return factory.analyze(dartExecutable, ticket.request());
+        }
     }
 
     private String currentUnavailableReason(

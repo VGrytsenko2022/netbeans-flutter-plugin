@@ -19,7 +19,7 @@ public class SliderPropertyContractTest {
     @Test void all33CellsKeepStableSetsAndIndependentTypedEditsResets() throws Exception {
         var prototype = WidgetNodePrototypeFactory.create(DEF, ID); var commands = new ArrayList<DesignerCommand>();
         var node = node(prototype, commands); var sets = node.getPropertySets();
-        assertEquals(33, DEF.properties().size()); assertEquals(7, sets.length); assertTrue(DEF.slots().isEmpty());
+        assertEquals(33, DEF.properties().size()); assertEquals(8, sets.length); assertTrue(DEF.slots().isEmpty());
         for (var field : DEF.properties()) {
             var values = new LinkedHashMap<>(prototype.properties()); values.putAll(sparsePrerequisites(field.name().value()));
             var before = new WidgetNode(ID, DEF.typeId(), values, Map.of()); assertValid(before);

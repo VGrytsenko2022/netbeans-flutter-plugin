@@ -25,7 +25,10 @@ public final class WidgetNodePrototypeFactory {
      * {@link SlotDefinition}. A required slot with a positive minimum therefore
      * remains intentionally incomplete: the detached value is suitable as an
      * atomic wrapper payload, while document validation still rejects inserting
-     * it without its required child.</p>
+     * it without its required child. Exception: SliverFloatingHeader uses its
+     * reviewed explicit 48 x 48 box seed; its child id is derived from the owner
+     * id, so no additional supplied id is consumed. AnimatedCrossFade similarly seeds
+     * both required slots with explicit 48 x 48 / 48 x 80 SizedBox nodes.</p>
      *
      * @param definition exact immutable catalog definition
      * @param id stable identifier for the new widget
@@ -42,8 +45,8 @@ public final class WidgetNodePrototypeFactory {
      * names, values outside their catalog constraints, and required properties
      * left without either an explicit value or a reviewed creation default are
      * rejected before a model node is created. Required child slots remain
-     * detached and empty so wrapper commands can still assemble them
-     * atomically.</p>
+     * detached and empty so wrapper commands can still assemble them atomically,
+     * except the reviewed SliverFloatingHeader and AnimatedCrossFade seeds described above.</p>
      *
      * @param definition exact immutable catalog definition
      * @param id stable identifier for the new widget
@@ -125,6 +128,16 @@ public final class WidgetNodePrototypeFactory {
             slots.put(slot.name(), empty);
         }
 
+        // This sliver requires a box child but cannot wrap an existing sliver.
+        // Keep the starter explicit in the model; never lower a missing required child.
+        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            slots.put(new SlotName("child"), WidgetSlot.SingleSlot.of(SliverFloatingHeaderWidgetPropertySchema.starterChild(id)));
+        }
+        if (AnimatedCrossFadeWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            for (String slot : List.of("firstChild", "secondChild")) {
+                slots.put(new SlotName(slot), WidgetSlot.SingleSlot.of(AnimatedCrossFadeWidgetPropertySchema.starterChild(id, slot)));
+            }
+        }
         return new WidgetNode(id, definition.typeId(), properties, slots);
     }
 

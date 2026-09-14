@@ -18,6 +18,8 @@ import dev.flutter.netbeans.designer.model.ManagedRegions;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
+import dev.flutter.netbeans.designer.model.StateBinding;
+import dev.flutter.netbeans.designer.model.StatePropertyBinding;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.model.json.JsonValue;
@@ -254,6 +256,25 @@ final class FdJsonEncoder {
             }
             context.endObject(pointer + "/properties");
 
+            if (widget.stateBinding().isPresent()) {
+                writeStateBinding(widget.stateBinding().orElseThrow(), pointer + "/stateBinding", context);
+            }
+            if (!widget.propertyBindings().isEmpty()) {
+                String base = pointer + "/propertyBindings";
+                context.requireAtMost(widget.propertyBindings().size(), context.limits().maxPropertiesPerWidget(),
+                        base, "State property bindings per widget");
+                context.fieldName("propertyBindings", base);
+                context.startObject(base);
+                List<Map.Entry<PropertyName, StatePropertyBinding>> bindings = new ArrayList<>(widget.propertyBindings().entrySet());
+                bindings.sort(Comparator.comparing(entry -> entry.getKey().value()));
+                for (var entry : bindings) {
+                    String path = base + "/" + pointerToken(entry.getKey().value());
+                    context.fieldName(entry.getKey().value(), path);
+                    writeStatePropertyBinding(entry.getValue(), path, context);
+                }
+                context.endObject(base);
+            }
+
             context.fieldName("slots", pointer + "/slots");
             context.startObject(pointer + "/slots");
             List<Map.Entry<SlotName, WidgetSlot>> slots =
@@ -270,6 +291,49 @@ final class FdJsonEncoder {
                 tasks.push(new SlotEntriesTask(slots, 0, depth + 1, pointer + "/slots"));
             }
         }
+    }
+
+    private static void writeStateBinding(
+            StateBinding binding, String pointer, EncodingContext context)
+            throws IOException, FdEncodeException {
+        context.fieldName("stateBinding", pointer);
+        context.startObject(pointer);
+        context.stringField("fieldName", binding.fieldName(), pointer + "/fieldName");
+        context.stringField("handlerName", binding.handlerName(), pointer + "/handlerName");
+        context.stringField("type", binding.type().wireName(), pointer + "/type");
+        if (binding.action() != StateBinding.Action.CHANGE) {
+            context.stringField("action", binding.action().wireName(), pointer + "/action");
+        }
+        if (binding.selectedValue().isPresent()) {
+            context.fieldName("selectedValue", pointer + "/selectedValue");
+            writePropertyValue(binding.selectedValue().orElseThrow(), pointer + "/selectedValue", context);
+        }
+        if (binding.referenceType().isPresent()) {
+            context.fieldName("referenceType", pointer + "/referenceType");
+            writePropertyValue(binding.referenceType().orElseThrow(), pointer + "/referenceType", context);
+        }
+        if (binding.previousOnChanged().isPresent()) {
+            context.fieldName("previousOnChanged", pointer + "/previousOnChanged");
+            writePropertyValue(binding.previousOnChanged().orElseThrow(), pointer + "/previousOnChanged", context);
+        }
+        context.endObject(pointer);
+    }
+
+    private static void writeStatePropertyBinding(StatePropertyBinding binding, String pointer,
+            EncodingContext context) throws IOException, FdEncodeException {
+        context.startObject(pointer);
+        context.stringField("fieldName", binding.fieldName(), pointer + "/fieldName");
+        context.stringField("type", binding.type().wireName(), pointer + "/type");
+        context.stringField("transform", binding.transform().wireName(), pointer + "/transform");
+        if (binding.referenceType().isPresent()) {
+            context.fieldName("referenceType", pointer + "/referenceType");
+            writePropertyValue(binding.referenceType().orElseThrow(), pointer + "/referenceType", context);
+        }
+        if (binding.comparisonValue().isPresent()) {
+            context.fieldName("comparisonValue", pointer + "/comparisonValue");
+            writePropertyValue(binding.comparisonValue().orElseThrow(), pointer + "/comparisonValue", context);
+        }
+        context.endObject(pointer);
     }
 
     private record SlotEntriesTask(
@@ -392,6 +456,15 @@ final class FdJsonEncoder {
         } else if (value instanceof PropertyValue.EnumValue enumValue) {
             context.stringField("type", enumValue.type(), pointer + "/type");
             context.stringField("value", enumValue.value(), pointer + "/value");
+        } else if (value instanceof PropertyValue.PointerDeviceKindSetValue devices) {
+            context.requireAtMost(devices.values().size(), context.limits().maxJsonArrayElements(),
+                    pointer + "/values", "JSON array elements");
+            context.fieldName("values", pointer + "/values");
+            context.startArray(pointer + "/values");
+            for (int index = 0; index < devices.values().size(); index++) {
+                context.stringValue(devices.values().get(index).wireName(), pointer + "/values/" + index);
+            }
+            context.endArray(pointer + "/values");
         } else if (value instanceof PropertyValue.ColorValue colorValue) {
             context.stringField("argb", colorValue.wireArgb(), pointer + "/argb");
         } else if (value instanceof PropertyValue.EdgeInsetsValue edgeInsets) {

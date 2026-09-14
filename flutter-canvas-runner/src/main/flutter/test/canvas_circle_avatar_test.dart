@@ -46,7 +46,7 @@ void main() {
       expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(9));
       expect(block, contains('S|child|single|0|0|1|any\n'));
       expect(block, isNot(contains('C|')));
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(_avatar(_decode(_model())).properties, isEmpty);
       expect(canvasWidgetTraitsForType(_type), isEmpty);
       expect(canvasDropSlotsForWidgetType(_type), const [

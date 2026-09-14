@@ -21,6 +21,7 @@ import org.openide.explorer.propertysheet.PropertyEnv;
 
 /** Transactional editor for the closed, typed Flutter {@code Offset} value. */
 final class FlutterOffsetPropertyEditorComponents {
+    static final String FRACTIONAL_COORDINATES_ATTRIBUTE = "flutter.offset.fractionalCoordinates";
     static final String CUSTOM_EDITOR_NAME = "flutter.offset.custom";
     static final String USE_DEFAULT_COMPONENT_NAME = "flutter.offset.useDefault";
     static final String DX_COMPONENT_NAME = "flutter.offset.dx";
@@ -47,18 +48,21 @@ final class FlutterOffsetPropertyEditorComponents {
         private final JTextField dx = new JTextField(14);
         private final JTextField dy = new JTextField(14);
         private boolean updating;
+        private final boolean fractional;
 
         OffsetPanel(
                 PropertyEditor editor,
                 FlutterTypedPropertyEditors.Binding binding,
                 PropertyEnv environment) {
             super(editor, binding, environment);
+            fractional = environment.getFeatureDescriptor() != null && Boolean.TRUE.equals(
+                    environment.getFeatureDescriptor().getValue(FRACTIONAL_COORDINATES_ATTRIBUTE));
             setLayout(new GridBagLayout());
             setPreferredSize(new Dimension(430, 180));
             setName(CUSTOM_EDITOR_NAME);
             getAccessibleContext().setAccessibleName("Flutter Offset editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits finite signed horizontal and vertical logical-pixel offsets "
+                    (fractional ? "Edits finite signed fractions of child width and height " : "Edits finite signed horizontal and vertical logical-pixel offsets ")
                     + "without changing the selected property until OK is accepted.");
 
             useDefault.setName(USE_DEFAULT_COMPONENT_NAME);
@@ -75,8 +79,8 @@ final class FlutterOffsetPropertyEditorComponents {
             if (binding.optional()) {
                 addWideRow(this, row++, useDefault);
             }
-            addRow(this, row++, "Horizontal (dx):", dx);
-            addRow(this, row, "Vertical (dy):", dy);
+            addRow(this, row++, fractional ? "Width fraction (dx):" : "Horizontal (dx):", dx);
+            addRow(this, row, fractional ? "Height fraction (dy):" : "Vertical (dy):", dy);
 
             PropertyValue.OffsetValue value = initialValue().explicitValue()
                     .map(PropertyValue.OffsetValue.class::cast)
@@ -112,8 +116,8 @@ final class FlutterOffsetPropertyEditorComponents {
             boolean unset = binding.optional() && useDefault.isSelected();
             dx.setEnabled(!unset);
             dy.setEnabled(!unset);
-            clear(dx, "Finite signed horizontal logical-pixel offset.");
-            clear(dy, "Finite signed vertical logical-pixel offset.");
+            clear(dx, fractional ? "Finite signed fraction of child width, not pixels." : "Finite signed horizontal logical-pixel offset.");
+            clear(dy, fractional ? "Finite signed fraction of child height, not pixels." : "Finite signed vertical logical-pixel offset.");
             try {
                 FlutterPropertyCellValue candidate = unset
                         ? FlutterPropertyCellValue.unset()

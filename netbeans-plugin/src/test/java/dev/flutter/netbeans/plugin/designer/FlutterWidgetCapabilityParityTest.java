@@ -19,18 +19,18 @@ import org.junit.jupiter.api.Test;
 /** Prevents Java admission and the packaged Dart runner from drifting apart. */
 class FlutterWidgetCapabilityParityTest {
     private static final Pattern WIDGET_TYPE = Pattern.compile(
-            "'(flutter\\.(?:material|widgets)\\.[A-Za-z0-9]+)'");
+            "'(flutter\\.(?:material|widgets)\\.[A-Za-z0-9]+(?:\\.[A-Za-z0-9]+)*)'");
 
     @Test
     void canvasAdmissionMatchesDartDecoderAndRendererExactly() throws Exception {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(89, javaTypes.size(),
+        assertEquals(211, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
-                + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, "
+                + "Transform, RotatedBox, ListBody, OverflowBar, GridView.count, GridView.extent, "
                 + "SingleChildScrollView, SafeArea, ColoredBox, Placeholder, and "
                 + "Directionality, DecoratedBox, ExcludeSemantics, IndexedStack and "
                 + "ClipRect, ClipOval, ClipRRect, ClipPath and ClipRSuperellipse");
@@ -62,12 +62,15 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.SafeArea"));
         assertTrue(javaTypes.contains("flutter.widgets.ListView"));
         assertTrue(javaTypes.contains("flutter.widgets.GridView"));
+        assertTrue(javaTypes.contains("flutter.widgets.GridView.extent"));
         assertTrue(javaTypes.contains("flutter.widgets.SingleChildScrollView"));
+        assertTrue(javaTypes.contains("flutter.widgets.ListWheelScrollView"));
         assertTrue(javaTypes.contains("flutter.widgets.Image"));
         assertTrue(javaTypes.contains("flutter.widgets.ColoredBox"));
         assertTrue(javaTypes.contains("flutter.widgets.Placeholder"));
         assertTrue(javaTypes.contains("flutter.widgets.Directionality"));
         assertTrue(javaTypes.contains("flutter.widgets.DecoratedBox"));
+        assertTrue(javaTypes.contains("flutter.widgets.Builder"));
         assertTrue(javaTypes.contains("flutter.widgets.ExcludeSemantics"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipRect"));
         assertTrue(javaTypes.contains("flutter.widgets.ClipOval"));
@@ -98,6 +101,10 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.material.LinearProgressIndicator"));
         assertTrue(javaTypes.contains("flutter.material.CircularProgressIndicator"));
         assertTrue(javaTypes.contains("flutter.material.RefreshProgressIndicator"));
+        assertTrue(javaTypes.contains("flutter.material.MenuBar"));
+        assertTrue(javaTypes.contains("flutter.material.NavigationRail"));
+        assertTrue(javaTypes.contains("flutter.material.NavigationDrawer"));
+        assertTrue(javaTypes.contains("flutter.material.Drawer"));
         assertTrue(javaTypes.contains("flutter.material.RefreshIndicator"));
         assertTrue(javaTypes.contains("flutter.material.TextButton"));
         assertTrue(javaTypes.contains("flutter.material.OutlinedButton"));
@@ -112,17 +119,32 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.RadioGroup"));
         assertTrue(javaTypes.contains("flutter.material.ListTile"));
         assertTrue(javaTypes.contains("flutter.material.CheckboxListTile"));
+        assertTrue(javaTypes.contains("flutter.material.SwitchListTile"));
+        assertTrue(javaTypes.contains("flutter.material.RadioListTile"));
+        assertTrue(javaTypes.contains("flutter.material.ExpansionTile"));
+        assertTrue(javaTypes.contains("flutter.material.Tooltip"));
+        assertTrue(javaTypes.contains("flutter.material.TooltipVisibility"));
+        assertTrue(javaTypes.contains("flutter.material.TooltipTheme"));
+        assertTrue(javaTypes.contains("flutter.material.MenuItemButton"));
+        assertTrue(javaTypes.contains("flutter.material.MenuAnchor"));
+        assertTrue(javaTypes.contains("flutter.material.SubmenuButton"));
         assertTrue(javaTypes.contains("flutter.material.TextField"));
+        assertTrue(javaTypes.contains("flutter.material.Material"));
+        assertTrue(javaTypes.contains("flutter.material.Scrollbar"));
 
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
-        assertTrue(model.contains("const canvasModelProtocolVersion = 18;"),
-                "the packaged Dart decoder must consume Java payload v18");
+        assertTrue(javaTypes.contains("flutter.widgets.GestureDetector"));
+        assertTrue(javaTypes.contains("flutter.widgets.Listener"));
+        assertTrue(javaTypes.contains("flutter.widgets.MouseRegion"));
+        assertEquals(15, dev.flutter.netbeans.designer.catalog.WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertTrue(model.contains("const canvasModelProtocolVersion = 19;"),
+                "the packaged Dart decoder must consume Java payload v19");
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),
                 "Java Canvas gate and Dart strict decoder must be exact peers");
         assertEquals(javaTypes, widgetTypes(block(
-                view, "final child = switch (node.type)",
+                view, "final sdkChild = switch (node.type)",
                 "final selected = selectedWidgetId")),
                 "Java Canvas gate and Dart renderer must be exact peers");
     }
@@ -242,6 +264,8 @@ class FlutterWidgetCapabilityParityTest {
                 "ListView.children must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.GridView"),
                 "GridView.count.children must remain a Java-admitted DnD target");
+        assertTrue(javaContainers.contains("flutter.widgets.GridView.extent"),
+                "GridView.extent.children must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.SingleChildScrollView"),
                 "SingleChildScrollView.child must remain a Java-admitted DnD target");
         assertTrue(javaContainers.contains("flutter.widgets.ColoredBox"),
@@ -329,6 +353,19 @@ class FlutterWidgetCapabilityParityTest {
         assertEquals(javaContainers, widgetTypes(block(
                 drop, "canvasDropSlotsForWidgetType", "canvasDropSlotForWidgetSlot")),
                 "Java Palette containers and Dart native drop targets must stay in parity");
+    }
+
+    @Test
+    void nativeMenuShortcutKeysMatchIndependentPinnedDartInventoryExactly() throws Exception {
+        String model = runnerSource("lib/src/canvas_model.dart");
+        String map = block(model, "const Map<String, int> canvasMenuShortcutKeyIds", "Map<String, _PropertySpec> _textButtonProperties");
+        var actual = new java.util.LinkedHashMap<String, Long>();
+        var matcher = Pattern.compile("'([A-Za-z0-9]+)': (0x[0-9a-fA-F]+),").matcher(map);
+        while (matcher.find()) assertTrue(actual.put(matcher.group(1), Long.decode(matcher.group(2))) == null);
+        var expected = new java.util.LinkedHashMap<String, Long>();
+        for (var entry : dev.flutter.netbeans.designer.catalog.MenuShortcutKeyCatalog.entries()) expected.put(entry.name(), entry.keyId());
+        assertEquals(432, actual.size());
+        assertEquals(expected, actual);
     }
 
     private static Set<String> capabilityTypes(WidgetCapability capability) {

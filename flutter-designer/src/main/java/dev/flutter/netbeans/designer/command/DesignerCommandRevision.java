@@ -7,6 +7,7 @@ import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.pair.PreparedDesignerPair;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlan;
+import dev.flutter.netbeans.designer.transition.DartUserSourceProjection;
 import java.util.Arrays;
 import java.util.Objects;
 import java.util.Optional;
@@ -27,6 +28,8 @@ public final class DesignerCommandRevision {
     private final Optional<DartSourceTransitionPlan> sourceTransition;
     private final Optional<PreparedDesignerPair> preparedPair;
     private final DesignerRevisionPersistenceKind persistenceKind;
+    private final DartUserSourceProjection userSourceProjection;
+    private final boolean historicalUserEnvelope;
 
     DesignerCommandRevision(
             long revisionId,
@@ -37,7 +40,17 @@ public final class DesignerCommandRevision {
             DartSourceIntegrityResult sourceIntegrity,
             Optional<DartSourceTransitionPlan> sourceTransition,
             Optional<PreparedDesignerPair> preparedPair,
-            DesignerRevisionPersistenceKind persistenceKind) {
+            DesignerRevisionPersistenceKind persistenceKind,
+            DartUserSourceProjection userSourceProjection) {
+        this(revisionId, document, fdSnapshot, generation, dartCandidate, sourceIntegrity,
+                sourceTransition, preparedPair, persistenceKind, userSourceProjection, false);
+    }
+
+    private DesignerCommandRevision(long revisionId, DesignerDocument document, OriginalFdBytes fdSnapshot,
+            DartGenerationResult generation, byte[] dartCandidate, DartSourceIntegrityResult sourceIntegrity,
+            Optional<DartSourceTransitionPlan> sourceTransition, Optional<PreparedDesignerPair> preparedPair,
+            DesignerRevisionPersistenceKind persistenceKind, DartUserSourceProjection userSourceProjection,
+            boolean historicalUserEnvelope) {
         if (revisionId < 0) {
             throw new IllegalArgumentException("revisionId must not be negative");
         }
@@ -54,6 +67,8 @@ public final class DesignerCommandRevision {
         this.preparedPair = Objects.requireNonNull(preparedPair, "preparedPair");
         this.persistenceKind = Objects.requireNonNull(
                 persistenceKind, "persistenceKind");
+        this.userSourceProjection = Objects.requireNonNull(userSourceProjection, "userSourceProjection");
+        this.historicalUserEnvelope = historicalUserEnvelope;
 
         if (!generation.successful()) {
             throw new IllegalArgumentException("revision generation must be successful");
@@ -70,6 +85,9 @@ public final class DesignerCommandRevision {
                         .contentEquals(this.dartCandidate)) {
             throw new IllegalArgumentException(
                     "revision Dart candidate must retain exact matching source evidence");
+        }
+        if (!userSourceProjection.targetMatches(this.dartCandidate, document.source())) {
+            throw new IllegalArgumentException("User-source proof must match the exact revision envelope");
         }
         sourceTransition.ifPresent(transition -> {
             if (!transition.prospectiveDescriptor().equals(document.source())
@@ -145,12 +163,27 @@ public final class DesignerCommandRevision {
         return persistenceKind;
     }
 
+    /** Opaque bounded proof of deliberate user-member edits, never persisted in the .fd model. */
+    public DartUserSourceProjection userSourceProjection() {
+        return userSourceProjection;
+    }
+
+    boolean historicalUserEnvelope() {
+        return historicalUserEnvelope;
+    }
+
+    DesignerCommandRevision preservingHistoricalUserEnvelope() {
+        return historicalUserEnvelope ? this : new DesignerCommandRevision(revisionId, document, fdSnapshot,
+                generation, dartCandidate, sourceIntegrity, sourceTransition, preparedPair, persistenceKind,
+                userSourceProjection, true);
+    }
+
     /** Exact shared capacity identity under which this revision was derived. */
     public DartCandidateCapacityBudget candidateCapacityBudget() {
         return generation.generated().orElseThrow().candidateCapacityBudget();
     }
 
     long retainedPairBytes() {
-        return (long) fdSnapshot.size() + dartCandidate.length;
+        return (long) fdSnapshot.size() + dartCandidate.length + userSourceProjection.retainedBytes();
     }
 }

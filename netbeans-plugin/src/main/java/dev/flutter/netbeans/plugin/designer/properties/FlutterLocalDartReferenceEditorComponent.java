@@ -26,8 +26,24 @@ final class FlutterLocalDartReferenceEditorComponent {
     static final String OMIT = "Use Flutter default (omit argument)";
     static final String COLOR = "Literal or theme color";
     static final String INSETS = "Physical or directional insets";
+    static final String ALIGNMENT = "Physical or directional alignment";
+    static final String OFFSET = "Signed Offset coordinates";
+    static final String NUMBER = "Local number";
+    static final String MATRIX = "Structured Matrix4";
+    static final String PHYSICAL_ALIGNMENT = "Physical Alignment";
+    static final String CONSTRAINTS = "Structured BoxConstraints";
+    static final String DECORATION = "Structured BoxDecoration";
+    static final String RADIUS = "Physical elliptical corners";
+    static final String IMAGE = "Declared asset image";
+    static final String ICON = "Material Icon or empty Icon";
+    static final String NULL = "Explicit null";
     static final String PROJECT = "Project reference";
     private FlutterLocalDartReferenceEditorComponent() { }
+
+    private static PropertyValue.BorderRadiusValue zeroRadius() {
+        var zero=new PropertyValue.BoxDecorationValue.Radius(BigDecimal.ZERO,BigDecimal.ZERO);
+        return new PropertyValue.BorderRadiusValue(new PropertyValue.BoxDecorationValue.PhysicalBorderRadius(zero,zero,zero,zero));
+    }
 
     static Component customEditor(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
         return new LocalReferencePanel(editor, binding, environment);
@@ -45,9 +61,21 @@ final class FlutterLocalDartReferenceEditorComponent {
 
         LocalReferencePanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment);
+            boolean image = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.IMAGE_PROVIDER_REFERENCE;
+            boolean radius = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BORDER_RADIUS_REFERENCE;
             boolean color = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.COLOR_REFERENCE;
-            localMode = color ? COLOR : INSETS;
-            mode = new JComboBox<>(binding.optional() ? new String[]{OMIT, localMode, PROJECT} : new String[]{localMode, PROJECT});
+            boolean alignment = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ALIGNMENT_REFERENCE;
+            boolean offset = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.OFFSET_REFERENCE;
+            boolean matrix = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.MATRIX4_REFERENCE;
+            boolean number = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NUMBER_REFERENCE;
+            boolean physicalAlignment = binding.definition().constraints().stream().anyMatch(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.AlignmentValues.class::isInstance);
+            boolean constraints = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_CONSTRAINTS_REFERENCE;
+            boolean decoration = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_DECORATION_REFERENCE;
+            boolean icon = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ICON_WIDGET_REFERENCE;
+            localMode = image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
+            var modes = new java.util.ArrayList<String>(); if (binding.optional()) modes.add(OMIT);
+            if (binding.definition().acceptedKinds().contains(PropertyValueKind.NULL)) modes.add(NULL);
+            modes.add(localMode); modes.add(PROJECT); mode = new JComboBox<>(modes.toArray(String[]::new));
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(720, 590));
             setName("flutter.localReference.editor");
             getAccessibleContext().setAccessibleName(binding.definition().name().value() + " local value or project reference editor");
@@ -58,16 +86,41 @@ final class FlutterLocalDartReferenceEditorComponent {
             heading.add(label, BorderLayout.WEST); heading.add(mode, BorderLayout.CENTER); add(heading, BorderLayout.NORTH);
             var initial = initialValue().explicitValue().orElse(null);
             var localDefinition = new PropertyDefinition(binding.definition().name(), DartParameter.named(0, true),
-                    binding.definition().constraints().stream().filter(value -> value.kind() != PropertyValueKind.DART_OBJECT_REFERENCE).toList(), Optional.empty());
+                    binding.definition().constraints().stream().filter(value -> value.kind() != PropertyValueKind.DART_OBJECT_REFERENCE && value.kind() != PropertyValueKind.NULL).toList(), Optional.empty());
             var localBinding = FlutterTypedPropertyEditors.binding(localDefinition).orElseThrow();
             var localEditor = localBinding.createEditor();
-            PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) ? initial
+            PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) && !(initial instanceof PropertyValue.NullValue) ? initial
+                    : image ? PropertyValue.ImageProviderValue.unresolved()
+                    : radius ? zeroRadius()
+                    : matrix ? new PropertyValue.Matrix4Value(java.util.stream.IntStream.range(0, 16).mapToObj(i -> i % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO).toList())
                     : color ? new PropertyValue.ColorValue(0xff000000L)
+                    : alignment ? new PropertyValue.AlignmentGeometryValue(PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL, BigDecimal.ZERO, BigDecimal.ZERO)
+                    : number ? binding.definition().creationDefault().orElseGet(() ->
+                        localBinding.editorKind() == FlutterTypedPropertyEditors.EditorKind.INTEGER
+                            ? new PropertyValue.IntegerValue(binding.definition().constraints().stream()
+                                .filter(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.IntegerRange.class::isInstance)
+                                .map(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.IntegerRange.class::cast)
+                                .map(range -> range.minimum() == null ? java.math.BigInteger.ZERO : range.minimum().max(java.math.BigInteger.ZERO))
+                                .findFirst().orElse(java.math.BigInteger.ZERO))
+                            : new PropertyValue.DoubleValue(BigDecimal.ZERO))
+                    : offset ? new PropertyValue.OffsetValue(BigDecimal.ZERO, BigDecimal.ZERO)
+                    : constraints ? new PropertyValue.BoxConstraintsValue(BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty())
+                    : decoration ? new PropertyValue.BoxDecorationValue(Optional.empty(), Optional.empty(), Optional.empty(), java.util.List.of(), Optional.empty(), Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)
+                    : icon ? PropertyValue.IconDataValue.none()
                     : new PropertyValue.EdgeInsetsValue(BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO, BigDecimal.ZERO);
             localEditor.setValue(FlutterPropertyCellValue.explicit(initialLocal));
-            var localEnvironment = PropertyEnv.create(new FeatureDescriptor());
+            var localDescriptor = new FeatureDescriptor();
+            if (offset && binding.definition().constraints().stream().anyMatch(value ->
+                    value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                            && reference.expectedDartType().equals("Animation<Offset>"))) {
+                localDescriptor.setValue(FlutterOffsetPropertyEditorComponents.FRACTIONAL_COORDINATES_ATTRIBUTE, true);
+            }
+            Object imageChoices = environment.getFeatureDescriptor() == null ? null : environment.getFeatureDescriptor().getValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE);
+            if (imageChoices != null) localDescriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, imageChoices);
+            var localEnvironment = PropertyEnv.create(localDescriptor);
             localPanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
-                    FlutterPropertyEditorComponents.customEditor(localEditor, localBinding, localEnvironment);
+                    (number ? FlutterNullableNumberEditorComponent.customEditor(localEditor, localBinding, localEnvironment)
+                    : FlutterPropertyEditorComponents.customEditor(localEditor, localBinding, localEnvironment));
             cards.add(localPanel, localMode);
             var referenceDefinition = new PropertyDefinition(binding.definition().name(), DartParameter.named(0, true),
                     binding.definition().constraints().stream().filter(value -> value.kind() == PropertyValueKind.DART_OBJECT_REFERENCE).toList(), Optional.empty());
@@ -80,11 +133,11 @@ final class FlutterLocalDartReferenceEditorComponent {
             referencePanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
                     FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
             if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearRoot(referencePanel);
-            cards.add(referencePanel, PROJECT); cards.add(new JPanel(), OMIT); add(cards, BorderLayout.CENTER);
+            cards.add(referencePanel, PROJECT); cards.add(new JPanel(), OMIT); cards.add(new JPanel(), NULL); add(cards, BorderLayout.CENTER);
             note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
             note.getAccessibleContext().setAccessibleName("Local value and reference behavior"); add(note, BorderLayout.SOUTH);
             mode.setSelectedItem(initial == null ? binding.optional() ? OMIT : localMode
-                    : initial instanceof PropertyValue.DartObjectReferenceValue ? PROJECT : localMode);
+                    : initial instanceof PropertyValue.NullValue ? NULL : initial instanceof PropertyValue.DartObjectReferenceValue ? PROJECT : localMode);
             mode.addActionListener(ignored -> refresh(true));
             localEnvironment.addPropertyChangeListener(ignored -> refresh(true));
             referenceEnvironment.addPropertyChangeListener(ignored -> refresh(true));
@@ -101,10 +154,66 @@ final class FlutterLocalDartReferenceEditorComponent {
                 String text = PROJECT.equals(selected)
                         ? "Stores a strict typed project reference or factory. The analyzer verifies the exact required type; isolated Canvas never executes project code."
                         : OMIT.equals(selected) ? "Omits this argument and preserves Flutter theme/default resolution. No local value is synthesized."
+                        : NULL.equals(selected) ? "Stores explicit null and preserves this property's SDK/theme fallback. It is distinct from omission; no local value or project reference is synthesized."
                         : "Stores the exact local typed value. It is exclusive with a project reference; drafts in the inactive source do not change this choice.";
+                if (binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<AlignmentGeometry>"))) text +=
+                        " Local physical/directional alignment creates AlwaysStoppedAnimation<AlignmentGeometry>; edits are immediate. "
+                        + "Project animation owns timing and lifetime; Canvas previews it at center. Directional alignment follows inherited LTR/RTL.";
+                if (binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("TransformCallback"))) text +=
+                        " Local Matrix4 creates a callback that returns a fresh fixed matrix and ignores animationValue. "
+                        + "Project mode requires Matrix4 Function(double animationValue), not a Matrix4 object or nullable callback. "
+                        + "Project code owns value-dependent 2D/3D transforms; Canvas substitutes identity without executing it.";
+                if (binding.definition().name().value().equals("animation") && binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<double>"))) text +=
+                        " Local signed values create AlwaysStoppedAnimation<double>; the On transform callback defines their units and range. "
+                        + "Project animation owns timing and lifetime; Canvas substitutes 0. A fixed local matrix does not change with animationValue.";
+                if (binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ICON_WIDGET_REFERENCE) text +=
+                        " For SubmenuButton, configured states resolve Disabled, Hovered, Focused, then Default; an omitted bucket skips to the next active configured bucket or Default. Explicit null is terminal and returns to MenuTheme/native arrow fallback. "
+                        + "Material icon None creates Icon(null), an empty glyph, and is not null fallback. A strict Widget reference supports custom size, color or arbitrary widget content in Source. "
+                        + "Only Default, Disabled, Hovered and Focused states are resolved; project widget factories are never executed in Canvas.";
+                if (binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<double>")) && binding.definition().name().value().equals("opacity")) text +=
+                        " Local opacity creates AlwaysStoppedAnimation<double> and does not animate edits. "
+                        + "Project mode requires a non-null Animation<double>; its controller and lifetime remain source-owned. Canvas previews it at opacity 1.";
+                if (binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<Offset>"))) text +=
+                        " Local X/Y fractions create AlwaysStoppedAnimation<Offset> and do not animate edits. "
+                        + "Project mode requires a non-null Animation<Offset>; its controller and lifetime remain source-owned. Canvas previews it at zero.";
+                if (binding.definition().name().value().equals("turns")
+                        && binding.definition().constraints().stream().anyMatch(value ->
+                            value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<double>"))) text +=
+                        " Local signed turns creates AlwaysStoppedAnimation<double>; edits are immediate and 1 is 360 degrees clockwise, negative values rotate counterclockwise, and zero is identity. "
+                        + "Project mode requires a non-null Animation<double> and owns its lifetime. Canvas previews it at turns 0. AlwaysStoppedAnimation reports forward, so the configured filter still applies.";
+                if (binding.definition().name().value().equals("sizeFactor")
+                        && binding.definition().constraints().stream().anyMatch(value ->
+                            value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<double>"))) text +=
+                        " Local signed size factor creates AlwaysStoppedAnimation<double>; edits are immediate and Flutter renders negative values as zero without changing the stored value. "
+                        + "Project mode requires a non-null Animation<double> and owns its lifetime. Canvas previews it at size factor 1; parent constraints and clipping still apply.";
+                if (binding.definition().name().value().equals("scale")
+                        && binding.definition().constraints().stream().anyMatch(value ->
+                            value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<double>"))) text +=
+                        " Local signed scale creates AlwaysStoppedAnimation<double>; edits are immediate and zero/negative scales are allowed. "
+                        + "Project mode requires a non-null Animation<double> and owns its lifetime. Canvas previews it at scale 1. AlwaysStoppedAnimation reports forward, so the configured filter still applies.";
+                if (binding.definition().constraints().stream().anyMatch(value ->
+                        value instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues reference
+                                && reference.expectedDartType().equals("Animation<Decoration>"))) text +=
+                        " Local BoxDecoration creates AlwaysStoppedAnimation<Decoration>; edits are immediate. "
+                        + "Project animations may return BoxDecoration, ShapeDecoration or custom Decoration. Controller and tween lifetime remain in Dart. "
+                        + "Canvas previews a project animation as an empty BoxDecoration without executing it. Position is independent; no padding or clipping is added.";
                 note.setText(text); note.getAccessibleContext().setAccessibleDescription(text);
                 var candidate = PROJECT.equals(selected) ? requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue()
                         : localMode.equals(selected) ? requestValidation ? localPanel.stagedDraftValue() : localPanel.validatedDraftValue()
+                        : NULL.equals(selected) ? FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())
                         : FlutterPropertyCellValue.unset();
                 clearInvalid(note, text);
                 if (requestValidation) markValid(candidate); else stageValid(candidate);

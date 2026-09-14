@@ -69,6 +69,13 @@ final class FlutterTypedPropertyEditors {
                     .orElse(newlineStringList
                             ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
             }
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.NULL))) {
+            editorKind = EditorKind.NULLABLE_STRING;
+        } else if (definition.name().value().equals("notificationType") && definition.parameter().required()
+                && kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Type"))) {
+            editorKind = EditorKind.NOTIFICATION_TYPE;
         } else if (definition.name().value().equals("valueType") && definition.parameter().required()
                 && kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
@@ -95,6 +102,27 @@ final class FlutterTypedPropertyEditors {
             editorKind = EditorKind.BOOLEAN;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))) {
             editorKind = EditorKind.NULLABLE_BOOLEAN;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("Animation<double>", "Animation<double>?").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.NUMBER_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && java.util.Set.of("Duration", "Duration?").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.DURATION_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.ENUM, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("double", "double?").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.NUMBER_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("int", "int?").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.NUMBER_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER))) {
             editorKind = EditorKind.INTEGER;
         } else if (kinds.equals(EnumSet.of(
@@ -105,7 +133,8 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(
                 PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE))) {
             editorKind = EditorKind.NUMBER;
-        } else if (kinds.equals(EnumSet.of(
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.DOUBLE, PropertyValueKind.NULL))
+                || kinds.equals(EnumSet.of(
                 PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.NULL))) {
             editorKind = EditorKind.NULLABLE_NUMBER;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE, PropertyValueKind.ENUM, PropertyValueKind.NULL))
@@ -130,20 +159,48 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ENUM, PropertyValueKind.NULL))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.EnumValues.class::isInstance)) {
             editorKind = EditorKind.NULLABLE_ENUM;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.POINTER_DEVICE_KIND_SET, PropertyValueKind.NULL))) {
+            editorKind = EditorKind.POINTER_DEVICE_KIND_SET;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS))
                 && definition.constraints().getFirst()
                         instanceof PropertyValueConstraint.EdgeInsetsValues) {
             editorKind = EditorKind.EDGE_INSETS;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS, PropertyValueKind.DART_OBJECT_REFERENCE))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.EdgeInsetsValues.class::isInstance)
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
-                        && reference.expectedDartType().equals("EdgeInsetsGeometry"))) {
+                        && Set.of("EdgeInsetsGeometry", "EdgeInsetsGeometry?").contains(reference.expectedDartType()))) {
             editorKind = EditorKind.EDGE_INSETS_REFERENCE;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.ThemeTokenValues.class::isInstance)
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
-                        && reference.expectedDartType().equals("Color"))) {
+                        && Set.of("Color", "Color?").contains(reference.expectedDartType()))) {
             editorKind = EditorKind.COLOR_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.ALIGNMENT_GEOMETRY, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                || kinds.equals(EnumSet.of(PropertyValueKind.ALIGNMENT_GEOMETRY, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && (definition.constraints().stream().anyMatch(PropertyValueConstraint.AlignmentGeometryValues.class::isInstance)
+                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("AlignmentGeometry", "AlignmentGeometry?", "Animation<AlignmentGeometry>").contains(reference.expectedDartType()))
+                    || definition.constraints().stream().anyMatch(PropertyValueConstraint.AlignmentValues.class::isInstance)
+                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Alignment")))) {
+            editorKind = EditorKind.ALIGNMENT_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BORDER_RADIUS, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.BorderRadiusValues radius && !radius.directionalAllowed())
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues ref && ref.expectedDartType().equals("BorderRadius?"))) {
+            editorKind=EditorKind.BORDER_RADIUS_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_CONSTRAINTS, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.BoxConstraintsValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("BoxConstraints", "BoxConstraints?").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.BOX_CONSTRAINTS_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                    || kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.BoxDecorationValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("Decoration", "Decoration?", "Animation<Decoration>").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.BOX_DECORATION_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR))) {
             editorKind = EditorKind.COLOR;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN,
@@ -182,18 +239,29 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.FontVariationListValues.class::isInstance)) {
             editorKind = EditorKind.FONT_VARIATION_LIST;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.ICON_DATA, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.MaterialIconValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Widget"))) {
+            editorKind = EditorKind.ICON_WIDGET_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ICON_DATA))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.MaterialIconValues.class::isInstance)) {
             editorKind = EditorKind.ICON_DATA;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.ALIGNMENT_GEOMETRY))
-                && definition.constraints().stream().anyMatch(
-                        PropertyValueConstraint.AlignmentGeometryValues.class::isInstance)) {
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.AlignmentGeometryValues
+                        || value instanceof PropertyValueConstraint.AlignmentValues)) {
             editorKind = EditorKind.ALIGNMENT_GEOMETRY;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.SizeValues.class::isInstance)) {
             editorKind = EditorKind.SIZE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.OFFSET, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                || kinds.equals(EnumSet.of(PropertyValueKind.OFFSET, PropertyValueKind.DART_OBJECT_REFERENCE)))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.OffsetValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && Set.of("Offset", "Animation<Offset>").contains(reference.expectedDartType()))) {
+            editorKind = EditorKind.OFFSET_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.OFFSET))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.OffsetValues.class::isInstance)) {
@@ -202,10 +270,21 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxConstraintsValues.class::isInstance)) {
             editorKind = EditorKind.BOX_CONSTRAINTS;
+        } else if (definition.constraints().stream().anyMatch(PropertyValueConstraint.Matrix4Values.class::isInstance)
+                && (kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
+                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference && reference.expectedDartType().equals("Matrix4?"))
+                    || kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4, PropertyValueKind.DART_OBJECT_REFERENCE))
+                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference && reference.expectedDartType().equals("TransformCallback")))) {
+            editorKind = EditorKind.MATRIX4_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.Matrix4Values.class::isInstance)) {
             editorKind = EditorKind.MATRIX4;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.IMAGE_PROVIDER, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.ImageProviderValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues ref
+                    && ref.expectedDartType().equals("ImageProvider<Object>"))) {
+            editorKind = EditorKind.IMAGE_PROVIDER_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.IMAGE_PROVIDER))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.ImageProviderValues.class::isInstance)) {
@@ -225,7 +304,14 @@ final class FlutterTypedPropertyEditors {
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.SHAPE_BORDER_CLIPPER,
                 PropertyValueKind.DART_OBJECT_REFERENCE))) {
             editorKind = EditorKind.SHAPE_BORDER_CLIPPER;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                || (kinds.equals(EnumSet.of(PropertyValueKind.CALLBACK,
+                        PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL))
+                    || kinds.equals(EnumSet.of(PropertyValueKind.CALLBACK,
+                            PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL,
+                            PropertyValueKind.STRING)))
+                    && definition.constraints().stream()
+                            .anyMatch(PropertyValueConstraint.CallbackReference.class::isInstance))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
             editorKind = EditorKind.NULLABLE_DART_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.DART_OBJECT_REFERENCE))
@@ -242,16 +328,20 @@ final class FlutterTypedPropertyEditors {
     enum EditorKind {
         STRING,
         STRING_PRESET,
+        NULLABLE_STRING,
         PRESET_DART_REFERENCE,
         OBJECT_TAG,
         RADIO_TYPE,
+        NOTIFICATION_TYPE,
         RADIO_VALUE,
         NEWLINE_STRING_LIST,
         BOOLEAN,
         NULLABLE_BOOLEAN,
         NULLABLE_ENUM,
+        POINTER_DEVICE_KIND_SET,
         INTEGER,
         NULLABLE_INTEGER,
+        DURATION_REFERENCE,
         DOUBLE,
         NUMBER,
         NULLABLE_NUMBER,
@@ -272,15 +362,24 @@ final class FlutterTypedPropertyEditors {
         FONT_FEATURE_LIST,
         FONT_VARIATION_LIST,
         ICON_DATA,
+        ICON_WIDGET_REFERENCE,
         ALIGNMENT_GEOMETRY,
+        ALIGNMENT_REFERENCE,
+        BOX_CONSTRAINTS_REFERENCE,
+        BOX_DECORATION_REFERENCE,
         SIZE,
         OFFSET,
+        OFFSET_REFERENCE,
+        NUMBER_REFERENCE,
         BOX_CONSTRAINTS,
+        MATRIX4_REFERENCE,
         MATRIX4,
         IMAGE_PROVIDER,
+        IMAGE_PROVIDER_REFERENCE,
         NULLABLE_IMAGE_PROVIDER,
         BOX_DECORATION,
         BORDER_RADIUS,
+        BORDER_RADIUS_REFERENCE,
         DART_OBJECT_REFERENCE,
         NULLABLE_DART_REFERENCE,
         SHAPE_BORDER_CLIPPER
@@ -361,7 +460,7 @@ final class FlutterTypedPropertyEditors {
         FlutterPropertyCellValue validate(FlutterPropertyCellValue candidate) {
             Objects.requireNonNull(candidate, "candidate");
             if (candidate.radioTypeEdit().isPresent() && editorKind != EditorKind.RADIO_TYPE) {
-                throw invalid("A dependent Radio type draft is accepted only by the Radio valueType editor.");
+                throw invalid("A dependent type draft is accepted only by the valueType editor.");
             }
             if (candidate.explicitValue().isEmpty()) {
                 if (!optional()) {
@@ -371,6 +470,10 @@ final class FlutterTypedPropertyEditors {
                 return candidate;
             }
             PropertyValue value = candidate.explicitValue().orElseThrow();
+            if (editorKind == EditorKind.NOTIFICATION_TYPE && value instanceof PropertyValue.DartObjectReferenceValue
+                    && !dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.isTypeReference(value)) {
+                throw invalid("Notification type must be a simple non-nullable class or typedef reference, without a member, invocation or const flag.");
+            }
             Optional<PropertyValueConstraint> constraint = definition.constraints().stream()
                     .filter(item -> item.kind() == value.kind())
                     .findFirst();
@@ -401,10 +504,10 @@ final class FlutterTypedPropertyEditors {
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
-                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST,
-                        ICON_DATA, ALIGNMENT_GEOMETRY, SIZE, OFFSET, BOX_CONSTRAINTS,
-                        MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS,
-                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, RADIO_VALUE ->
+                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
+                        ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
+                        MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
+                        DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->
                     new StructuredEditor(this);
             };
         }
@@ -488,7 +591,8 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final boolean isPaintable() {
-            return binding.editorKind() == EditorKind.BOOLEAN
+            return FlutterAnimatedIconPreview.supports(binding)
+                    || binding.editorKind() == EditorKind.BOOLEAN
                     || binding.editorKind() == EditorKind.NULLABLE_BOOLEAN
                     || binding.editorKind() == EditorKind.COLOR
                     || binding.editorKind() == EditorKind.THEME_COLOR
@@ -501,7 +605,9 @@ final class FlutterTypedPropertyEditors {
 
         @Override
         public final void paintValue(Graphics graphics, Rectangle box) {
-            if (binding.editorKind() == EditorKind.COLOR_ANIMATION || binding.editorKind() == EditorKind.COLOR_REFERENCE || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
+            if (FlutterAnimatedIconPreview.supports(binding)) {
+                FlutterAnimatedIconPreview.paint(graphics,box,cellValue(),getAsText());
+            } else if (binding.editorKind() == EditorKind.COLOR_ANIMATION || binding.editorKind() == EditorKind.COLOR_REFERENCE || binding.editorKind() == EditorKind.NULLABLE_THEME_COLOR) {
                 if (explicitValue().orElse(null) instanceof PropertyValue.ColorValue
                         || explicitValue().orElse(null) instanceof PropertyValue.ThemeTokenValue) {
                     FlutterPropertyEditorComponents.paintColorValue(graphics, box, cellValue());
@@ -810,7 +916,7 @@ final class FlutterTypedPropertyEditors {
                 boolean preservesExistingDouble = explicitValue()
                         .filter(PropertyValue.DoubleValue.class::isInstance)
                         .isPresent();
-                if (decimalSyntax || preservesExistingDouble) {
+                if (decimalSyntax || preservesExistingDouble || !binding.definition().acceptedKinds().contains(PropertyValueKind.INTEGER)) {
                     setExplicit(new PropertyValue.DoubleValue(
                             new BigDecimal(normalized)));
                 } else {
@@ -1098,13 +1204,17 @@ final class FlutterTypedPropertyEditors {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue
                         ? "Inherit (null)" : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
+            if (binding.editorKind() == EditorKind.DURATION_REFERENCE) {
+                return explicitValue().map(value -> value instanceof PropertyValue.IntegerValue integer ? integer.value() + " microseconds"
+                        : value instanceof PropertyValue.NullValue ? "Explicit null" : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
+            }
             if (binding.editorKind() == EditorKind.NULLABLE_DART_REFERENCE) {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue
                         ? FlutterNullableDartReferenceEditorComponent.nullText(binding) : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.PRESET_DART_REFERENCE) {
-                return explicitValue().map(value -> value instanceof PropertyValue.NullValue ? binding.definition().name().value().equals("onChanged") ? "Explicit null" : "Inherit (null)"
-                        : value instanceof PropertyValue.StringValue preset ? "Preset: " + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
+                return explicitValue().map(value -> value instanceof PropertyValue.NullValue ? java.util.List.of("onChanged", "onExpansionChanged", "onTriggered").contains(binding.definition().name().value()) ? "Explicit null" : "Inherit (null)"
+                        : value instanceof PropertyValue.StringValue preset ? (FlutterAnimatedIconPreview.supports(binding) ? "AnimatedIcons." : "Preset: ") + preset.value() : PropertyValueFormatter.format(value)).orElseGet(this::unsetText);
             }
             if (binding.editorKind() == EditorKind.COLOR_ANIMATION) {
                 return explicitValue().map(value -> value instanceof PropertyValue.NullValue

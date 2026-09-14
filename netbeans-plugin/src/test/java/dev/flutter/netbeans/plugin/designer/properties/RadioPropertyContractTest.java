@@ -19,7 +19,14 @@ public class RadioPropertyContractTest {
     @Test void all107CellsRetainStableSetsTypedEditorsAndSparseEditResetCommands() throws Exception {
         var prototype = WidgetNodePrototypeFactory.create(DEF, ID); var commands = new ArrayList<DesignerCommand>();
         var node = node(prototype, commands); var sets = node.getPropertySets();
-        assertEquals(107, DEF.properties().size()); assertEquals(9, sets.length); assertTrue(DEF.slots().isEmpty()); assertTrue(DEF.constConstructor());
+        assertEquals(107, DEF.properties().size()); assertTrue(DEF.slots().isEmpty()); assertTrue(DEF.constConstructor());
+        var expectedGroups = new LinkedHashSet<String>(); expectedGroups.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
+        Arrays.stream(RadioWidgetPropertySchema.Group.values()).map(RadioWidgetPropertySchema.Group::setName).forEach(expectedGroups::add);
+        expectedGroups.add(FlutterWidgetPropertiesNode.EVENTS_SET_NAME);
+        assertEquals(expectedGroups, Arrays.stream(sets).map(Node.PropertySet::getName).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(expectedGroups.size(), sets.length);
+        var eventRows = Arrays.stream(sets).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
+        assertEquals(List.of("onChanged"), Arrays.stream(eventRows.getProperties()).map(Node.Property::getName).toList());
         assertEquals(Map.of(p("value"), new PropertyValue.StringValue("option"), p("valueType"), new PropertyValue.StringValue("String"),
                 p("variant"), new PropertyValue.StringValue("standard"), p("onChanged"), new PropertyValue.StringValue("noop")), prototype.properties());
         for (var field : DEF.properties()) {

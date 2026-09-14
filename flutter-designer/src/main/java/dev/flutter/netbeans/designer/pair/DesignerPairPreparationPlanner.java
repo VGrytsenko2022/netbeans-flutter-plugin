@@ -150,7 +150,8 @@ public final class DesignerPairPreparationPlanner {
                     + failure.diagnostic().code() + ": "
                     + failure.diagnostic().message());
         }
-        if (prospectiveFd.equals(baselineFd)) {
+        if (prospectiveFd.equals(baselineFd)
+                && dartTransition.userSourceProjection().isIdentity()) {
             return failure(
                     DesignerPairPreparationStatus.NO_TRANSITION,
                     DesignerPairPreparationDiagnosticCode.PROSPECTIVE_FD_UNCHANGED,

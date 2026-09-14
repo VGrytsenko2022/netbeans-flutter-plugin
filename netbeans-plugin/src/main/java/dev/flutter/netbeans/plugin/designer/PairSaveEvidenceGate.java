@@ -41,7 +41,19 @@ final class PairSaveEvidenceGate {
     private static final Set<String> RADIO_CORE_TYPES = Set.of(
             "String", "int", "double", "num", "bool", "Object");
     private static final Pattern RADIO_CORE_TYPE_PROBE_ID = Pattern.compile(
-            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:radio(?:-group)?-core-value-type");
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:radio(?:-group)?-core-value-type|value-listenable-core-value-type|value-listenable-preset-core-type|tween-animation-core-value-type|tween-animation-preset-core-type)");
+    private static final Pattern EXPANSION_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:expansion-tile-core-duration:expansionAnimationStyle(?:Reverse)?DurationUs");
+    private static final Pattern FLOATING_HEADER_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:sliver-floating-header-core-duration:animationStyle(?:Reverse)?DurationUs");
+    private static final Pattern TOOLTIP_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:tooltip-core-duration:(?:wait|show|exit)DurationUs");
+    private static final Pattern TOOLTIP_THEME_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:tooltip-theme-core-duration:(?:wait|show|exit)DurationUs");
+    private static final Pattern SLIVER_ANIMATED_OPACITY_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:sliver-animated-opacity-duration|animated-opacity-duration|animated-align-duration|animated-padding-duration|animated-slide-duration|animated-scale-duration|animated-rotation-duration|animated-container-duration|animated-size-duration|animated-size-reverse-duration|animated-positioned-duration|animated-default-text-style-duration|animated-physical-model-duration|animated-fractionally-sized-box-duration|animated-cross-fade-duration|animated-cross-fade-reverse-duration|animated-theme-duration|animated-switcher-duration|animated-switcher-reverse-duration|fade-in-image-fadeOutDurationUs|fade-in-image-fadeInDurationUs|tween-animation-duration)");
+    private static final Pattern SUBMENU_DURATION_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:submenu-button-core-duration:hoverOpenDelayUs");
     private static final Pattern PROJECT_PACKAGE_LIBRARY_URI = Pattern.compile(
             "package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"
@@ -431,7 +443,11 @@ final class PairSaveEvidenceGate {
         }
 
         Set<String> ids = new HashSet<>();
-        boolean statelessWidget = false;
+        boolean stateful = prepared.dartTransition().prospectiveDescriptor().widgetKind()
+                == dev.flutter.netbeans.designer.model.WidgetClassKind.STATEFUL;
+        String requiredSuperclass = stateful ? "StatefulWidget" : REQUIRED_STATELESS_WIDGET;
+        boolean designerSuperclass = false;
+        boolean stateSuperclass = false;
         boolean widget = false;
         boolean buildContext = false;
         for (DartSymbolEvidence evidence : analysis.symbolEvidence()) {
@@ -452,27 +468,29 @@ final class PairSaveEvidenceGate {
             verifyOccurrence(candidate, probe, diagnostics);
             verifyStaticTypeEvidence(candidate, evidence, diagnostics);
             boolean flutterLibrary = isFlutterLibraryUri(
-                    probe.expectedLibraryUri());
+                    probe.expectedLibraryUri()) || "dart:ui".equals(probe.expectedLibraryUri());
             boolean radioCoreType = isRadioCoreTypeProbe(probe);
+            boolean coreDuration = isCoreDurationProbe(probe);
+            boolean admittedCoreSymbol = radioCoreType || coreDuration;
             boolean currentProjectLibrary = CURRENT_PROJECT_LIBRARY_URI.equals(
                     probe.expectedLibraryUri());
             boolean declaredPackageLibrary = isDeclaredPackageLibraryUri(
                     probe.expectedLibraryUri());
-            if (!flutterLibrary && !radioCoreType && !currentProjectLibrary
+            if (!flutterLibrary && !admittedCoreSymbol && !currentProjectLibrary
                     && !declaredPackageLibrary) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.INVALID_FLUTTER_LIBRARY_URI,
                         "analysis.symbolEvidence." + probe.id(),
-                        "A pair-save symbol probe must identify a package:flutter URI "
+                        "A pair-save symbol probe must identify a package:flutter or dart:ui URI "
                         + "or a closed current/declared project package library URI, "
-                        + "or the exact generator-owned Radio dart:core type contract.");
+                        + "or an exact generator-owned Radio/ValueListenableBuilder type or ExpansionTile/Tooltip/SubmenuButton/SliverAnimatedOpacity/SliverFloatingHeader Duration dart:core contract.");
             }
 
             Path expectedRootReal = realPath(
                     probe.expectedTargetRoot(),
                     "analysis.symbolEvidence." + probe.id() + ".expectedTargetRoot",
                     diagnostics);
-            Path authorizedRoot = flutterLibrary || radioCoreType
+            Path authorizedRoot = flutterLibrary || admittedCoreSymbol
                     ? trustedFlutterReal
                     : currentProjectLibrary
                             ? projectLibraryReal
@@ -484,12 +502,12 @@ final class PairSaveEvidenceGate {
                             : currentProjectLibrary
                                     ? expectedRootReal.equals(authorizedRoot)
                                     : expectedRootReal.equals(authorizedRoot));
-            if ((flutterLibrary || radioCoreType || currentProjectLibrary
+            if ((flutterLibrary || admittedCoreSymbol || currentProjectLibrary
                     || declaredPackageLibrary) && !trustedExpectedRoot) {
                 add(diagnostics,
                         PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT,
                         "analysis.symbolEvidence." + probe.id(),
-                        flutterLibrary || radioCoreType
+                        flutterLibrary || admittedCoreSymbol
                                 ? "The probe's real target root is outside the trusted Flutter SDK root."
                                 : currentProjectLibrary
                                         ? "The current-library probe's real target root is not the trusted project lib directory."
@@ -534,27 +552,42 @@ final class PairSaveEvidenceGate {
                     add(diagnostics,
                             PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET,
                             "analysis.symbolEvidence." + probe.id() + ".target",
-                            "The Radio or RadioGroup core type must resolve to its exact class in the trusted SDK Dart or sky_engine core library.");
+                            "The Radio, RadioListTile or RadioGroup core type must resolve to its exact class in the trusted SDK Dart or sky_engine core library.");
+                }
+                if (coreDuration && (targetReal == null
+                        || !Set.of("CLASS", "CONSTRUCTOR").contains(target.kind())
+                        || !isRadioCoreTypeTarget(trustedFlutterReal, targetReal, "Duration"))) {
+                    add(diagnostics,
+                            PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET,
+                            "analysis.symbolEvidence." + probe.id() + ".target",
+                            "The generated duration constructor must resolve to Duration in the exact trusted SDK core/duration.dart library.");
                 }
             }
 
             if (diagnostics.size() == diagnosticsBefore) {
-                statelessWidget |= GeneratedDartSymbolProbePlanner
+                designerSuperclass |= GeneratedDartSymbolProbePlanner
                         .DESIGNER_SUPERCLASS_PROBE_ID.equals(probe.id())
-                        && REQUIRED_STATELESS_WIDGET.equals(
+                        && requiredSuperclass.equals(
                                 probe.expectedSymbolName());
+                stateSuperclass |= GeneratedDartSymbolProbePlanner.STATE_SUPERCLASS_PROBE_ID
+                        .equals(probe.id()) && "State".equals(probe.expectedSymbolName());
                 widget |= REQUIRED_WIDGET.equals(probe.expectedSymbolName());
                 buildContext |= REQUIRED_BUILD_CONTEXT.equals(
                         probe.expectedSymbolName());
             }
         }
-        if (!statelessWidget) {
+        if (!designerSuperclass) {
             add(diagnostics,
-                    PairSaveEvidenceDiagnostic.Code
-                            .REQUIRED_STATELESS_WIDGET_PROBE_MISSING,
+                    stateful ? PairSaveEvidenceDiagnostic.Code.REQUIRED_STATEFUL_WIDGET_PROBE_MISSING
+                            : PairSaveEvidenceDiagnostic.Code.REQUIRED_STATELESS_WIDGET_PROBE_MISSING,
                     "analysis.symbolEvidence",
                     "Pair-save evidence requires the accepted scanner-owned "
-                    + "StatelessWidget superclass probe.");
+                    + requiredSuperclass + " superclass probe.");
+        }
+        if (stateful && !stateSuperclass) {
+            add(diagnostics, PairSaveEvidenceDiagnostic.Code.REQUIRED_STATE_PROBE_MISSING,
+                    "analysis.symbolEvidence",
+                    "Pair-save evidence requires the accepted scanner-owned State superclass probe.");
         }
         if (!widget) {
             add(diagnostics,
@@ -572,12 +605,27 @@ final class PairSaveEvidenceGate {
     }
 
     /** Additional closed admission; the complete prepared manifest is still compared above. */
+    private static boolean isCoreDurationProbe(DartSymbolProbe probe) {
+        return "dart:core".equals(probe.expectedLibraryUri())
+                && (EXPANSION_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || FLOATING_HEADER_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || TOOLTIP_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || TOOLTIP_THEME_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || SUBMENU_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || SLIVER_ANIMATED_OPACITY_DURATION_PROBE_ID.matcher(probe.id()).matches())
+                && "Duration".equals(probe.expectedSymbolName())
+                && probe.length() == "Duration".length()
+                && probe.staticTypeProbe().isEmpty();
+    }
+
+    /** Additional closed admission; the complete prepared manifest is still compared above. */
     private static boolean isRadioCoreTypeProbe(DartSymbolProbe probe) {
         if (!"dart:core".equals(probe.expectedLibraryUri())
                 || !RADIO_CORE_TYPE_PROBE_ID.matcher(probe.id()).matches()
                 || !RADIO_CORE_TYPES.contains(probe.expectedSymbolName())) return false;
         DartStaticTypeProbe type = probe.staticTypeProbe().orElse(null);
         return type != null && type.expectedDartType().equals("Type")
+                && type.sourceTypeBound().isEmpty()
                 && type.expressionOffset() == probe.offset()
                 && type.expressionLength() == probe.length()
                 && probe.length() == probe.expectedSymbolName().length()

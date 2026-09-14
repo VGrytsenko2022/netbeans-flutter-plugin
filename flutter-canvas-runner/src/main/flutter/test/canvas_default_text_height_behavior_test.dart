@@ -31,7 +31,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|$_type\n');
-      final end = contract.indexOf('W|flutter.widgets.Directionality\n', start);
+      final end = contract.indexOf('\nW|', start) + 1;
       expect(
         contract.substring(start, end),
         'W|$_type\n'
@@ -41,7 +41,7 @@ void main() {
         'S|child|single|1|1|1|any\n'
         'C|$_type|paletteCreate|wrapExistingChild|child\n',
       );
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), isTrue);
       expect(isCanvasPaletteWrapperWidgetType(_type), isTrue);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);

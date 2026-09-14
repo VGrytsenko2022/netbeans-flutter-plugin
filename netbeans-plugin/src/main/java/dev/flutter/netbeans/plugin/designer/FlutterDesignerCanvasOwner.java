@@ -9,6 +9,7 @@ import dev.flutter.netbeans.designer.canvas.CanvasViewportPresentation;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerCanvasBackendSelector.Backend;
@@ -155,6 +156,25 @@ final class FlutterDesignerCanvasOwner implements FlutterDesignerCanvasSession {
                 targetPlatform,
                 resolvedTheme,
                 imageResources);
+    }
+
+    @Override
+    public void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources,
+            java.util.Optional<CanvasOrientation> orientationOverride) {
+        session.present(
+                document,
+                catalog,
+                previewMode,
+                targetPlatform,
+                resolvedTheme,
+                imageResources,
+                orientationOverride);
     }
 
     @Override

@@ -13,7 +13,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import dev.flutter.netbeans.designer.canvas.payload.CanvasModelPayloadCodec;
 import dev.flutter.netbeans.designer.catalog.BuiltInWidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PageViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListWheelScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CustomScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliverToBoxAdapterWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
@@ -64,6 +69,33 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.RadioGroup",
             "flutter.material.ListTile",
             "flutter.material.CheckboxListTile",
+            "flutter.material.SwitchListTile",
+            "flutter.material.RadioListTile",
+            "flutter.material.ExpansionTile",
+            "flutter.material.Tooltip",
+            "flutter.material.TooltipVisibility",
+            "flutter.material.TooltipTheme",
+            "flutter.material.MenuItemButton",
+            "flutter.material.MenuAnchor",
+            "flutter.material.SubmenuButton",
+            "flutter.material.MenuBar",
+            "flutter.material.NavigationBar",
+            "flutter.material.NavigationRail",
+            "flutter.material.NavigationDrawer",
+            "flutter.material.Drawer",
+            "flutter.material.BottomAppBar",
+            "flutter.material.BottomNavigationBar",
+            "flutter.material.Material",
+            "flutter.material.Scrollbar",
+            "flutter.material.SliverAppBar",
+            "flutter.material.SliverAppBar.medium",
+            "flutter.material.SliverAppBar.large",
+            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
+            "flutter.widgets.GestureDetector",
+            "flutter.widgets.Listener",
+            "flutter.widgets.MouseRegion",
+            "flutter.widgets.Focus",
+            "flutter.widgets.NotificationListener",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -74,6 +106,7 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
+            "flutter.widgets.Builder",
             "flutter.widgets.ClipRect",
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
@@ -95,6 +128,8 @@ class FlutterDesignerPaletteTest {
                     "flutter.widgets.DefaultSelectionStyle",
                     "flutter.widgets.IconTheme",
                     "flutter.widgets.ImageIcon",
+                    "flutter.widgets.DefaultTextStyle",
+                    "flutter.widgets.DefaultTextStyle.merge",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.IndexedStack",
             "flutter.widgets.Padding",
@@ -121,13 +156,21 @@ class FlutterDesignerPaletteTest {
             "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
+            "flutter.widgets.PreferredSize",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
             "flutter.widgets.SafeArea",
+            "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier",
             "flutter.widgets.ListView",
             GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+            GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value(),
             SingleChildScrollViewWidgetPropertySchema
-                    .SINGLE_CHILD_SCROLL_VIEW_TYPE.value());
+                    .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+            PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.value(),
+            ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE.value(),
+            CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE.value(),
+            SliverToBoxAdapterWidgetPropertySchema.SLIVER_TO_BOX_ADAPTER_TYPE.value(),
+            "flutter.widgets.SliverList", "flutter.widgets.SliverGrid", "flutter.widgets.SliverGrid.extent", "flutter.widgets.SliverList.builder", "flutter.widgets.SliverList.separated", "flutter.widgets.SliverList.delegate", "flutter.widgets.SliverGrid.builder", "flutter.widgets.SliverGrid.list", "flutter.widgets.SliverGrid.delegate", "flutter.widgets.SliverPadding", "flutter.widgets.SliverFillRemaining", "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate", "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity", "flutter.widgets.SliverLayoutBuilder", "flutter.widgets.SliverPersistentHeader", "flutter.widgets.SliverResizingHeader", "flutter.widgets.PinnedHeaderSliver", "flutter.widgets.SliverFloatingHeader", "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.SliverFadeTransition");
     private static final Set<String> NON_CANVAS_BUILT_INS = Set.of();
 
     @Test
@@ -497,6 +540,47 @@ class FlutterDesignerPaletteTest {
     }
 
     @Test
+    void menuItemButtonPaletteExplainsOptionalSlotsAllStylesAndDisplayOnlyShortcuts() throws ReflectiveOperationException {
+        String typeId = "flutter.material.MenuItemButton";
+        PaletteController controller = FlutterDesignerPalette.create(CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId); WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 330, "MenuItemButton"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        for (String phrase : List.of("520 typed", "498 local", "all optional", "Three native Events", "Four independent boolean", "432 reviewed", "not global key registrations", "no key is invented", "never executed"))
+            assertTrue(node.getShortDescription().contains(phrase), node.getShortDescription());
+        assertTrue(definition.slots().stream().allMatch(slot -> slot.minChildren() == 0));
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node)); assertTrue(declaredIconPath(node).endsWith("/menuitembutton.svg"));
+    }
+
+    @Test
+    void tooltipThemePaletteExplainsCompleteLocalDataAndExplicitConflicts() throws ReflectiveOperationException {
+        String typeId = "flutter.material.TooltipTheme";
+        PaletteController controller = FlutterDesignerPalette.create(CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId); WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 320, "TooltipTheme"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals("TooltipTheme", node.getDisplayName());
+        for (String phrase : List.of("required Child", "47 properties", "46 local leaves", "31 TextStyle", "explicit null and State binding", "without silent data loss", "not an outer-theme merge", "No native Events", "never executes")) {
+            assertTrue(node.getShortDescription().contains(phrase), node.getShortDescription());
+        }
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node));
+        assertTrue(declaredIconPath(node).endsWith("/tooltiptheme.svg"));
+    }
+
+    @Test
+    void tooltipVisibilityPaletteExplainsRequiredWrapNearestScopeAndIndependentStatePreview()
+            throws ReflectiveOperationException {
+        String typeId = "flutter.material.TooltipVisibility";
+        PaletteController controller = FlutterDesignerPalette.create(CATALOG, definition -> typeId.equals(definition.typeId().value()));
+        Node node = itemNode(controller, typeId); WidgetDefinition definition = node.getLookup().lookup(WidgetDefinition.class);
+        assertEquals(new FlutterDesignerPaletteItem(definition.typeId(), "flutter.material", 100, 310, "TooltipVisibility"), node.getLookup().lookup(FlutterDesignerPaletteItem.class));
+        assertEquals("TooltipVisibility", node.getDisplayName());
+        for (String phrase : List.of("required Child", "not an SDK default", "nearest scope wins", "nearer true overrides an outer false", "literal Canvas preview", "There are no native Events")) {
+            assertTrue(node.getShortDescription().contains(phrase), node.getShortDescription());
+        }
+        assertEquals(FlutterWidgetIconRegistry.findIconPath(definition.typeId()).orElseThrow(), declaredIconPath(node));
+        assertEquals("tooltipvisibility.svg", declaredIconPath(node).substring(declaredIconPath(node).lastIndexOf('/') + 1));
+    }
+
+    @Test
     void visibilityPaletteExplainsAllMaintainFlagsAndOptionalReplacementWithDedicatedIcon()
             throws ReflectiveOperationException {
         String typeId = "flutter.widgets.Visibility";
@@ -520,41 +604,42 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(89, CATALOG.definitions().size());
-        assertEquals(82, CATALOG.definitions().stream()
+        assertEquals(211, CATALOG.definitions().size());
+        assertEquals(177, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
-                        "flutter.basic", "flutter.accessibility"),
+                        "flutter.basic", "flutter.accessibility", "flutter.interaction"),
                 Arrays.stream(categories).map(Node::getName).toList());
         assertEquals(
-                List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility"),
+                List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility", "Interaction"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon"),
                 itemLabels(categories[0]));
-        assertEquals(26, itemLabels(categories[0]).size());
+        assertEquals(52, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Indexed Stack", "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
+                "RotatedBox", "PreferredSize", "ListBody", "OverflowBar", "SafeArea", "LayoutBuilder", "OrientationBuilder", "DeviceOrientationBuilder", "ListenableBuilder", "AnimatedBuilder", "ValueListenableBuilder", "TweenAnimationBuilder", "AnimatedOpacity", "AnimatedAlign", "AnimatedPadding", "AnimatedSlide", "AnimatedScale", "AnimatedRotation", "AnimatedContainer", "AnimatedSize", "AnimatedPositioned", "AnimatedPositioned.fromRect", "AnimatedPositionedDirectional", "AnimatedDefaultTextStyle", "AnimatedPhysicalModel", "AnimatedFractionallySizedBox", "AnimatedCrossFade", "AnimatedSwitcher", "DefaultTextStyleTransition", "FadeTransition", "SlideTransition", "ScaleTransition", "RotationTransition", "SizeTransition", "PositionedTransition", "RelativePositionedTransition", "DecoratedBoxTransition", "AlignTransition", "MatrixTransition"),
                 itemLabels(categories[1]));
-        assertEquals(31, itemLabels(categories[1]).size());
-        assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
+        assertEquals(66, itemLabels(categories[1]).size());
+        assertEquals(List.of("ListView", "GridView.count", "GridView.extent", "SingleChildScrollView", "PageView", "ListWheelScrollView", "CustomScrollView", "SliverToBoxAdapter", "SliverList.list", "SliverGrid.count", "SliverGrid.extent", "SliverList.builder", "SliverList.separated", "SliverList.new", "SliverGrid.builder", "SliverGrid.list", "SliverGrid.new", "SliverPadding", "SliverFillRemaining", "SliverFillViewport", "SliverFillViewport.delegate", "SliverFixedExtentList.list", "SliverFixedExtentList.builder", "SliverFixedExtentList.new", "SliverPrototypeExtentList.list", "SliverPrototypeExtentList.builder", "SliverPrototypeExtentList.new", "SliverVariedExtentList.list", "SliverVariedExtentList.builder", "SliverVariedExtentList.new", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverCrossAxisExpanded", "SliverConstrainedCrossAxis", "SliverOpacity", "SliverIgnorePointer", "SliverOffstage", "SliverVisibility", "SliverVisibility.maintain", "SliverSafeArea", "SliverAnimatedOpacity", "SliverLayoutBuilder", "SliverPersistentHeader", "SliverResizingHeader", "PinnedHeaderSliver", "SliverFloatingHeader", "DeviceOrientationBuilder (sliver)", "ListenableBuilder (sliver)", "AnimatedBuilder (sliver)", "ValueListenableBuilder (sliver)", "TweenAnimationBuilder (sliver)", "SliverFadeTransition"),
                 itemLabels(categories[2]));
-        assertEquals(3, itemLabels(categories[2]).size());
+        assertEquals(52, itemLabels(categories[2]).size());
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
-                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon"),
+                "DecoratedBox", "Builder", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage"),
                 itemLabels(categories[3]));
-        assertEquals(23, itemLabels(categories[3]).size());
+        assertEquals(30, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
         assertEquals(6, itemLabels(categories[4]).size());
+        assertEquals(List.of("GestureDetector", "Listener", "MouseRegion", "Focus", "NotificationListener"), itemLabels(categories[5]));
 
         FlutterDesignerPaletteCategory material = categories[0].getLookup()
                 .lookup(FlutterDesignerPaletteCategory.class);
@@ -573,9 +658,9 @@ class FlutterDesignerPaletteTest {
 
         assertEquals(
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
-                        "flutter.basic", "flutter.accessibility"),
+                        "flutter.basic", "flutter.accessibility", "flutter.interaction"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -583,14 +668,14 @@ class FlutterDesignerPaletteTest {
                 "ConstrainedBox", "UnconstrainedBox", "LimitedBox", "OverflowBox", "Stack",
                 "Indexed Stack", "Expanded", "Flexible", "Spacer", "Baseline", "IntrinsicHeight",
                 "IntrinsicWidth", "Offstage", "SizedOverflowBox", "Transform",
-                "RotatedBox", "ListBody", "OverflowBar", "SafeArea"),
+                "RotatedBox", "PreferredSize", "ListBody", "OverflowBar", "SafeArea", "LayoutBuilder", "OrientationBuilder", "DeviceOrientationBuilder", "ListenableBuilder", "AnimatedBuilder", "ValueListenableBuilder", "TweenAnimationBuilder", "AnimatedOpacity", "AnimatedAlign", "AnimatedPadding", "AnimatedSlide", "AnimatedScale", "AnimatedRotation", "AnimatedContainer", "AnimatedSize", "AnimatedPositioned", "AnimatedPositioned.fromRect", "AnimatedPositionedDirectional", "AnimatedDefaultTextStyle", "AnimatedPhysicalModel", "AnimatedFractionallySizedBox", "AnimatedCrossFade", "AnimatedSwitcher", "DefaultTextStyleTransition", "FadeTransition", "SlideTransition", "ScaleTransition", "RotationTransition", "SizeTransition", "PositionedTransition", "RelativePositionedTransition", "DecoratedBoxTransition", "AlignTransition", "MatrixTransition"),
                 itemLabels(categories[1]));
-        assertEquals(List.of("ListView", "GridView.count", "SingleChildScrollView"),
+        assertEquals(List.of("ListView", "GridView.count", "GridView.extent", "SingleChildScrollView", "PageView", "ListWheelScrollView", "CustomScrollView", "SliverToBoxAdapter", "SliverList.list", "SliverGrid.count", "SliverGrid.extent", "SliverList.builder", "SliverList.separated", "SliverList.new", "SliverGrid.builder", "SliverGrid.list", "SliverGrid.new", "SliverPadding", "SliverFillRemaining", "SliverFillViewport", "SliverFillViewport.delegate", "SliverFixedExtentList.list", "SliverFixedExtentList.builder", "SliverFixedExtentList.new", "SliverPrototypeExtentList.list", "SliverPrototypeExtentList.builder", "SliverPrototypeExtentList.new", "SliverVariedExtentList.list", "SliverVariedExtentList.builder", "SliverVariedExtentList.new", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverCrossAxisExpanded", "SliverConstrainedCrossAxis", "SliverOpacity", "SliverIgnorePointer", "SliverOffstage", "SliverVisibility", "SliverVisibility.maintain", "SliverSafeArea", "SliverAnimatedOpacity", "SliverLayoutBuilder", "SliverPersistentHeader", "SliverResizingHeader", "PinnedHeaderSliver", "SliverFloatingHeader", "DeviceOrientationBuilder (sliver)", "ListenableBuilder (sliver)", "AnimatedBuilder (sliver)", "ValueListenableBuilder (sliver)", "TweenAnimationBuilder (sliver)", "SliverFadeTransition"),
                 itemLabels(categories[2]));
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
-                "DecoratedBox", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon"),
+                "DecoratedBox", "Builder", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
 
@@ -2239,7 +2324,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(89, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(211, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

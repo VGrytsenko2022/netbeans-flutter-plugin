@@ -12,19 +12,34 @@ import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPrope
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuItemButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuAnchorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationRailWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationDrawerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BottomNavigationBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MaterialWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SubmenuButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialThemeTokenCatalog;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
@@ -32,10 +47,20 @@ import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PageViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListWheelScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CustomScrollViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.AnimatedDefaultTextStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextStyleTransitionWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultTextHeightBehaviorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MouseRegionWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BuilderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
@@ -46,6 +71,10 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.StateBinding;
+import dev.flutter.netbeans.designer.model.StatePropertyBinding;
+import dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog;
+import dev.flutter.netbeans.designer.state.WidgetStatePropertyBindingCatalog;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
@@ -143,17 +172,8 @@ public final class DartRegionGenerator {
                     Optional.empty(),
                     "Dart generation is blocked by " + first.code() + ": " + first.message()));
         }
-        if (document.source().widgetKind() != WidgetClassKind.STATELESS) {
-            return failure(validation, diagnostic(
-                    DartGenerationDiagnosticCode.UNSUPPORTED_WIDGET_KIND,
-                    "/source/widgetKind",
-                    Optional.empty(),
-                    Optional.empty(),
-                    "Dart generation profile " + PROFILE_ID
-                    + " supports only a stateless designer class; received "
-                    + document.source().widgetKind().wireName() + "."));
-        }
-
+        // StatelessWidget.build and State<Owner>.build share the same managed
+        // payload. The source-integrity gate owns proof of the enclosing class.
         try {
             GenerationContext planned = createContext(document.root(), catalog);
             String importsPayload = renderImports(
@@ -205,9 +225,10 @@ public final class DartRegionGenerator {
             for (GeneratedDartSymbolOccurrence occurrence : root.symbolOccurrences()) {
                 symbolOccurrences.add(occurrence.shifted(buildPrefix.length()));
             }
+            int additionalSourceProbes = document.source().widgetKind() == WidgetClassKind.STATEFUL ? 1 : 0;
             if (symbolOccurrences.size()
                     > limits.candidateCapacityBudget()
-                            .maxGeneratedSymbolOccurrences()) {
+                            .maxGeneratedSymbolOccurrences() - additionalSourceProbes) {
                 throw abort(diagnostic(
                         DartGenerationDiagnosticCode.SYMBOL_PROBE_LIMIT,
                         "/source/managedRegions/build",
@@ -215,8 +236,8 @@ public final class DartRegionGenerator {
                         Optional.of(DartManagedRegionId.BUILD),
                         "Generated Dart requires " + symbolOccurrences.size()
                         + " symbol occurrences plus "
-                        + limits.candidateCapacityBudget()
-                                .reservedSourceSymbolProbes()
+                        + (limits.candidateCapacityBudget()
+                                .reservedSourceSymbolProbes() + additionalSourceProbes)
                         + " source-owned probes, exceeding shared capacity profile "
                         + limits.candidateCapacityBudget().profileId()
                         + " with maxSymbolProbes="
@@ -279,6 +300,15 @@ public final class DartRegionGenerator {
                     "Validated widget type '" + current.node().type().value()
                     + "' disappeared from the generation catalog.")));
             usedDefinitions.putIfAbsent(definition.typeId().value(), definition);
+            current.node().stateBinding().flatMap(StateBinding::referenceType)
+                    .flatMap(PropertyValue.DartObjectReferenceValue::libraryUri).ifPresent(valueImportUris::add);
+            for (var binding : current.node().propertyBindings().entrySet()) {
+                if (FocusWidgetPropertySchema.propertyAvailable(current.node(), binding.getKey())
+                        && SwitchListTileWidgetPropertySchema.propertyAvailable(current.node(), binding.getKey())
+                        && RadioListTileWidgetPropertySchema.propertyAvailable(current.node(), binding.getKey())) {
+                    binding.getValue().referenceType().flatMap(PropertyValue.DartObjectReferenceValue::libraryUri).ifPresent(valueImportUris::add);
+                }
+            }
             current.node().properties().entrySet().stream()
                     .filter(entry -> emittedReferenceProperty(current.node(), entry.getKey()))
                     .map(Map.Entry::getValue)
@@ -289,8 +319,8 @@ public final class DartRegionGenerator {
                     .forEach(valueImportUris::add);
             requiresMaterialTheme |= current.node().properties().values().stream()
                     .anyMatch(DartRegionGenerator::requiresMaterialTheme);
-            requiresServices |= current.node().type().equals(
-                    AppBarWidgetPropertySchema.APP_BAR_TYPE)
+            requiresServices |= (current.node().type().equals(
+                    AppBarWidgetPropertySchema.APP_BAR_TYPE) || dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(current.node().type()))
                     && current.node().properties().keySet().stream()
                             .map(PropertyName::value)
                             .anyMatch(name -> name.startsWith("systemOverlayStyle"));
@@ -311,6 +341,8 @@ public final class DartRegionGenerator {
                     .anyMatch(DartRegionGenerator::requiresDartConvert);
             requiresDartUi |= usesEnumLibrary(
                     current.node(), definition, DART_UI_IMPORT);
+            requiresDartUi |= current.node().properties().values().stream()
+                    .anyMatch(PropertyValue.PointerDeviceKindSetValue.class::isInstance);
 
             ArrayList<WidgetAtPath> children = new ArrayList<>();
             for (Map.Entry<SlotName, WidgetSlot> entry : current.node().slots().entrySet()) {
@@ -340,6 +372,10 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
+        if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
+                && node.propertyBindings().containsKey(new PropertyName("enabled"))) return true;
+        if (!FocusWidgetPropertySchema.propertyAvailable(node, name) || !SwitchListTileWidgetPropertySchema.propertyAvailable(node, name)
+                || !RadioListTileWidgetPropertySchema.propertyAvailable(node, name)) return false;
         if (node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                 || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                 || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)
@@ -399,26 +435,135 @@ public final class DartRegionGenerator {
         boolean listView = node.type().equals(
                 ListViewWidgetPropertySchema.LIST_VIEW_TYPE);
         boolean gridView = node.type().equals(
-                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE);
-        int constructorBaseIndent = textField || listView || gridView
+                GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
+                || node.type().equals(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE);
+        boolean pageView = node.type().equals(
+                PageViewWidgetPropertySchema.PAGE_VIEW_TYPE);
+        boolean listWheelScrollView = node.type().equals(
+                ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE);
+        boolean customScrollView = node.type().equals(
+                CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE);
+        int constructorBaseIndent = textField || listView || gridView || pageView || listWheelScrollView || customScrollView
                 ? baseIndent + 4 : baseIndent;
 
         ArrayList<ConstructorArgument> arguments = new ArrayList<>();
+        if (node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)) {
+            context.buttonFamilies().put(node.id(), new ButtonFamily("MenuAnchor", "MenuTheme", false, false, "", node));
+        }
+        if (node.type().equals(MenuBarWidgetPropertySchema.MENU_BAR_TYPE)) {
+            context.buttonFamilies().put(node.id(), new ButtonFamily("MenuBar", "MenuTheme", false, false, "", node));
+        }
         if (OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
             boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
             boolean hasIcon = node.slots().get(new SlotName("icon")) instanceof WidgetSlot.SingleSlot slot
                     && slot.child().isPresent();
-            String family = node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE) ? "IconButton"
+            String family = node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE) ? "SubmenuButton"
+                    : node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE) ? "MenuItemButton"
+                    : node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE) ? "IconButton"
                     : node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE) ? "FilledButton"
                     : node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE)
                     ? "OutlinedButton" : "TextButton";
-            context.buttonFamilies().put(node.id(), new ButtonFamily(family, family + "Theme", icon, hasIcon,
+            context.buttonFamilies().put(node.id(), new ButtonFamily(family,
+                    family.equals("MenuItemButton") || family.equals("SubmenuButton") ? "MenuButtonTheme" : family + "Theme", icon, hasIcon,
                     node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
                             ? FilledButtonWidgetPropertySchema.constructorName(node)
                             : node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if ((node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE))
+                    && property.name().value().equals("data") && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
+            if ((node.type().equals(dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE)
+                    || dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(node.type()) || node.type().equals(AnimatedDefaultTextStyleWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE))
+                    && Set.of("durationUs", "curve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)
+                    && Set.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.TYPE)
+                    && Set.of("durationUs", "reverseDurationUs", "switchInCurve", "switchOutCurve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.TYPE)
+                    && Set.of("durationUs", "reverseDurationUs", "firstCurve", "secondCurve", "sizeCurve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE)
+                    && property.name().value().equals("reverseDurationUs")) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE)) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.RECT_TYPE)
+                    && property.name().value().startsWith("rect")) continue;
+            if (node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)
+                    && SubmenuButtonWidgetPropertySchema.isCompound(property.name())) continue;
+            if (node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
+                    && MenuAnchorWidgetPropertySchema.isCompound(property.name())) continue;
+            if (node.type().equals(MenuBarWidgetPropertySchema.MENU_BAR_TYPE)
+                    && MenuBarWidgetPropertySchema.isCompound(property.name())) continue;
+            if (node.type().equals(NavigationBarWidgetPropertySchema.NAVIGATION_BAR_TYPE)
+                    && (NavigationBarWidgetPropertySchema.durationProperties().contains(property.name().value())
+                    || property.name().value().equals("onDestinationSelected"))) continue;
+            if (node.type().equals(BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE)
+                    && property.name().value().equals("onTap")) continue;
+            if (node.type().equals(MaterialWidgetPropertySchema.MATERIAL_TYPE)
+                    && property.name().value().equals("animationDurationUs")) continue;
+            if (node.type().equals(NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE)
+                    && property.name().value().equals("onDestinationSelected")) continue;
+            if (node.type().equals(NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE)
+                    && property.name().value().equals("onDestinationSelected")) continue;
+            if (node.type().equals(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE)
+                    && property.name().value().equals("onPageChanged")) continue;
+            if (node.type().equals(ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE)
+                    && property.name().value().equals("onSelectedItemChanged")) continue;
+            if (node.type().equals(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE)) continue;
+            if (node.type().equals(TooltipWidgetPropertySchema.TOOLTIP_TYPE)
+                    && (TooltipWidgetPropertySchema.isTextStyleProperty(property.name())
+                    || TooltipWidgetPropertySchema.durationProperties().contains(property.name().value())
+                    || property.name().value().equals("onTriggered")
+                    || property.name().value().equals("mouseCursor") && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE)
+                    && (property.name().value().equals("animationStyle")
+                        || dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.LOCAL_STYLE.contains(property.name().value()))) continue;
+            if (node.type().equals(ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE)
+                    && (property.parameter().order() >= 33 || property.name().value().equals("onExpansionChanged")
+                    || property.name().value().equals("expansionAnimationStyle")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
+            if (node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
+                    && (property.parameter().order() >= 40
+                    || !RadioListTileWidgetPropertySchema.propertyAvailable(node, property.name())
+                    || Set.of("value", "groupValue", "onChanged", "onFocusChange").contains(property.name().value())
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
+            if (node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
+                    && (property.parameter().order() >= 44
+                    || !SwitchListTileWidgetPropertySchema.propertyAvailable(node, property.name())
+                    || Set.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError").contains(property.name().value())
+                    || property.name().value().equals("mouseCursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
+            if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())) continue;
+            if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())
+                    && !property.name().value().equals("onEnd")) continue;
+            if (usesListenableBuilderPresets(node)
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
+            if (node.type().equals(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE)) continue;
+            if (node.type().equals(BuilderWidgetPropertySchema.BUILDER_TYPE)
+                    && property.name().value().equals("builder")) continue;
+            if ((usesEmptyBoxBuilderPreset(node) || dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type())
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE)
+                    || dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.find(node.type()).isPresent()
+                    || dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                || dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                || dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.DELEGATE))
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.CHILDREN)
+                    && property.parameter().order() >= 3) continue;
+            if (node.type().equals(FocusWidgetPropertySchema.FOCUS_TYPE)
+                    && (property.name().value().equals("variant")
+                    || !FocusWidgetPropertySchema.propertyAvailable(node, property.name()))) continue;
             if (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) continue;
             if (node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
                     && (property.parameter().order() >= 40
@@ -463,6 +608,8 @@ public final class DartRegionGenerator {
                     && node.properties().get(property.name()) instanceof PropertyValue.StringValue))) continue;
             if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                     && TextButtonWidgetPropertySchema.isCompound(property.name())) continue;
+            if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
+                    && MenuItemButtonWidgetPropertySchema.isCompound(property.name())) continue;
             if (node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
                     && property.name().value().equals("variant")) continue;
             if (node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
@@ -483,6 +630,12 @@ public final class DartRegionGenerator {
                 // merge selects a static helper, while mouseCursor is a closed SDK constant.
                 continue;
             }
+            if (node.type().equals(MouseRegionWidgetPropertySchema.MOUSE_REGION_TYPE)
+                    && property.name().value().equals("cursor")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue) {
+                // A reviewed cursor preset is an SDK constant, never a Dart string literal.
+                continue;
+            }
             if (node.type().equals(DefaultTextHeightBehaviorWidgetPropertySchema.DEFAULT_TEXT_HEIGHT_BEHAVIOR_TYPE)) {
                 // All three flattened leaves belong inside the required composite.
                 continue;
@@ -491,11 +644,41 @@ public final class DartRegionGenerator {
                     && ScaffoldWidgetPropertySchema.isStaticPreset(property.name())) {
                 continue;
             }
-            if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)
-                    && TextWidgetPropertySchema.isCompound(property.name())) {
+            if ((node.type().equals(TextWidgetPropertySchema.TEXT_TYPE)
+                    || DefaultTextStyleWidgetPropertySchema.sharesTextProjection(node.type()))
+                    && (TextWidgetPropertySchema.isCompound(property.name()) || property.name().value().equals("style"))) {
                 continue;
             }
-            if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)
+            if (dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.TYPE.equals(node.type())
+                    && property.name().value().equals("stretchModes")
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue modes) {
+                var symbol = context.planner().renderedSymbol(MATERIAL_IMPORT, "StretchMode");
+                String valuePath = path + "/properties/stretchModes";
+                String prefix = "widget:" + node.id() + ":stretch-modes";
+                var expression = new StringBuilder("const <");
+                var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+                symbols.add(occurrence(prefix + ":type", expression.length() + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                expression.append(symbol.text()).append(">[");
+                if (!modes.value().equals("none")) for (String mode : modes.value().split(",")) {
+                    if (expression.charAt(expression.length() - 1) != '[') expression.append(", ");
+                    symbols.add(occurrence(prefix + ":" + mode, expression.length() + symbol.nameOffset(),
+                            symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                    expression.append(symbol.text()).append('.').append(mode);
+                }
+                expression.append(']');
+                arguments.add(new ConstructorArgument(property.parameter(), "stretchModes", false,
+                        scalar(expression.toString(), true, valuePath, node.id(), context, symbols)));
+                continue;
+            }
+            if (dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(node.type())
+                    && property.name().value().equals("onStretchTrigger") && node.properties().get(property.name()) instanceof PropertyValue.StringValue) {
+                arguments.add(new ConstructorArgument(property.parameter(), "onStretchTrigger", false,
+                        scalar("() async {}", false, path + "/properties/onStretchTrigger", node.id(), context)));
+                continue;
+            }
+            if ((node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)
+                    || dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(node.type()))
                     && AppBarWidgetPropertySchema.isCompound(property.name())) {
                 continue;
             }
@@ -515,8 +698,10 @@ public final class DartRegionGenerator {
                     && ListViewWidgetPropertySchema.isSynthesized(property.name())) {
                 continue;
             }
-            if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
-                    && GridViewCountWidgetPropertySchema.isSynthesized(property.name())) {
+            if ((node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
+                    && GridViewCountWidgetPropertySchema.isSynthesized(property.name()))
+                    || (node.type().equals(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE)
+                    && GridViewExtentWidgetPropertySchema.isSynthesized(property.name()))) {
                 continue;
             }
             if (node.type().equals(SingleChildScrollViewWidgetPropertySchema
@@ -525,23 +710,84 @@ public final class DartRegionGenerator {
                             .isSynthesized(property.name())) {
                 continue;
             }
+            if (node.type().equals(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE)
+                    && PageViewWidgetPropertySchema.isSynthesized(property.name())) {
+                continue;
+            }
+            if (node.type().equals(CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE)
+                    && CustomScrollViewWidgetPropertySchema.isSynthesized(property.name())) {
+                continue;
+            }
             PropertyValue value = node.properties().get(property.name());
             if (value != null) {
                 String propertyPath = path + "/properties/" + pointer(property.name().value());
                 arguments.add(new ConstructorArgument(
                         property.parameter(),
-                        property.name().value(),
+                        property.name().value().equals("barType") || property.name().value().equals("materialType")
+                                ? "type" : property.name().value(),
                         false,
-                        (node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
+                        node.type().equals(FocusWidgetPropertySchema.FOCUS_TYPE)
+                                && FocusWidgetPropertySchema.usesExternalNode(node)
+                                && property.name().value().equals("focusNode")
+                                && value instanceof PropertyValue.DartObjectReferenceValue focusNode
+                                ? renderDartObjectReference(focusNode, "FocusNode", propertyPath, node.id(), context)
+                                : ((node.type().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
                                 || node.type().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
                                 || node.type().equals(RefreshProgressIndicatorWidgetPropertySchema.REFRESH_PROGRESS_INDICATOR_TYPE))
                                 && property.name().value().equals("valueColor")
+                                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE)
+                                && property.name().value().equals("color"))
                                 && !(value instanceof PropertyValue.DartObjectReferenceValue)
                                 ? renderProgressValueColor(value, property, propertyPath, node.id(), context)
                                 : node.type().equals(RefreshIndicatorWidgetPropertySchema.REFRESH_INDICATOR_TYPE)
                                         && property.name().value().equals("notificationPredicate")
                                         && value instanceof PropertyValue.StringValue preset
                                         ? renderRefreshNotificationPredicate(preset, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("icon") && value instanceof PropertyValue.StringValue preset
+                                        ? renderAnimatedIconPreset(preset.value(), propertyPath, node.id(), context)
+                                : (node.type().equals(dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("turns")
+                                        || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("progress")
+                                        || node.type().equals(dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("opacity") && !(value instanceof PropertyValue.NullValue))
+                                        && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                        ? renderStoppedTurns(value, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("sizeFactor")
+                                        && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                        ? renderStoppedSizeFactor(value, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("scale")
+                                        && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                        ? renderStoppedScale(value, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("animation")
+                                        && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                        ? renderStoppedMatrixAnimation(value, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("onTransform")
+                                        && value instanceof PropertyValue.Matrix4Value matrix
+                                        ? renderMatrixCallback(matrix, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("alignment")
+                                        && value instanceof PropertyValue.AlignmentGeometryValue
+                                        ? renderStoppedAlignment(renderProperty(value, property, propertyPath, node.id(), context,
+                                            constructorBaseIndent + 2), propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("decoration")
+                                        && value instanceof PropertyValue.BoxDecorationValue
+                                        ? renderStoppedDecoration(renderProperty(value, property, propertyPath, node.id(), context,
+                                            constructorBaseIndent + 2), propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.TYPE)
+                                        && property.name().value().equals("position")
+                                        && value instanceof PropertyValue.OffsetValue offset
+                                        ? renderStoppedOffset(renderOffset(offset, propertyPath, node.id(), context), propertyPath, node.id(), context)
+                                : dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.supports(node.type())
+                                        && property.name().value().equals("opacity")
+                                        && !(value instanceof PropertyValue.DartObjectReferenceValue)
+                                        ? renderStoppedOpacity(value, propertyPath, node.id(), context)
                                 : renderProperty(value, property, propertyPath, node.id(), context,
                                         constructorBaseIndent + 2)));
             }
@@ -553,6 +799,41 @@ public final class DartRegionGenerator {
         }
         for (SlotDefinition slot : definition.slots()) {
             WidgetSlot value = node.slots().get(slot.name());
+            if ((node.type().equals(dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.SLIVER_TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.TYPE)
+                    || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.TYPE))
+                    && slot.name().value().equals("sliver")
+                    && (value == null || value instanceof WidgetSlot.SingleSlot single && single.child().isEmpty())) {
+                // Flutter 3.44.8 accepts null in the constructor but RenderProxySliver
+                // dereferences its child during layout. Keep the FD slot empty and
+                // lower it to a zero-extent native sliver in generated Dart and Canvas.
+                String slotPath = path + "/slots/sliver";
+                var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "SliverToBoxAdapter");
+                var occurrence = occurrence("widget:" + node.id() + ":emptySliver",
+                        6 + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), slotPath, Optional.of(node.id()));
+                arguments.add(new ConstructorArgument(slot.parameter(), "sliver", true,
+                        scalar("const " + symbol.text() + "()", true, slotPath, node.id(), context, List.of(occurrence))));
+                continue;
+            }
+            if (dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                    && slot.name().value().equals("prototypeItem")
+                    && (value == null || value instanceof WidgetSlot.SingleSlot single && single.child().isEmpty())) {
+                String slotPath = path + "/slots/prototypeItem";
+                var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "SizedBox");
+                var occurrence = occurrence("widget:" + node.id() + ":prototypePreset",
+                        6 + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), slotPath, Optional.of(node.id()));
+                arguments.add(new ConstructorArgument(slot.parameter(), "prototypeItem", true,
+                        scalar("const " + symbol.text() + "(width: 48.0, height: 48.0)", true,
+                                slotPath, node.id(), context, List.of(occurrence))));
+                continue;
+            }
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.CHILDREN)) {
+                arguments.add(new ConstructorArgument(slot.parameter(), "delegate", true,
+                        renderViewportDelegate(node, definition, path, constructorBaseIndent + 2, context)));
+                continue;
+            }
             if (node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                     && slot.name().value().equals("icon")
                     && !FloatingActionButtonWidgetPropertySchema.isExtendedConstructor(node)) continue;
@@ -562,12 +843,14 @@ public final class DartRegionGenerator {
             if (value != null) {
                 if ((node.type().value().equals("flutter.widgets.Transform")
                         || (node.type().value().equals("flutter.widgets.Visibility")
-                        && slot.name().value().equals("replacement")))
+                        && slot.name().value().equals("replacement"))
+                        || (dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.supports(node.type())
+                        && slot.name().value().equals("replacementSliver")))
                         && !slot.parameter().required()
                         && value instanceof WidgetSlot.SingleSlot single
                         && single.child().isEmpty()) {
-                    // Preserve omitted Transform.child and Visibility's non-null
-                    // SizedBox.shrink replacement default; empty is not Dart null.
+                    // Preserve omitted Transform.child and non-null Visibility/
+                    // SliverVisibility replacement defaults; empty is not Dart null.
                     continue;
                 }
                 String slotPath = path + "/slots/" + pointer(slot.name().value());
@@ -578,7 +861,35 @@ public final class DartRegionGenerator {
                                 && slot.name().value().equals("child")
                                 ? "label" : slot.name().value(),
                         true,
-                    renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
+                        isNavigationDestinationsSlot(node, slot.name())
+                                ? renderNavigationDestinations(value, slotPath,
+                                        constructorBaseIndent + 2, context,
+                                        node.type().equals(NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE),
+                                        node.type().equals(NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE),
+                                        node.type().equals(BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE))
+                                : renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
+            }
+        }
+        if (DefaultTextStyleWidgetPropertySchema.sharesTextProjection(node.type())) {
+            var styleProperty = definition.property(new PropertyName("style")).orElseThrow();
+            var styleValue = node.properties().get(styleProperty.name());
+            boolean local = styleValue instanceof PropertyValue.StringValue;
+            appendTextCompoundArguments(node, definition, path, constructorBaseIndent + 2, context, arguments, "style", 0,
+                name -> (local && AnimatedDefaultTextStyleWidgetPropertySchema.styleLeaf(name)
+                    || !node.properties().containsKey(new PropertyName("textHeightBehavior")) && AnimatedDefaultTextStyleWidgetPropertySchema.heightLeaf(name))
+                    ? TextWidgetPropertySchema.find(name) : Optional.empty());
+            if (!local && styleValue != null) arguments.add(new ConstructorArgument(styleProperty.parameter(), "style", false,
+                    renderProperty(styleValue, styleProperty, path + "/properties/style", node.id(), context)));
+            else if (local && arguments.stream().noneMatch(a -> a.name().equals("style")))
+                arguments.add(new ConstructorArgument(styleProperty.parameter(), "style", false,
+                    renderNamedCompositeMembers("TextStyle", Optional.empty(), List.of(), constructorBaseIndent + 2, path + "/properties/style", node.id(), context)));
+            if (local && node.type().equals(DefaultTextStyleTransitionWidgetPropertySchema.TYPE)) {
+                for (int index = 0; index < arguments.size(); index++) {
+                    var argument = arguments.get(index);
+                    if (argument.name().equals("style")) arguments.set(index, new ConstructorArgument(
+                            argument.parameter(), argument.name(), false,
+                            renderStoppedTextStyle(argument.value(), path + "/properties/style", node.id(), context)));
+                }
             }
         }
         if (node.type().equals(TextWidgetPropertySchema.TEXT_TYPE) || node.type().equals(BadgeWidgetPropertySchema.BADGE_TYPE)
@@ -589,6 +900,8 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
+                || node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
+                || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
                 || node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
                 || node.type().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                 || node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)) {
@@ -603,14 +916,56 @@ public final class DartRegionGenerator {
         if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)) {
             appendRadioArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
+        if (node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)) {
+            appendRadioListTileArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE)) {
+            appendFloatingHeaderAnimationStyle(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE)) {
+            appendExpansionTileArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(TooltipWidgetPropertySchema.TOOLTIP_TYPE)) {
+            appendTooltipArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE)) {
+            appendTooltipThemeArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
         if (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) {
             appendRadioIdentityArguments(node, definition, path, context, arguments, List.of("groupValue", "onChanged"));
+        }
+        if (node.type().equals(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE)) {
+            appendNotificationListenerArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(BuilderWidgetPropertySchema.BUILDER_TYPE)) {
+            appendBuilderArguments(node, definition, path, context, arguments);
+        }
+        if (usesEmptyBoxBuilderPreset(node) || dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type())
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE)
+                || dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.find(node.type()).isPresent()
+                || dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                || dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                || dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(node.type()).isPresent()
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.DELEGATE)) {
+            appendSliverPresetArguments(node, definition, path, context, arguments);
+        }
+        if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())) {
+            appendValueListenableBuilderArguments(node, definition, path, context, arguments);
+        }
+        if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())) {
+            appendTweenAnimationBuilderArguments(node, definition, path, context, arguments);
+        }
+        if (usesListenableBuilderPresets(node)) {
+            appendListenableBuilderPresets(node, definition, path, context, arguments);
         }
         if (node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)) {
             appendListTileArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) {
             appendSwitchArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)) {
+            appendSwitchListTileArguments(node, definition, path, context, arguments);
         }
         if (node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE)) {
             appendSliderArguments(node, definition, path, context, arguments);
@@ -678,10 +1033,191 @@ public final class DartRegionGenerator {
             appendScaffoldStaticPresetArguments(
                     node, definition, path, context, arguments);
         }
-        if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)) {
+        if (node.type().equals(AppBarWidgetPropertySchema.APP_BAR_TYPE)
+                || dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(node.type())) {
             appendAppBarCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
+        }
+        if (node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
+                || node.type().equals(MenuBarWidgetPropertySchema.MENU_BAR_TYPE)) {
+            appendMenuAnchorStyleArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
+        }
+        if (node.type().equals(NavigationBarWidgetPropertySchema.NAVIGATION_BAR_TYPE)) {
+            appendNavigationBarArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE)) {
+            appendBottomNavigationBarArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE)
+                || dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(node.type()) || node.type().equals(AnimatedDefaultTextStyleWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE) || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE)
+                || dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())) {
+            for (String name : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE)
+                    ? List.of("durationUs", "reverseDurationUs", "curve") : List.of("durationUs", "curve")) {
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value == null) continue;
+                var property = definition.property(new PropertyName(name)).orElseThrow();
+                String valuePath = path + "/properties/" + name;
+                RenderedValue rendered = (name.equals("durationUs") || name.equals("reverseDurationUs")) && value instanceof PropertyValue.IntegerValue integer
+                        ? scalar("const Duration(microseconds: " + integer.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE) ? ":animated-theme-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE) ? ":animated-fractionally-sized-box-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.TYPE) ? ":animated-physical-model-duration" : dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())
+                                        ? ":tween-animation-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.TYPE)
+                                            ? ":animated-opacity-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE)
+                                                ? ":animated-align-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE)
+                                                    ? ":animated-padding-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.TYPE)
+                                                        ? ":animated-slide-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.TYPE)
+                                                            ? ":animated-scale-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.TYPE)
+                                                                ? ":animated-rotation-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE)
+                                                                    ? ":animated-container-duration" : node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE)
+                                                                        ? (name.equals("reverseDurationUs") ? ":animated-size-reverse-duration" : ":animated-size-duration")
+                                                                        : (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(node.type()) || node.type().equals(AnimatedDefaultTextStyleWidgetPropertySchema.TYPE))
+                                                                            ? (node.type().equals(AnimatedDefaultTextStyleWidgetPropertySchema.TYPE) ? ":animated-default-text-style-duration" : ":animated-positioned-duration") : ":sliver-animated-opacity-duration"),
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                        : name.equals("curve") && value instanceof PropertyValue.StringValue preset
+                            ? renderExpansionTilePreset("Curves", preset.value(), valuePath, node.id(), context)
+                            : renderProperty(value, property, valuePath, node.id(), context);
+                arguments.add(new ConstructorArgument(property.parameter(), name.equals("durationUs") ? "duration"
+                        : name.equals("reverseDurationUs") ? "reverseDuration" : name, false, rendered));
+            }
+        }
+        if ((node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE))
+                && node.properties().get(new PropertyName("data")) instanceof PropertyValue.StringValue preset) {
+            var property = definition.property(new PropertyName("data")).orElseThrow();
+            String valuePath = path + "/properties/data";
+            var symbol = context.planner().renderedSymbol(MATERIAL_IMPORT, "ThemeData");
+            String factory = preset.value().replace("M2", "");
+            String occurrencePrefix = node.type().equals(dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE)
+                    ? ":theme-" : ":animated-theme-";
+            String expression = symbol.text() + "." + factory + (preset.value().endsWith("M2") ? "(useMaterial3: false)" : "()");
+            arguments.add(new ConstructorArgument(property.parameter(), "data", false,
+                scalar(expression, false, valuePath, node.id(), context, List.of(
+                    occurrence("widget:" + node.id() + occurrencePrefix + "data", symbol.nameOffset(), symbol.name(), MATERIAL_IMPORT, valuePath, Optional.of(node.id())),
+                    occurrence("widget:" + node.id() + occurrencePrefix + "factory", symbol.text().length()+1, factory, MATERIAL_IMPORT, valuePath, Optional.of(node.id()))))));
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)) {
+            for (String name : List.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve")) {
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value == null) continue;
+                var property = definition.property(new PropertyName(name)).orElseThrow();
+                String valuePath = path + "/properties/" + name;
+                RenderedValue rendered = name.endsWith("Us") && value instanceof PropertyValue.IntegerValue integer
+                        ? scalar("const Duration(microseconds: " + integer.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":fade-in-image-" + name,
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                        : value instanceof PropertyValue.StringValue preset
+                            ? renderExpansionTilePreset("Curves", preset.value(), valuePath, node.id(), context)
+                            : renderProperty(value, property, valuePath, node.id(), context);
+                arguments.add(new ConstructorArgument(property.parameter(), name.endsWith("Us")
+                        ? name.substring(0, name.length() - 2) : name, false, rendered));
+            }
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.TYPE)) {
+            for (String name : List.of("durationUs", "reverseDurationUs", "switchInCurve", "switchOutCurve")) {
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value == null) continue;
+                var property = definition.property(new PropertyName(name)).orElseThrow();
+                String valuePath = path + "/properties/" + name;
+                RenderedValue rendered = name.endsWith("Us") && value instanceof PropertyValue.IntegerValue integer
+                        ? scalar("const Duration(microseconds: " + integer.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + (name.equals("durationUs") ? ":animated-switcher-duration" : ":animated-switcher-reverse-duration"),
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                        : name.endsWith("Curve") && value instanceof PropertyValue.StringValue preset
+                            ? renderExpansionTilePreset("Curves", preset.value(), valuePath, node.id(), context)
+                            : renderProperty(value, property, valuePath, node.id(), context);
+                arguments.add(new ConstructorArgument(property.parameter(), name.equals("durationUs") ? "duration"
+                        : name.equals("reverseDurationUs") ? "reverseDuration" : name, false, rendered));
+            }
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.TYPE)) {
+            for (String name : List.of("durationUs", "reverseDurationUs", "firstCurve", "secondCurve", "sizeCurve")) {
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value == null) continue;
+                var property = definition.property(new PropertyName(name)).orElseThrow();
+                String valuePath = path + "/properties/" + name;
+                RenderedValue rendered = name.endsWith("Us") && value instanceof PropertyValue.IntegerValue integer
+                        ? scalar("const Duration(microseconds: " + integer.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + (name.equals("durationUs") ? ":animated-cross-fade-duration" : ":animated-cross-fade-reverse-duration"),
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                        : name.endsWith("Curve") && value instanceof PropertyValue.StringValue preset
+                            ? renderExpansionTilePreset("Curves", preset.value(), valuePath, node.id(), context)
+                            : renderProperty(value, property, valuePath, node.id(), context);
+                arguments.add(new ConstructorArgument(property.parameter(), name.equals("durationUs") ? "duration"
+                        : name.equals("reverseDurationUs") ? "reverseDuration" : name, false, rendered));
+            }
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE)) {
+            for (String name : List.of("rect", "size")) {
+                var property = definition.property(new PropertyName(name)).orElseThrow();
+                var value = node.properties().get(property.name());
+                String valuePath = path + "/properties/" + name;
+                RenderedValue rendered;
+                if (value instanceof PropertyValue.StringValue preset) {
+                    if (preset.value().equals("null")) rendered = scalar("null", true, valuePath, node.id(), context, List.of());
+                    else {
+                        var fields = name.equals("rect")
+                            ? dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.RECT_FIELDS
+                            : dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.SIZE_FIELDS;
+                        var components = new ArrayList<RenderedValue>();
+                        for (String field : fields) components.add(renderProperty(node.properties().get(new PropertyName(field)),
+                            definition.property(new PropertyName(field)).orElseThrow(), path + "/properties/" + field, node.id(), context));
+                        rendered = renderPositionalCompositeValues(name.equals("rect") ? "Rect" : "Size",
+                            name.equals("rect") ? Optional.of("fromLTWH") : Optional.empty(), components, valuePath, node.id(), context);
+                    }
+                    if (name.equals("rect")) rendered = renderStoppedNullableRect(rendered, valuePath, node.id(), context);
+                } else rendered = renderProperty(value, property, valuePath, node.id(), context);
+                arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+            }
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE)) {
+            var property = definition.property(new PropertyName("rect")).orElseThrow();
+            var value = node.properties().get(property.name());
+            String rectPath = path + "/properties/rect";
+            RenderedValue rect;
+            if (value instanceof PropertyValue.StringValue) {
+                var components = new ArrayList<RenderedValue>();
+                for (String name : dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.EDGES)
+                    components.add(renderProperty(node.properties().get(new PropertyName(name)),
+                        definition.property(new PropertyName(name)).orElseThrow(), path + "/properties/" + name, node.id(), context));
+                rect = renderStoppedRelativeRect(renderPositionalCompositeValues("RelativeRect", Optional.of("fromLTRB"),
+                    components, rectPath, node.id(), context), rectPath, node.id(), context);
+            } else rect = renderProperty(value, property, rectPath, node.id(), context);
+            arguments.add(new ConstructorArgument(property.parameter(), "rect", false, rect));
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.RECT_TYPE)) {
+            var property = definition.property(new PropertyName("rect")).orElseThrow();
+            var value = node.properties().get(property.name());
+            String rectPath = path + "/properties/rect";
+            RenderedValue rect;
+            if (value instanceof PropertyValue.StringValue) {
+                var components = new ArrayList<RenderedValue>();
+                for (String name : List.of("rectLeft", "rectTop", "rectWidth", "rectHeight"))
+                    components.add(renderProperty(node.properties().get(new PropertyName(name)),
+                        definition.property(new PropertyName(name)).orElseThrow(),
+                        path + "/properties/" + name, node.id(), context));
+                rect = renderPositionalCompositeValues("Rect", Optional.of("fromLTWH"), components, rectPath, node.id(), context);
+            } else rect = renderProperty(value, property, rectPath, node.id(), context);
+            arguments.add(new ConstructorArgument(property.parameter(), "rect", false, rect));
+        }
+        if (node.type().equals(MaterialWidgetPropertySchema.MATERIAL_TYPE)) {
+            appendMaterialArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE)) {
+            appendNavigationRailArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE)) {
+            appendNavigationDrawerArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)) {
+            appendSubmenuButtonArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE)
                 || OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
@@ -701,7 +1237,8 @@ public final class DartRegionGenerator {
             appendStaticScrollViewSynthesizedArguments(
                     node, definition, path, context, arguments);
         }
-        if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)) {
+        if (node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
+                || node.type().equals(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE)) {
             appendStaticScrollViewSynthesizedArguments(
                     node, definition, path, context, arguments);
         }
@@ -710,8 +1247,30 @@ public final class DartRegionGenerator {
             appendStaticScrollViewPhysics(
                     node, definition, path, context, arguments);
         }
+        if (node.type().equals(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE)) {
+            appendStaticScrollViewSynthesizedArguments(
+                    node, definition, path, context, arguments);
+            appendPageViewArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE)) {
+            appendStaticScrollViewPhysics(
+                    node, definition, path, context, arguments);
+            appendListWheelScrollViewArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE)) {
+            appendStaticScrollViewSynthesizedArguments(
+                    node, definition, path, context, arguments);
+        }
         if (node.type().equals(DefaultSelectionStyleWidgetPropertySchema.DEFAULT_SELECTION_STYLE_TYPE)) {
             appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(MouseRegionWidgetPropertySchema.MOUSE_REGION_TYPE)
+                && node.properties().get(new PropertyName("cursor")) instanceof PropertyValue.StringValue) {
+            appendMouseCursorPreset(node, definition, "cursor", path, context, arguments);
+        }
+        appendStateBindingArgument(node, definition, path, context, arguments);
+        if (!node.type().equals(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE)) {
+            appendPropertyStateArguments(node, definition, path, context, arguments);
         }
         arguments.sort(ARGUMENT_ORDER);
 
@@ -738,8 +1297,24 @@ public final class DartRegionGenerator {
                 Optional.of(node.id()));
         ArrayList<GeneratedDartSymbolOccurrence> constructorOccurrences = new ArrayList<>();
         constructorOccurrences.add(classOccurrence);
+        if (node.type().equals(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE)) {
+            RenderedSymbol type = notificationTypeSymbol(node, context);
+            int typeStart = constructor.length() + 1;
+            boolean projectType = node.properties().get(new PropertyName("notificationType")) instanceof PropertyValue.DartObjectReferenceValue;
+            constructorOccurrences.add(occurrence(projectType
+                            ? "widget:" + node.id() + ":property-reference:" + path + "/properties/notificationType:root"
+                            : "widget:" + node.id() + ":notification-type",
+                    typeStart + type.nameOffset(), type.name(), type.libraryUri(),
+                    path + "/properties/notificationType" + (projectType ? "/rootSymbol" : ""), Optional.of(node.id()),
+                    Optional.of(new GeneratedDartStaticTypeRequirement(typeStart, type.text().length(), "Type",
+                            Optional.of(type.text()), Optional.of("Notification")))));
+            constructor += "<" + type.text() + ">";
+        }
         if (node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
-                || node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)) {
+                || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
+                || node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
+                || dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())
+                || dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())) {
             RenderedSymbol type = radioTypeSymbol(node, context);
             String selectedType = type.text() + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
             int typeStart = constructor.length() + 1;
@@ -747,13 +1322,20 @@ public final class DartRegionGenerator {
             constructorOccurrences.add(occurrence(projectType
                             ? "widget:" + node.id() + ":property-reference:" + path + "/properties/valueType:root"
                             : "widget:" + node.id() + (node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
-                                    ? ":radio-group-core-value-type" : ":radio-core-value-type"),
+                                    ? ":radio-group-core-value-type" : dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())
+                                            ? ":value-listenable-core-value-type" : dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())
+                                                    ? ":tween-animation-core-value-type" : ":radio-core-value-type"),
                     typeStart + type.nameOffset(), type.name(), type.libraryUri(),
                     path + "/properties/valueType" + (projectType ? "/rootSymbol" : ""), Optional.of(node.id()),
                     Optional.of(new GeneratedDartStaticTypeRequirement(typeStart, type.text().length(), "Type", Optional.of(selectedType)))));
             constructor += "<" + selectedType + ">";
         }
-        if (node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
+        if (node.type().equals(FocusWidgetPropertySchema.FOCUS_TYPE) && FocusWidgetPropertySchema.usesExternalNode(node)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":focusConstructor",
+                    constructor.length() + 1, "withExternalFocusNode", renderedClass.libraryUri(),
+                    path + "/properties/variant", Optional.of(node.id())));
+            constructor += ".withExternalFocusNode";
+        } else if (node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE)
                 && !FilledButtonWidgetPropertySchema.constructorName(node).isEmpty()) {
             String member = FilledButtonWidgetPropertySchema.constructorName(node);
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":filledButtonConstructor",
@@ -762,7 +1344,9 @@ public final class DartRegionGenerator {
             constructor += "." + member;
         } else if ((node.type().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                 || node.type().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
+                || node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
                 || node.type().equals(RadioWidgetPropertySchema.RADIO_TYPE)
+                || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
                 || node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)
                 || node.type().equals(SliderWidgetPropertySchema.SLIDER_TYPE))
                 && new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
@@ -790,6 +1374,10 @@ public final class DartRegionGenerator {
                     "widget:" + node.id() + ":shapeFactory", constructor.length() + 1,
                     "shape", renderedClass.libraryUri(), path, Optional.of(node.id())));
             constructor += ".shape";
+        } else if (node.type().equals(DefaultTextStyleWidgetPropertySchema.MERGE_TYPE)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":defaultTextStyleMergeFactory",
+                    constructor.length() + 1, "merge", renderedClass.libraryUri(), path, Optional.of(node.id())));
+            constructor += ".merge";
         } else if (selectionMerge || iconThemeMerge) {
             constructorOccurrences.add(occurrence(
                     "widget:" + node.id() + (iconThemeMerge ? ":iconThemeMergeFactory" : ":selectionMergeFactory"), constructor.length() + 1,
@@ -1042,6 +1630,177 @@ public final class DartRegionGenerator {
         return lines.build(false);
     }
 
+    private RenderedValue renderAnimatedIconPreset(String member,String path,StableId widgetId,GenerationContext context) {
+        var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"AnimatedIcons");
+        return scalar(symbol.text()+'.'+member,true,path,widgetId,context,List.of(
+                occurrence("widget:"+widgetId+":animated-icon-data",symbol.nameOffset(),symbol.name(),symbol.libraryUri(),path,Optional.of(widgetId)),
+                occurrence("widget:"+widgetId+":animated-icon-member",symbol.text().length()+1,member,symbol.libraryUri(),path,Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderStoppedTurns(
+            PropertyValue value, String path, StableId widgetId, GenerationContext context) {
+        var number = value instanceof PropertyValue.DoubleValue decimal ? decimal.value()
+                : new java.math.BigDecimal(((PropertyValue.IntegerValue) value).value());
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":stopped-turns-animation", 6 + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderStoppedSizeFactor(
+            PropertyValue value, String path, StableId widgetId, GenerationContext context) {
+        var number = value instanceof PropertyValue.DoubleValue decimal ? decimal.value()
+                : new java.math.BigDecimal(((PropertyValue.IntegerValue) value).value());
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":stopped-size-animation", 6 + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderStoppedScale(
+            PropertyValue value, String path, StableId widgetId, GenerationContext context) {
+        var number = value instanceof PropertyValue.DoubleValue decimal ? decimal.value()
+                : new java.math.BigDecimal(((PropertyValue.IntegerValue) value).value());
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":stopped-scale-animation", 6 + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderStoppedMatrixAnimation(
+            PropertyValue value, String path, StableId widgetId, GenerationContext context) {
+        var number = value instanceof PropertyValue.DoubleValue decimal ? decimal.value()
+                : new java.math.BigDecimal(((PropertyValue.IntegerValue) value).value());
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":stopped-matrix-animation", 6 + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderMatrixCallback(
+            PropertyValue.Matrix4Value matrix, String path, StableId widgetId, GenerationContext context) {
+        var value = renderMatrix4(matrix, path, widgetId, context);
+        String prefix = "(double animationValue) => ";
+        return scalar(prefix + value.joined(), false, path, widgetId, context,
+                value.symbolOccurrences().stream().map(symbol -> symbol.shifted(prefix.length())).toList());
+    }
+
+    private RenderedValue renderStoppedOpacity(
+            PropertyValue value, String path, StableId widgetId, GenerationContext context) {
+        var number = value instanceof PropertyValue.DoubleValue decimal ? decimal.value()
+                : new java.math.BigDecimal(((PropertyValue.IntegerValue) value).value());
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":stopped-opacity-animation", 6 + symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderStoppedRelativeRect(
+            RenderedValue offset, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "RelativeRect");
+        String constant = offset.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + ">(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-relative-rect-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-relative-rect-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        offset.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + offset.joined() + ")", offset.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
+
+    private RenderedValue renderStoppedDecoration(
+            RenderedValue offset, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "Decoration");
+        String constant = offset.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + ">(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-decoration-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-decoration-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        offset.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + offset.joined() + ")", offset.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
+
+    private RenderedValue renderStoppedAlignment(
+            RenderedValue alignment, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlignmentGeometry");
+        String constant = alignment.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + ">(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-alignment-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-alignment-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        alignment.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + alignment.joined() + ")", alignment.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
+
+    private RenderedValue renderStoppedNullableRect(
+            RenderedValue offset, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "Rect");
+        String constant = offset.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + "?>(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-nullable-rect-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-nullable-rect-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        offset.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + offset.joined() + ")", offset.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
+
+    private RenderedValue renderStoppedOffset(
+            RenderedValue offset, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "Offset");
+        String constant = offset.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + ">(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-offset-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-offset-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        offset.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + offset.joined() + ")", offset.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
+    private RenderedValue renderStoppedTextStyle(
+            RenderedValue style, String path, StableId widgetId, GenerationContext context) {
+        RenderedSymbol animation = context.planner().renderedSymbol(WIDGETS_IMPORT, "AlwaysStoppedAnimation");
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, "TextStyle");
+        String constant = style.constant() ? "const " : "";
+        String prefix = constant + animation.text() + "<" + type.text() + ">(";
+        var symbols = new ArrayList<GeneratedDartSymbolOccurrence>();
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-text-style-animation",
+                constant.length() + animation.nameOffset(), animation.name(), animation.libraryUri(), path, Optional.of(widgetId)));
+        symbols.add(occurrence("widget:" + widgetId + ":stopped-text-style-type",
+                constant.length() + animation.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(), path, Optional.of(widgetId)));
+        style.symbolOccurrences().forEach(symbol -> symbols.add(symbol.shifted(prefix.length())));
+        var rendered = scalar(prefix + style.joined() + ")", style.constant(), path, widgetId, context, symbols);
+        return new RenderedValue(java.util.Arrays.asList(rendered.joined().split("\\n", -1)),
+                rendered.constant(), rendered.utf8Size(), rendered.symbolOccurrences());
+    }
+
     private RenderedValue renderProgressValueColor(
             PropertyValue value, PropertyDefinition property, String path, StableId widgetId,
             GenerationContext context) {
@@ -1111,7 +1870,9 @@ public final class DartRegionGenerator {
     }
 
     private static List<ElevatedButtonState> buttonStates(WidgetNode node) {
-        if (!OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
+        if (!OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)
+                && !node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
+                && !node.type().equals(MenuBarWidgetPropertySchema.MENU_BAR_TYPE)) {
             return ELEVATED_BUTTON_STATES;
         }
         return TextButtonWidgetPropertySchema.statePriority().stream()
@@ -1123,6 +1884,150 @@ public final class DartRegionGenerator {
     private static List<String> enabledButtonStates(Map<String, ?> layers) {
         return layers.keySet().stream()
                 .filter(state -> !state.equals("disabled") && !state.equals("any")).toList();
+    }
+
+    private void appendSubmenuButtonArguments(WidgetNode node, WidgetDefinition definition,
+            String path, int valueIndent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyName delayName = new PropertyName("hoverOpenDelayUs");
+        PropertyValue delay = node.properties().get(delayName);
+        if (delay != null) {
+            String delayPath = path + "/properties/hoverOpenDelayUs";
+            RenderedValue rendered = delay instanceof PropertyValue.IntegerValue integer
+                    ? scalar("const Duration(microseconds: " + integer.value() + ")", true, delayPath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":submenu-button-core-duration:hoverOpenDelayUs",
+                                    6, "Duration", "dart:core", delayPath, Optional.of(node.id()))))
+                    : renderProperty(delay, definition.property(delayName).orElseThrow(), delayPath, node.id(), context);
+            arguments.add(new ConstructorArgument(definition.property(delayName).orElseThrow().parameter(), "hoverOpenDelay", false, rendered));
+        }
+        if (!node.properties().containsKey(new PropertyName("menuStyle"))) {
+            WidgetNode projection = SubmenuButtonWidgetPropertySchema.menuStyleProjection(node);
+            ArrayList<ConstructorArgument> projected = new ArrayList<>();
+            ButtonFamily previous = context.buttonFamilies().put(node.id(),
+                    new ButtonFamily("SubmenuButtonMenuStyle", "MenuTheme", false, false, "", projection));
+            try {
+                appendMenuAnchorStyleArguments(projection, context.catalog().find(projection.type()).orElseThrow(),
+                        path, valueIndent, context, projected);
+            } finally {
+                if (previous == null) context.buttonFamilies().remove(node.id());
+                else context.buttonFamilies().put(node.id(), previous);
+            }
+            for (ConstructorArgument argument : projected) {
+                RenderedValue source = argument.value();
+                RenderedValue namespaced = new RenderedValue(source.lines(), source.constant(), source.utf8Size(),
+                        source.symbolOccurrences().stream().map(symbol -> new GeneratedDartSymbolOccurrence(
+                                symbol.id().replace("widget:" + node.id() + ":", "widget:" + node.id() + ":submenu-menu-style:")
+                                        .replace(path + "/properties/style", path + "/properties/menuStyle"),
+                                symbol.region(), symbol.offset(), symbol.length(), symbol.symbolName(), symbol.libraryUri(),
+                                symbol.modelPath().replace(path + "/properties/style", path + "/properties/menuStyle"),
+                                symbol.widgetId(), symbol.staticTypeRequirement())).toList());
+                arguments.add(new ConstructorArgument(definition.property(new PropertyName("menuStyle")).orElseThrow().parameter(),
+                        "menuStyle", false, namespaced));
+            }
+        }
+        if (!node.properties().containsKey(new PropertyName("submenuIcon"))) {
+            ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : List.of("Disabled", "Hovered", "Focused", "Default")) {
+                PropertyName name = new PropertyName("submenuIcon" + state);
+                PropertyValue value = node.properties().get(name);
+                if (value == null) continue;
+                String valuePath = path + "/properties/" + name.value();
+                RenderedValue rendered = renderProperty(value, definition.property(name).orElseThrow(), valuePath, node.id(), context);
+                if (value instanceof PropertyValue.IconDataValue) {
+                    StringBuilder icon = new StringBuilder("const ");
+                    ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+                    appendElevatedSymbol(icon, occurrences, context.planner().renderedSymbol(WIDGETS_IMPORT, "Icon"),
+                            "widget:" + node.id() + ":submenu-icon:" + state, valuePath, node.id());
+                    icon.append('('); appendRendered(icon, occurrences, rendered); icon.append(')');
+                    rendered = scalar(icon.toString(), true, valuePath, node.id(), context, occurrences);
+                }
+                rendered = scopedIconButtonValue(rendered, name.value());
+                entries.add(new ElevatedButtonStateEntry(state.equals("Default") ? "any" : state.toLowerCase(java.util.Locale.ROOT), rendered));
+            }
+            if (!entries.isEmpty()) arguments.add(new ConstructorArgument(
+                    definition.property(new PropertyName("submenuIcon")).orElseThrow().parameter(), "submenuIcon", false,
+                    renderCheckboxStateMap("WidgetStateProperty", "Widget", entries,
+                            path + "/properties/submenuIcon", node.id(), context)));
+        }
+    }
+
+    private RenderedValue submenuMenuPaddingFallback(RenderedValue local, String path,
+            StableId id, GenerationContext context) {
+        StringBuilder result = new StringBuilder();
+        ArrayList<GeneratedDartSymbolOccurrence> occurrences = new ArrayList<>();
+        String scope = "widget:" + id + ":submenu-menu-padding:";
+        appendElevatedSymbol(result, occurrences, context.planner().renderedSymbol(MATERIAL_IMPORT, "WidgetStateProperty"), scope + "property", path, id);
+        result.append(".resolveWith<");
+        appendElevatedSymbol(result, occurrences, context.planner().renderedSymbol(WIDGETS_IMPORT, "EdgeInsetsGeometry"), scope + "type", path, id);
+        result.append("?>((states) => ("); appendRendered(result, occurrences, local);
+        result.append(").resolve(states) ?? ");
+        appendElevatedSymbol(result, occurrences, context.planner().renderedSymbol(MATERIAL_IMPORT, "MenuTheme"), scope + "theme", path, id);
+        result.append(".of(context).style?.padding?.resolve(states) ?? const ");
+        appendElevatedSymbol(result, occurrences, context.planner().renderedSymbol(WIDGETS_IMPORT, "EdgeInsetsDirectional"), scope + "default", path, id);
+        result.append(".symmetric(vertical: 8.0))");
+        return scalar(result.toString(), false, path, id, context, occurrences);
+    }
+
+    private void appendMenuAnchorStyleArguments(WidgetNode node, WidgetDefinition definition,
+            String path, int valueIndent, GenerationContext context, List<ConstructorArgument> arguments) {
+        if (node.properties().containsKey(new PropertyName("style"))) return;
+        LinkedHashMap<String, Map<String, RenderedValue>> states = new LinkedHashMap<>();
+        for (ElevatedButtonState state : buttonStates(node)) {
+            LinkedHashMap<String, RenderedValue> values = new LinkedHashMap<>();
+            for (String field : List.of("BackgroundColor", "ShadowColor", "SurfaceTintColor", "Elevation", "Padding")) {
+                putElevatedScalar(node, definition, state.prefix() + field,
+                        Character.toLowerCase(field.charAt(0)) + field.substring(1), path, context, values);
+            }
+            putIfPresent(values, "mouseCursor", renderElevatedCursor(node, definition, state.prefix() + "MouseCursor", path, context));
+            states.put(state.key(), Map.copyOf(values));
+        }
+        ArrayList<CompositeMember> style = new ArrayList<>();
+        int order = 0;
+        for (String field : List.of("backgroundColor", "shadowColor", "surfaceTintColor", "elevation", "padding", "mouseCursor")) {
+            String type = switch (field) {
+                case "elevation" -> "double"; case "padding" -> "EdgeInsetsGeometry";
+                case "mouseCursor" -> "MouseCursor"; default -> "Color";
+            };
+            appendElevatedStateProperty(style, states, field, type, order++, path, node.id(), context);
+        }
+        if (context.buttonFamily(node.id()).className().equals("SubmenuButtonMenuStyle")) {
+            for (int i = 0; i < style.size(); i++) {
+                CompositeMember member = style.get(i);
+                if (member.name().equals("padding")) style.set(i, new CompositeMember(member.name(), member.order(),
+                        submenuMenuPaddingFallback(member.rendered(), path + "/properties/stylePadding", node.id(), context)));
+            }
+        }
+        ElevatedButtonBoundSizePair sizes = renderElevatedBoundSizeStateProperties(node, definition, path, context);
+        if (sizes != null) {
+            style.add(new CompositeMember("minimumSize", 6, sizes.minimum()));
+            style.add(new CompositeMember("maximumSize", 8, sizes.maximum()));
+        }
+        RenderedValue fixed = renderElevatedSizeStateProperty(node, definition, "Fixed", path, context);
+        if (fixed != null) style.add(new CompositeMember("fixedSize", 7, fixed));
+        RenderedValue side = renderElevatedSideStateProperty(node, definition, path, context);
+        if (side != null) style.add(new CompositeMember("side", 9, side));
+        RenderedValue shape = renderElevatedShapeStateProperty(node, definition, path, context);
+        if (shape != null) style.add(new CompositeMember("shape", 10, shape));
+        if (node.properties().containsKey(new PropertyName("styleVisualDensityHorizontal"))
+                || node.properties().containsKey(new PropertyName("styleVisualDensityVertical"))) {
+            ArrayList<CompositeMember> density = new ArrayList<>();
+            for (String axis : List.of("Horizontal", "Vertical")) {
+                PropertyDefinition property = definition.property(new PropertyName("styleVisualDensity" + axis)).orElseThrow();
+                if (!node.properties().containsKey(property.name())) continue;
+                density.add(new CompositeMember(axis.toLowerCase(java.util.Locale.ROOT), density.size(),
+                        renderProperty(node.properties().get(property.name()), property,
+                                path + "/properties/" + property.name().value(), node.id(), context)));
+            }
+            style.add(new CompositeMember("visualDensity", 11, renderNamedCompositeMembers(MATERIAL_IMPORT,
+                    "VisualDensity", Optional.empty(), density, valueIndent + 2,
+                    path + "/properties/styleVisualDensity", node.id(), context)));
+        }
+        RenderedValue alignment = renderElevatedAlignment(node, definition, path, valueIndent + 2, context);
+        if (alignment != null) style.add(new CompositeMember("alignment", 12, alignment));
+        if (style.isEmpty()) return;
+        style.sort(COMPOSITE_MEMBER_ORDER);
+        arguments.add(new ConstructorArgument(definition.property(new PropertyName("style")).orElseThrow().parameter(),
+                "style", false, renderNamedCompositeMembers(MATERIAL_IMPORT, "MenuStyle", Optional.empty(), style,
+                        valueIndent, path + "/properties/style", node.id(), context)));
     }
 
     private void appendElevatedButtonCompoundArguments(
@@ -1214,6 +2119,8 @@ public final class DartRegionGenerator {
             style.sort(COMPOSITE_MEMBER_ORDER);
             arguments.add(new ConstructorArgument(
                     node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
+                            || node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
+                            || node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)
                             ? definition.property(new PropertyName("style")).orElseThrow().parameter() : DartParameter.named(4, false),
                     "style",
                     false,
@@ -1230,6 +2137,11 @@ public final class DartRegionGenerator {
             String path,
             GenerationContext context,
             List<ConstructorArgument> arguments) {
+        if (node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)) return;
+        if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)) {
+            appendMenuItemButtonArguments(node, definition, path, context, arguments);
+            return;
+        }
         boolean enabled = !(node.properties().get(new PropertyName("enabled"))
                 instanceof PropertyValue.BooleanValue value) || value.value();
         PropertyDefinition onPressed = elevatedProperty(definition, "onPressed");
@@ -1268,6 +2180,43 @@ public final class DartRegionGenerator {
                             path + "/properties/onLongPress", node.id(), context)));
         }
 
+    }
+
+    private void appendMenuItemButtonArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        boolean enabled = node.propertyBindings().containsKey(new PropertyName("enabled"))
+                || !new PropertyValue.BooleanValue(false).equals(node.properties().get(new PropertyName("enabled")));
+        PropertyDefinition pressedProperty = definition.property(new PropertyName("onPressed")).orElseThrow();
+        PropertyValue pressedValue = node.properties().get(pressedProperty.name());
+        RenderedValue pressed = !enabled ? scalar("null", true, path + "/properties/enabled", node.id(), context)
+                : pressedValue == null ? scalar("() {}", false, path + "/properties/onPressed", node.id(), context)
+                : renderProperty(pressedValue, pressedProperty, path + "/properties/onPressed", node.id(), context);
+        arguments.add(new ConstructorArgument(pressedProperty.parameter(), "onPressed", false, pressed));
+        String anchor = node.properties().containsKey(new PropertyName("shortcutTrigger")) ? "shortcutTrigger"
+                : node.properties().containsKey(new PropertyName("shortcutCharacter")) ? "shortcutCharacter" : null;
+        if (anchor == null) return;
+        String shortcutPath = path + "/properties/" + anchor;
+        RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT,
+                anchor.equals("shortcutTrigger") ? "SingleActivator" : "CharacterActivator");
+        StringBuilder text = new StringBuilder("const ").append(type.text()).append('(');
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        occurrences.add(occurrence("widget:" + node.id() + ":menu-shortcut:" + type.name(),
+                6 + type.nameOffset(), type.name(), type.libraryUri(), shortcutPath, Optional.of(node.id())));
+        appendRendered(text, occurrences, renderProperty(node.properties().get(new PropertyName(anchor)),
+                definition.property(new PropertyName(anchor)).orElseThrow(), shortcutPath, node.id(), context));
+        for (String local : MenuItemButtonWidgetPropertySchema.shortcutLocalProperties()) {
+            if (local.equals("shortcutTrigger") || local.equals("shortcutCharacter")) continue;
+            PropertyValue value = node.properties().get(new PropertyName(local));
+            if (value == null) continue;
+            String argument = Character.toLowerCase(local.charAt(8)) + local.substring(9);
+            text.append(", ").append(argument).append(": ");
+            appendRendered(text, occurrences, renderProperty(value,
+                    definition.property(new PropertyName(local)).orElseThrow(),
+                    path + "/properties/" + local, node.id(), context));
+        }
+        text.append(')');
+        arguments.add(new ConstructorArgument(definition.property(new PropertyName("shortcut")).orElseThrow().parameter(),
+                "shortcut", false, scalar(text.toString(), true, shortcutPath, node.id(), context, occurrences)));
     }
 
     private static PropertyDefinition elevatedProperty(
@@ -2078,6 +3027,38 @@ public final class DartRegionGenerator {
             StableId widgetId,
             GenerationContext context,
             String scope) {
+        if (Set.of("MenuAnchor", "MenuBar", "SubmenuButtonMenuStyle").contains(context.buttonFamily(widgetId).className())) {
+            // MenuAnchor has no public defaultStyleOf. These are the only native
+            // _MenuDefaultsM3 leaves consulted by sparse size/side/shape lowering:
+            // sizes and side remain null, and the panel shape has radius four.
+            String source = "  const $MenuStyle frameworkDefaults = $MenuStyle(\n"
+                    + "    shape: $WidgetStatePropertyAll<$OutlinedBorder>($RoundedRectangleBorder(\n"
+                    + "      borderRadius: $BorderRadius.all($Radius.circular(4.0)))),\n"
+                    + "  );\n";
+            java.util.regex.Matcher symbols = java.util.regex.Pattern.compile("\\$([A-Za-z][A-Za-z0-9]*)").matcher(source);
+            int previous = 0;
+            int index = 0;
+            while (symbols.find()) {
+                rendered.append(source, previous, symbols.start());
+                String name = symbols.group(1);
+                String library = Set.of("MenuStyle", "WidgetStatePropertyAll").contains(name) ? MATERIAL_IMPORT : WIDGETS_IMPORT;
+                appendElevatedSymbol(rendered, occurrences, context.planner().renderedSymbol(library, name),
+                        "widget:" + widgetId + ":menu-anchor-default:" + scope + ':' + index++ + ':' + path, path, widgetId);
+                previous = symbols.end();
+            }
+            rendered.append(source, previous, source.length());
+            return;
+        }
+        if (context.buttonFamily(widgetId).className().equals("SubmenuButton")) {
+            RenderedSymbol styleType = context.planner().renderedSymbol(MATERIAL_IMPORT, "ButtonStyle");
+            RenderedSymbol buttonType = context.planner().renderedSymbol(MATERIAL_IMPORT, "SubmenuButton");
+            rendered.append("  final ");
+            appendElevatedSymbol(rendered, occurrences, styleType, "widget:" + widgetId + ":submenu-button-default:type:" + scope + ':' + path, path, widgetId);
+            rendered.append(" frameworkDefaults = (const ");
+            appendElevatedSymbol(rendered, occurrences, buttonType, "widget:" + widgetId + ":submenu-button-default:constructor:" + scope + ':' + path, path, widgetId);
+            rendered.append("(menuChildren: [], child: null)).defaultStyleOf(context);\n");
+            return;
+        }
         if (context.buttonFamily(widgetId).className().equals("IconButton")) {
             appendIconButtonFrameworkDefaults(rendered, occurrences, path, widgetId, context, scope);
             return;
@@ -2278,8 +3259,13 @@ public final class DartRegionGenerator {
         if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) {
             appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
         }
+        appendSwitchStateArguments(node, definition, path, context, arguments);
+    }
+
+    private void appendSwitchStateArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
         List<String> families = new ArrayList<>(SwitchWidgetPropertySchema.colorFamilies());
-        families.add("trackOutlineWidth");
+        if (node.type().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)) families.add("trackOutlineWidth");
         families.add("thumbIcon");
         for (String family : families) {
             ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
@@ -2359,6 +3345,426 @@ public final class DartRegionGenerator {
         return scalar(rendered.toString(), constant, iconPath, node.id(), context, occurrences);
     }
 
+    /** Replace only the reviewed runtime argument; model properties remain design previews. */
+    private void appendStateBindingArgument(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        if (node.stateBinding().isEmpty()) return;
+        StateBinding binding = node.stateBinding().orElseThrow();
+        String argumentName = WidgetStateBindingCatalog.find(node).orElseThrow().runtimeArgumentName();
+        boolean radio = node.type().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
+                || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE);
+        // Retain the existing Radio output and constructor-proven type identity
+        // so schema-14 bound forms keep their exact managed-region fingerprints.
+        RenderedValue field = radio ? renderDartObjectReference(new PropertyValue.DartObjectReferenceValue(
+                Optional.empty(), binding.fieldName(), Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                "Object?", path + "/stateBinding/fieldName", node.id(), context,
+                Optional.of(radioTypeSymbol(node, context).text()
+                        + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "")))
+                : renderStateField(binding.fieldName(), binding.type(), binding.referenceType(),
+                        path + "/stateBinding/fieldName", node.id(), context);
+        if (node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
+                && binding.action() == StateBinding.Action.SELECT) {
+            field = compareStateField(field, binding.selectedValue().orElseThrow(),
+                    path + "/stateBinding/selectedValue", node.id(), context);
+        }
+        replaceStateArgument(node, definition, arguments, argumentName, argumentName, field);
+    }
+
+    private static String stateFieldDartType(StateBinding.Type type) {
+        return switch (type) {
+            case BOOL -> "bool";
+            case STRING -> "String";
+            case INT -> "int";
+            case NUM -> "num";
+            case TEXT_CONTROLLER -> "TextEditingController";
+            case NULLABLE_BOOL -> "bool?";
+            case DOUBLE -> "double";
+            case RANGE_VALUES -> "RangeValues";
+            case NULLABLE_STRING -> "String?";
+            case NULLABLE_INT -> "int?";
+            case NULLABLE_DOUBLE -> "double?";
+            case NULLABLE_NUM -> "num?";
+            case NULLABLE_OBJECT, NULLABLE_REFERENCE -> "Object?";
+        };
+    }
+
+    private RenderedValue renderStateField(String fieldName, StateBinding.Type type,
+            Optional<PropertyValue.DartObjectReferenceValue> referenceType, String path,
+            StableId widgetId, GenerationContext context) {
+        Optional<RenderedSymbol> referenceSymbol = referenceType.map(reference -> reference.libraryUri().isPresent()
+                ? context.planner().renderedSymbol(reference.libraryUri().orElseThrow(), reference.rootSymbol())
+                : new RenderedSymbol(reference.rootSymbol(), reference.rootSymbol(), CURRENT_PROJECT_LIBRARY_URI, 0));
+        RenderedValue field = renderDartObjectReference(new PropertyValue.DartObjectReferenceValue(
+                Optional.empty(), fieldName, Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                stateFieldDartType(type), path, widgetId, context,
+                referenceSymbol.map(symbol -> symbol.text() + "?"));
+        if (referenceSymbol.isEmpty()) return field;
+        // The explicit type token gives the custom field witness independently
+        // manifested provenance even when no RadioGroup constructor is present.
+        RenderedSymbol symbol = referenceSymbol.orElseThrow();
+        StringBuilder text = new StringBuilder("(");
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        appendRendered(text, occurrences, field);
+        text.append(" as ");
+        int typeOffset = text.length() + symbol.nameOffset();
+        text.append(symbol.text()).append("?)");
+        occurrences.add(occurrence("widget:" + widgetId + ":property-reference:" + path + "/referenceType:root",
+                typeOffset, symbol.name(), symbol.libraryUri(), path + "/referenceType/rootSymbol", Optional.of(widgetId)));
+        return scalar(text.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private void appendPropertyStateArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        for (var entry : node.propertyBindings().entrySet()) {
+            if (!FocusWidgetPropertySchema.propertyAvailable(node, entry.getKey())
+                    || !SwitchListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey())
+                    || !RadioListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey())) continue;
+            var descriptor = WidgetStatePropertyBindingCatalog.find(node, entry.getKey()).orElseThrow();
+            StatePropertyBinding binding = entry.getValue();
+            String bindingPath = path + "/propertyBindings/" + pointer(entry.getKey().value());
+            RenderedValue field = renderStateField(binding.fieldName(), binding.type(), binding.referenceType(),
+                    bindingPath + "/fieldName", node.id(), context);
+            RenderedValue rendered = switch (binding.transform()) {
+                case DIRECT -> field;
+                case TO_STRING -> stateSuffix(field, ".toString()", bindingPath, node.id(), context);
+                case TEXT -> stateSuffix(field, ".text", bindingPath, node.id(), context);
+                case NOT -> {
+                    var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                    StringBuilder expression = new StringBuilder("!");
+                    appendRendered(expression, occurrences, field);
+                    yield scalar(expression.toString(), false, bindingPath, node.id(), context, occurrences);
+                }
+                case EQUALS -> compareStateField(field, binding.comparisonValue().orElseThrow(),
+                        bindingPath + "/comparisonValue", node.id(), context);
+                case CLAMP -> {
+                    if (node.type().value().equals("flutter.widgets.IndexedStack")) {
+                        WidgetSlot slot = node.slots().get(new SlotName("children"));
+                        int count = slot instanceof WidgetSlot.ListSlot list ? list.children().size() : 0;
+                        // An empty IndexedStack has no selectable child. Keep
+                        // the typed field occurrence, but pass null to Flutter.
+                        String suffix = count == 0 ? " < 0 ? null : null"
+                                : ".clamp(0, " + (count - 1) + ").toInt()";
+                        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                        StringBuilder expression = new StringBuilder("(");
+                        appendRendered(expression, occurrences, field);
+                        expression.append(suffix).append(')');
+                        yield scalar(expression.toString(), false, bindingPath, node.id(), context, occurrences);
+                    }
+                    yield stateSuffix(field, ".clamp(0.0, 1.0).toDouble()", bindingPath, node.id(), context);
+                }
+            };
+            if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
+                    && entry.getKey().value().equals("enabled")) {
+                ConstructorArgument pressed = arguments.stream().filter(value -> value.name().equals("onPressed")).findFirst().orElseThrow();
+                var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                StringBuilder conditional = new StringBuilder("(");
+                appendRendered(conditional, occurrences, rendered);
+                conditional.append(" ? ");
+                appendRendered(conditional, occurrences, pressed.value());
+                conditional.append(" : null)");
+                replaceStateArgument(node, definition, arguments, "onPressed", "onPressed",
+                        scalar(conditional.toString(), false, bindingPath, node.id(), context, occurrences));
+            } else {
+                replaceStateArgument(node, definition, arguments, entry.getKey().value(), descriptor.dartArgumentName(), rendered);
+            }
+        }
+    }
+
+    private RenderedValue stateSuffix(RenderedValue field, String suffix, String path,
+            StableId widgetId, GenerationContext context) {
+        return scalar(field.joined() + suffix, false, path, widgetId, context, field.symbolOccurrences());
+    }
+
+    private RenderedValue compareStateField(RenderedValue field, PropertyValue comparison, String path,
+            StableId widgetId, GenerationContext context) {
+        String literal = switch (comparison) {
+            case PropertyValue.NullValue ignored -> "null";
+            case PropertyValue.BooleanValue value -> Boolean.toString(value.value());
+            case PropertyValue.IntegerValue value -> value.value().toString();
+            case PropertyValue.DoubleValue value -> dartDouble(value.value());
+            case PropertyValue.StringValue value -> dartString(value.value(), path, widgetId, context.maxRenderedUtf8Bytes());
+            default -> throw new IllegalArgumentException("State comparison requires a closed scalar or null literal");
+        };
+        StringBuilder text = new StringBuilder("(");
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        appendRendered(text, occurrences, field);
+        text.append(" == ").append(literal).append(')');
+        return scalar(text.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private void replaceStateArgument(WidgetNode node, WidgetDefinition definition,
+            List<ConstructorArgument> arguments, String propertyName, String argumentName, RenderedValue field) {
+        int existing = -1;
+        for (int index = 0; index < arguments.size(); index++) {
+            if (arguments.get(index).name().equals(argumentName)) {
+                if (existing >= 0) throw new IllegalArgumentException("Duplicate bound constructor argument");
+                existing = index;
+            }
+        }
+        if (existing >= 0) {
+            ConstructorArgument argument = arguments.get(existing);
+            arguments.set(existing, new ConstructorArgument(argument.parameter(), argument.name(), false, field));
+        } else {
+            // TextField's runtime controller is created through the ownership
+            // workflow, not exposed as an unowned generic property reference.
+            DartParameter parameter = node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)
+                    && argumentName.equals("controller") ? DartParameter.named(0, false)
+                    : definition.property(new PropertyName(propertyName)).orElseThrow().parameter();
+            arguments.add(new ConstructorArgument(parameter, argumentName, false, field));
+        }
+    }
+
+    private RenderedSymbol notificationTypeSymbol(WidgetNode node, GenerationContext context) {
+        PropertyValue value = node.properties().get(new PropertyName("notificationType"));
+        if (value instanceof PropertyValue.StringValue preset) {
+            return context.planner().renderedSymbol(WIDGETS_IMPORT, preset.value());
+        }
+        PropertyValue.DartObjectReferenceValue reference = (PropertyValue.DartObjectReferenceValue) value;
+        return reference.libraryUri().isPresent()
+                ? context.planner().renderedSymbol(reference.libraryUri().orElseThrow(), reference.rootSymbol())
+                : new RenderedSymbol(reference.rootSymbol(), reference.rootSymbol(), CURRENT_PROJECT_LIBRARY_URI, 0);
+    }
+
+    private void appendNotificationListenerArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyName key = new PropertyName("onNotification");
+        PropertyValue value = node.properties().get(key);
+        if (value == null) return;
+        PropertyDefinition property = definition.property(key).orElseThrow();
+        String valuePath = path + "/properties/onNotification";
+        PropertyValue referenceValue = value instanceof PropertyValue.CallbackValue callback
+                ? new PropertyValue.DartObjectReferenceValue(Optional.empty(), callback.handler(), Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()) : value;
+        RenderedValue rendered = referenceValue instanceof PropertyValue.DartObjectReferenceValue reference
+                ? renderDartObjectReference(reference, NotificationListenerWidgetPropertySchema.CALLBACK_TYPE,
+                        valuePath, node.id(), context, Optional.of(notificationTypeSymbol(node, context).text()))
+                : renderProperty(value, property, valuePath, node.id(), context);
+        arguments.add(new ConstructorArgument(property.parameter(), "onNotification", false, rendered));
+    }
+
+    private RenderedValue renderViewportDelegate(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context) {
+        String slotPath = path + "/slots/children";
+        var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "SliverChildListDelegate");
+        var lines = new LineAccumulator(context.maxRenderedUtf8Bytes(), slotPath, node.id());
+        lines.addBlock(symbol.text() + "(",
+                List.of(occurrence("widget:" + node.id() + ":viewportDelegate",
+                        symbol.nameOffset(), symbol.name(), symbol.libraryUri(), slotPath, Optional.of(node.id()))), 0);
+        var children = renderSlot(node.slots().get(new SlotName("children")), slotPath, indent + 2, context);
+        lines.addBlock(spaces(indent + 2) + children.joined() + ",", children.symbolOccurrences(), indent + 2);
+        for (var property : definition.properties()) {
+            if (property.parameter().order() < 3) continue;
+            var value = node.properties().get(property.name());
+            if (value == null) continue;
+            var rendered = renderProperty(value, property, path + "/properties/" + property.name().value(), node.id(), context);
+            String prefix = spaces(indent + 2) + property.name().value() + ": ";
+            lines.addBlock(prefix + rendered.joined() + ",", rendered.symbolOccurrences(), prefix.length());
+        }
+        lines.add(spaces(indent) + ")");
+        // Mutable list delegate retains key lookup/reordering; do not substitute .fixed.
+        return lines.build(false);
+    }
+
+    private void appendValueListenableBuilderArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        boolean sliver = dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type());
+        RenderedSymbol type = radioTypeSymbol(node, context);
+        String selectedType = type.text() + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
+        for (String name : List.of("valueListenable", "builder")) {
+            var property = definition.property(new PropertyName(name)).orElseThrow();
+            var value = node.properties().get(property.name());
+            String valuePath = path + "/properties/" + name;
+            boolean source = name.equals("valueListenable");
+            RenderedValue rendered;
+            if (value instanceof PropertyValue.DartObjectReferenceValue reference) {
+                rendered = renderDartObjectReference(reference, source ? "ValueListenable<Object>" : "ValueWidgetBuilder<Object>",
+                        valuePath, node.id(), context, Optional.of(selectedType));
+            } else {
+                String symbolName = source ? "AlwaysStoppedAnimation" : sliver ? "SliverToBoxAdapter" : "SizedBox";
+                var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, symbolName);
+                String prefix = source ? "const " : "(context, value, child) => child ?? const ";
+                String suffix = source ? "<" + selectedType + ">("
+                        + dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.constantLiteral(node) + ")"
+                        : sliver ? "()" : ".shrink()";
+                var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                occurrences.add(occurrence("widget:" + node.id() + ":valueListenablePreset:" + name,
+                        prefix.length() + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                if (source) occurrences.add(occurrence("widget:" + node.id() + ":value-listenable-preset-core-type",
+                        prefix.length() + symbol.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(),
+                        path + "/properties/valueType", Optional.of(node.id()),
+                        Optional.of(new GeneratedDartStaticTypeRequirement(prefix.length() + symbol.text().length() + 1,
+                                type.text().length(), "Type", Optional.of(selectedType)))));
+                else if (!sliver) occurrences.add(occurrence("widget:" + node.id() + ":valueListenablePreset:shrink",
+                        prefix.length() + symbol.text().length() + 1, "shrink", symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                rendered = scalar(prefix + symbol.text() + suffix, source, valuePath, node.id(), context, occurrences);
+            }
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+    }
+
+    private void appendTweenAnimationBuilderArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        boolean sliver = dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type());
+        RenderedSymbol type = radioTypeSymbol(node, context);
+        String selectedType = type.text() + (RadioWidgetPropertySchema.nullableValueType(node) ? "?" : "");
+        for (String name : List.of("tween", "builder")) {
+            var property = definition.property(new PropertyName(name)).orElseThrow();
+            var value = node.properties().get(property.name());
+            String valuePath = path + "/properties/" + name;
+            boolean source = name.equals("tween");
+            RenderedValue rendered;
+            if (value instanceof PropertyValue.DartObjectReferenceValue reference) {
+                rendered = renderDartObjectReference(reference, source ? "Tween<Object>" : "ValueWidgetBuilder<Object>",
+                        valuePath, node.id(), context, Optional.of(selectedType));
+            } else {
+                String symbolName = source ? dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.presetClass(node) : sliver ? "SliverToBoxAdapter" : "SizedBox";
+                var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, symbolName);
+                String prefix = source ? "" : "(context, value, child) => child ?? const ";
+                boolean generic = !symbolName.equals("IntTween");
+                String suffix = source ? (generic ? "<" + selectedType + ">" : "")
+                        + (symbolName.equals("ConstantTween") ? "(" + tweenConstantLiteral(node) + ")"
+                                : symbolName.equals("IntTween") ? "(begin: 0, end: 1)" : "(begin: 0.0, end: 1.0)")
+                        : sliver ? "()" : ".shrink()";
+                var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                occurrences.add(occurrence("widget:" + node.id() + ":tweenPreset:" + name,
+                        prefix.length() + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                if (source && generic) occurrences.add(occurrence("widget:" + node.id() + ":tween-animation-preset-core-type",
+                        prefix.length() + symbol.text().length() + 1 + type.nameOffset(), type.name(), type.libraryUri(),
+                        path + "/properties/valueType", Optional.of(node.id()),
+                        Optional.of(new GeneratedDartStaticTypeRequirement(prefix.length() + symbol.text().length() + 1,
+                                type.text().length(), "Type", Optional.of(selectedType)))));
+                else if (!source && !sliver) occurrences.add(occurrence("widget:" + node.id() + ":tweenPreset:shrink",
+                        prefix.length() + symbol.text().length() + 1, "shrink", symbol.libraryUri(), valuePath, Optional.of(node.id())));
+                rendered = scalar(prefix + symbol.text() + suffix, false, valuePath, node.id(), context, occurrences);
+            }
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+    }
+
+    private static String tweenConstantLiteral(WidgetNode node) {
+        return switch (((PropertyValue.StringValue) node.properties().get(new PropertyName("valueType"))).value()) {
+            case "String" -> "''";
+            case "bool" -> "false";
+            case "Object" -> "0";
+            default -> throw new IllegalArgumentException("Not a constant tween preset");
+        };
+    }
+
+    private static boolean usesListenableBuilderPresets(WidgetNode node) {
+        return dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.supports(node.type())
+                || dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.supports(node.type());
+    }
+
+    private void appendListenableBuilderPresets(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        boolean sliver = dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type())
+                || dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.SLIVER_TYPE.equals(node.type());
+        for (var property : definition.properties()) {
+            if (!(node.properties().get(property.name()) instanceof PropertyValue.StringValue)) continue;
+            String name = property.name().value();
+            boolean source = name.equals("listenable") || name.equals("animation");
+            String symbolName = source ? "AlwaysStoppedAnimation" : sliver ? "SliverToBoxAdapter" : "SizedBox";
+            var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, symbolName);
+            String prefix = source ? "const " : "(context, child) => child ?? const ";
+            String suffix = source ? "<double>(0.0)" : sliver ? "()" : ".shrink()";
+            String valuePath = path + "/properties/" + name;
+            var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+            occurrences.add(occurrence("widget:" + node.id() + ":listenablePreset:" + name,
+                    prefix.length() + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())));
+            if (!source && !sliver) occurrences.add(occurrence("widget:" + node.id() + ":listenablePreset:shrink",
+                    prefix.length() + symbol.text().length() + 1, "shrink", symbol.libraryUri(), valuePath, Optional.of(node.id())));
+            arguments.add(new ConstructorArgument(property.parameter(), name, false,
+                    scalar(prefix + symbol.text() + suffix, source, valuePath, node.id(), context, occurrences)));
+        }
+    }
+
+    private static boolean usesEmptyBoxBuilderPreset(WidgetNode node) {
+        return node.type().equals(dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.TYPE);
+    }
+
+    private void appendSliverPresetArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        for (var property : definition.properties()) {
+            if (!(node.properties().get(property.name()) instanceof PropertyValue.StringValue preset)) continue;
+            String name = property.name().value();
+            String valuePath = path + "/properties/" + name;
+            RenderedValue value;
+            if (name.equals("itemExtentBuilder")) {
+                // Bound the reviewed preset where the generated constructor knows its child count.
+                Integer count = node.slots().get(new SlotName("children")) instanceof WidgetSlot.ListSlot children
+                        ? children.children().size() : null;
+                String limit = count == null ? "" : " && index < " + count;
+                if (count == null && node.properties().get(new PropertyName("itemCount")) instanceof PropertyValue.IntegerValue items) {
+                    limit = " && index < " + items.value();
+                }
+                value = scalar("(index, dimensions) => index >= 0" + limit + " ? 48.0 : null",
+                        false, valuePath, node.id(), context);
+            } else if (name.equals("itemBuilder")) {
+                value = scalar("(_, index) => null", false, valuePath, node.id(), context);
+            } else {
+                String symbolName = switch (name) {
+                    case "builder" -> usesEmptyBoxBuilderPreset(node)
+                            ? "SizedBox" : "SliverToBoxAdapter";
+                    case "separatorBuilder" -> "SizedBox";
+                    case "delegate" -> "SliverChildListDelegate";
+                    case "gridDelegate" -> preset.value().equals("maxExtent")
+                            ? "SliverGridDelegateWithMaxCrossAxisExtent" : "SliverGridDelegateWithFixedCrossAxisCount";
+                    default -> throw new IllegalArgumentException("Unknown sliver preset property: " + name);
+                };
+                var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, symbolName);
+                String prefix = name.equals("builder") ? ((node.type().equals(dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.TYPE) || dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.supports(node.type())) ? "(context, orientation) => const " : "(context, constraints) => const ")
+                        : name.equals("separatorBuilder") ? "(_, index) => const "
+                        : name.equals("gridDelegate") ? "const " : "";
+                String suffix = switch (name) {
+                    case "builder" -> usesEmptyBoxBuilderPreset(node) ? ".shrink()" : "()";
+                    case "separatorBuilder" -> ".shrink()";
+                    case "delegate" -> "(const [])";
+                    default -> preset.value().equals("maxExtent")
+                            ? "(maxCrossAxisExtent: 200.0)" : "(crossAxisCount: 2)";
+                };
+                var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+                occurrences.add(occurrence("widget:" + node.id() + ":sliverPreset:" + name,
+                        prefix.length() + symbol.nameOffset(), symbol.name(), symbol.libraryUri(),
+                        valuePath, Optional.of(node.id())));
+                if (name.equals("separatorBuilder") || name.equals("builder") && symbolName.equals("SizedBox")) occurrences.add(occurrence(
+                        "widget:" + node.id() + ":sliverPreset:shrink",
+                        prefix.length() + symbol.text().length() + 1, "shrink", symbol.libraryUri(),
+                        valuePath, Optional.of(node.id())));
+                value = scalar(prefix + symbol.text() + suffix, name.equals("gridDelegate"),
+                        valuePath, node.id(), context, occurrences);
+            }
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, value));
+        }
+    }
+
+    private void appendBuilderArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition property = definition.property(new PropertyName("builder")).orElseThrow();
+        PropertyValue value = node.properties().get(property.name());
+        if (value == null) {
+            throw new IllegalArgumentException("Builder requires its builder callback.");
+        }
+        String valuePath = path + "/properties/builder";
+        RenderedValue rendered;
+        if (value instanceof PropertyValue.CallbackValue callback) {
+            if (callback.handler().equals("noop")) {
+                rendered = scalar("(_) => const SizedBox.shrink()", false, valuePath, node.id(), context);
+            } else {
+                rendered = renderDartObjectReference(new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), callback.handler(), Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                        BuilderWidgetPropertySchema.CALLBACK_TYPE, valuePath, node.id(), context);
+            }
+        } else {
+            rendered = renderProperty(value, property, valuePath, node.id(), context);
+        }
+        arguments.add(new ConstructorArgument(property.parameter(), "builder", false, rendered));
+    }
+
     private RenderedSymbol radioTypeSymbol(WidgetNode node, GenerationContext context) {
         PropertyValue value = node.properties().get(new PropertyName("valueType"));
         if (value instanceof PropertyValue.StringValue builtin) {
@@ -2370,6 +3776,261 @@ public final class DartRegionGenerator {
         return reference.libraryUri().isPresent()
                 ? context.planner().renderedSymbol(reference.libraryUri().orElseThrow(), reference.rootSymbol())
                 : new RenderedSymbol(reference.rootSymbol(), reference.rootSymbol(), CURRENT_PROJECT_LIBRARY_URI, 0);
+    }
+
+    private void appendTooltipThemeArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition data = definition.property(new PropertyName("data")).orElseThrow();
+        String dataPath = path + "/properties/data";
+        PropertyValue whole = node.properties().get(data.name());
+        if (whole != null) {
+            arguments.add(new ConstructorArgument(data.parameter(), "data", false,
+                    renderProperty(whole, data, dataPath, node.id(), context, indent)));
+            return;
+        }
+        var localArguments = new ArrayList<ConstructorArgument>();
+        for (String name : TooltipThemeWidgetPropertySchema.dataFields()) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered = TooltipThemeWidgetPropertySchema.durationProperties().contains(name)
+                    && value instanceof PropertyValue.IntegerValue duration
+                    ? scalar("const Duration(microseconds: " + duration.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":tooltip-theme-core-duration:" + name,
+                                    6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                    : renderProperty(value, property, valuePath, node.id(), context, indent + 2);
+            localArguments.add(new ConstructorArgument(property.parameter(),
+                    TooltipThemeWidgetPropertySchema.find(name).orElseThrow().dartName(), false, rendered));
+        }
+        appendTextCompoundArguments(node, definition, path, indent + 2, context, localArguments, "textStyle",
+                definition.property(new PropertyName("textStyle")).orElseThrow().parameter().order(),
+                TooltipThemeWidgetPropertySchema::textStyleBinding);
+        // These bindings belong to TooltipThemeData, not to the outer widget.
+        appendPropertyStateArguments(node, definition, path, context, localArguments);
+        localArguments.sort(ARGUMENT_ORDER);
+        var members = localArguments.stream().map(argument -> new CompositeMember(
+                argument.name(), argument.parameter().order(), argument.value())).toList();
+        arguments.add(new ConstructorArgument(data.parameter(), "data", false,
+                renderNamedCompositeMembers(MATERIAL_IMPORT, "TooltipThemeData", Optional.empty(), members,
+                        indent, dataPath, node.id(), context)));
+    }
+
+    private void appendTooltipArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition.property(new PropertyName("onTriggered")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler != null) arguments.add(new ConstructorArgument(callback.parameter(), "onTriggered", false,
+                handler instanceof PropertyValue.StringValue
+                        ? scalar("() {}", false, path + "/properties/onTriggered", node.id(), context)
+                        : renderProperty(handler, callback, path + "/properties/onTriggered", node.id(), context)));
+        for (String name : TooltipWidgetPropertySchema.durationProperties()) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered = value instanceof PropertyValue.IntegerValue duration
+                    ? scalar("const Duration(microseconds: " + duration.value() + ")", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":tooltip-core-duration:" + name,
+                                    6, "Duration", "dart:core", valuePath, Optional.of(node.id()))))
+                    : renderProperty(value, property, valuePath, node.id(), context);
+            arguments.add(new ConstructorArgument(property.parameter(), TooltipWidgetPropertySchema.find(name).orElseThrow().dartName(), false, rendered));
+        }
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) appendMouseCursorPreset(node, definition, "mouseCursor", path, context, arguments);
+        appendTextCompoundArguments(node, definition, path, indent, context, arguments, "textStyle",
+                definition.property(new PropertyName("textStyle")).orElseThrow().parameter().order(), TooltipWidgetPropertySchema::textStyleBinding);
+    }
+
+    private void appendNavigationBarArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition
+                .property(new PropertyName("onDestinationSelected")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler != null) {
+            String callbackPath = path + "/properties/onDestinationSelected";
+            RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                    ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                    : renderProperty(handler, callback, callbackPath, node.id(), context);
+            arguments.add(new ConstructorArgument(callback.parameter(), "onDestinationSelected", false, rendered));
+        }
+
+        PropertyDefinition duration = definition
+                .property(new PropertyName("animationDurationUs")).orElseThrow();
+        PropertyValue durationValue = node.properties().get(duration.name());
+        if (durationValue == null) return;
+        String durationPath = path + "/properties/animationDurationUs";
+        RenderedValue rendered = durationValue instanceof PropertyValue.IntegerValue integer
+                ? scalar("const Duration(microseconds: " + integer.value() + ")", true,
+                        durationPath, node.id(), context,
+                        List.of(occurrence("widget:" + node.id() + ":navigation-bar-core-duration",
+                                6, "Duration", "dart:core", durationPath, Optional.of(node.id()))))
+                : renderProperty(durationValue, duration, durationPath, node.id(), context);
+        arguments.add(new ConstructorArgument(duration.parameter(), "animationDuration", false, rendered));
+    }
+
+    private void appendPageViewArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition
+                .property(new PropertyName("onPageChanged")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler == null) return;
+        String callbackPath = path + "/properties/onPageChanged";
+        RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                : renderProperty(handler, callback, callbackPath, node.id(), context);
+        arguments.add(new ConstructorArgument(callback.parameter(), "onPageChanged", false, rendered));
+    }
+
+    private void appendListWheelScrollViewArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition.property(new PropertyName("onSelectedItemChanged")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler == null) return;
+        String callbackPath = path + "/properties/onSelectedItemChanged";
+        RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                : renderProperty(handler, callback, callbackPath, node.id(), context);
+        arguments.add(new ConstructorArgument(callback.parameter(), "onSelectedItemChanged", false, rendered));
+    }
+
+    private void appendBottomNavigationBarArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition.property(new PropertyName("onTap")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler == null) return;
+        String callbackPath = path + "/properties/onTap";
+        RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                : renderProperty(handler, callback, callbackPath, node.id(), context);
+        arguments.add(new ConstructorArgument(callback.parameter(), "onTap", false, rendered));
+    }
+
+    private void appendMaterialArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition duration = definition.property(new PropertyName("animationDurationUs")).orElseThrow();
+        PropertyValue durationValue = node.properties().get(duration.name());
+        if (durationValue == null) return;
+        String durationPath = path + "/properties/animationDurationUs";
+        RenderedValue rendered = durationValue instanceof PropertyValue.IntegerValue integer
+                ? scalar("const Duration(microseconds: " + integer.value() + ")", true,
+                        durationPath, node.id(), context,
+                        List.of(occurrence("widget:" + node.id() + ":material-core-duration",
+                                6, "Duration", "dart:core", durationPath, Optional.of(node.id()))))
+                : renderProperty(durationValue, duration, durationPath, node.id(), context);
+        arguments.add(new ConstructorArgument(duration.parameter(), "animationDuration", false, rendered));
+    }
+
+    private void appendNavigationRailArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition
+                .property(new PropertyName("onDestinationSelected")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler == null) return;
+        String callbackPath = path + "/properties/onDestinationSelected";
+        RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                : renderProperty(handler, callback, callbackPath, node.id(), context);
+        arguments.add(new ConstructorArgument(callback.parameter(), "onDestinationSelected", false, rendered));
+    }
+
+    private void appendNavigationDrawerArguments(WidgetNode node, WidgetDefinition definition,
+            String path, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition
+                .property(new PropertyName("onDestinationSelected")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler == null) return;
+        String callbackPath = path + "/properties/onDestinationSelected";
+        RenderedValue rendered = handler instanceof PropertyValue.StringValue
+                ? scalar("(_) {}", false, callbackPath, node.id(), context)
+                : renderProperty(handler, callback, callbackPath, node.id(), context);
+        arguments.add(new ConstructorArgument(callback.parameter(), "onDestinationSelected", false, rendered));
+    }
+
+    private void appendFloatingHeaderAnimationStyle(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition style = definition.property(new PropertyName("animationStyle")).orElseThrow();
+        if (node.properties().get(style.name()) instanceof PropertyValue.StringValue preset) {
+            arguments.add(new ConstructorArgument(style.parameter(), "animationStyle", false,
+                    renderExpansionTilePreset("AnimationStyle", preset.value(), path + "/properties/animationStyle", node.id(), context)));
+        }
+        else if (node.properties().get(style.name()) != null) {
+            arguments.add(new ConstructorArgument(style.parameter(), "animationStyle", false,
+                    renderProperty(node.properties().get(style.name()), style, path + "/properties/animationStyle", node.id(), context)));
+        }
+        var members = new ArrayList<CompositeMember>();
+        for (String name : dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.LOCAL_STYLE) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered;
+            if (value instanceof PropertyValue.IntegerValue duration) {
+                // Retain implicit core scope, but require exact SDK navigation evidence.
+                rendered = scalar("const Duration(microseconds: " + duration.value() + ")", true, valuePath, node.id(), context,
+                        List.of(occurrence("widget:" + node.id() + ":sliver-floating-header-core-duration:" + name,
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))));
+            } else if (value instanceof PropertyValue.StringValue curve) {
+                rendered = renderExpansionTilePreset("Curves", curve.value(), valuePath, node.id(), context);
+            } else rendered = renderProperty(value, property, valuePath, node.id(), context);
+            String suffix = name.substring("animationStyle".length());
+            String dartName = Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1);
+            if (dartName.endsWith("Us")) dartName = dartName.substring(0, dartName.length() - 2);
+            members.add(new CompositeMember(dartName, members.size(), rendered));
+        }
+        if (!members.isEmpty()) arguments.add(new ConstructorArgument(style.parameter(), "animationStyle", false,
+                renderNamedCompositeMembers("AnimationStyle", Optional.empty(), members, indent,
+                        path + "/properties/animationStyle", node.id(), context)));
+    }
+
+    private void appendExpansionTileArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        PropertyDefinition callback = definition.property(new PropertyName("onExpansionChanged")).orElseThrow();
+        PropertyValue handler = node.properties().get(callback.name());
+        if (handler != null) arguments.add(new ConstructorArgument(callback.parameter(), "onExpansionChanged", false,
+                handler instanceof PropertyValue.StringValue
+                        ? scalar("(_) {}", false, path + "/properties/onExpansionChanged", node.id(), context)
+                        : renderProperty(handler, callback, path + "/properties/onExpansionChanged", node.id(), context)));
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(), "visualDensity", false, density));
+        for (String family : ExpansionTileWidgetPropertySchema.shapeFamilies()) appendCardShape(node, definition, path, indent, context, arguments, family);
+        PropertyDefinition style = definition.property(new PropertyName("expansionAnimationStyle")).orElseThrow();
+        if (node.properties().get(style.name()) instanceof PropertyValue.StringValue preset) {
+            arguments.add(new ConstructorArgument(style.parameter(), "expansionAnimationStyle", false,
+                    renderExpansionTilePreset("AnimationStyle", preset.value(), path + "/properties/expansionAnimationStyle", node.id(), context)));
+        }
+        var members = new ArrayList<CompositeMember>();
+        for (String name : ExpansionTileWidgetPropertySchema.animationStyleLocalProperties()) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered;
+            if (value instanceof PropertyValue.IntegerValue duration) {
+                // Retain implicit core scope, but require exact SDK navigation evidence.
+                rendered = scalar("const Duration(microseconds: " + duration.value() + ")", true, valuePath, node.id(), context,
+                        List.of(occurrence("widget:" + node.id() + ":expansion-tile-core-duration:" + name,
+                                6, "Duration", "dart:core", valuePath, Optional.of(node.id()))));
+            } else if (value instanceof PropertyValue.StringValue curve) {
+                rendered = renderExpansionTilePreset("Curves", curve.value(), valuePath, node.id(), context);
+            } else rendered = renderProperty(value, property, valuePath, node.id(), context);
+            String suffix = name.substring("expansionAnimationStyle".length());
+            String dartName = Character.toLowerCase(suffix.charAt(0)) + suffix.substring(1);
+            if (dartName.endsWith("Us")) dartName = dartName.substring(0, dartName.length() - 2);
+            members.add(new CompositeMember(dartName, members.size(), rendered));
+        }
+        if (!members.isEmpty()) arguments.add(new ConstructorArgument(style.parameter(), "expansionAnimationStyle", false,
+                renderNamedCompositeMembers("AnimationStyle", Optional.empty(), members, indent,
+                        path + "/properties/expansionAnimationStyle", node.id(), context)));
+    }
+
+    private RenderedValue renderExpansionTilePreset(String owner, String member, String path,
+            StableId widgetId, GenerationContext context) {
+        RenderedSymbol symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, owner);
+        return scalar(symbol.text() + '.' + member, true, path, widgetId, context,
+                List.of(occurrence("widget:" + widgetId + ":expansion-tile-preset:" + path, symbol.nameOffset(),
+                        symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId)),
+                        occurrence("widget:" + widgetId + ":expansion-tile-preset-member:" + path, symbol.text().length() + 1,
+                                member, symbol.libraryUri(), path, Optional.of(widgetId))));
     }
 
     private void appendRadioIdentityArguments(WidgetNode node, WidgetDefinition definition, String path,
@@ -2474,6 +4135,65 @@ public final class DartRegionGenerator {
         appendCheckboxSideArguments(node, definition, path, indent, context, arguments);
     }
 
+    private void appendRadioListTileArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        appendRadioIdentityArguments(node, definition, path, context, arguments, List.of("value", "groupValue", "onChanged"));
+        var focusProperty = definition.property(new PropertyName("onFocusChange")).orElseThrow();
+        PropertyValue focus = node.properties().get(focusProperty.name());
+        if (focus != null) arguments.add(new ConstructorArgument(focusProperty.parameter(), "onFocusChange", false,
+                focus instanceof PropertyValue.StringValue ? scalar("(_) {}", false, path + "/properties/onFocusChange", node.id(), context)
+                        : renderProperty(focus, focusProperty, path + "/properties/onFocusChange", node.id(), context)));
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(), "visualDensity", false, density));
+        for (String family : List.of("fillColor", "overlayColor", "radioBackgroundColor", "radioInnerRadius", "mouseCursor")) {
+            List<ElevatedButtonStateEntry> entries = new ArrayList<>();
+            for (String state : RadioListTileWidgetPropertySchema.statePriority()) {
+                String name = family + Character.toUpperCase(state.charAt(0)) + state.substring(1);
+                PropertyValue value = node.properties().get(new PropertyName(name));
+                if (value == null) continue;
+                RenderedValue rendered = family.equals("mouseCursor") && value instanceof PropertyValue.StringValue
+                        ? renderElevatedCursor(node, definition, name, path, context)
+                        : renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(), path + "/properties/" + name, node.id(), context);
+                entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state, rendered));
+            }
+            if (!entries.isEmpty()) arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(), family, false,
+                    renderCheckboxStateMap(family.equals("mouseCursor") ? "WidgetStateMouseCursor" : "WidgetStateProperty",
+                            family.equals("mouseCursor") ? "MouseCursor" : family.equals("radioInnerRadius") ? "double" : "Color",
+                            entries, path + "/properties/" + family, node.id(), context, !family.equals("mouseCursor"))));
+        }
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments, "radioSide");
+    }
+
+    private void appendSwitchListTileArguments(WidgetNode node, WidgetDefinition definition, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        for (String name : List.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError")) {
+            PropertyDefinition property = definition.property(new PropertyName(name)).orElseThrow();
+            PropertyValue value = node.properties().get(property.name());
+            if (value == null) continue;
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered = value instanceof PropertyValue.StringValue
+                    ? scalar(name.endsWith("ImageError") ? "(_, __) {}" : "(_) {}", false, valuePath, node.id(), context)
+                    : renderProperty(value, property, valuePath, node.id(), context);
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+        if (node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue) appendDefaultSelectionStyleCursor(node, definition, path, context, arguments);
+        RenderedValue density = renderIconButtonDirectDensity(node, definition, path, context);
+        if (density != null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(), "visualDensity", false, density));
+        appendSwitchStateArguments(node, definition, path, context, arguments);
+        List<ElevatedButtonStateEntry> entries = new ArrayList<>();
+        for (String state : SwitchListTileWidgetPropertySchema.statePriority()) {
+            String name = "mouseCursor" + Character.toUpperCase(state.charAt(0)) + state.substring(1);
+            PropertyValue value = node.properties().get(new PropertyName(name));
+            if (value == null) continue;
+            RenderedValue rendered = value instanceof PropertyValue.StringValue ? renderElevatedCursor(node, definition, name, path, context)
+                    : renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(), path + "/properties/" + name, node.id(), context);
+            entries.add(new ElevatedButtonStateEntry(state.equals("default") ? "any" : state, rendered));
+        }
+        if (!entries.isEmpty()) arguments.add(new ConstructorArgument(definition.property(new PropertyName("mouseCursor")).orElseThrow().parameter(), "mouseCursor", false,
+                renderCheckboxStateMap("WidgetStateMouseCursor", "MouseCursor", entries, path + "/properties/mouseCursor", node.id(), context, false)));
+    }
+
     private void appendCheckboxListTileArguments(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
         for (String name : List.of("onChanged", "onFocusChange")) {
@@ -2553,18 +4273,23 @@ public final class DartRegionGenerator {
 
     private void appendCheckboxSideArguments(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
-        DartParameter parameter = definition.property(new PropertyName("side")).orElseThrow().parameter();
-        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
-        RenderedValue baseSide = renderCheckboxSide(node, definition, "side", path, indent, context, false);
+        appendCheckboxSideArguments(node, definition, path, indent, context, arguments, "side");
+    }
+
+    private void appendCheckboxSideArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments, String family) {
+        DartParameter parameter = definition.property(new PropertyName(family)).orElseThrow().parameter();
+        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName(family + "Stateful")));
+        RenderedValue baseSide = renderCheckboxSide(node, definition, family, path, indent, context, false);
         if (!stateful) {
             if (baseSide != null) {
-                arguments.add(new ConstructorArgument(parameter, "side", false, baseSide));
+                arguments.add(new ConstructorArgument(parameter, family, false, baseSide));
             }
             return;
         }
         ArrayList<ElevatedButtonStateEntry> entries = new ArrayList<>();
         for (String state : CheckboxWidgetPropertySchema.sideStates()) {
-            String prefix = "side" + state;
+            String prefix = family + state;
             PropertyValue mode = node.properties().get(new PropertyName(prefix + "Mode"));
             RenderedValue value = new PropertyValue.StringValue("inherit").equals(mode)
                     ? scalar("null", true, path + "/properties/" + prefix + "Mode", node.id(), context)
@@ -2575,10 +4300,10 @@ public final class DartRegionGenerator {
             }
         }
         entries.add(new ElevatedButtonStateEntry("any", baseSide == null
-                ? scalar("null", true, path + "/properties/sideStateful", node.id(), context) : baseSide));
-        arguments.add(new ConstructorArgument(parameter, "side", false,
+                ? scalar("null", true, path + "/properties/" + family + "Stateful", node.id(), context) : baseSide));
+        arguments.add(new ConstructorArgument(parameter, family, false,
                 renderCheckboxStateMap("WidgetStateBorderSide", "BorderSide", entries,
-                        path + "/properties/side", node.id(), context)));
+                        path + "/properties/" + family, node.id(), context)));
     }
 
     private RenderedValue renderCheckboxSide(WidgetNode node, WidgetDefinition definition, String prefix,
@@ -3755,11 +5480,11 @@ public final class DartRegionGenerator {
         if (OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
             addElevatedCommonDirect(node, definition, "styleIconAlignment", "iconAlignment", 13,
                     path, context, style);
-            addElevatedCommonDirect(node, definition, "styleBackgroundBuilder", "backgroundBuilder", 23,
-                    path, context, style);
-            addElevatedCommonDirect(node, definition, "styleForegroundBuilder", "foregroundBuilder", 24,
-                    path, context, style);
         }
+        addElevatedCommonDirect(node, definition, "styleBackgroundBuilder", "backgroundBuilder", 23,
+                path, context, style);
+        addElevatedCommonDirect(node, definition, "styleForegroundBuilder", "foregroundBuilder", 24,
+                path, context, style);
     }
 
     private RenderedValue renderElevatedVisualDensity(
@@ -4034,10 +5759,15 @@ public final class DartRegionGenerator {
             return;
         }
         AppBarMember member = members.getFirst();
+        if (member.value() instanceof PropertyValue.DartObjectReferenceValue) {
+            arguments.add(new ConstructorArgument(
+                    member.property().parameter(), "notificationPredicate", false, member.rendered()));
+            return;
+        }
         if (!(member.value() instanceof PropertyValue.StringValue preset)) {
             throw catalogInconsistency(
                     member.propertyPath(path), widgetId,
-                    "AppBar notificationPredicate preset must be a string.");
+                    "AppBar notificationPredicate must be a reviewed string preset or typed project reference.");
         }
         String propertyPath = member.propertyPath(path);
         RenderedValue rendered = switch (preset.value()) {
@@ -4494,7 +6224,9 @@ public final class DartRegionGenerator {
                 ? null : themeStyles.getFirst().rendered();
         if (themeStyle != null && styleMembers.isEmpty()) {
             arguments.add(new ConstructorArgument(
-                    DartParameter.named(styleOrder, false), styleArgument, false, themeStyle));
+                    DartParameter.named(styleOrder, false), styleArgument, false,
+                    DefaultTextStyleWidgetPropertySchema.requiresStyle(node.type())
+                        ? renderTextStyleCopyWith(themeStyle, List.of(), path + "/properties/style", node.id(), context) : themeStyle));
         } else if (themeStyle != null) {
             styleMembers.sort(COMPOSITE_MEMBER_ORDER);
             arguments.add(new ConstructorArgument(
@@ -5845,6 +7577,117 @@ public final class DartRegionGenerator {
                 directional.bottom());
     }
 
+    private static boolean isNavigationDestinationsSlot(WidgetNode node, SlotName slotName) {
+        if (slotName.value().equals("destinations")) {
+            return node.type().equals(NavigationBarWidgetPropertySchema.NAVIGATION_BAR_TYPE)
+                    || node.type().equals(NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE);
+        }
+        if (slotName.value().equals("items")) {
+            return node.type().equals(BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE);
+        }
+        return slotName.value().equals("children")
+                && node.type().equals(NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE);
+    }
+
+    /**
+     * The designer stores destination entries as ordinary widget children so
+     * that every palette widget can be dropped into the list. Flutter's
+     * NavigationBar/Rail APIs, however, require Navigation*Destination
+     * objects. Keep that model convenient while emitting the exact SDK type,
+     * using each child as the destination icon and a deterministic label.
+     */
+    private RenderedValue renderNavigationDestinations(
+            WidgetSlot slot,
+            String path,
+            int baseIndent,
+            GenerationContext context,
+            boolean rail,
+            boolean drawer,
+            boolean bottomNavigation) {
+        if (!(slot instanceof WidgetSlot.ListSlot destinations)) {
+            return renderSlot(slot, path, baseIndent, context);
+        }
+        if (destinations.children().isEmpty()) {
+            return scalar("[]", true, path, Optional.empty(), context);
+        }
+        LineAccumulator lines = new LineAccumulator(
+                context.maxRenderedUtf8Bytes(), path, null);
+        lines.add("[");
+        int childIndent = baseIndent + 2;
+        boolean constant = true;
+        String destinationType = drawer
+                ? "NavigationDrawerDestination"
+                : rail ? "NavigationRailDestination"
+                : bottomNavigation ? "BottomNavigationBarItem" : "NavigationDestination";
+        for (int index = 0; index < destinations.children().size(); index++) {
+            WidgetNode child = destinations.children().get(index);
+            RenderedValue destination = renderNavigationDestination(
+                    child,
+                    path + "/children/" + index,
+                    childIndent,
+                    context,
+                    destinationType,
+                    index,
+                    bottomNavigation);
+            constant &= destination.constant();
+            String emitted = spaces(childIndent) + destination.joined() + ',';
+            lines.addBlock(
+                    emitted,
+                    destination.symbolOccurrences(),
+                    spaces(childIndent).length());
+        }
+        lines.add(spaces(baseIndent) + "]");
+        return lines.build(constant);
+    }
+
+    private RenderedValue renderNavigationDestination(
+            WidgetNode child,
+            String path,
+            int baseIndent,
+            GenerationContext context,
+            String destinationType,
+            int index,
+            boolean bottomNavigation) {
+        RenderedValue icon = renderNode(child, path + "/icon", baseIndent + 2, context);
+        RenderedSymbol destinationSymbol = context.planner().renderedSymbol(
+                MATERIAL_IMPORT, destinationType);
+        RenderedSymbol textSymbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "Text");
+        boolean constant = icon.constant();
+        String constructor = (constant ? "const " : "") + destinationSymbol.text() + "(";
+        LineAccumulator lines = new LineAccumulator(
+                context.maxRenderedUtf8Bytes(), path, child.id());
+        lines.add(
+                constructor,
+                List.of(occurrence(
+                        "widget:" + child.id() + ":navigation-destination-constructor",
+                        (constant ? "const ".length() : 0) + destinationSymbol.nameOffset(),
+                        destinationSymbol.name(),
+                        destinationSymbol.libraryUri(),
+                        path,
+                        Optional.of(child.id()))));
+        int argumentIndent = baseIndent + 2;
+        String iconPrefix = spaces(argumentIndent) + "icon: ";
+        lines.addBlock(
+                iconPrefix + icon.joined() + ",",
+                icon.symbolOccurrences(),
+                iconPrefix.length());
+        String labelPrefix;
+        String label;
+        if (bottomNavigation) {
+            labelPrefix = spaces(argumentIndent) + "label: ";
+            label = labelPrefix + "'Item " + (index + 1) + "',";
+        } else {
+            labelPrefix = spaces(argumentIndent) + "label: const ";
+            label = labelPrefix + textSymbol.text() + "('Destination " + (index + 1) + "'),";
+        }
+        lines.add(label, bottomNavigation ? List.of() : List.of(occurrence(
+                "widget:" + child.id() + ":navigation-destination-label",
+                labelPrefix.length() + textSymbol.nameOffset(), textSymbol.name(),
+                textSymbol.libraryUri(), path, Optional.of(child.id()))));
+        lines.add(spaces(baseIndent) + ")");
+        return lines.build(constant);
+    }
+
     private RenderedValue renderSlot(
             WidgetSlot slot,
             String path,
@@ -6055,18 +7898,24 @@ public final class DartRegionGenerator {
     private void appendDefaultSelectionStyleCursor(
             WidgetNode node, WidgetDefinition definition, String path,
             GenerationContext context, List<ConstructorArgument> arguments) {
-        var name = new PropertyName("mouseCursor");
+        appendMouseCursorPreset(node, definition, "mouseCursor", path, context, arguments);
+    }
+
+    private void appendMouseCursorPreset(
+            WidgetNode node, WidgetDefinition definition, String propertyName, String path,
+            GenerationContext context, List<ConstructorArgument> arguments) {
+        var name = new PropertyName(propertyName);
         PropertyValue value = node.properties().get(name);
         if (value == null) return;
-        String propertyPath = path + "/properties/mouseCursor";
+        String propertyPath = path + "/properties/" + propertyName;
         if (!(value instanceof PropertyValue.StringValue preset)) {
-            throw catalogInconsistency(propertyPath, node.id(), "Selection mouse cursor must be a validated preset string.");
+            throw catalogInconsistency(propertyPath, node.id(), "Mouse cursor must be a validated preset string.");
         }
         String owner = preset.value().equals("defer") || preset.value().equals("uncontrolled")
                 ? "MouseCursor" : Set.of("clickable", "adaptiveClickable", "textable").contains(preset.value())
                         ? "WidgetStateMouseCursor" : "SystemMouseCursors";
         RenderedSymbol type = context.planner().renderedSymbol(WIDGETS_IMPORT, owner);
-        arguments.add(new ConstructorArgument(definition.property(name).orElseThrow().parameter(), "mouseCursor", false,
+        arguments.add(new ConstructorArgument(definition.property(name).orElseThrow().parameter(), propertyName, false,
                 scalar(type.text() + '.' + preset.value(), true, propertyPath, node.id(), context,
                         List.of(occurrence("widget:" + node.id() + ":selectionCursor", type.nameOffset(),
                                 type.name(), type.libraryUri(), propertyPath, Optional.of(node.id())),
@@ -6245,7 +8094,11 @@ public final class DartRegionGenerator {
 
     private static boolean isStaticScrollView(WidgetNode node) {
         return node.type().equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE)
-                || node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE);
+                || node.type().equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE)
+                || node.type().equals(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE)
+                || node.type().equals(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE)
+                || node.type().equals(ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE)
+                || node.type().equals(CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE);
     }
 
     private void appendStaticScrollViewSynthesizedArguments(
@@ -6471,6 +8324,29 @@ public final class DartRegionGenerator {
             return renderBoxDecoration(
                     decoration, valueIndent, path, widgetId, context);
         }
+        if (value instanceof PropertyValue.PointerDeviceKindSetValue devices) {
+            RenderedSymbol symbol = context.planner().renderedSymbol(
+                    DART_UI_IMPORT, "PointerDeviceKind");
+            StringBuilder expression = new StringBuilder("const <");
+            ArrayList<GeneratedDartSymbolOccurrence> symbols = new ArrayList<>();
+            String occurrencePrefix = "widget:" + widgetId + ":property:"
+                    + definition.name().value() + ":device-type";
+            symbols.add(occurrence(occurrencePrefix,
+                    expression.length() + symbol.nameOffset(), symbol.name(),
+                    symbol.libraryUri(), path, Optional.of(widgetId)));
+            expression.append(symbol.text()).append(">{");
+            for (var device : devices.values()) {
+                if (expression.charAt(expression.length() - 1) != '{') {
+                    expression.append(", ");
+                }
+                symbols.add(occurrence(occurrencePrefix + ":" + device.wireName(),
+                        expression.length() + symbol.nameOffset(), symbol.name(),
+                        symbol.libraryUri(), path, Optional.of(widgetId)));
+                expression.append(symbol.text()).append('.').append(device.wireName());
+            }
+            expression.append('}');
+            return scalar(expression.toString(), true, path, widgetId, context, symbols);
+        }
         if (value instanceof PropertyValue.EnumValue enumValue) {
             PropertyValueConstraint.EnumValues binding = definition.constraints().stream()
                     .filter(PropertyValueConstraint.EnumValues.class::isInstance)
@@ -6592,6 +8468,17 @@ public final class DartRegionGenerator {
                     true, path, widgetId, context);
         }
         if (value instanceof PropertyValue.CallbackValue callback) {
+            var typedContract = definition.constraints().stream()
+                    .filter(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)
+                    .map(PropertyValueConstraint.DartObjectReferenceValues.class::cast).findFirst();
+            if (typedContract.isPresent()) {
+                // The persisted shorthand must carry the same proof as its typed
+                // reference equivalent, including when source ignores diagnostics.
+                return renderDartObjectReference(new PropertyValue.DartObjectReferenceValue(
+                        Optional.empty(), callback.handler(), Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                        typedContract.orElseThrow().expectedDartType(), path, widgetId, context);
+            }
             return scalar(callback.handler(), false, path, widgetId, context);
         }
         throw abort(diagnostic(
@@ -7329,14 +9216,22 @@ public final class DartRegionGenerator {
             }
             for (WidgetDefinition definition : definitions) {
                 for (String uri : definition.importUris()) {
-                    if ((definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
+                    if ((definition.typeId().equals(dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE)
+                            || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.TYPE)
+                            || definition.typeId().equals(CircleAvatarWidgetPropertySchema.CIRCLE_AVATAR_TYPE)
                             || definition.typeId().equals(LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE)
                             || definition.typeId().equals(CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE)
                             || definition.typeId().equals(FloatingActionButtonWidgetPropertySchema.FLOATING_ACTION_BUTTON_TYPE)
                             || definition.typeId().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
                             || definition.typeId().equals(CheckboxWidgetPropertySchema.CHECKBOX_TYPE)
                             || definition.typeId().equals(CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE)
+                            || definition.typeId().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
                             || definition.typeId().equals(RadioWidgetPropertySchema.RADIO_TYPE)
+                            || definition.typeId().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
+                            || definition.typeId().equals(ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE)
+                            || definition.typeId().equals(TooltipWidgetPropertySchema.TOOLTIP_TYPE)
+                            || definition.typeId().equals(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE)
+                            || definition.typeId().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)
                             || definition.typeId().equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE)
                             || definition.typeId().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
                             || definition.typeId().equals(SwitchWidgetPropertySchema.SWITCH_TYPE)

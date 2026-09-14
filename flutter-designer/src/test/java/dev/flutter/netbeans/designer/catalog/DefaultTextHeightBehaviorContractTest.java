@@ -220,9 +220,9 @@ class DefaultTextHeightBehaviorContractTest {
                 Map.of(CHILD, new WidgetSlot.ListSlot(List.of(text(Map.of())))))) {
             assertFalse(valid(new WidgetNode(StableId.random(), TYPE, Map.of(), slots)));
         }
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     private static PropertyValue.BooleanValue bool(boolean value) { return new PropertyValue.BooleanValue(value); }

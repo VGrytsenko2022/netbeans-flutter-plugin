@@ -22,6 +22,177 @@ final Uint8List _viewPng8 = base64Decode(
 );
 
 void main() {
+  Map<String, Object?> sliverPaddingModel({required bool directional, required bool rtl,
+      required bool horizontal, required bool reverse, required bool empty,
+      bool reference = false, bool zero = false, bool nested = false}) {
+    final child = <String, Object?>{
+      'id': '1c8e2375-4a20-4f30-928c-a80353cc4bc0', 'type': 'flutter.widgets.SliverToBoxAdapter',
+      'properties': <String, Object?>{}, 'slots': {'child': {'kind': 'single', 'child': {
+        'id': '653d1064-01aa-47c8-a052-f4e4486ec57d', 'type': 'flutter.widgets.SizedBox',
+        'properties': {'height': {'kind': 'double', 'value': 48.0}, 'width': {'kind': 'double', 'value': 48.0}},
+        'slots': {'child': {'kind': 'single', 'child': {
+          'id': 'ed91b118-e304-4421-97c7-a294a87b7e5f', 'type': 'flutter.widgets.Text',
+          'properties': {'data': {'kind': 'string', 'value': 'Padded'}}, 'slots': <String, Object?>{},
+        }}},
+      }}},
+    };
+    final padding = <String, Object?>{'kind': directional ? 'edgeInsetsDirectional' : 'edgeInsets',
+      directional ? 'start' : 'left': zero ? 0.0 : 12.0, 'top': zero ? 0.0 : 14.0,
+      directional ? 'end' : 'right': zero ? 0.0 : 20.0, 'bottom': zero ? 0.0 : 16.0};
+    final node = <String, Object?>{
+      'id': '0e78b7c2-3e04-4566-b687-c84eb75aa3f0', 'type': 'flutter.widgets.SliverPadding',
+      'properties': {'padding': reference ? {'kind': 'dartObjectReferencePresence'} : padding},
+      'slots': {'sliver': {'kind': 'single', 'child': empty ? null : nested ? {
+        'id': '2e3f5f8b-07bf-4e71-8c78-ba52e2c2bd68', 'type': 'flutter.widgets.SliverPadding',
+        'properties': {'padding': {'kind': 'edgeInsets', 'left': 3.0, 'top': 3.0, 'right': 3.0, 'bottom': 3.0}},
+        'slots': {'sliver': {'kind': 'single', 'child': child}},
+      } : child}},
+    };
+    final model = _modelWithCustomScrollView(properties: {
+      'primary': {'kind': 'boolean', 'value': false},
+      'reverse': {'kind': 'boolean', 'value': reverse},
+      'scrollDirection': {'kind': 'enum', 'type': 'Axis', 'value': horizontal ? 'horizontal' : 'vertical'},
+    }, slivers: [node]);
+    model['root'] = {'id': 'c60acdc3-b086-4a51-bfdf-cb89e1b7c8e2', 'type': 'flutter.widgets.Directionality',
+      'properties': {'textDirection': {'kind': 'enum', 'type': 'TextDirection', 'value': rtl ? 'rtl' : 'ltr'}},
+      'slots': {'child': {'kind': 'single', 'child': model['root']}}};
+    return model;
+  }
+  CanvasModel decodeSliverPadding(Map<String, Object?> value) =>
+      CanvasModel.decode(Uint8List.fromList(utf8.encode(jsonEncode(value))));
+  for (final directional in [false, true]) {
+    for (final rtl in [false, true]) {
+    for (final horizontal in [false, true]) {
+      for (final reverse in [false, true]) {
+      for (final empty in [false, true]) {
+        testWidgets('SliverPadding physical/directional=$directional rtl=$rtl horizontal=$horizontal reverse=$reverse empty=$empty',
+            (tester) async {
+          const id = '0e78b7c2-3e04-4566-b687-c84eb75aa3f0';
+          final model = decodeSliverPadding(sliverPaddingModel(directional: directional, rtl: rtl,
+              horizontal: horizontal, reverse: reverse, empty: empty));
+          CanvasDropResolver? drop; CanvasMovePreviewResolver? move;
+          final selected = <String>[];
+          await tester.pumpWidget(CanvasModelApp(model: model, selectedWidgetId: id, onSelected: selected.add,
+              onDropResolverChanged: (v) => drop = v, onMovePreviewResolverChanged: (v) => move = v));
+          await tester.pump();
+          final sdk = tester.widget<SliverPadding>(find.byType(SliverPadding, skipOffstage: false));
+          final insets = sdk.padding.resolve(rtl ? TextDirection.rtl : TextDirection.ltr);
+          expect(insets.left, directional && rtl ? 20 : 12);
+          expect(insets.right, directional && rtl ? 12 : 20);
+          final viewport = tester.getRect(find.byType(CustomScrollView));
+          if (!empty) {
+            final adapter = tester.renderObject<RenderSliverToBoxAdapter>(find.byType(SliverToBoxAdapter, skipOffstage: false));
+            final box = adapter.child!;
+            final viewportBox = tester.renderObject<RenderBox>(find.byType(CustomScrollView));
+            final rect = box.localToGlobal(Offset.zero, ancestor: viewportBox) & box.size;
+            final localViewport = Offset.zero & viewportBox.size;
+            final leftward = horizontal && rtl != reverse;
+            expect(rect.left, closeTo(horizontal && leftward ? localViewport.right - insets.right - 48 : localViewport.left + insets.left, 0.01));
+            expect(rect.top, closeTo(!horizontal && reverse ? localViewport.bottom - insets.bottom - 48 : localViewport.top + insets.top, 0.01));
+            expect(box.size.width, closeTo(horizontal ? 48 : localViewport.width - insets.horizontal, 0.01));
+            expect(box.size.height, closeTo(horizontal ? localViewport.height - insets.vertical : 48, 0.01));
+            expect(move!('1c8e2375-4a20-4f30-928c-a80353cc4bc0', id, 'sliver', 0), isNotNull);
+          }
+          final point = horizontal && (rtl != reverse) ? viewport.topRight + const Offset(-2,2)
+              : !horizontal && reverse ? viewport.bottomLeft + const Offset(2,-2)
+              : viewport.topLeft + const Offset(2,2);
+          final surface = tester.getRect(find.byType(CanvasDocumentView));
+          final result = drop!(((point.dx-surface.left)/surface.width*1000000).round(),
+              ((point.dy-surface.top)/surface.height*1000000).round(),
+              CanvasPaletteDragSource(token: 'padding', widgetType: 'flutter.widgets.SliverList', traits: {canvasSliverWidgetTrait}));
+          if (empty) { expect(result?.parentWidgetId, id); expect(result?.slotName, 'sliver'); }
+          else { expect(result?.parentWidgetId, isNot(id)); }
+          expect(move!(id, id, 'sliver', 0), isNull);
+          await tester.tapAt(point); await tester.pump();
+          expect(selected, contains(id));
+          expect(tester.takeException(), isNull);
+        });
+      }
+    }
+  }
+    }
+  }
+  for (final nested in [false, true]) {
+    testWidgets('SliverPadding nested=$nested zero and project preview preserve the sliver', (tester) async {
+      for (final reference in [false, true]) {
+        final model = decodeSliverPadding(sliverPaddingModel(directional: false, rtl: false,
+            horizontal: false, reverse: false, empty: false, reference: reference, zero: true, nested: nested));
+        CanvasMovePreviewResolver? move;
+        await tester.pumpWidget(CanvasModelApp(model: model, selectedWidgetId: '0e78b7c2-3e04-4566-b687-c84eb75aa3f0',
+            onSelected: (_) {}, onMovePreviewResolverChanged: (v) => move = v));
+        await tester.pump();
+        final sdk = tester.widgetList<SliverPadding>(find.byType(SliverPadding, skipOffstage: false)).first;
+        expect(sdk.padding, EdgeInsets.zero);
+        expect(find.text('Padded', skipOffstage: false), findsOneWidget);
+        expect(find.textContaining('SliverPadding preview limitation:'), reference ? findsOneWidget : findsNothing);
+        if (reference) {
+          final scrollable = tester.state<ScrollableState>(find.byType(Scrollable));
+          scrollable.position.jumpTo(scrollable.position.maxScrollExtent);
+          await tester.pump();
+          expect(find.text('Padded'), findsOneWidget);
+        }
+        if (nested) expect(move!('0e78b7c2-3e04-4566-b687-c84eb75aa3f0', '2e3f5f8b-07bf-4e71-8c78-ba52e2c2bd68', 'sliver', 0), isNull);
+        expect(tester.takeException(), isNull);
+      }
+    });
+  }
+
+  final dynamicSliverPresets = <String, Map<String, Object?>>{
+    'flutter.widgets.SliverList.builder': {'itemBuilder': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverList.separated': {'itemBuilder': {'kind': 'string', 'value': 'empty'}, 'separatorBuilder': {'kind': 'string', 'value': 'shrink'}},
+    'flutter.widgets.SliverList.delegate': {'delegate': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverGrid.builder': {'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}, 'itemBuilder': {'kind': 'string', 'value': 'empty'}},
+    'flutter.widgets.SliverGrid.list': {'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}},
+    'flutter.widgets.SliverGrid.delegate': {'delegate': {'kind': 'string', 'value': 'empty'}, 'gridDelegate': {'kind': 'string', 'value': 'fixedCount'}},
+  };
+  for (final entry in dynamicSliverPresets.entries) {
+    for (final horizontal in [false, true]) {
+      for (final reverse in [false, true]) {
+        for (final references in [false, true]) {
+          testWidgets('dynamic sliver ${entry.key} horizontal=$horizontal reverse=$reverse references=$references', (tester) async {
+            const id = '1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0';
+            final gridList = entry.key == 'flutter.widgets.SliverGrid.list';
+            final properties = <String, Object?>{
+              for (final field in entry.value.entries) field.key: references ? {'kind': 'dartObjectReferencePresence'} : field.value,
+              if (entry.key.endsWith('.builder') || entry.key.endsWith('.separated')) 'itemCount': {'kind': 'integer', 'value': 9000},
+            };
+            final raw = _modelWithCustomScrollView(properties: {
+              'primary': {'kind': 'boolean', 'value': false},
+              'reverse': {'kind': 'boolean', 'value': reverse},
+              'scrollDirection': {'kind': 'enum', 'type': 'Axis', 'value': horizontal ? 'horizontal' : 'vertical'},
+            }, slivers: [{
+              'id': id, 'type': entry.key, 'properties': properties,
+              'slots': {if (gridList) 'children': {'kind': 'list', 'children': [{
+                'id': '5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd', 'type': 'flutter.widgets.Text',
+                'properties': {'data': {'kind': 'string', 'value': 'Static grid child'}}, 'slots': <String, Object?>{},
+              }]}},
+            }]);
+            final model = CanvasModel.decode(Uint8List.fromList(utf8.encode(jsonEncode(raw))));
+            CanvasMovePreviewResolver? move;
+            await tester.pumpWidget(CanvasModelApp(model: model, selectedWidgetId: id, onSelected: (_) {},
+                onMovePreviewResolverChanged: (v) => move = v));
+            await tester.pump();
+            final listFinder = find.byType(SliverList, skipOffstage: false);
+            final gridFinder = find.byType(SliverGrid, skipOffstage: false);
+            final SliverChildDelegate delegate = entry.key.contains('SliverList')
+                ? tester.widget<SliverList>(listFinder).delegate : tester.widget<SliverGrid>(gridFinder).delegate;
+            if (!gridList && delegate is SliverChildBuilderDelegate) {
+              expect(delegate.builder(tester.element(find.byType(CanvasDocumentView)), 0), isNull);
+            }
+            if (gridList) {
+              expect((delegate as SliverChildListDelegate).children, hasLength(1));
+              expect(move!('5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd', id, 'children', 0), isNotNull);
+            } else {
+              expect(canvasDropSlotsForWidgetType(entry.key), isEmpty);
+            }
+            expect(find.textContaining('Sliver preview limitation:', skipOffstage: false), references ? findsOneWidget : findsNothing);
+            expect(tester.takeException(), isNull);
+          });
+        }
+      }
+    }
+  }
+
   test('models the reviewed multi-slot Canvas insertion matrix', () {
     expect(canvasChildrenAppendDropSlot.insertionIndexFor(0), 0);
     expect(canvasChildrenAppendDropSlot.insertionIndexFor(7), 7);
@@ -5407,7 +5578,7 @@ void main() {
   testWidgets(
     'renders real Stack defaults, exact fits, alignment, and z-order',
     (tester) async {
-      const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+      const stackId = '5a809127-5a50-4dbf-b5fd-464749344ac4';
       const bottomId = 'f5d1751b-136a-4db0-9e22-2ecb498eb425';
       const topId = '0bdf25b7-ce2c-4cb7-9f04-270e53ad3157';
       final children = <Map<String, Object?>>[
@@ -5525,7 +5696,7 @@ void main() {
   testWidgets('resolves Stack directional defaults and explicit override', (
     tester,
   ) async {
-    const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+    const stackId = '5a809127-5a50-4dbf-b5fd-464749344ac4';
     final child = _viewSizedBoxNode(
       'f5d1751b-136a-4db0-9e22-2ecb498eb425',
       width: 40,
@@ -5588,7 +5759,7 @@ void main() {
   testWidgets(
     'uses full-node Stack append and move zones and preserves zero selection',
     (tester) async {
-      const stackId = '5a809127-5a50-4dbf-b5fd-464619344ac4';
+      const stackId = '5a809127-5a50-4dbf-b5fd-464749344ac4';
       const sourceId = 'f5d1751b-136a-4db0-9e22-2ecb498eb425';
       CanvasDropResolver? dropResolver;
       CanvasMovePreviewResolver? moveResolver;
@@ -8259,6 +8430,212 @@ void main() {
     expect(find.text('Second'), findsOneWidget);
     expect(tester.takeException(), isNull);
   });
+
+  for (final kind in ['list', 'count', 'extent']) {
+    for (final horizontal in [false, true]) {
+      for (final empty in [false, true]) {
+        for (final reversed in [false, true]) {
+        testWidgets('static sliver $kind horizontal=$horizontal empty=$empty reversed=$reversed supports SDK rendering and drop', (tester) async {
+          const sliverId = '1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0';
+          const childId = '5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd';
+          final type = kind == 'list' ? 'flutter.widgets.SliverList'
+              : kind == 'count' ? 'flutter.widgets.SliverGrid' : 'flutter.widgets.SliverGrid.extent';
+          final properties = <String, Object?>{
+            if (kind == 'list') ...{
+              'addAutomaticKeepAlives': {'kind': 'boolean', 'value': false},
+              'addRepaintBoundaries': {'kind': 'boolean', 'value': false},
+              'addSemanticIndexes': {'kind': 'boolean', 'value': false},
+            } else ...{
+              if (kind == 'count') 'crossAxisCount': {'kind': 'integer', 'value': 2}
+              else 'maxCrossAxisExtent': {'kind': 'double', 'value': 150.0},
+              'mainAxisSpacing': {'kind': 'double', 'value': 4.0},
+              'crossAxisSpacing': {'kind': 'double', 'value': 6.0},
+              'childAspectRatio': {'kind': 'double', 'value': 1.5},
+            },
+          };
+          final raw = _modelWithCustomScrollView(properties: {
+            'reverse': {'kind': 'boolean', 'value': reversed},
+            'scrollDirection': {'kind': 'enum', 'type': 'Axis', 'value': horizontal ? 'horizontal' : 'vertical'},
+            'primary': {'kind': 'boolean', 'value': false},
+          }, slivers: [{
+            'id': sliverId, 'type': type, 'properties': properties,
+            'slots': {'children': {'kind': 'list', 'children': [
+              if (!empty) {'id': childId, 'type': 'flutter.widgets.Text',
+                'properties': {'data': {'kind': 'string', 'value': 'Sliver item'}},
+                'slots': <String, Object?>{}},
+            ]}},
+          }]);
+          final model = CanvasModel.decode(Uint8List.fromList(utf8.encode(jsonEncode(raw))));
+          CanvasDropResolver? resolver;
+          CanvasMovePreviewResolver? move;
+          final selected = <String>[];
+          await tester.pumpWidget(CanvasModelApp(model: model, selectedWidgetId: sliverId,
+            onSelected: selected.add, onDropResolverChanged: (v) => resolver = v,
+            onMovePreviewResolverChanged: (v) => move = v));
+          await tester.pump();
+          if (kind == 'list') {
+            final sdk = tester.widget<SliverList>(find.byType(SliverList, skipOffstage: false));
+            final delegate = sdk.delegate as SliverChildListDelegate;
+            expect(delegate.addAutomaticKeepAlives, isFalse);
+            expect(delegate.addRepaintBoundaries, isFalse);
+            expect(delegate.addSemanticIndexes, isFalse);
+            expect(delegate.children.length, empty ? 0 : 1);
+          } else {
+            final sdk = tester.widget<SliverGrid>(find.byType(SliverGrid, skipOffstage: false));
+            if (kind == 'count') {
+              final grid = sdk.gridDelegate as SliverGridDelegateWithFixedCrossAxisCount;
+              expect(grid.crossAxisCount, 2); expect(grid.mainAxisSpacing, 4);
+              expect(grid.crossAxisSpacing, 6); expect(grid.childAspectRatio, 1.5);
+            } else {
+              final grid = sdk.gridDelegate as SliverGridDelegateWithMaxCrossAxisExtent;
+              expect(grid.maxCrossAxisExtent, 150); expect(grid.mainAxisSpacing, 4);
+              expect(grid.crossAxisSpacing, 6); expect(grid.childAspectRatio, 1.5);
+            }
+          }
+          final surface = tester.getRect(find.byType(CanvasDocumentView));
+          final viewport = tester.getRect(find.byType(CustomScrollView));
+          final point = !reversed ? viewport.topLeft + const Offset(12, 12)
+              : horizontal ? viewport.topRight + const Offset(-12, 12)
+              : viewport.bottomLeft + const Offset(12, -12);
+          final drop = resolver!(
+            ((point.dx - surface.left) / surface.width * 1000000).round(),
+            ((point.dy - surface.top) / surface.height * 1000000).round(),
+            CanvasPaletteDragSource(token: 'sliver-test', widgetType: 'flutter.widgets.Text', traits: {}));
+          expect(drop?.parentWidgetId, sliverId);
+          expect(drop?.slotName, 'children');
+          expect(drop?.insertionIndex, empty ? 0 : 1);
+          expect(drop?.zone?.isEmpty, isFalse);
+          await tester.tapAt(point); await tester.pump();
+          expect(selected, contains(sliverId));
+          if (!empty) {
+            expect(move!(childId, sliverId, 'children', 0)?.parentWidgetId, sliverId);
+            expect(move!(childId, sliverId, 'children', 2), isNull);
+          }
+          expect(tester.takeException(), isNull);
+        });
+        }
+      }
+    }
+  }
+
+  testWidgets(
+    'renders CustomScrollView with typed SliverToBoxAdapter children',
+    (tester) async {
+      const customScrollViewId = 'a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1';
+      final model = CanvasModel.decode(
+        Uint8List.fromList(
+          utf8.encode(
+            jsonEncode(
+              _modelWithCustomScrollView(
+                properties: {
+                  'scrollDirection': {
+                    'kind': 'enum',
+                    'type': 'Axis',
+                    'value': 'horizontal',
+                  },
+                  'reverse': {'kind': 'boolean', 'value': true},
+                  'primary': {'kind': 'boolean', 'value': false},
+                  'physics': {'kind': 'string', 'value': 'bouncing'},
+                  'shrinkWrap': {'kind': 'boolean', 'value': true},
+                  'anchor': {'kind': 'double', 'value': 0.25},
+                  'scrollCacheExtent': {'kind': 'integer', 'value': 240},
+                  'paintOrder': {
+                    'kind': 'enum',
+                    'type': 'SliverPaintOrder',
+                    'value': 'lastIsTop',
+                  },
+                  'semanticChildCount': {'kind': 'integer', 'value': 1},
+                  'dragStartBehavior': {
+                    'kind': 'enum',
+                    'type': 'DragStartBehavior',
+                    'value': 'down',
+                  },
+                  'keyboardDismissBehavior': {
+                    'kind': 'enum',
+                    'type': 'ScrollViewKeyboardDismissBehavior',
+                    'value': 'onDrag',
+                  },
+                  'restorationId': {'kind': 'string', 'value': 'custom-scroll'},
+                  'clipBehavior': {
+                    'kind': 'enum',
+                    'type': 'Clip',
+                    'value': 'antiAlias',
+                  },
+                  'hitTestBehavior': {
+                    'kind': 'enum',
+                    'type': 'HitTestBehavior',
+                    'value': 'translucent',
+                  },
+                },
+                slivers: [
+                  <String, Object?>{
+                    'id': '1ae5d351-2a5a-4d50-8c75-2cb7f47d65a0',
+                    'type': 'flutter.widgets.SliverToBoxAdapter',
+                    'properties': <String, Object?>{},
+                    'slots': <String, Object?>{
+                      'child': <String, Object?>{
+                        'kind': 'single',
+                        'child': <String, Object?>{
+                          'id': '5a3bb3d3-5f64-4f8c-b87e-89ccad4f56cd',
+                          'type': 'flutter.widgets.Text',
+                          'properties': <String, Object?>{
+                            'data': {'kind': 'string', 'value': 'Sliver body'},
+                          },
+                          'slots': <String, Object?>{},
+                        },
+                      },
+                    },
+                  },
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.pumpWidget(
+        CanvasModelApp(
+          model: model,
+          selectedWidgetId: null,
+          onSelected: (_) {},
+        ),
+      );
+      await tester.pump();
+
+      final node = find.byKey(
+        const ValueKey('canvas-widget-$customScrollViewId'),
+      );
+      final finder = find.descendant(
+        of: node,
+        matching: find.byType(CustomScrollView),
+      );
+      final scrollView = tester.widget<CustomScrollView>(finder);
+      expect(scrollView.scrollDirection, Axis.horizontal);
+      expect(scrollView.reverse, isTrue);
+      expect(scrollView.primary, isFalse);
+      expect(scrollView.physics, isA<BouncingScrollPhysics>());
+      expect(scrollView.shrinkWrap, isTrue);
+      expect(scrollView.anchor, 0.25);
+      expect(scrollView.scrollCacheExtent?.value, 240);
+      expect(scrollView.paintOrder, SliverPaintOrder.lastIsTop);
+      expect(scrollView.semanticChildCount, 1);
+      expect(scrollView.dragStartBehavior, DragStartBehavior.down);
+      expect(
+        scrollView.keyboardDismissBehavior,
+        ScrollViewKeyboardDismissBehavior.onDrag,
+      );
+      expect(scrollView.restorationId, 'custom-scroll');
+      expect(scrollView.clipBehavior, Clip.antiAlias);
+      expect(scrollView.hitTestBehavior, HitTestBehavior.translucent);
+      expect(scrollView.slivers, hasLength(1));
+      expect(
+        find.descendant(of: node, matching: find.byType(SliverToBoxAdapter)),
+        findsOneWidget,
+      );
+      expect(find.text('Sliver body'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+    },
+  );
 
   testWidgets('bounds every required ListView axis under flex constraints', (
     tester,
@@ -15844,7 +16221,7 @@ Map<String, Object?> _modelWithConstrainedStack({
   final body =
       (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
   final stack = <String, Object?>{
-    'id': '5a809127-5a50-4dbf-b5fd-464619344ac4',
+    'id': '5a809127-5a50-4dbf-b5fd-464749344ac4',
     'type': 'flutter.widgets.Stack',
     'properties': properties,
     'slots': <String, Object?>{
@@ -16343,6 +16720,49 @@ Map<String, Object?> _modelWithGridView({
     'properties': <String, Object?>{},
     'slots': <String, Object?>{
       'child': <String, Object?>{'kind': 'single', 'child': child},
+    },
+  };
+  return model;
+}
+
+Map<String, Object?> _modelWithCustomScrollView({
+  required Map<String, Object?> properties,
+  required List<Map<String, Object?>> slivers,
+}) {
+  final model = _modelJsonForView();
+  final root = model['root']! as Map<String, Object?>;
+  final body =
+      (root['slots']! as Map<String, Object?>)['body']! as Map<String, Object?>;
+  final customScrollView = <String, Object?>{
+    'id': 'a6e8f7b0-9eb0-4e1a-a7d8-9f8fc8e9b4c1',
+    'type': 'flutter.widgets.CustomScrollView',
+    'properties': properties,
+    'slots': <String, Object?>{
+      'slivers': <String, Object?>{'kind': 'list', 'children': slivers},
+    },
+  };
+  body['child'] = <String, Object?>{
+    'id': '31684f33-2e10-4fc6-9658-77cf0fe7eb55',
+    'type': 'flutter.widgets.Center',
+    'properties': <String, Object?>{},
+    'slots': <String, Object?>{
+      'child': <String, Object?>{
+        'kind': 'single',
+        'child': <String, Object?>{
+          'id': 'f0f34b58-a9d5-46da-8fde-2daf20400796',
+          'type': 'flutter.widgets.SizedBox',
+          'properties': <String, Object?>{
+            'width': {'kind': 'integer', 'value': 300},
+            'height': {'kind': 'integer', 'value': 160},
+          },
+          'slots': <String, Object?>{
+            'child': <String, Object?>{
+              'kind': 'single',
+              'child': customScrollView,
+            },
+          },
+        },
+      },
     },
   };
   return model;

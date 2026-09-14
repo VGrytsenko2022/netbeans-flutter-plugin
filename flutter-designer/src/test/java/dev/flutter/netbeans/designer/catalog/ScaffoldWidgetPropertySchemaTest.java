@@ -83,8 +83,7 @@ class ScaffoldWidgetPropertySchemaTest {
                 "drawer",
                 "endDrawer",
                 "bottomNavigationBar",
-                "bottomSheet",
-                "bottomSheetScrimBuilder");
+                "bottomSheet");
 
         assertTrue(scaffold.properties().stream()
                 .map(property -> property.name().value())

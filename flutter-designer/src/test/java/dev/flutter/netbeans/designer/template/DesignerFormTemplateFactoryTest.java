@@ -12,6 +12,7 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
 import java.nio.charset.StandardCharsets;
 import org.junit.jupiter.api.Test;
@@ -31,6 +32,7 @@ class DesignerFormTemplateFactoryTest {
         assertEquals(template.document(), decoded.document());
         assertEquals("order_screen.dart", decoded.document().source().dartFile());
         assertEquals("OrderScreen", decoded.document().source().className());
+        assertEquals(WidgetClassKind.STATELESS, decoded.document().source().widgetKind());
         assertTrue(new DartSourceIntegrityScanner()
                 .scan(template.dartBytes(), decoded.document().source())
                 .onDiskDeclaredMatch());
@@ -75,5 +77,33 @@ class DesignerFormTemplateFactoryTest {
         fd[0] ^= 1;
         assertNotEquals(dart[0], first.dartBytes()[0]);
         assertNotEquals(fd[0], first.fdBytes()[0]);
+    }
+
+    @Test
+    void createsExplicitStatefulPairWithBuildOwnedBySeparateStateClass() throws Exception {
+        DesignerFormTemplate template = factory.create("order_screen.dart", "OrderScreen", WidgetClassKind.STATEFUL);
+        FdDecodeResult.Current decoded = assertInstanceOf(FdDecodeResult.Current.class,
+                new FdDocumentCodec().decode(template.fdBytes()));
+        assertEquals(template.document(), decoded.document());
+        assertEquals(WidgetClassKind.STATEFUL, decoded.document().source().widgetKind());
+        String dart = new String(template.dartBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("class OrderScreen extends StatefulWidget {\n  const OrderScreen({super.key});"));
+        assertTrue(dart.contains("@override\n  State<OrderScreen> createState() => _OrderScreenState();"));
+        assertTrue(dart.contains("class _OrderScreenState extends State<OrderScreen> {\n"
+                + "  // <netbeans-flutter-designer region=\"build\">"));
+        assertEquals(1, dart.split("Widget build\\(BuildContext context\\)", -1).length - 1);
+        var integrity = new DartSourceIntegrityScanner().scan(template.dartBytes(), decoded.document().source());
+        assertTrue(integrity.onDiskDeclaredMatch(), integrity.diagnostics().toString());
+        assertEquals(factory.create("other.dart", "Other").document().source().managedRegions(),
+                template.document().source().managedRegions(), "Class kind must not alter identical managed payload hashes.");
+    }
+
+    @Test
+    void supportsPrivateStatefulOwnerAndRejectsMissingKind() throws Exception {
+        var template = factory.create("_private.dart", "_Private", WidgetClassKind.STATEFUL);
+        String dart = new String(template.dartBytes(), StandardCharsets.UTF_8);
+        assertTrue(dart.contains("State<_Private> createState() => _PrivateState();"));
+        assertTrue(dart.contains("class _PrivateState extends State<_Private>"));
+        assertThrows(NullPointerException.class, () -> factory.create("screen.dart", "Screen", null));
     }
 }

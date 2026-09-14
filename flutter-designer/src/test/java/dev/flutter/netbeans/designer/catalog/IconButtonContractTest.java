@@ -45,13 +45,13 @@ class IconButtonContractTest {
         assertFalse(valid(prototype));
         assertEquals("icon", WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).orElseThrow().name().value());
         assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD, WidgetPlacementRules.creationMode(definition()));
-        assertEquals(16, CATALOG.definitions().stream().filter(d -> WidgetPlacementRules.creationMode(d)
+        assertEquals(43, CATALOG.definitions().stream().filter(d -> WidgetPlacementRules.creationMode(d)
                 == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
         assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
-        assertEquals(512, ValidationLimits.defaults().maxPropertiesPerWidget());
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
+        assertEquals(1024, ValidationLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
     }
 
     @Test
@@ -266,13 +266,13 @@ class IconButtonContractTest {
     }
 
     @Test
-    void metadata1024DoesNotWiden512PersistedValidationOrAtomicPatchBudgets() throws Exception {
+    void metadataAndPersisted1024KeepAtomicPatch512AndExplicitLowerValidationBudgets() throws Exception {
         var properties = new ArrayList<PropertyDefinition>();
         var values = new LinkedHashMap<PropertyName, PropertyValue>();
-        for (int index = 0; index < 524; index++) {
+        for (int index = 0; index < 1024; index++) {
             properties.add(new PropertyDefinition(p("p" + index), DartParameter.named(index, false),
                     List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.STRING)), Optional.empty()));
-            if (index < 512) values.put(p("p" + index), s("v"));
+            values.put(p("p" + index), s("v"));
         }
         var schema = new WidgetDefinition(new WidgetTypeId("example.Dense"), "Dense", Optional.empty(), true,
                 "package:example/dense.dart", List.of("package:example/dense.dart"), Set.of(),
@@ -282,11 +282,11 @@ class IconButtonContractTest {
         assertTrue(new WidgetTreeValidator().validate(document(root), catalog).valid());
         roundTrip(root);
         var patches = new ArrayList<PatchProperties.Patch>();
-        values.forEach((name, value) -> patches.add(new PatchProperties.SetPatch(name, value)));
+        values.entrySet().stream().limit(512).forEach(entry -> patches.add(new PatchProperties.SetPatch(entry.getKey(), entry.getValue())));
         assertEquals(512, new PatchProperties(root.id(), patches).patches().size());
         patches.add(new PatchProperties.SetPatch(p("p512"), s("v")));
         assertThrows(IllegalArgumentException.class, () -> new PatchProperties(root.id(), patches));
-        values.put(p("p512"), s("v"));
+        values.put(p("p1024"), s("v"));
         var oversized = new WidgetNode(root.id(), schema.typeId(), values, Map.of());
         assertFalse(new WidgetTreeValidator().validate(document(oversized), catalog).valid());
         assertThrows(Exception.class, () -> new FdDocumentCodec().encode(document(oversized)));

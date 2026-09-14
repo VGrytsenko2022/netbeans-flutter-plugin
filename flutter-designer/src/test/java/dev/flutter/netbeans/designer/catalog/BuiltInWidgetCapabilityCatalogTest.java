@@ -49,6 +49,25 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.RadioGroup",
             "flutter.material.ListTile",
             "flutter.material.CheckboxListTile",
+            "flutter.material.SwitchListTile",
+            "flutter.material.RadioListTile",
+            "flutter.material.ExpansionTile",
+            "flutter.material.Tooltip",
+            "flutter.material.TooltipVisibility",
+            "flutter.material.TooltipTheme",
+            "flutter.material.MenuItemButton",
+            "flutter.material.MenuAnchor",
+            "flutter.material.SubmenuButton",
+            "flutter.material.MenuBar",
+            "flutter.material.NavigationBar",
+            "flutter.material.NavigationRail",
+            "flutter.material.NavigationDrawer",
+            "flutter.material.Drawer",
+            "flutter.material.BottomAppBar",
+            "flutter.material.BottomNavigationBar",
+            "flutter.material.Material",
+            "flutter.material.Scrollbar",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -77,12 +96,31 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
+            "flutter.widgets.PreferredSize",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
-            "flutter.widgets.SafeArea",
+            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
+            "flutter.widgets.GridView.extent",
             "flutter.widgets.SingleChildScrollView",
+            "flutter.widgets.PageView",
+            "flutter.widgets.ListWheelScrollView",
+            "flutter.widgets.CustomScrollView",
+            "flutter.widgets.SliverToBoxAdapter",
+            "flutter.widgets.SliverList",
+            "flutter.widgets.SliverGrid",
+            "flutter.widgets.SliverGrid.extent",
+                "flutter.widgets.SliverList.builder",
+                "flutter.widgets.SliverList.separated",
+                "flutter.widgets.SliverList.delegate",
+                "flutter.widgets.SliverGrid.builder",
+                "flutter.widgets.SliverGrid.list",
+                "flutter.widgets.SliverGrid.delegate",
+                "flutter.widgets.SliverPadding",
+                "flutter.widgets.SliverFillRemaining",
+                "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate",
+                "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity", "flutter.widgets.SliverLayoutBuilder", "flutter.widgets.SliverPersistentHeader", "flutter.widgets.SliverResizingHeader", "flutter.widgets.PinnedHeaderSliver", "flutter.widgets.SliverFloatingHeader", "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.SliverFadeTransition",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
@@ -90,6 +128,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
+            "flutter.widgets.Builder",
             "flutter.widgets.ClipRect",
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
@@ -106,12 +145,19 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.DefaultSelectionStyle",
             "flutter.widgets.IconTheme",
             "flutter.widgets.ImageIcon",
+            "flutter.widgets.DefaultTextStyle",
+            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
             "flutter.widgets.IndexedSemantics",
             "flutter.widgets.ExcludeFocus",
-            "flutter.widgets.ExcludeFocusTraversal");
+            "flutter.widgets.ExcludeFocusTraversal",
+            "flutter.widgets.GestureDetector",
+            "flutter.widgets.Listener",
+            "flutter.widgets.MouseRegion",
+            "flutter.widgets.Focus",
+            "flutter.widgets.NotificationListener");
 
     private static final List<String> PROPERTIES_ORDER = List.of(
             "flutter.material.Scaffold",
@@ -140,6 +186,25 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.RadioGroup",
             "flutter.material.ListTile",
             "flutter.material.CheckboxListTile",
+            "flutter.material.SwitchListTile",
+            "flutter.material.RadioListTile",
+            "flutter.material.ExpansionTile",
+            "flutter.material.Tooltip",
+            "flutter.material.TooltipVisibility",
+            "flutter.material.TooltipTheme",
+            "flutter.material.MenuItemButton",
+            "flutter.material.MenuAnchor",
+            "flutter.material.SubmenuButton",
+            "flutter.material.MenuBar",
+            "flutter.material.NavigationBar",
+            "flutter.material.NavigationRail",
+            "flutter.material.NavigationDrawer",
+            "flutter.material.Drawer",
+            "flutter.material.BottomAppBar",
+            "flutter.material.BottomNavigationBar",
+            "flutter.material.Material",
+            "flutter.material.Scrollbar",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -167,12 +232,31 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.SizedOverflowBox",
             "flutter.widgets.Transform",
             "flutter.widgets.RotatedBox",
+            "flutter.widgets.PreferredSize",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
-            "flutter.widgets.SafeArea",
+            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
+            "flutter.widgets.GridView.extent",
             "flutter.widgets.SingleChildScrollView",
+            "flutter.widgets.PageView",
+            "flutter.widgets.ListWheelScrollView",
+            "flutter.widgets.CustomScrollView",
+            "flutter.widgets.SliverToBoxAdapter",
+            "flutter.widgets.SliverList",
+            "flutter.widgets.SliverGrid",
+            "flutter.widgets.SliverGrid.extent",
+                "flutter.widgets.SliverList.builder",
+                "flutter.widgets.SliverList.separated",
+                "flutter.widgets.SliverList.delegate",
+                "flutter.widgets.SliverGrid.builder",
+                "flutter.widgets.SliverGrid.list",
+                "flutter.widgets.SliverGrid.delegate",
+                "flutter.widgets.SliverPadding",
+                "flutter.widgets.SliverFillRemaining",
+                "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate",
+                "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity", "flutter.widgets.SliverLayoutBuilder", "flutter.widgets.SliverPersistentHeader", "flutter.widgets.SliverResizingHeader", "flutter.widgets.PinnedHeaderSliver", "flutter.widgets.SliverFloatingHeader", "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.SliverFadeTransition",
             "flutter.widgets.Text",
             "flutter.widgets.Icon",
             "flutter.widgets.Image",
@@ -180,6 +264,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.Placeholder",
             "flutter.widgets.Directionality",
             "flutter.widgets.DecoratedBox",
+            "flutter.widgets.Builder",
             "flutter.widgets.ClipRect",
             "flutter.widgets.ClipOval",
             "flutter.widgets.ClipRRect",
@@ -195,11 +280,18 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.DefaultSelectionStyle",
             "flutter.widgets.IconTheme",
             "flutter.widgets.ImageIcon",
+            "flutter.widgets.DefaultTextStyle",
+            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.IndexedSemantics",
             "flutter.widgets.ExcludeFocus",
-            "flutter.widgets.ExcludeFocusTraversal");
+            "flutter.widgets.ExcludeFocusTraversal",
+            "flutter.widgets.GestureDetector",
+            "flutter.widgets.Listener",
+            "flutter.widgets.MouseRegion",
+            "flutter.widgets.Focus",
+            "flutter.widgets.NotificationListener");
 
     @Test
     void exposesTheExactReviewedInteractiveSurfacesInPaletteOrder() {
@@ -210,7 +302,7 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
-    void exactDndCapabilityMatrixHasSeventySevenSourcesAndSixtyTwoInsertableDestinations() {
+    void exactDndCapabilityMatrixHasNinetySourcesAndSeventySixInsertableDestinations() {
         List<WidgetDefinition> sources =
                 BuiltInWidgetCapabilityCatalog.definitionsSupporting(
                         WidgetCapability.DND);
@@ -233,19 +325,19 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(89, sources.size());
-        assertEquals(75, destinations.size());
-        assertEquals(73, destinations.stream()
+        assertEquals(211, sources.size());
+        assertEquals(182, destinations.size());
+        assertEquals(162, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
-        assertEquals(2, destinations.stream()
+        assertEquals(20, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(6675, candidates);
-        assertEquals(6286, accepted);
-        assertEquals(389, candidates - accepted);
+        assertEquals(38402, candidates);
+        assertEquals(25837, accepted);
+        assertEquals(12565, candidates - accepted);
     }
 
     @Test
@@ -2003,7 +2095,7 @@ class BuiltInWidgetCapabilityCatalogTest {
 
         var projection = BuiltInWidgetCapabilityCatalog
                 .canvasProjection(definition).orElseThrow();
-        assertEquals(54, projection.propertyContracts().size());
+        assertEquals(56, projection.propertyContracts().size());
         assertTrue(projection.slots().isEmpty());
         assertTrue(projection.propertyContracts().values().stream()
                 .allMatch(value -> !value.required()
@@ -2070,10 +2162,10 @@ class BuiltInWidgetCapabilityCatalogTest {
         int end = contract.indexOf("W|", start + 2);
         String textField = contract.substring(start, end);
 
-        assertEquals(8_076,
+        assertEquals(8_551,
                 textField.getBytes(StandardCharsets.UTF_8).length);
         assertEquals(
-                "0cae00ba20bef22302e2b2db29fafbe19a535e51d9791416d670e6881162f61f",
+                "d0dec15bddd81f244694a5e78021c19ea87eed27b1b59cf2e786f9b05687beda",
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(textField.getBytes(StandardCharsets.UTF_8))));
         assertFalse(textField.contains("\nR|"), textField);
@@ -2343,7 +2435,16 @@ class BuiltInWidgetCapabilityCatalogTest {
                         .get(new SlotName("appBar")).acceptanceFingerprint());
 
         var elevated = projection("flutter.material.ElevatedButton");
-        assertEquals(286, elevated.propertyContracts().size());
+        assertEquals(288, elevated.propertyContracts().size());
+        for (String name : List.of("styleBackgroundBuilder", "styleForegroundBuilder")) {
+            var builder = elevated.propertyContracts().get(new PropertyName(name));
+            assertFalse(builder.required());
+            assertTrue(builder.creationDefaultFingerprint().isEmpty());
+            assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE), builder.acceptedKinds());
+            assertEquals("dartObjectReference:v1:ButtonLayerBuilder:currentOrPackage:root,optionalMember:"
+                    + "reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
+                    builder.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
+        }
         var enabled = elevated.propertyContracts().get(new PropertyName("enabled"));
         assertFalse(enabled.required());
         assertEquals(Optional.of("boolean:true"),
@@ -2583,15 +2684,235 @@ class BuiltInWidgetCapabilityCatalogTest {
     }
 
     @Test
+    void listViewExtentHasIndependentNullableTypeFingerprintAndUnchangedChildContract() {
+        var list = projection("flutter.widgets.ListView");
+        assertEquals(18, list.propertyContracts().size());
+        var extent = list.propertyContracts().get(new PropertyName("itemExtentBuilder"));
+        assertFalse(extent.required());
+        assertTrue(extent.creationDefaultFingerprint().isEmpty());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL), extent.acceptedKinds());
+        assertEquals("any", extent.constraintFingerprints().get(PropertyValueKind.NULL));
+        assertEquals("dartObjectReference:v1:ItemExtentBuilder?:currentOrPackage:root,optionalMember:"
+                + "reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
+                extent.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
+        assertEquals(new BuiltInWidgetCapabilityCatalog.CanvasSlotContract(SlotCardinality.LIST, false, 0, 10_000),
+                list.slotContracts().get(new SlotName("children")));
+    }
+
+    @Test
+    void textFieldBuildersHaveIndependentNullableTypeFingerprintsWithoutCallbackAdmission() {
+        var field = projection("flutter.material.TextField");
+        assertEquals(56, field.propertyContracts().size());
+        for (var entry : Map.of("buildCounter", "InputCounterWidgetBuilder?",
+                "contextMenuBuilder", "EditableTextContextMenuBuilder?").entrySet()) {
+            var property = field.propertyContracts().get(new PropertyName(entry.getKey()));
+            assertFalse(property.required());
+            assertTrue(property.creationDefaultFingerprint().isEmpty());
+            assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL), property.acceptedKinds());
+            assertEquals("any", property.constraintFingerprints().get(PropertyValueKind.NULL));
+            assertEquals("dartObjectReference:v1:" + entry.getValue() + ":currentOrPackage:root,optionalMember:"
+                    + "reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
+                    property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
+        }
+    }
+
+    @Test
+    void switchListTileHasIndependentCompleteProjectionAndNullableCallbackContracts() throws Exception {
+        var tile = projection("flutter.material.SwitchListTile");
+        assertEquals(236, tile.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("title"), new SlotName("subtitle"), new SlotName("secondary")), tile.slots());
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), tile.propertyContracts().get(new PropertyName("value")).acceptedKinds());
+        assertTrue(tile.propertyContracts().get(new PropertyName("value")).required());
+        assertFalse(tile.propertyContracts().containsKey(new PropertyName("enabled")));
+        assertFalse(tile.propertyContracts().containsKey(new PropertyName("trackOutlineWidth")));
+        for (String name : List.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError")) {
+            var property = tile.propertyContracts().get(new PropertyName(name));
+            assertEquals(Set.of(PropertyValueKind.STRING, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), property.acceptedKinds());
+            assertEquals(name.equals("onChanged"), property.required());
+            assertEquals("dartObjectReference:v1:" + (name.endsWith("ImageError") ? "ImageErrorListener" : "ValueChanged<bool>")
+                    + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
+                    property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
+        }
+        assertEquals(7341, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
+                .mapToInt(definition -> definition.properties().size()).sum());
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.SwitchListTile\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(140_037, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("91cd77effce95be9b0a93b617f7ab1dfa8d968912bd46e2880257e3548f3159e",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void radioListTileHasIndependentCompleteProjectionAndOptionalGenericCallback() throws Exception {
+        var tile = projection("flutter.material.RadioListTile");
+        assertEquals(153, tile.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("title"), new SlotName("subtitle"), new SlotName("secondary")), tile.slots());
+        assertFalse(tile.propertyContracts().containsKey(new PropertyName("groupRegistry")));
+        assertTrue(tile.propertyContracts().get(new PropertyName("value")).required());
+        for (String name : List.of("onChanged", "onFocusChange")) {
+            var property = tile.propertyContracts().get(new PropertyName(name));
+            assertFalse(property.required());
+            assertEquals(Set.of(PropertyValueKind.STRING, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), property.acceptedKinds());
+            assertEquals("dartObjectReference:v1:" + (name.equals("onChanged") ? "ValueChanged<Object?>" : "ValueChanged<bool>")
+                    + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
+                    property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
+        }
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.RadioListTile\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(96_318, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("306c07a11aaefb7dc310fa40343302af4c4e99bcf1726b7ee500d801d4518c85",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void expansionTileHasCompleteNullableCompoundsRequiredTitleAndIndependentFingerprint() throws Exception {
+        var tile = projection("flutter.material.ExpansionTile");
+        assertEquals(76, tile.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("title"), new SlotName("leading"), new SlotName("subtitle"), new SlotName("trailing"), new SlotName("children")), tile.slots());
+        for (String name : List.of("shape", "collapsedShape", "controller", "statesController", "visualDensity", "expandedAlignment", "tilePadding", "childrenPadding")) {
+            assertTrue(tile.propertyContracts().get(new PropertyName(name)).acceptedKinds().contains(PropertyValueKind.NULL));
+            assertTrue(tile.propertyContracts().get(new PropertyName(name)).acceptedKinds().contains(PropertyValueKind.DART_OBJECT_REFERENCE));
+        }
+        var duration = tile.propertyContracts().get(new PropertyName("expansionAnimationStyleDurationUs"));
+        assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), duration.acceptedKinds());
+        assertFalse(tile.propertyContracts().get(new PropertyName("initiallyExpanded")).required());
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.ExpansionTile\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertTrue(section.contains("S|title|single|1|1|1|any\n"));
+        assertTrue(section.contains("C|flutter.material.ExpansionTile|paletteCreate|wrapExistingChild|title\n"));
+        assertEquals(29_253, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("8062b277606f0cbf1190df21e8504ba27dc31e9cc5f563dcb349ce8c9a96a1c2",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void tooltipHasComplete53PropertyNullableProjectionAndIndependentFingerprint() throws Exception {
+        var tooltip = projection("flutter.material.Tooltip");
+        assertEquals(53, tooltip.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child")), tooltip.slots());
+        assertFalse(tooltip.propertyContracts().get(new PropertyName("message")).required());
+        assertEquals(Optional.of("string:VG9vbHRpcA"), tooltip.propertyContracts().get(new PropertyName("message")).creationDefaultFingerprint());
+        for (String name : List.of("richMessage", "textStyle", "positionDelegate")) {
+            assertEquals(Set.of(PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), tooltip.propertyContracts().get(new PropertyName(name)).acceptedKinds());
+        }
+        for (String name : List.of("waitDurationUs", "showDurationUs", "exitDurationUs")) {
+            assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), tooltip.propertyContracts().get(new PropertyName(name)).acceptedKinds());
+        }
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.Tooltip\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertTrue(section.contains("S|child|single|0|0|1|any\n"));
+        assertFalse(section.contains("wrapExistingChild"));
+        assertEquals(19_924, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("f1e7fa12338d2b49258c47bd6405ba40abcf21be9493b478865246facd65690f",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void tooltipVisibilityHasExactSingleRequiredBooleanAndRequiredWrapperChild() throws Exception {
+        var visibility = projection("flutter.material.TooltipVisibility");
+        assertEquals(Set.of(new PropertyName("visible")), visibility.propertyContracts().keySet());
+        var property = visibility.propertyContracts().get(new PropertyName("visible"));
+        assertEquals(Set.of(PropertyValueKind.BOOLEAN), property.acceptedKinds());
+        assertTrue(property.required());
+        assertEquals(Optional.of("boolean:true"), property.creationDefaultFingerprint());
+        assertEquals(Set.of(new SlotName("child")), visibility.slots());
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.TooltipVisibility\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals("W|flutter.material.TooltipVisibility\nP|visible|boolean|1|boolean:true|-|boolean:any\nS|child|single|1|1|1|any\nC|flutter.material.TooltipVisibility|paletteCreate|wrapExistingChild|child\n", section);
+        assertEquals(184, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("24a8679187526de33d4b59d72414a4f9d9d911323b20f1b2ab809ed751c227e6",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+    }
+
+    @Test
+    void tooltipThemeHasAll47IndependentPropertiesAndExactRequiredWrapperContract() throws Exception {
+        var theme = projection("flutter.material.TooltipTheme");
+        assertEquals(47, theme.propertyContracts().size());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE), theme.propertyContracts().get(new PropertyName("data")).acceptedKinds());
+        assertEquals(Set.of(new SlotName("child")), theme.slots());
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.TooltipTheme\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(18527, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("41c1c3c9fc62d1fb4a8183f467ee62d1321af1c8351901d5a485aa70e6a44ee4",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+        assertTrue(section.endsWith("S|child|single|1|1|1|any\nC|flutter.material.TooltipTheme|paletteCreate|wrapExistingChild|child\n"));
+    }
+
+    @Test
+    void menuItemButtonHas520IndependentProperties432KeysAndThreeOptionalSlots() throws Exception {
+        var menu = projection("flutter.material.MenuItemButton");
+        assertEquals(520, menu.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child"), new SlotName("leadingIcon"), new SlotName("trailingIcon")), menu.slots());
+        assertEquals(Set.of(PropertyValueKind.DART_OBJECT_REFERENCE), menu.propertyContracts().get(new PropertyName("onPressed")).acceptedKinds());
+        assertEquals(Set.of(PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), menu.propertyContracts().get(new PropertyName("shortcut")).acceptedKinds());
+        assertEquals(432, MenuShortcutKeyCatalog.entries().size());
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.MenuItemButton\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(228002, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("c4d521afeadabe85a8b8a682da1c5d3a95c3ffca50265afebbd9aa2654632226",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+        assertTrue(section.endsWith("S|child|single|0|0|1|any\nS|leadingIcon|single|0|0|1|any\nS|trailingIcon|single|0|0|1|any\n"));
+        assertFalse(section.contains("\nC|"));
+    }
+
+    @Test
+    void menuAnchorHas219IndependentMenuStylePropertiesRequiredEmptyListAndExactFingerprint() throws Exception {
+        var menu = projection("flutter.material.MenuAnchor");
+        assertEquals(219, menu.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child"), new SlotName("menuChildren")), menu.slots());
+        assertEquals(Set.of(PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE), menu.propertyContracts().get(new PropertyName("builder")).acceptedKinds());
+        assertEquals(Set.of(PropertyValueKind.NULL, PropertyValueKind.OFFSET, PropertyValueKind.DART_OBJECT_REFERENCE), menu.propertyContracts().get(new PropertyName("alignmentOffset")).acceptedKinds());
+        assertFalse(menu.propertyContracts().containsKey(new PropertyName("styleTextFontSize")));
+        assertFalse(menu.propertyContracts().containsKey(new PropertyName("styleBackgroundBuilder")));
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.MenuAnchor\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(89147, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("cc05db2294fb1db8bfd82af078ea8b82007b015de8328010d963a5cccac06a9b",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+        assertTrue(section.endsWith("S|child|single|0|0|1|any\nS|menuChildren|list|1|0|10000|any\n"));
+        assertFalse(section.contains("\nC|"));
+    }
+
+    @Test
+    void submenuButtonHas721IndependentPropertiesFourExactSlotsAndStableFingerprint() throws Exception {
+        var submenu = projection("flutter.material.SubmenuButton");
+        assertEquals(721, submenu.propertyContracts().size());
+        assertEquals(Set.of(new SlotName("child"), new SlotName("menuChildren"), new SlotName("leadingIcon"), new SlotName("trailingIcon")), submenu.slots());
+        assertEquals(Set.of(PropertyValueKind.INTEGER, PropertyValueKind.DART_OBJECT_REFERENCE), submenu.propertyContracts().get(new PropertyName("hoverOpenDelayUs")).acceptedKinds());
+        for (String name : List.of("submenuIconDefault", "submenuIconDisabled", "submenuIconHovered", "submenuIconFocused")) {
+            assertEquals(Set.of(PropertyValueKind.NULL, PropertyValueKind.ICON_DATA, PropertyValueKind.DART_OBJECT_REFERENCE), submenu.propertyContracts().get(new PropertyName(name)).acceptedKinds());
+        }
+        assertFalse(submenu.propertyContracts().containsKey(new PropertyName("enabled")));
+        assertFalse(submenu.propertyContracts().containsKey(new PropertyName("onPressed")));
+        assertFalse(submenu.propertyContracts().containsKey(new PropertyName("menuStyleTextFontSize")));
+        String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
+        int start = contract.indexOf("W|flutter.material.SubmenuButton\n");
+        String section = contract.substring(start, contract.indexOf("W|", start + 2));
+        assertEquals(312772, section.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals("cd0951f9b9341140f14556d116d48466494e78a657ad47c57763104ba722cdc5",
+                HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256").digest(section.getBytes(StandardCharsets.UTF_8))));
+        assertTrue(section.endsWith("S|child|single|1|0|1|any\nS|leadingIcon|single|0|0|1|any\nS|menuChildren|list|1|0|10000|any\nS|trailingIcon|single|0|0|1|any\n"));
+        assertFalse(section.contains("\nC|"));
+    }
+
+    @Test
     void appBarFullReviewedProjectionHasStableFingerprint() throws Exception {
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         int start = contract.indexOf("W|flutter.material.AppBar\n");
         int end = contract.indexOf("W|", start + 2);
         String appBar = contract.substring(start, end);
 
-        assertEquals(50_905, appBar.getBytes(StandardCharsets.UTF_8).length);
+        assertEquals(51_103, appBar.getBytes(StandardCharsets.UTF_8).length);
         assertEquals(
-                "efcbcdee37b660a8ec4f8cb85b152aa92009033b6ae498b6c25861d7efbdb3be",
+                "19632f2ff4daf6903b85971205427bf98f2320180fdf55c0dd4378fe20314bcd",
                 HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
                         .digest(appBar.getBytes(StandardCharsets.UTF_8))));
     }

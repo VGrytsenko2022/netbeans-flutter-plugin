@@ -1992,15 +1992,22 @@ class DartRegionGeneratorTest {
     }
 
     @Test
-    void rejectsStatefulDocumentWithoutProducingEitherRegion() {
-        DartGenerationResult result = new DartRegionGenerator().generate(
-                homePageDocument(WidgetClassKind.STATEFUL), BuiltInWidgetCatalog.getDefault());
+    void statefulAndStatelessOwnersUseIdenticalManagedPayloadsAndSymbolOccurrences() {
+        DesignerDocument stateless = homePageDocument(WidgetClassKind.STATELESS);
+        DartRegionGenerator generator = new DartRegionGenerator();
+        GeneratedDartRegions original = generator.generate(stateless, BuiltInWidgetCatalog.getDefault())
+                .generated().orElseThrow();
+        DartGenerationResult result = generator.generate(
+                document(stateless.root(), WidgetClassKind.STATEFUL), BuiltInWidgetCatalog.getDefault());
 
-        assertFalse(result.successful());
-        assertTrue(result.generated().isEmpty());
-        assertEquals(DartGenerationDiagnosticCode.UNSUPPORTED_WIDGET_KIND,
-                result.diagnostics().getFirst().code());
-        assertEquals("/source/widgetKind", result.diagnostics().getFirst().path());
+        assertTrue(result.successful(), result.diagnostics().toString());
+        GeneratedDartRegions stateful = result.generated().orElseThrow();
+        assertEquals(original.imports().payload(), stateful.imports().payload());
+        assertEquals(original.build().payload(), stateful.build().payload());
+        assertEquals(original.imports().normalizedSha256(), stateful.imports().normalizedSha256());
+        assertEquals(original.build().normalizedSha256(), stateful.build().normalizedSha256());
+        assertEquals(original.symbolOccurrences(), stateful.symbolOccurrences());
+        assertSame(original.candidateCapacityBudget(), stateful.candidateCapacityBudget());
     }
 
     @Test
@@ -2127,6 +2134,30 @@ class DartRegionGeneratorTest {
         assertFalse(excessive.successful());
         assertTrue(excessive.generated().isEmpty());
         assertEquals(DartGenerationDiagnosticCode.SYMBOL_PROBE_LIMIT, excessive.diagnostics().getFirst().code());
+    }
+
+    @Test
+    void statefulProbeCapacityAccountsForSecondSourceProbeWithoutChangingBudgetIdentity() {
+        DartCandidateCapacityBudget capacity = new DartCandidateCapacityBudget(
+                "stateful-generator-probe-boundary", 2 * 1024 * 1024, 256, 1);
+        DartRegionGenerator generator = new DartRegionGenerator(new DartGenerationLimits(
+                DartGenerationLimits.DEFAULT_MAX_TOTAL_PAYLOAD_UTF8_BYTES,
+                DartGenerationLimits.DEFAULT_MAX_IMPORTS,
+                DartGenerationLimits.DEFAULT_MAX_VALUE_CODE_POINTS, capacity));
+        DartGenerationResult exact = generator.generate(
+                document(columnWithTextChildren(251).root(), WidgetClassKind.STATEFUL), BuiltInWidgetCatalog.getDefault());
+        DartGenerationResult exceeded = generator.generate(
+                document(columnWithTextChildren(252).root(), WidgetClassKind.STATEFUL), BuiltInWidgetCatalog.getDefault());
+        assertTrue(exact.successful(), exact.diagnostics().toString());
+        assertEquals(254, exact.generated().orElseThrow().symbolOccurrences().size());
+        assertSame(capacity, exact.generated().orElseThrow().candidateCapacityBudget());
+        assertEquals(1, capacity.reservedSourceSymbolProbes());
+        assertFalse(exceeded.successful());
+        assertTrue(exceeded.generated().isEmpty());
+        assertEquals(DartGenerationDiagnosticCode.SYMBOL_PROBE_LIMIT, exceeded.diagnostics().getFirst().code());
+        assertTrue(exceeded.diagnostics().getFirst().message().contains("plus 2 source-owned probes"));
+        assertTrue(generator.generate(columnWithTextChildren(252), BuiltInWidgetCatalog.getDefault()).successful(),
+                "The unchanged stateless profile still retains its original boundary.");
     }
 
     @Test

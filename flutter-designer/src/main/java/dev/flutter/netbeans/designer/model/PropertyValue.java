@@ -40,9 +40,39 @@ public sealed interface PropertyValue permits
         PropertyValue.BorderRadiusValue,
         PropertyValue.ShapeBorderClipperValue,
         PropertyValue.BoxDecorationValue,
+        PropertyValue.PointerDeviceKindSetValue,
         PropertyValue.NullValue {
 
     PropertyValueKind kind();
+
+    /** A closed, deterministic set of Flutter pointer-device kinds; empty differs from null/omitted. */
+    record PointerDeviceKindSetValue(List<PointerDeviceKind> values) implements PropertyValue {
+        public PointerDeviceKindSetValue {
+            values = List.copyOf(Objects.requireNonNull(values, "values"));
+            if (new HashSet<>(values).size() != values.size()) {
+                throw new IllegalArgumentException("Pointer-device kinds must be unique");
+            }
+            values = values.stream().sorted().toList();
+        }
+
+        public enum PointerDeviceKind {
+            TOUCH("touch"), MOUSE("mouse"), STYLUS("stylus"),
+            INVERTED_STYLUS("invertedStylus"), TRACKPAD("trackpad"), UNKNOWN("unknown");
+
+            private final String wireName;
+            PointerDeviceKind(String wireName) { this.wireName = wireName; }
+            public String wireName() { return wireName; }
+            public static PointerDeviceKind fromWireName(String value) {
+                Objects.requireNonNull(value, "value");
+                for (PointerDeviceKind kind : values()) {
+                    if (kind.wireName.equals(value)) return kind;
+                }
+                throw new IllegalArgumentException("Unknown pointer-device kind: " + value);
+            }
+        }
+
+        @Override public PropertyValueKind kind() { return PropertyValueKind.POINTER_DEVICE_KIND_SET; }
+    }
 
     /** Explicit Dart {@code null}; distinct from an omitted property. */
     record NullValue() implements PropertyValue {

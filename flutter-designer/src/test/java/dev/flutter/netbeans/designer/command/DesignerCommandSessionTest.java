@@ -826,7 +826,7 @@ class DesignerCommandSessionTest {
 
         DesignerCommandSession saved = redoReset.undo().session().markSaved();
         String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"kind\": \"size\""), fd);
         assertTrue(fd.contains("\"width\": 120.5"), fd);
         assertTrue(fd.contains("\"height\": 0"), fd);
@@ -981,7 +981,7 @@ class DesignerCommandSessionTest {
 
         DesignerCommandSession saved = redoReset.undo().session().markSaved();
         String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"kind\": \"offset\""), fd);
         assertTrue(fd.contains("\"dx\": -4.5"), fd);
         assertTrue(fd.contains("\"dy\": 2.25"), fd);
@@ -1189,7 +1189,7 @@ class DesignerCommandSessionTest {
         DesignerCommandSession saved = redoReset.markSaved();
         String fd = new String(
                 saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.ListBody\""), fd);
         assertTrue(fd.contains("\"type\": \"Axis\""), fd);
         assertTrue(fd.contains("\"value\": \"horizontal\""), fd);
@@ -1321,7 +1321,7 @@ class DesignerCommandSessionTest {
 
         DesignerCommandSession saved = redoReset.markSaved();
         String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBar\""), fd);
         assertTrue(fd.contains("\"value\": \"end\""), fd);
         assertTrue(fd.contains("\"value\": -3.5"), fd);
@@ -1445,7 +1445,7 @@ class DesignerCommandSessionTest {
 
         DesignerCommandSession saved = redoReset.markSaved();
         String fd = new String(saved.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.GridView\""), fd);
         assertTrue(fd.contains("\"crossAxisCount\""), fd);
         assertTrue(fd.contains("\"value\": 3"), fd);
@@ -2512,7 +2512,7 @@ class DesignerCommandSessionTest {
                 "child: const Text('Inside constrained box')"), dart);
         String fd = new String(constrained.current().fdBytes(),
                 StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"minWidth\": null"), fd);
         assertTrue(fd.contains("\"maxWidth\": null"), fd);
 
@@ -2614,7 +2614,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside unconstrained box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.UnconstrainedBox\""), fd);
         assertTrue(fd.contains("\"type\": \"Axis\""), fd);
         assertTrue(fd.contains("\"value\": \"vertical\""), fd);
@@ -2696,7 +2696,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside limited box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.LimitedBox\""), fd);
         assertTrue(fd.contains("\"maxHeight\""), fd);
         assertTrue(fd.contains("\"value\": 180"), fd);
@@ -2826,7 +2826,7 @@ class DesignerCommandSessionTest {
         assertTrue(dart.contains(
                 "child: const Text('Inside overflow box')"), dart);
         String fd = new String(reset.current().fdBytes(), StandardCharsets.UTF_8);
-        assertTrue(fd.contains("\"schemaVersion\": 13"), fd);
+        assertTrue(fd.contains("\"schemaVersion\": 16"), fd);
         assertTrue(fd.contains("\"type\": \"flutter.widgets.OverflowBox\""), fd);
         assertTrue(fd.contains("\"basis\": \"directional\""), fd);
         assertTrue(fd.contains("\"maxWidth\""), fd);

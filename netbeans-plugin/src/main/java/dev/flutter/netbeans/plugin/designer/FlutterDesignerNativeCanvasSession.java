@@ -30,6 +30,7 @@ import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.WidgetPlacement;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -762,10 +763,24 @@ final class FlutterDesignerNativeCanvasSession
             CanvasTargetPlatform targetPlatform,
             CanvasResolvedTheme resolvedTheme,
             CanvasImageResourceBundle imageResources) {
+        present(document, catalog, previewMode, targetPlatform, resolvedTheme,
+                imageResources, Optional.empty());
+    }
+
+    @Override
+    public void present(
+            DesignerDocument document,
+            WidgetCatalog catalog,
+            CanvasPreviewMode previewMode,
+            CanvasTargetPlatform targetPlatform,
+            CanvasResolvedTheme resolvedTheme,
+            CanvasImageResourceBundle imageResources,
+            Optional<CanvasOrientation> orientationOverride) {
         requireEventDispatchThread();
         if (closed) {
             return;
         }
+        Objects.requireNonNull(orientationOverride, "orientationOverride");
         clearWidgetMovePreview();
         final ValidatedCanvasRevisionSnapshot snapshot;
         try {
@@ -793,6 +808,7 @@ final class FlutterDesignerNativeCanvasSession
                 Objects.requireNonNull(targetPlatform, "targetPlatform"),
                 Objects.requireNonNull(resolvedTheme, "resolvedTheme"),
                 Objects.requireNonNull(imageResources, "imageResources"),
+                orientationOverride,
                 widgetIds);
         currentRenderRequest = null;
         currentLayout = null;
@@ -2066,7 +2082,8 @@ final class FlutterDesignerNativeCanvasSession
                             pending.targetPlatform(),
                             pending.snapshot().document().canvas(),
                             canvasEngineIdentity,
-                            pending.resolvedTheme()),
+                            pending.resolvedTheme(),
+                            pending.orientationOverride()),
                     pending.snapshot(),
                     pending.imageResources());
         } catch (IllegalArgumentException | IllegalStateException failure) {
@@ -3810,6 +3827,7 @@ final class FlutterDesignerNativeCanvasSession
             CanvasTargetPlatform targetPlatform,
             CanvasResolvedTheme resolvedTheme,
             CanvasImageResourceBundle imageResources,
+            Optional<CanvasOrientation> orientationOverride,
             Set<StableId> widgetIds) {
         private PendingPresentation {
             if (publicationGeneration <= 0) {
@@ -3821,6 +3839,7 @@ final class FlutterDesignerNativeCanvasSession
             Objects.requireNonNull(targetPlatform, "targetPlatform");
             Objects.requireNonNull(resolvedTheme, "resolvedTheme");
             Objects.requireNonNull(imageResources, "imageResources");
+            Objects.requireNonNull(orientationOverride, "orientationOverride");
             widgetIds = Set.copyOf(Objects.requireNonNull(widgetIds, "widgetIds"));
         }
     }

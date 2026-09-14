@@ -192,7 +192,8 @@ public final class TextButtonWidgetPropertySchema {
             });
         }
         source.forEach((name, binding) -> {
-            if (binding.group() == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE) {
+            if (binding.group() == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE
+                    && !ElevatedButtonWidgetPropertySchema.layerBuilderProperties().contains(name)) {
                 values.put(name, new Definition(Group.COMMON_STYLE, binding.displayName(),
                         binding.description(), binding.target(), binding.dartName(),
                         binding.dartOrder(), binding.encoding()));

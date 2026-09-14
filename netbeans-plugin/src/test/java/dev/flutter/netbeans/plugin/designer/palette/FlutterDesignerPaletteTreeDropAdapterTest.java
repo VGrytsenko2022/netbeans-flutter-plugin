@@ -737,6 +737,94 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
     }
 
     @Test
+    void tooltipVisibilityTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.TooltipVisibility"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument rootDocument = document(text(ROOT_ID, "root target"));
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.material.TooltipVisibility"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertEquals(ROOT_ID, prepared.treeTargetId()),
+                () -> assertEquals(Optional.of(ROOT_ID), prepared.wrapTargetId()));
+
+        FlutterDesignerPaletteTreeDropAdapter.Wrapped committed = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        () -> NEW_ID));
+        WrapWidget command = committed.command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.widgetId()),
+                () -> assertEquals(NEW_ID, command.wrapper().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.material.TooltipVisibility"), command.wrapper().type()),
+                () -> assertEquals(Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(true)), command.wrapper().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots()),
+                () -> assertEquals(CHILD, command.wrapperSlot()),
+                () -> assertEquals(0, command.wrapperIndex()),
+                () -> assertTrue(fixture.lifecycle().resolve(transferable).isEmpty()));
+    }
+
+    @Test
+    void tooltipThemeTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
+        Fixture fixture = fixture(new WidgetTypeId("flutter.material.TooltipTheme"));
+        StringSelection transferable = new StringSelection(fixture.token());
+        DesignerDocument rootDocument = document(text(ROOT_ID, "root target"));
+        FlutterDesignerPaletteTreeDropAdapter.PreparedDrop prepared = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        ROOT_ID));
+        assertAll(
+                () -> assertEquals(new WidgetTypeId("flutter.material.TooltipTheme"), prepared.widgetType()),
+                () -> assertEquals(ROOT_ID, prepared.parentId()),
+                () -> assertEquals(CHILD, prepared.slotName()),
+                () -> assertEquals(0, prepared.insertionIndex()),
+                () -> assertEquals(ROOT_ID, prepared.treeTargetId()),
+                () -> assertEquals(Optional.of(ROOT_ID), prepared.wrapTargetId()));
+
+        FlutterDesignerPaletteTreeDropAdapter.Wrapped committed = assertInstanceOf(
+                FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                fixture.adapter().commit(
+                        prepared,
+                        transferable,
+                        DnDConstants.ACTION_MOVE,
+                        rootDocument,
+                        CATALOG,
+                        () -> NEW_ID));
+        WrapWidget command = committed.command();
+        assertAll(
+                () -> assertEquals(ROOT_ID, command.widgetId()),
+                () -> assertEquals(NEW_ID, command.wrapper().id()),
+                () -> assertEquals(new WidgetTypeId("flutter.material.TooltipTheme"), command.wrapper().type()),
+                () -> assertEquals(Map.of(), command.wrapper().properties()),
+                () -> assertEquals(
+                        Map.of(CHILD, WidgetSlot.SingleSlot.empty()),
+                        command.wrapper().slots()),
+                () -> assertEquals(CHILD, command.wrapperSlot()),
+                () -> assertEquals(0, command.wrapperIndex()),
+                () -> assertTrue(fixture.lifecycle().resolve(transferable).isEmpty()));
+    }
+
+    @Test
     void tickerModeTreeDropWrapsTheDesignerRootWithoutCreatingAnEmptyWidget() {
         Fixture fixture = fixture(new WidgetTypeId("flutter.widgets.TickerMode"));
         StringSelection transferable = new StringSelection(fixture.token());
@@ -4326,6 +4414,311 @@ class FlutterDesignerPaletteTreeDropAdapterTest {
                         () -> NEW_ID)).command();
         assertEquals(FIRST_ID, singleCommand.widgetId());
         assertEquals(SAFE_AREA, singleCommand.wrapper().type());
+    }
+
+    @Test
+    void sliverIgnorePointerTreeDropInsertsIntoListsAndEmptySliverSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverIgnorePointer")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverIgnorePointer") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertTrue(command.widget().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverOffstageTreeDropInsertsIntoListsAndEmptySliverSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverOffstage")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverOffstage") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertTrue(command.widget().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverLayoutBuilderTreeDropRetainsPresetAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(new PropertyValue.StringValue("empty"),
+                    command.widget().properties().get(new PropertyName("builder")));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverPersistentHeaderTreeDropRetainsDelegateAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.INITIAL_DELEGATE,
+                    command.widget().properties().get(new PropertyName("delegate")));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void resizingHeaderTreeParentRequiresAnExplicitBoxSlot() {
+        var parent=prototype(dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.TYPE);
+        var box=fixture(new WidgetTypeId("flutter.widgets.Text"));
+        var transfer=new StringSelection(box.token());
+        assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Rejected.class,
+                box.adapter().preview(transfer,DnDConstants.ACTION_MOVE,document(parent),CATALOG,ROOT_ID));
+        assertTrue(box.lifecycle().resolve(transfer).isPresent(),"Ambiguous preview does not consume the drag.");
+    }
+
+    @Test
+    void pinnedHeaderTreeDropIntoChildIsUnambiguousAndConsumesTheBoxToken() {
+        var definition = CATALOG.find(dev.flutter.netbeans.designer.catalog.PinnedHeaderSliverWidgetSchema.TYPE).orElseThrow();
+        var header = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, FIRST_ID);
+        var viewport = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(new SlotName("slivers"), new WidgetSlot.ListSlot(List.of(header))));
+        var doc = document(viewport);
+        var fixture = fixture(new WidgetTypeId("flutter.widgets.Text"));
+        var transfer = new StringSelection(fixture.token());
+        var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, FIRST_ID));
+        assertEquals(new SlotName("child"), prepared.slotName());
+        assertTrue(prepared.wrapTargetId().isEmpty());
+        var committed = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID));
+        assertEquals(new WidgetTypeId("flutter.widgets.Text"), committed.command().widget().type());
+        assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+    }
+
+    @Test
+    void floatingHeaderTreeDropCommitsSeededChildAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(1, command.widget().slots().size());
+            assertTrue(command.widget().properties().isEmpty());
+            var child=((WidgetSlot.SingleSlot)command.widget().slots().get(new SlotName("child"))).child().orElseThrow();
+            org.junit.jupiter.api.Assertions.assertNotEquals(command.widget().id(),child.id());
+            assertEquals(new WidgetTypeId("flutter.widgets.SizedBox"),child.type());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void pinnedHeaderTreeDropRetainsSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.PinnedHeaderSliverWidgetSchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(1, command.widget().slots().size());
+            assertTrue(command.widget().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverResizingHeaderTreeDropRetainsSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(3, command.widget().slots().size());
+            assertTrue(command.widget().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverAnimatedOpacityTreeDropInsertsIntoListsAndEmptySliverSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverAnimatedOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverAnimatedOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.ONE),
+                    command.widget().properties().get(new PropertyName("opacity")));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverOpacityTreeDropInsertsIntoListsAndEmptySliverSlotsAndConsumesToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.TYPE;
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup", "SliverOpacity")) {
+            var parent = prototype(new WidgetTypeId("flutter.widgets." + parentType));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, ROOT_ID));
+            assertTrue(prepared.wrapTargetId().isEmpty());
+            assertEquals(new SlotName(parentType.equals("SliverOpacity") ? "sliver" : "slivers"), prepared.slotName());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Committed.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(type, command.widget().type());
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.ONE),
+                    command.widget().properties().get(new PropertyName("opacity")));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void sliverVisibilityConstructorsTreeDropWrapsAnExactSliverAndConsumesItsToken() {
+        for (var type : List.of(dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.TYPE,
+                dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.MAINTAIN_TYPE)) {
+        var slivers = new SlotName("slivers");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                CATALOG.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, FIRST_ID));
+            assertEquals(Optional.of(FIRST_ID), prepared.wrapTargetId());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(new SlotName("sliver"), command.wrapperSlot());
+            assertTrue(command.wrapper().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+        }
+    }
+
+    @Test
+    void sliverSafeAreaTreeDropWrapsAnExactSliverAndConsumesItsToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                CATALOG.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, FIRST_ID));
+            assertEquals(Optional.of(FIRST_ID), prepared.wrapTargetId());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(new SlotName("sliver"), command.wrapperSlot());
+            assertTrue(command.wrapper().properties().isEmpty());
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void constrainedCrossAxisTreeDropWrapsAnExactSliverAndConsumesItsToken() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                CATALOG.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("CustomScrollView", "SliverMainAxisGroup", "SliverCrossAxisGroup")) {
+            var parent = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var doc = document(parent); var fixture = fixture(type);
+            var transfer = new StringSelection(fixture.token());
+            var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class,
+                    fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, FIRST_ID));
+            assertEquals(Optional.of(FIRST_ID), prepared.wrapTargetId());
+            var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                    fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+            assertEquals(FIRST_ID, command.widgetId()); assertEquals(new SlotName("sliver"), command.wrapperSlot());
+            assertEquals(new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(120)),
+                    command.wrapper().properties().get(new PropertyName("maxExtent")));
+            assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+        }
+    }
+
+    @Test
+    void crossAxisExpandedTreeDropUsesRequiredSliverSlotAndExactChildFence() {
+        var type = dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE;
+        var slivers = new SlotName("slivers");
+        var child = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                CATALOG.find(new WidgetTypeId("flutter.widgets.SliverToBoxAdapter")).orElseThrow(), FIRST_ID);
+        for (String parentType : List.of("SliverCrossAxisGroup", "SliverMainAxisGroup", "CustomScrollView")) {
+            var group = new WidgetNode(ROOT_ID, new WidgetTypeId("flutter.widgets." + parentType), Map.of(),
+                    Map.of(slivers, new WidgetSlot.ListSlot(List.of(child))));
+            var doc = document(group);
+            var fixture = fixture(type); var transfer = new StringSelection(fixture.token());
+            var preview = fixture.adapter().preview(transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, FIRST_ID);
+            if (parentType.equals("SliverCrossAxisGroup")) {
+                var prepared = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.PreparedDrop.class, preview);
+                assertEquals(Optional.of(FIRST_ID), prepared.wrapTargetId());
+                assertEquals(ROOT_ID, prepared.parentId()); assertEquals(slivers, prepared.slotName());
+                var command = assertInstanceOf(FlutterDesignerPaletteTreeDropAdapter.Wrapped.class,
+                        fixture.adapter().commit(prepared, transfer, DnDConstants.ACTION_MOVE, doc, CATALOG, () -> NEW_ID)).command();
+                assertEquals(FIRST_ID, command.widgetId()); assertEquals(new SlotName("sliver"), command.wrapperSlot());
+                assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
+                        command.wrapper().properties().get(new PropertyName("flex")));
+                assertTrue(fixture.lifecycle().resolve(transfer).isEmpty());
+            } else assertFalse(preview instanceof FlutterDesignerPaletteTreeDropAdapter.PreparedDrop);
+        }
     }
 
     @Test

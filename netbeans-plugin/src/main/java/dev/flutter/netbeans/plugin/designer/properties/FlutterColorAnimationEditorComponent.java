@@ -29,6 +29,7 @@ final class FlutterColorAnimationEditorComponent {
     static final String STOPPED_COLOR = "Stopped color (literal or theme)";
     static final String STOPPED_NULL = "Stopped null (use color/theme fallback)";
     static final String PROJECT = "Project Animation<Color?>";
+    static final String STOPPED_TRANSPARENT = "Stopped null (transparent barrier)";
 
     private FlutterColorAnimationEditorComponent() { }
 
@@ -38,7 +39,8 @@ final class FlutterColorAnimationEditorComponent {
     }
 
     private static final class AnimationPanel extends FlutterPropertyEditorComponents.CommitOnValidPanel {
-        private final JComboBox<String> mode = new JComboBox<>(new String[]{UNSET, STOPPED_COLOR, STOPPED_NULL, PROJECT});
+        private final JComboBox<String> mode;
+        private final boolean requiredAnimation;
         private final CardLayout layout = new CardLayout();
         private final JPanel cards = new JPanel(layout);
         private final JTextArea note = new JTextArea(3, 55);
@@ -48,12 +50,16 @@ final class FlutterColorAnimationEditorComponent {
 
         AnimationPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment);
+            requiredAnimation = binding.definition().parameter().required();
+            mode = new JComboBox<>(requiredAnimation
+                    ? new String[]{STOPPED_COLOR, STOPPED_TRANSPARENT, PROJECT}
+                    : new String[]{UNSET, STOPPED_COLOR, STOPPED_NULL, PROJECT});
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(720, 610));
             setName("flutter.colorAnimation.editor");
-            getAccessibleContext().setAccessibleName("Progress indicator valueColor animation editor");
-            getAccessibleContext().setAccessibleDescription("Optional stopped nullable color or analyzer-verified Animation<Color?>. All drafts remain local until OK; cancel preserves the original value.");
+            getAccessibleContext().setAccessibleName(requiredAnimation ? "Required color animation editor" : "Progress indicator valueColor animation editor");
+            getAccessibleContext().setAccessibleDescription((requiredAnimation ? "Required non-null animation of nullable Color." : "Optional stopped nullable color or analyzer-verified Animation<Color?>.") + " All drafts remain local until OK; cancel preserves the original value.");
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Color animation source");
-            mode.getAccessibleContext().setAccessibleDescription("Choose omission, stopped literal/theme color, explicit stopped null, or a project animation reference.");
+            mode.getAccessibleContext().setAccessibleDescription(requiredAnimation ? "Choose stopped literal/theme color, stopped transparent color, or a project animation. Omission is not allowed." : "Choose omission, stopped literal/theme color, explicit stopped null, or a project animation reference.");
             var heading = new JPanel(new BorderLayout(8, 0)); var label = new JLabel("Source:"); label.setLabelFor(mode);
             heading.add(label, BorderLayout.WEST); heading.add(mode, BorderLayout.CENTER); add(heading, BorderLayout.NORTH);
             var initial = initialValue().explicitValue().orElse(null);
@@ -82,10 +88,10 @@ final class FlutterColorAnimationEditorComponent {
                     FlutterDartObjectReferenceEditorComponent.customEditor(referenceEditor, referenceBinding, referenceEnvironment);
             if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearRoot(referencePanel);
             cards.add(referencePanel, PROJECT);
-            cards.add(new JPanel(), UNSET); cards.add(new JPanel(), STOPPED_NULL); add(cards, BorderLayout.CENTER);
+            cards.add(new JPanel(), UNSET); cards.add(new JPanel(), STOPPED_NULL); cards.add(new JPanel(), STOPPED_TRANSPARENT); add(cards, BorderLayout.CENTER);
             note.setName(NOTE_NAME); note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
             note.getAccessibleContext().setAccessibleName("Color animation behavior and preview note"); add(note, BorderLayout.SOUTH);
-            mode.setSelectedItem(initial == null ? UNSET : initial instanceof PropertyValue.NullValue ? STOPPED_NULL
+            mode.setSelectedItem(initial == null ? requiredAnimation ? STOPPED_TRANSPARENT : UNSET : initial instanceof PropertyValue.NullValue ? requiredAnimation ? STOPPED_TRANSPARENT : STOPPED_NULL
                     : initial instanceof PropertyValue.DartObjectReferenceValue ? PROJECT : STOPPED_COLOR);
             mode.addActionListener(ignored -> refresh(true));
             colorEnvironment.addPropertyChangeListener(ignored -> refresh(true));
@@ -101,16 +107,17 @@ final class FlutterColorAnimationEditorComponent {
             try {
                 String selected = (String) mode.getSelectedItem(); layout.show(cards, selected);
                 String text = switch (selected) {
-                    case PROJECT -> "The analyzer verifies Animation<Color?>. Project code is not executed by isolated Canvas; dynamic animation preview is explicitly unavailable. Use a getter or factory for configured objects.";
+                    case PROJECT -> requiredAnimation ? "The analyzer verifies a non-null Animation<Color?>. Project code is not executed by isolated Canvas; preview uses a stopped null color. Generated Dart preserves live animation updates and application ownership." : "The analyzer verifies Animation<Color?>. Project code is not executed by isolated Canvas; dynamic animation preview is explicitly unavailable. Use a getter or factory for configured objects.";
+                    case STOPPED_TRANSPARENT -> "Stores the required AlwaysStoppedAnimation<Color?>(null). The color is transparent; the barrier still blocks input. This is a non-null animation with a null color value, not omission.";
                     case STOPPED_NULL -> "Stores AlwaysStoppedAnimation<Color?>(null), not omission. Flutter falls back to Color and then the progress-indicator theme. The explicit null choice is retained when saving and reopening.";
-                    case STOPPED_COLOR -> "Stores AlwaysStoppedAnimation<Color> with a literal ARGB or theme color. This takes precedence over Color without clearing it. Theme color follows the active project theme.";
+                    case STOPPED_COLOR -> requiredAnimation ? "Stores the required AlwaysStoppedAnimation<Color> with a literal ARGB or theme color. No animation controller is created. Theme color follows the active project theme." : "Stores AlwaysStoppedAnimation<Color> with a literal ARGB or theme color. This takes precedence over Color without clearing it. Theme color follows the active project theme.";
                     default -> "Omits valueColor and preserves Flutter's Color/theme fallback. Omission is different from an explicit stopped-null animation.";
                 };
                 note.setText(text); note.getAccessibleContext().setAccessibleDescription(text);
                 var candidate = switch (selected) {
                     case PROJECT -> requestValidation ? referencePanel.stagedDraftValue() : referencePanel.validatedDraftValue();
                     case STOPPED_COLOR -> requestValidation ? colorPanel.stagedDraftValue() : colorPanel.validatedDraftValue();
-                    case STOPPED_NULL -> FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
+                    case STOPPED_NULL, STOPPED_TRANSPARENT -> FlutterPropertyCellValue.explicit(new PropertyValue.NullValue());
                     default -> FlutterPropertyCellValue.unset();
                 };
                 clearInvalid(note, text);

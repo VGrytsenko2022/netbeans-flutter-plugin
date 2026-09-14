@@ -30,15 +30,16 @@ class OutlinedButtonContractTest {
             }
             assertEquals(shared.creationDefault(), property.creationDefault(), property.name().value());
         }
-        assertEquals(16, CATALOG.definitions().stream().filter(value ->
+        assertEquals(43, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
-        assertEquals(14, CATALOG.definitions().stream().filter(value ->
+        assertEquals(31, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.evaluateRoot(value).accepted()
                         && WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count(),
                 "Generic wrappers exclude the special Expanded and Flexible ParentData wrappers");
-        assertEquals(15, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
+        // Global catalog count, including ExpansionTile's nullable dense/enableFeedback.
+        assertEquals(53, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
                 .filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN,
                         PropertyValueKind.NULL))).count());
         assertTrue(OutlinedButtonWidgetPropertySchema.find("clipBehavior").orElseThrow()
@@ -97,9 +98,9 @@ class OutlinedButtonContractTest {
         assertEquals(1, definition.slots().getFirst().minChildren());
         assertEquals(DartParameter.named(511, false), definition.slots().getLast().parameter());
         assertEquals(0, definition.slots().getLast().minChildren());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test
@@ -221,7 +222,7 @@ class OutlinedButtonContractTest {
         covered.add(p("style"));
         assertEquals(510, covered.size());
         assertEquals(491, largest);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 
     @Test
@@ -314,7 +315,7 @@ class OutlinedButtonContractTest {
         assertFalse(valid(new WidgetNode(base.id(), base.type(), base.properties(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))));
         for (var source : CATALOG.definitions()) {
-            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(source.typeId().value());
+            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
             for (var slot : definition().slots()) assertEquals(allowed, WidgetPlacementRules.accepts(definition(), slot, source));
         }
         for (String name : List.of("label", "tooltip", "key", "controller", "foregroundColor", "mouseCursor")) {

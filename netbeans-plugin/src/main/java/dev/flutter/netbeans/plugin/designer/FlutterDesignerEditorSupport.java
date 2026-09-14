@@ -1175,6 +1175,17 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
             byte[] expectedCandidateBytes,
             ForwardSemanticEdge semanticEdge,
             AppliedSemanticFinalizer finalizer) throws IOException {
+        return applyPreparedRegionsAndFinalize(expected, generated, expectedCandidateBytes,
+                null, semanticEdge, finalizer);
+    }
+
+    LiveDartDocumentSnapshot applyPreparedRegionsAndFinalize(
+            LiveDartDocumentSnapshot expected,
+            GeneratedDartRegions generated,
+            byte[] expectedCandidateBytes,
+            dev.flutter.netbeans.designer.transition.DartSourceTransitionPlan transition,
+            ForwardSemanticEdge semanticEdge,
+            AppliedSemanticFinalizer finalizer) throws IOException {
         Objects.requireNonNull(expected, "expected");
         Objects.requireNonNull(generated, "generated");
         Objects.requireNonNull(expectedCandidateBytes, "expectedCandidateBytes");
@@ -1210,6 +1221,7 @@ final class FlutterDesignerEditorSupport extends DataEditorSupport
                                     expected,
                                     generated,
                                     expectedCandidateBytes,
+                                    transition,
                                     exactApplied -> {
                                         try {
                                             DesignerAtomicEditCapture.JointCommit

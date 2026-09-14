@@ -21,7 +21,7 @@ public record FlutterPropertyCellValue(Optional<PropertyValue> explicitValue, Op
         explicitValue = Objects.requireNonNull(explicitValue, "explicitValue");
         radioTypeEdit = Objects.requireNonNull(radioTypeEdit, "radioTypeEdit");
         if (radioTypeEdit.isPresent() && !explicitValue.equals(radioTypeEdit.orElseThrow().requested().get("valueType"))) {
-            throw new IllegalArgumentException("Radio/RadioGroup type transaction must match the displayed type.");
+            throw new IllegalArgumentException("Dependent type transaction must match the displayed type.");
         }
     }
 
@@ -34,14 +34,17 @@ public record FlutterPropertyCellValue(Optional<PropertyValue> explicitValue, Op
         return new FlutterPropertyCellValue(Optional.empty());
     }
 
-    /** UI-only, immutable dependent edit; never a model/wire value or arbitrary property patch. */
+    /** UI-only closed type transaction; legacy Radio name also serves ValueListenableBuilder. Never a model/wire value or arbitrary property patch. */
     public record RadioTypeEdit(
             dev.flutter.netbeans.designer.model.WidgetTypeId widgetType,
             dev.flutter.netbeans.designer.model.StableId widgetId,
             java.util.Map<String, Optional<PropertyValue>> baseline,
             java.util.Map<String, Optional<PropertyValue>> requested) {
         public static final java.util.List<String> FIELDS = java.util.List.of("valueType", "nullableValueType", "value", "groupValue");
+        public static final java.util.List<String> TWEEN_FIELDS = java.util.List.of("valueType", "nullableValueType", "tween", "builder");
+        public static final java.util.List<String> VALUE_LISTENABLE_FIELDS = java.util.List.of("valueType", "nullableValueType", "valueListenable", "builder");
         public static final java.util.List<String> GROUP_FIELDS = java.util.List.of("valueType", "nullableValueType", "groupValue");
+        public static final java.util.List<String> TILE_FIELDS = java.util.List.of("valueType", "nullableValueType", "value", "groupValue", "onChanged");
         public RadioTypeEdit(dev.flutter.netbeans.designer.model.StableId widgetId,
                 java.util.Map<String, Optional<PropertyValue>> baseline,
                 java.util.Map<String, Optional<PropertyValue>> requested) {
@@ -53,19 +56,31 @@ public record FlutterPropertyCellValue(Optional<PropertyValue> explicitValue, Op
             baseline = java.util.Map.copyOf(baseline);
             requested = java.util.Map.copyOf(requested);
             var allowed = java.util.Set.copyOf(fields(widgetType));
+            if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widgetType)
+                    && (requested.getOrDefault("tween", Optional.empty()).isEmpty() || requested.getOrDefault("builder", Optional.empty()).isEmpty()))
+                throw new IllegalArgumentException("TweenAnimationBuilder tween and builder are required.");
+            if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widgetType)
+                    && (requested.getOrDefault("valueListenable", Optional.empty()).isEmpty() || requested.getOrDefault("builder", Optional.empty()).isEmpty()))
+                throw new IllegalArgumentException("ValueListenableBuilder source and builder are required.");
             if (!baseline.keySet().equals(allowed) || !requested.keySet().equals(allowed)
                     || requested.get("valueType").isEmpty() || (allowed.contains("value") && requested.get("value").isEmpty())) {
-                throw new IllegalArgumentException("A Radio/RadioGroup type edit contains exactly its type, nullability and dependent value fields; required fields cannot be omitted.");
+                throw new IllegalArgumentException("A type edit contains exactly its reviewed type, nullability and dependent fields; required fields cannot be omitted.");
             }
         }
         public static java.util.List<String> fields(dev.flutter.netbeans.designer.model.WidgetTypeId type) {
+            if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(type)) return TWEEN_FIELDS;
+            if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(type)) return VALUE_LISTENABLE_FIELDS;
             if (dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.RADIO_TYPE.equals(type)) return FIELDS;
             if (dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(type)) return GROUP_FIELDS;
-            throw new IllegalArgumentException("Dependent type edits are restricted to Radio and RadioGroup.");
+            if (dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(type)) return TILE_FIELDS;
+            throw new IllegalArgumentException("Dependent type edits are restricted to Radio, RadioGroup, RadioListTile ValueListenableBuilder and TweenAnimationBuilder.");
         }
         public static boolean supports(dev.flutter.netbeans.designer.model.WidgetTypeId type) {
             return dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema.RADIO_TYPE.equals(type)
-                    || dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(type);
+                    || dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(type)
+                    || dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(type)
+                    || dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(type)
+                    || dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(type);
         }
         public static java.util.Map<String, Optional<PropertyValue>> snapshot(dev.flutter.netbeans.designer.model.WidgetNode widget) {
             var result = new java.util.LinkedHashMap<String, Optional<PropertyValue>>();

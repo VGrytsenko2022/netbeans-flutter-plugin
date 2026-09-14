@@ -86,6 +86,234 @@ Version 0.1.2 is a release-hardening milestone. It does not add Inspector, embed
 
 ## 0.1.3 / M4 — Matisse-like Designer foundation
 
+- [x] Implement MenuAnchor: all 16 scalar SDK parameters, required-but-empty-valid
+  Menu children and optional Child, whole MenuStyle/null plus all 203 reviewed
+  local MenuStyle leaves. Native panel resolution uses empty WidgetState sets;
+  root/nested placement and nullable controller/link references stay native.
+  Local density uses constructor defaults for an omitted peer axis. Three Events,
+  one Properties builder and four effective State consumers have exact typed
+  proof; deprecated anchorTapClosesMenu remains stored/source-only and inert.
+  Explicit Create Menu Builder inserts a fixed user-owned opener and binds it
+  atomically through ordinary source/history/save gates, not generic Events.
+  Current inventory: 102 widgets, 5,300 properties, 94 const definitions,
+  164 callables across 32 types, 139 native Events across 29 types and
+  166 State consumers across 55 types. See [MenuAnchor](MENU_ANCHOR.md) for
+  scope, native theme/controller boundaries and measured verification receipts.
+
+- [x] Implement pinned MenuItemButton: all 13 scalar SDK parameters plus Enabled,
+  three optional widget slots, all 498 shared local ButtonStyle leaves and whole
+  ButtonStyle references/null. Eight local shortcut fields cover SingleActivator
+  (432 reviewed non-modifier LogicalKeyboardKey constants) and CharacterActivator
+  (exact Unicode strings), with strict MenuSerializableShortcut whole references.
+  Hints do not register shortcuts. Native MenuButtonTheme/defaultStyleOf and
+  Clip.none remain authoritative. Three Events and two Properties layer builders
+  preserve exact callback proofs; four State consumers include activation via
+  conditional onPressed, without inventing a State producer. Whole/local and
+  incompatible activator branches fail atomically; explicit UI compound changes
+  preserve compatible fields and history. At that milestone: 101 widgets,
+  5,081 properties, 93 const definitions, 160 callables across 31 types,
+  136 native Events across 28 types and 162 State consumers across 54 types.
+  Acceptance receipts are tracked in [MenuItemButton](MENU_ITEM_BUTTON.md).
+
+- [x] Implement the complete pinned TooltipTheme and TooltipThemeData constructor
+  projection: strict whole Data reference plus all 15 local SDK fields and 31
+  shared TextStyle leaves, 47 rows, required Child and atomic wrapping. Reject
+  whole/local conflicts including explicit null and State bindings without
+  silently clearing stored values. Empty local mode emits fresh const
+  TooltipThemeData(); nearest data replaces rather than merges with outer themes.
+  Keep exact Height/Constraints exclusion, full shared decoration/text style,
+  signed portable Duration/reference/null fields and all three nullable boolean
+  State consumers inside Data. Do not use pinned copyWith, which loses exitDuration,
+  or lerp, which drops five behavior fields. Inventory at that milestone: 100 widgets,
+  4,561 properties, 92 const definitions, unchanged 155 callables across 30 types
+  and 133 native Events across 27 types; State consumers 158 across 53 types.
+  Verification is tracked in [TooltipTheme](TOOLTIP_THEME.md); the wider palette
+  and arbitrary nested object graphs are not thereby complete.
+
+- [x] Implement the complete pinned TooltipVisibility constructor: required
+  boolean visible and required single Child, Material order 310, const generation
+  and atomic required-child wrapping. Designer creates visible true explicitly;
+  nested scopes use the closest value, not an AND of ancestors. Add one boolean
+  State consumer without fictitious Events or a visibility producer. Inventory
+  at TooltipVisibility: 99 widgets, 4,514 properties, 91 const definitions, 155 callables
+  across 30 types and 133 native Events across 27 types; State consumers 155
+  across 52 types. Disabled pinned Tooltips remove RawTooltip and open overlays,
+  not their anchors; preserve child semantics without promising tooltip-message
+  annotation or arbitrary child runtime-state retention. Verification is tracked
+  in [TooltipVisibility](TOOLTIP_VISIBILITY.md); the wider palette is not complete.
+
+- [x] Implement the complete pinned Tooltip constructor: 22 SDK scalar fields,
+  53 typed rows and optional Child, with ordinary palette insertion and an
+  explicit Wrap action. Preserve exact Message/Rich message XOR, nullable
+  Height/Constraints exclusion, structured BoxDecoration plus strict Decoration
+  references, whole TextStyle or 31 shared local leaves, all cursor presets and
+  three exact signed-microsecond Duration/reference/null fields. Rich InlineSpan
+  trees remain source-owned; no unimplemented local span-tree editor is implied.
+  Add one native onTriggered Event, one non-event Offset positioning delegate
+  and five boolean State consumers without inventing visibility ownership.
+  Inventory at Tooltip: 98 widgets, 4,513 properties, 90 const definitions,
+  155 callables across 30 types and 133 native Events across 27 types; State
+  consumers 154 across 51 types. G1–G5 remain closed within their bounded audit.
+  Verification is tracked in [Tooltip](TOOLTIP.md); the wider palette is not complete.
+
+- [x] Implement the complete pinned ExpansionTile constructor: 28 SDK scalar
+  fields, 76 typed rows and five slots, including required Title and independent
+  expanded Children. Reuse atomic required-slot wrapping into Title, both full
+  ShapeBorder families, nullable colors/density/alignment/insets and strict
+  ExpansibleController/WidgetStatesController references. Add complete
+  AnimationStyle references/noAnimation/four local fields with exact signed
+  microseconds and all 43 Curves presets. Preserve the pinned ignored
+  reverseDuration field without inventing an effect. One native expansion Event
+  and six boolean consumers are supported; initiallyExpanded is seed-only and
+  no controlled State producer is introduced. Inventory at ExpansionTile: 97 widgets,
+  4,460 properties, 89 const definitions, 153 callables across 29 types and
+  132 native Events across 26 types; State consumers 149 across 50 types.
+  G1–G5 remain closed within their admitted-constructor audit. Verification is
+  tracked in [ExpansionTile](EXPANSION_TILE.md); the wider palette is not complete.
+
+- [x] Implement Standard and Adaptive RadioListTile: all 37 non-slot SDK fields,
+  variant/valueType/nullableValueType selectors, 153 typed rows and three optional
+  title/subtitle/secondary slots. Preserve exact generic proofs, both Events,
+  legacy nullable groupValue State and eight reviewed boolean consumers.
+  Reuse full shape, color, radio side/radius, density and cursor contracts with
+  original model paths. Preserve inactive checkmark-style values/bindings in
+  Standard and the SDK enabled/activation requirement; do not invent a registry.
+  Modern RadioGroup ownership and the additional optional legacy callback retain
+  the pinned SDK order and null-group fallback. Inventory at RadioListTile: 96 widgets,
+  4,384 properties, 88 const definitions; 152 callables across 28 types,
+  131 native Events across 25 types, 17 builders, 2 predicates and 2 formatters.
+  State consumers: 143 properties across 49 types; 11 controlled families.
+  The bounded admitted-constructor callable audit remains at zero known gaps,
+  distinct from the wider palette backlog. Final measured verification is
+  tracked in [RadioListTile](RADIO_LIST_TILE.md).
+
+- [x] Implement both Standard and Adaptive SwitchListTile as a complete pinned
+  SDK constructor slice: 41 non-slot SDK leaves plus selector, 236 typed rows,
+  title/subtitle/secondary slots, all four native Events, controlled bool State
+  and six safe boolean consumers. Preserve inactive applyCupertinoTheme data and
+  State bindings through constructor transitions; do not invent Enabled/Tristate.
+  Reuse full shared state-color/thumb-Icon/shape/density/cursor compounds and
+  declared-asset providers, with strict object/callback proofs and exact subtitle
+  and image-error prerequisites. Canvas uses the real constructors, reports
+  approximation of custom references and never executes project code.
+  Inventory at SwitchListTile: 95 widgets, 4,231 properties, 87 const definitions;
+  150 callables across 27 types, including 129 native Events across 24 types,
+  17 builders, 2 predicates and 2 formatters. State consumers: 135 properties
+  across 48 types. The bounded admitted-constructor callable audit remains at
+  zero known gaps; this does not complete the broader palette backlog.
+  Automated acceptance passed: 2,053 core tests, 1,255 selected plugin tests,
+  40 analyzer tests, nine package checks, five real-SDK tests (six generated
+  Flutter runtime cases) and 1,883 Canvas tests. NBM and both launch clusters
+  have matching module/dependency payloads; no manual IDE restart is claimed;
+  see [SwitchListTile](SWITCH_LIST_TILE.md).
+
+- [x] Complete G3, `ElevatedButton.styleBackgroundBuilder` and
+  `styleForegroundBuilder`, as ordinary common-style BUILDER rows. Support
+  strict non-null project references/getters/members/factories; independent
+  Reset preserves nullable SDK fields' theme inheritance and other style leaves.
+  Preserve exact `ButtonLayerBuilder` arguments and a non-null Widget result,
+  with an independent Material-SDK result witness shared by other button families.
+  Retain automatic effective-builder clipping and explicit Clip overrides;
+  never execute project builders in Canvas. ElevatedButton has 288 properties,
+  11 common-style rows, the existing five state buckets and one nullable child.
+  This does not add icon constructors, whole-style references or extra State
+  editing; Text/Outlined/Filled/Icon property counts and orders are unchanged.
+  Inventory at G3: 94 widgets, 3,992 properties, 143 callables, 14 builders,
+  2 predicates and 125 native Events; 25 definitions have supported callables.
+  [Contract and verification status](ELEVATED_BUTTON_LAYER_BUILDERS.md).
+- [x] Implement G4, `TextField.buildCounter` and `contextMenuBuilder`, as ordinary
+  Properties → Builders rows. Preserve all first 54 orders, now 56 properties.
+  Support exact nullable typed references/getters/members/factories and explicit
+  null, keeping counter omission/null/default distinct from a callback returning
+  null, and menu omission/default distinct from null/disabled. Model required
+  named currentLength, nullable int? maxLength and isFocused accurately; optional
+  named parameters without explicit defaults must be nullable. Retain strict
+  SDK-qualified callback assignment and an independent null-aware original-result
+  witness without executing project code. Canvas explicitly approximates custom
+  references with SDK defaults; explicit null is preserved. No Events/State or
+  unrelated TextField decoration/controller/style/formatter expansion is added.
+  Inventory at G4: 94 widgets, 3,994 properties, 145 callables, 16 builders,
+  2 predicates, 2 formatters and 125 native Events; 25 callable widget types.
+  Core, real-SDK, property/history, Canvas and package checks pass; see the
+  [G4 contract and measured verification status](TEXT_FIELD_BUILDERS.md).
+- [x] Implement G5, `ListView.itemExtentBuilder`, on the admitted unnamed/static
+  constructor. Append one Layout builder at order 18, retaining all previous 17
+  properties and children slot order 11. Support exact nullable typed references,
+  getters/members/factories and explicit null. Reject itemExtent with any builder
+  reference without clearing either value; explicit null remains compatible.
+  Preserve the Rendering-owned double? Function(int, SliverLayoutDimensions)
+  contract and strict result witness. Actual children require valid extents;
+  callback null results are only for out-of-range indexes. Canvas never executes
+  project callbacks and explicitly approximates custom extents with normal child
+  sizing. No dynamic constructors/prototypeItem/Event/State expansion is added.
+  Inventory at G5: 94 widgets, 3,995 properties, 146 callables, 17 builders,
+  2 predicates, 2 formatters and 125 native Events; 26 callable widget types.
+  There are zero known callable gaps in the bounded admitted-constructor audit,
+  not zero remaining Flutter/palette work. G5 core, real-SDK, property/history,
+  Canvas and package/cluster checks pass;
+  see the [contract](LIST_VIEW_ITEM_EXTENT_BUILDER.md) and
+  [current API audit](EVENTS_API_AUDIT.md).
+
+- [x] Complete G2, `AppBar.notificationPredicate`: preserve the exact
+  `default`/`depthZero`/`all` presets and add non-null typed project references,
+  getters, static/instance members and zero-argument factories. Keep this
+  predicate in **Properties → Behavior**, not Events. Verify the exact
+  `ScrollNotificationPredicate` signature and independently require a bool call
+  result, including the shared RefreshIndicator proof family. Canvas retains
+  the SDK depth-zero default with an explicit custom-reference approximation
+  and never executes project code. AppBar notification filtering does not
+  consume notifications. Inventory at that stage: 94 widgets, 3,990 properties,
+  141 callables, 12 builders, 2 predicates and 125 native Events; 25 widget
+  definitions have supported callables. No schema or protocol version changes.
+  [Contract and verification status](APP_BAR_NOTIFICATION_PREDICATE.md).
+
+- [x] Complete G1, `Scaffold.bottomSheetScrimBuilder`, as a builder in
+  **Properties → Appearance**, not Events. Preserve the exact non-null
+  `Widget? Function(BuildContext, Animation<double>)` contract: omission keeps
+  the SDK default, explicit callback null is rejected, and a null result hides
+  the scrim. Support typed project references/getters/static and instance members/
+  zero-argument factories with exact, dynamic-safe analyzer proof. Canvas never
+  invokes the project builder and explicitly previews the SDK default instead.
+  Scaffold then had 18 properties and its unchanged three slots; inventory at
+  that stage was 94 widgets, 3,990 properties, 140 callables, 12 builders and 125 native Events.
+  FD 16 / Catalog API 15 / Canvas model 19 / transport 1 are unchanged.
+  [Contract and verification status](SCAFFOLD_BOTTOM_SHEET_SCRIM_BUILDER.md).
+
+- [x] Admit `NotificationListener`: all 14 SDK notification filters and strict
+  custom class/typedef references, independent generic-bound proof, boolean
+  `onNotification` Event, required child and explicit **Wrap with NotificationListener**.
+  Preserve true/false propagation semantics in generated code and use non-consuming
+  isolated Canvas callbacks with an explicit custom-type preview limitation.
+  Inventory at that stage: 94 widgets, 139 callables, 125 events.
+  [Contract](NOTIFICATION_LISTENER.md).
+
+- [x] Admit both `Focus` constructors: all 12 SDK properties plus the selector,
+  required child, 3 Events (including return-valued modern/legacy key callbacks),
+  strict nullable/non-null node references, six State consumers and explicit
+  **Wrap with Focus**. Preserve the seven inactive standard-only properties in
+  external mode and disclose Canvas node-reference approximation. Stage
+  inventory: 93 widgets, 138 callables, 124 events. [Contract](FOCUS.md).
+
+- [x] Admit `MouseRegion`: all 3 Events, 41 cursor presets and strict custom
+  cursor references/factories, opacity with State consumer, nullable hit-test
+  behavior, optional child, and explicit **Wrap with MouseRegion**. Keep Canvas
+  callbacks isolated and disclose custom cursor preview approximation. Stage
+  inventory: 92 widgets, 135 callables, 121 events; this is not completion of the
+  historical 92-widget target. [Contract and verification](MOUSE_REGION.md).
+
+- [x] Admit the complete `Listener` interaction wrapper: all 9 raw pointer Events,
+  non-null hit-test behavior and an optional child, with explicit **Wrap with
+  Listener**. Preserve typed handler proof, child IDs, user source and paired
+  history; keep Canvas callbacks isolated. Inventory at that stage: 91 widgets,
+  132 callable properties, 118 events. [Contract and verification](LISTENER.md).
+
+- [x] Admit the complete `GestureDetector` interaction wrapper: 58 Events,
+  6 behavior/device/trackpad properties, an optional child, and explicit
+  **Wrap with GestureDetector**. Preserve analyzer-verified handler types,
+  source ownership, save/reopen and Undo/Redo; keep Canvas callbacks isolated.
+  Inventory at that stage: 90 widgets, 123 callable properties, 109 events.
+  [Contract and verification](GESTURE_DETECTOR.md).
+
 The designer work starts only after the tagged 0.1.2 stability baseline. The
 accepted architecture is documented in
 [`FLUTTER_DESIGNER_ARCHITECTURE.md`](FLUTTER_DESIGNER_ARCHITECTURE.md).
@@ -693,7 +921,7 @@ accepted architecture is documented in
   Canvas hover, while Java repeats the canonical planner before mutation.
 - [x] Supersede the AppBar milestone with the complete `ElevatedButton`
   vertical slice. The slice originally landed on Canvas payload protocol v8
-  (the current aggregate model is v18); deterministic generation and the
+  (the aggregate model at that milestone was v18); deterministic generation and the
   native runner share 286 typed leaves: seven direct behavior/callback fields,
   five 54-leaf default/disabled/pressed/hovered/focused style groups and nine
   common layout/feedback fields. Callback values are strict Dart identifiers;
@@ -717,7 +945,8 @@ accepted architecture is documented in
   `floatingActionButton` slots remain unchanged. Widget-valued
   `persistentFooterButtons`, `drawer`, `endDrawer`, `bottomNavigationBar` and
   `bottomSheet`, plus `persistentFooterDecoration`, `bottomSheetScrimBuilder`
-  and `key`, remain deliberately excluded. That milestone total was 514 writable
+  and `key`, were deliberately excluded at that milestone. The later G1 slice
+  above adds only `bottomSheetScrimBuilder`. That milestone total was 514 writable
   rows across all ten built-ins; Canvas, deterministic Dart, Pair Save,
   reopen and one-step Undo/Redo use the same closed mapping.
 - [x] Extend exact named-slot management with true atomic compound commands.
@@ -1989,8 +2218,124 @@ accepted architecture is documented in
   constraints, state-aware colors/cursors, shape/side/density, callbacks,
   deterministic generation, stable Properties, history, Save/reopen and actual
   standard/adaptive SDK Canvas behavior. Final gate evidence: ADR-117.
-- [ ] Pass the complete runner, persistence and cross-platform release gate.
-  - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
+- [x] Add SubmenuButton as one complete Material constructor slice: all 21
+  non-key SDK arguments, 721 typed property rows, the required `menuChildren`
+  list slot and optional `child`/`leadingIcon`/`trailingIcon` slots. Preserve
+  explicit constructor/whole/local style branches, nullable icon and callback
+  references, strict `MenuSerializableShortcut` and controller/state contracts,
+  atomic variant edits, stable Properties, palette DnD, Save/reopen/further
+  editing, native history, SVG and actual SDK Canvas behavior. Nested menu
+  activation is verified through a deterministic non-animated fixture because
+  Flutter 3.44.8 keeps the animated root controller open in that nested-overlay
+  case; this does not change stored values or generated Dart. Final gate
+  evidence: [SubmenuButton](SUBMENU_BUTTON.md).
+- [x] Add MenuBar as a complete Material menu-family slice: const constructor
+  with required menu-entry list, nullable MenuController, Clip behavior and
+  whole/local MenuStyle editing across 206 typed rows. Reuse strict menu-entry
+  slot admission and the existing native overlay/shortcut boundaries; no Events
+  or global shortcut registration are invented. Canvas, palette DnD, Properties,
+  Save/reopen, history and SDK-source verification landed together. Final gate
+  evidence: [MenuBar](MENU_BAR.md).
+- [x] Add NavigationBar as a complete Material navigation slice: all 15 typed
+  constructor properties, required-but-empty-valid `destinations` list slot,
+  selected-index validation/default, typed destination callback, theme-aware
+  appearance and exact duration handling. Native Canvas mounts valid lists,
+  diagnoses Flutter's fewer-than-two-destinations assertion deterministically,
+  and preserves palette DnD, Properties, generation, Save/reopen and history.
+  Final gate evidence: [NavigationBar](NAVIGATION_BAR.md).
+- [x] Add NavigationRail as a complete Material navigation slice: all 20 typed
+  constructor properties, required-but-empty-valid `destinations` list, optional
+  `leading`/`trailing` slots, nullable selection, typed destination callback,
+  indicator/label/layout controls and deterministic SDK-conflict diagnostics.
+  Canvas adapts nested destination widgets as icons with synthetic labels while
+  generated application Dart retains exact destination construction. Properties,
+  palette DnD, Save/reopen, history, light/dark SVG icons and protocol tests are
+  covered together. Final gate evidence: [NavigationRail](NAVIGATION_RAIL.md).
+- [x] Add NavigationDrawer as a complete Material navigation slice: all nine
+  typed constructor properties, required-but-empty-valid `children`, optional
+  `header`/`footer` slots, nullable selection, typed destination callback and
+  theme-aware appearance. Canvas adapts nested destination widgets with
+  deterministic labels and bounded icons while generated Dart retains exact
+  child identities. Properties, palette DnD, Save/reopen, history, light/dark
+  SVG icons and protocol tests are covered together. Final gate evidence:
+  [NavigationDrawer](NAVIGATION_DRAWER.md).
+- [x] Add Drawer as a complete Material surface slice: all eight typed
+  constructor properties, optional child slot, theme-aware colors, non-negative
+  elevation/width, semantic label and Clip behavior. Canvas renders the native
+  Drawer while retaining and diagnosing application-owned ShapeBorder references
+  without executing them. Properties, palette DnD, Save/reopen, history, light/
+  dark SVG icons, generation and protocol tests are covered together. Final gate
+  evidence: [Drawer](DRAWER.md).
+- [x] Add BottomAppBar as a complete Material surface slice: all nine typed
+  constructor properties, an optional child slot, theme-aware colors,
+  non-negative elevation/notch margin/height, nullable `NotchedShape`, padding
+  and Clip behavior. Canvas renders the native BottomAppBar while retaining and
+  diagnosing application-owned notch-shape references without executing them.
+  Properties, palette DnD, Save/reopen, history, light/dark SVG icons,
+  generation and protocol tests are covered together. Final gate evidence:
+  [BottomAppBar](BOTTOM_APP_BAR.md).
+- [x] Add BottomNavigationBar as a complete Material navigation slice: all 20
+  typed constructor properties (including the collision-free `barType` → SDK
+  `type` mapping), the required empty-valid `items` list slot, selected-index
+  validation/default, typed `onTap` callback, theme-aware colors, icon/label
+  policy, landscape layout and feedback controls. Native Canvas mounts valid
+  lists, diagnoses Flutter's fewer-than-two-items assertion deterministically,
+  and preserves item order, Properties, palette DnD, generation, Save/reopen
+  and history. Final gate evidence: [BottomNavigationBar](BOTTOM_NAVIGATION_BAR.md).
+- [x] Add Material as a complete Material surface slice: all 12 reviewed
+  constructor properties, optional child slot, MaterialType and Clip enums,
+  theme-aware colors/text style, mutually exclusive border radius/ShapeBorder,
+  signed microsecond animation duration and color animation. Native Canvas uses
+  Flutter's Material widget while retaining and diagnosing project-owned object
+  references without executing them. Properties, palette DnD, Save/reopen,
+  history, generation, SVG icons and protocol tests are covered together. Final
+  gate evidence: [Material](MATERIAL.md).
+- [x] Add Scrollbar as a complete Material scroll wrapper: all eight reviewed
+  nullable constructor properties, the required single `child` slot, centered
+  nullable-boolean checkbox editing, typed controller/Radius/notification
+  predicate references and strict orientation enum. Native Canvas mounts the
+  real SDK Scrollbar with a preview-only scroll-position owner around arbitrary
+  children, retaining and diagnosing project references without executing them.
+  Properties, Slots, palette/tree/Canvas DnD, generation, Save/reopen, history,
+  SVG icons, source-manifest hashes and protocol tests are covered together.
+  Final gate evidence: [Scrollbar](SCROLLBAR.md).
+- [x] Add ListWheelScrollView as a complete scrolling slice: all 18 reviewed
+  constructor properties, required positive `itemExtent`, ordered `children`
+  list slot, typed selection callback, closed physics/enum presets, wheel
+  geometry bounds, preview-only project-reference diagnostics, native Canvas,
+  Properties, palette/tree/Canvas DnD, generation, Save/reopen, history, SVG
+  icons, source-manifest hashes and protocol tests. Final gate evidence:
+  [ListWheelScrollView](LIST_WHEEL_SCROLL_VIEW.md).
+- [x] Add `CustomScrollView` and `SliverToBoxAdapter` as a complete sliver
+  scrolling slice: reviewed scrolling, semantics, restoration, clipping and
+  hit-testing fields, a trait-validated `slivers` list, and the first safe
+  sliver adapter for ordinary Designer children. Generated Dart emits the
+  native constructors, Canvas mounts a real RenderSliver viewport without
+  box-only instrumentation, and Palette/tree/Canvas DnD, Properties,
+  Save/reopen, history, SVG icons and source-manifest contracts are covered.
+  Final gate evidence: [CustomScrollView](CUSTOM_SCROLL_VIEW.md).
+- [x] Add `PreferredSize` as the next complete Layout wrapper slice: the
+  required finite non-negative typed `Size preferredSize` (palette default
+  `100 × 56`), required single `child` slot, native `PreferredSizeWidget`
+  trait participation, typed Properties, atomic required-child wrapping,
+  Palette/tree/Canvas DnD, generated Dart, Save/reopen, history, native and
+  exact-Web Canvas, reviewed light/dark SVG icons and focused contract tests.
+  The child slot is not an empty insertion destination; dropping the widget on
+ an existing non-root subtree wraps that child atomically. Final gate
+  evidence: [PreferredSize](PREFERRED_SIZE.md).
+- [x] Add `Builder` as the next complete Layout wrapper slice: the required
+  typed `WidgetBuilder builder` callback, reviewed no-op palette default,
+  callback-only Properties editor, no child slots, bounded native/exact-Web
+  Canvas placeholder that never executes project code, generated Dart callback
+  preservation, Save/reopen, history, palette/tree/Canvas DnD, reviewed SVG
+  icons, source-manifest hashes and focused contract tests.
+ - [ ] Pass the complete runner, persistence and cross-platform release gate.
+   - [x] Pass the complete automated runner/designer/package gate: the full
+     Flutter runner suite, full `flutter-designer` Maven tests, the Builder and
+     palette/accessibility contract suites, clean `install`, and `nbm:cluster`
+     all complete successfully. The generated NBM is
+     `netbeans-flutter-plugin-0.1.3-SNAPSHOT.nbm`.
+   - [x] Pass assembled-Windows runner crash/Retry, authenticated natural close,
     every captured runner-generation cleanup and runner/`FLUTTERVIEW`
     handle-cleanup acceptance.
   - [x] Pass the pair Save and Undo/Redo persistence matrix through both the
@@ -2005,11 +2350,317 @@ accepted architecture is documented in
     Split Document heavyweight-peer teardown/recreation now pass the physical
     runtime gate.
   - [ ] Implement and verify the Linux and macOS SPI providers.
-- [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents all eighty-nine admitted built-ins.
-  The 86 definitions with scalar fields expose typed Properties; IntrinsicHeight,
-  RepaintBoundary and MergeSemantics have structural child-slot editors. This does not
-  imply Create, Canvas, DnD or Properties capability for any unreviewed widget.
+ - [x] Complete non-const
+   [`GridView.extent`](https://api.flutter.dev/flutter/widgets/GridView/GridView.extent.html)
+   as the next static scrolling Palette slice immediately after `GridView.count`.
+   Expose the reviewed Flutter 3.44.8 constructor as 21 typed rows, replacing
+   fixed `crossAxisCount` with required positive `maxCrossAxisExtent` (creation
+   value `200`) while retaining the shared scrolling, spacing, lifecycle,
+   semantics, restoration and hit-testing surface. Keep one exact ordered
+   `children` list slot, generate the named `.extent` constructor, and complete
+   grouped Properties, Palette/tree/Canvas DnD, Save/reopen, history, native and
+   exact-Web Canvas, dedicated light/dark SVG icons and contract tests.
+  - [x] Add SliverList.list, SliverGrid.count and SliverGrid.extent as a static
+   children slice: every constructor field, ordered children, typed sliver/box
+   admission, generation and FD round-trip, stable Properties, native sliver
+   geometry (including empty/reversed axes), SVG icons and contract tests.
+   See [static slivers](SLIVER_CHILDREN.md).
+  - [x] Add the six remaining SliverList/SliverGrid constructors: all 31 fields,
+   required presets, typed builders/delegates and strict call-result proof,
+   conflict validation, stable Properties, exact generation and persistence,
+   sliver placement, dedicated icons and labeled dynamic Canvas limitations.
+   See [builders and delegates](SLIVER_DYNAMIC.md).
+  - [x] Add SliverPadding: required physical/directional/reference insets,
+   optional single Sliver-only slot, nesting, complete generation/round-trip,
+   stable Properties, RTL/axis/reverse Canvas geometry, drop/move admission,
+   reviewed icons and explicit project-geometry preview limitation.
+   See [SliverPadding](SLIVER_PADDING.md).
+  - [x] Add all three SliverAppBar constructors: 131 typed rows each, five slots,
+    async Stretch trigger event, native scroll/snap/stretch, exact style references,
+    atomic whole/local and floating/snap changes, stable title keys and PreferredSize.
+    See [SliverAppBar](SLIVER_APP_BAR.md).
+  - [x] Add FlexibleSpaceBar: all five properties, Title/Background slots, three
+    collapse modes and all eight stretch-effect combinations; nullable directional
+    padding, exact typed list references and native inherited settings behavior.
+    See [FlexibleSpaceBar](FLEXIBLE_SPACE_BAR.md).
+  - [x] Add FlexibleSpaceBarSettings: all six values, required box Child, explicit
+    creation parameters, native range assertions, atomic wrap/patch, inherited
+    updates and exact source/history. Raw Sliver children remain outside the
+    current box-wrapper contract. See [FlexibleSpaceBarSettings](FLEXIBLE_SPACE_BAR_SETTINGS.md).
+  - [x] Add LayoutBuilder: complete typed required Builder, BoxConstraints,
+    exact source proof, empty preset, stable selection and responsive SDK checks.
+    Custom project code is not executed by isolated Canvas; intrinsic/dry layout
+    is not supported by Flutter. See [LayoutBuilder](LAYOUT_BUILDER.md).
+  - [x] Add OrientationBuilder: required typed OrientationWidgetBuilder,
+    parent-constraint portrait/landscape, native Canvas and strict source proof.
+    Square/unbounded behavior, Save/reopen and Undo/Redo are tested.
+    See [OrientationBuilder](ORIENTATION_BUILDER.md).
+  - [x] Add DeviceOrientationBuilder: full typed Builder, explicit box/sliver
+    placement projections of one native constructor, MediaQuery-based orientation,
+    build-time intrinsic layout and complete source/editor/Canvas lifecycle.
+    See [DeviceOrientationBuilder](DEVICE_ORIENTATION_BUILDER.md).
+  - [x] Add ListenableBuilder: typed required Listenable and TransitionBuilder,
+    optional Child, box/sliver placement, native subscription lifecycle,
+    strict source proof, guarded source/history and inert labeled Canvas.
+    Child must match its selected projection's rendering protocol.
+    See [ListenableBuilder](LISTENABLE_BUILDER.md).
+  - [x] Add AnimatedBuilder: typed required animation Listenable and
+    TransitionBuilder, optional Child, box/sliver projections, native source and
+    AnimationController lifecycle, strict source proof, guarded source/history,
+    and inert labeled Canvas. Child must match its selected rendering protocol.
+    See [AnimatedBuilder](ANIMATED_BUILDER.md).
+  - [x] Add ValueListenableBuilder: paired explicit ValueListenable<T> and
+    ValueWidgetBuilder<T>, nullable/project/closed typedef types, atomic four-field
+    type editor, optional matching box/sliver Child, strict original value/return
+    proof, source/history and inert labeled native Canvas.
+    See [ValueListenableBuilder](VALUE_LISTENABLE_BUILDER.md).
+  - [x] Add TweenAnimationBuilder: owned typed Tween<T> and ValueWidgetBuilder<T>,
+    atomic type/source/builder editing, full Duration/Curve, optional Child and
+    native onEnd, fixed box/sliver placements, strict proof and isolated Canvas.
+    See [TweenAnimationBuilder](TWEEN_ANIMATION_BUILDER.md).
+  - [x] Add AnimatedOpacity with full Opacity, Duration, Curve, On end,
+    Always include semantics and optional Child; typed source, history and
+    native Canvas with explicit custom-value limitations.
+    See [AnimatedOpacity](ANIMATED_OPACITY.md).
+  - [x] Add AnimatedAlign: full AlignmentGeometry, independent nullable factors,
+    Duration/Curve/On end, optional Child, typed proof and native animation.
+    See [AnimatedAlign](ANIMATED_ALIGN.md) for the pinned null-factor nuance.
+  - [x] Add AnimatedPadding with full nonnegative EdgeInsetsGeometry,
+    physical/directional and typed mixed geometry, Duration, Curve, On end,
+    optional Child, strict source proof and native Canvas interpolation.
+    See [AnimatedPadding](ANIMATED_PADDING.md).
+  - [x] Add AnimatedSlide with full signed Offset, Duration, Curve, On end,
+    optional Child, strict typed source proof, native fractional animation
+    and transformed hit testing without changing layout.
+    See [AnimatedSlide](ANIMATED_SLIDE.md).
+  - [x] Add AnimatedScale with signed/zero Scale and typed double bindings,
+    physical Alignment, nullable Filter quality, Duration, Curve, On end and
+    optional Child. Strict source proof and native filter/tween/hit semantics.
+    See [AnimatedScale](ANIMATED_SCALE.md).
+  - [x] Add AnimatedRotation with signed Turns/typed double, physical Alignment,
+    nullable Filter quality, Duration, all 43 Curves, On end and optional Child.
+    Exact revolution tween, native hit testing and non-finite matrix containment.
+    See [AnimatedRotation](ANIMATED_ROTATION.md).
+  - [x] Add AnimatedContainer with full nullable geometry, decoration, constraints,
+    Matrix4, Duration, all 43 curves, native On end and optional Child. Atomic
+    background/clipping edits, native eight-tween interpolation and exact source proof.
+    See [AnimatedContainer](ANIMATED_CONTAINER.md).
+  - [x] Add AnimatedSize with all six typed rows, optional box Child, native
+    onEnd, nullable reverseDuration, all curves, Canvas and exact source proofs.
+    See [AnimatedSize](ANIMATED_SIZE.md) for pinned reverse-timing semantics.
+  - [x] Add AnimatedPositioned, AnimatedPositioned.fromRect and
+    AnimatedPositionedDirectional with all 26 typed rows, required Stack-child
+    wrapping, native On end, typed references, atomic axis/rectangle editing,
+    RTL, exact SDK proof and ParentData-safe Canvas.
+    See [AnimatedPositioned](ANIMATED_POSITIONED.md).
+  - [x] Add AnimatedDefaultTextStyle with 44 typed rows, all TextStyle fields,
+    required Child wrapping, native On end, atomic local/reference switching,
+    nullable typed paragraph values and guarded native Canvas transitions.
+    See [AnimatedDefaultTextStyle](ANIMATED_DEFAULT_TEXT_STYLE.md).
+  - [x] Add AnimatedPhysicalModel with all 11 typed rows, required Child wrapping,
+    physical elliptical/null/typed-reference radii, independent color animation,
+    all 43 curves, native On end and exact source/Canvas verification.
+    See [AnimatedPhysicalModel](ANIMATED_PHYSICAL_MODEL.md).
+  - [x] Add AnimatedFractionallySizedBox with all 6 typed rows, optional Child,
+    nullable/reference fractions, directional alignment, native On end and
+    intrinsic-safe Canvas guards. See [AnimatedFractionallySizedBox](ANIMATED_FRACTIONALLY_SIZED_BOX.md).
+  - [x] Add AnimatedCrossFade with all 10 pinned properties, two explicit seeded
+    required child slots, reversible cross-fade, all curves, typed layoutBuilder
+    with keyed scaffold, native On end and strict SDK/Canvas verification.
+    See [AnimatedCrossFade](ANIMATED_CROSS_FADE.md).
+  - [x] Add AnimatedSwitcher: six properties, optional Child, two strict typed
+    builders with source scaffolds, duration/curve lowering, retained-entry
+    Canvas key isolation, save/reopen/Undo and pinned-SDK regressions.
+    The Flutter 3.44.8 default-transition key limitation and preview workaround
+    are explicit; see [AnimatedSwitcher](ANIMATED_SWITCHER.md).
+  - [x] Add AnimatedTheme: four constructor properties, six ThemeData factory
+    presets plus whole typed ThemeData references, native On end, optional
+    200 ms Duration, required-child wrapping, strict material.dart proof and
+    native ThemeData tween. See [AnimatedTheme](ANIMATED_THEME.md).
+  - [x] Add Theme: required complete ThemeData and Child, six shared presets,
+    strict local/imported references, immediate native inheritance, atomic
+    wrapping/replacement, stable Properties, save/reopen/Undo and SVG icons.
+    See [Theme](THEME.md).
+  - [x] Add DefaultTextStyle and its static merge method: 41 typed rows each,
+    complete local TextStyle and paragraph projection, nullable inheritance,
+    strict source references, atomic required-child wrapping, stable editors,
+    immediate native Canvas and save/reopen. The SDK fallback sentinel is
+    non-insertable. See [DefaultTextStyle](DEFAULT_TEXT_STYLE.md).
+  - [x] Add DefaultTextStyleTransition: all five scalar arguments, required Child,
+    31 shared local TextStyle fields, exact stopped-animation preset, strict
+    Animation<TextStyle> references and native listener lifecycle. Stable
+    Properties, Canvas and source persistence are covered; no implicit timing
+    controls are invented. See [DefaultTextStyleTransition](DEFAULT_TEXT_STYLE_TRANSITION.md).
+  - [x] Add FadeTransition and SliverFadeTransition: required typed opacity
+    animation or local stopped value, optional box/sliver slots, complete
+    semantics control, native render/listener lifecycle, strict source proof,
+    stable editors and safe empty-slot previews. See [Fade transitions](FADE_TRANSITION.md).
+  - [x] Add SlideTransition: required Animation<Offset> or stopped signed local
+    fractions, optional hit-test transform, exact null/LTR/RTL direction,
+    optional box Child, native listener lifecycle and strict source evidence.
+    See [SlideTransition](SLIDE_TRANSITION.md).
+  - [x] Add ScaleTransition: required signed Animation<double> or local constant,
+    full physical Alignment references, nullable FilterQuality, optional Child,
+    strict source evidence, retained State/listeners and native status filtering.
+    See [ScaleTransition](SCALE_TRANSITION.md).
+  - [x] Add RotationTransition: required signed turns Animation<double> or local
+    constant, physical Alignment references, nullable FilterQuality and optional
+    Child; native geometry/hits, lifecycle, status filtering and invalid-frame
+    quarantine. See [RotationTransition](ROTATION_TRANSITION.md).
+  - [x] Add SizeTransition: all five scalar inputs, optional Child, signed required
+    Animation<double>/local factor, both axes, nullable modern and deprecated
+    alignment, cross-axis factor, native clipped layout and source isolation.
+    See [SizeTransition](SIZE_TRANSITION.md).
+  - [x] Add PositionedTransition: required Animation<RelativeRect>/local physical
+    LTRB insets and Child, transactional direct-Stack wrapping, typed source
+    evidence, editors, native layout and source-isolated Canvas.
+    See [PositionedTransition](POSITIONED_TRANSITION.md).
+  - [x] Add RelativePositionedTransition: required Animation<Rect?>, independent
+    reference Size and Child; local/source/null-value modes, direct Stack wrapping,
+    strict Dart evidence, native Canvas and save/reopen coverage.
+    See [RelativePositionedTransition](RELATIVE_POSITIONED_TRANSITION.md).
+  - [x] Add DecoratedBoxTransition: required local BoxDecoration or strict
+    Animation<Decoration>, both painting positions and required Child;
+    shared structured decoration/image editors, root-compatible atomic wrapping,
+    isolated Canvas and native animation lifecycle.
+    See [DecoratedBoxTransition](DECORATED_BOX_TRANSITION.md).
+  - [x] Add AlignTransition: required local/typed Animation<AlignmentGeometry>,
+    nullable local/source factors, atomic required-child wrapping, native RTL
+    layout, strict source evidence, save/reopen and non-finite preview protection.
+    See [AlignTransition](ALIGN_TRANSITION.md).
+  - [x] Add MatrixTransition: required local/typed Animation<double>, fixed matrix
+    or TransformCallback with source lifecycle actions, physical Alignment,
+    status-dependent FilterQuality and optional Child; native 2D/3D rendering,
+    strict evidence, editor/persistence contracts and isolated Canvas.
+    See [MatrixTransition](MATRIX_TRANSITION.md).
+  - [x] Add ModalBarrier: seven exact parameters, nullable typed sources, native
+    On dismiss lifecycle, semantic clipping notifier, all SDK platform semantics,
+    childless placement, safe isolated Canvas and persistence/SDK contracts.
+    See [ModalBarrier](MODAL_BARRIER.md).
+  - [x] Add AnimatedModalBarrier: seven exact parameters, required local/typed
+    color animation, correct nullable defaults, native Events, semantic clipping
+    notifier, animation ownership, safe Canvas and editor/persistence contracts.
+    See [AnimatedModalBarrier](ANIMATED_MODAL_BARRIER.md).
+  - [x] Add AnimatedIcon: all 14 SDK glyphs, themed SVG preview strips, six
+    constructor parameters, typed source evidence, native progress/theme/direction,
+    save/reopen/history and explicit SDK custom-data restriction.
+    See [AnimatedIcon](ANIMATED_ICON.md).
+  - [x] Add FadeInImage: all 23 general-constructor parameters, independent
+    asset/typed providers, both error builders, native two-phase transition,
+    caching/gapless behavior and exact analyzer evidence. Named factory
+    combinations use provider composition, not separate aliases.
+    See [FadeInImage](FADE_IN_IMAGE.md).
+  - [x] Add RawImage: all 16 parameters, exact dart:ui.Image? source proof,
+    local/stopped or nullable live opacity, Rect? nine-patch source, native
+    painting/handle ownership, Properties/save/reopen/history and safe Canvas.
+    See [RawImage](RAW_IMAGE.md).
+  - [ ] Next palette slice: ColorFiltered (typed color filter and native painting).
+  - [x] Add SliverFloatingHeader: required box Child with an explicit creation
+    seed and atomic replacement, both snap modes, full nullable AnimationStyle,
+    independent durations/43 curves, strict source proof and native Canvas.
+    See [SliverFloatingHeader](SLIVER_FLOATING_HEADER.md).
+  - [x] Add PinnedHeaderSliver: complete optional Child, native content-sized
+    pinned geometry, both axes/reverse/RTL, dynamic size and semantics, slot
+    editing, exact placement/history, four SVGs and real-SDK verification.
+    See [PinnedHeaderSliver](PINNED_HEADER_SLIVER.md).
+  - [x] Add SliverResizingHeader: all three nullable box slots, hidden prototype
+    measurement, intrinsic child sizing, native pinned geometry, slot editing,
+    placement and move/replace history, four SVGs and pinned-SDK verification.
+    See [SliverResizingHeader](SLIVER_RESIZING_HEADER.md).
+  - [x] Add SliverPersistentHeader: required typed Delegate, Pinned/Floating,
+    reversible starter delegate source scaffolding outside managed regions,
+    exact user-code preservation, isolated native preview with explicit limitation,
+    sliver-only placement, four SVGs, strict analyzer and native-mode tests.
+    See [SliverPersistentHeader](SLIVER_PERSISTENT_HEADER.md).
+  - [x] Add SliverLayoutBuilder: complete required Builder contract, closed empty
+    preset, typed function/getter/member/factory, exact signature and non-dynamic
+    call-result proof, Sliver-only placement, stable Properties and source history.
+    Native Canvas remains isolated with explicit custom-builder limitations.
+    See [SliverLayoutBuilder](SLIVER_LAYOUT_BUILDER.md).
+  - [x] Add SliverAnimatedOpacity: required Opacity/Duration, all Curves presets
+    and typed references, On end Events, optional Sliver, real native animations,
+    exact source history, strict Duration analyzer evidence and packaged Canvas.
+    See [SliverAnimatedOpacity](SLIVER_ANIMATED_OPACITY.md).
+  - [x] Add SliverSafeArea: all four side checkboxes, typed physical Minimum,
+    required Sliver wrapping, native system-padding/removal and nested geometry,
+    RTL/reverse/keyboard-reduced padding, stable Properties, exact Save/reopen
+    and Undo/Redo, candidate analyzer, SVG assets and packaged Canvas contracts.
+    See [SliverSafeArea](SLIVER_SAFE_AREA.md).
+  - [x] Add SliverVisibility and SliverVisibility.maintain: every constructor
+    field, typed checkboxes and dependent validation, required sliver wrapping,
+    optional replacement, native retention modes, hidden-branch geometry,
+    source generation, Save/reopen, Undo/Redo, SVG variants and real-SDK tests.
+    See [SliverVisibility](SLIVER_VISIBILITY.md).
+  - [x] Add SliverOffstage: complete optional Offstage checkbox and Sliver slot,
+    native hidden/visible layout, semantics and pointer behavior, retained state,
+    safe empty slots, hidden-descendant geometry exclusion, tree/Canvas drops,
+    Save/reopen, Undo/Redo, SVG icons and real-SDK contracts.
+    See [SliverOffstage](SLIVER_OFFSTAGE.md).
+  - [x] Add SliverIgnorePointer: both native fields including the deprecated
+    nullable semantics override, optional sliver, stable checkbox editing,
+    native pointer/semantics/keyboard behavior, compact Designer handles,
+    safe empty-slot lowering, generated evidence, save/reopen/history and SVGs.
+    See [SliverIgnorePointer](SLIVER_IGNORE_POINTER.md).
+  - [x] Add SliverOpacity: full opacity/alwaysIncludeSemantics/sliver constructor,
+    strict [0, 1] numeric domain, stable checkbox Properties and optional sliver
+    editing. Native transparency/semantics/hit-testing/scroll extent, safe empty
+    sliver lowering, typed evidence, save/reopen/Undo/Redo and SVG icons.
+    See [SliverOpacity](SLIVER_OPACITY.md).
+  - [x] Add SliverConstrainedCrossAxis: complete required maxExtent/sliver
+    constructor, zero/fractional/positive Infinity support, typed Properties,
+    atomic wrapping, native constrained geometry and zero-flex group behavior,
+    exact generation/evidence/save/reopen/Undo/Redo and reviewed icons.
+    See [SliverConstrainedCrossAxis](SLIVER_CONSTRAINED_CROSS_AXIS.md).
+  - [x] Add SliverCrossAxisExpanded: required positive flex and required sliver,
+    atomic wrapping of existing direct CrossAxisGroup children, strict ParentData
+    placement, stable Properties, exact generation/evidence/save/reopen/Undo/Redo
+    and native Canvas proportions in both axes, reverse and RTL.
+    See [SliverCrossAxisExpanded](SLIVER_CROSS_AXIS_EXPANDED.md).
+  - [x] Add SliverCrossAxisGroup: complete native ordered slivers constructor,
+    empty/nested groups, mixed main-axis groups, equal native cross-axis shares,
+    longest-child scroll extent, typed Slots, exact generation/evidence/history,
+    stable properties and disjoint native Canvas drop zones. Both axes, reverse,
+    RTL and live cross/main-axis reparenting are verified.
+    See [SliverCrossAxisGroup](SLIVER_CROSS_AXIS_GROUP.md).
+  - [x] Add SliverMainAxisGroup: complete native ordered slivers constructor,
+    empty/nested groups, typed slot insertion/reorder/move/remove/clear, stable
+    Properties, exact generation, candidate analysis, save/reopen and Undo/Redo.
+    Native Canvas inherits axis/reverse/RTL and clips hit/drop geometry to the
+    viewport. See [SliverMainAxisGroup](SLIVER_MAIN_AXIS_GROUP.md).
+  - [x] Add all three SliverVariedExtentList constructors: all thirteen native
+    non-key fields, required typed extent callback/preset, builder and key-index
+    callbacks, project delegates, visual children, generation/evidence/history,
+    stable Properties and labeled isolated-Canvas approximation for project sizes.
+    See [SliverVariedExtentList](SLIVER_VARIED_EXTENT_LIST.md).
+  - [x] Add all three SliverPrototypeExtentList constructors: ten native fields,
+    independent measurement-only Prototype item and visual children slots,
+    typed builders/delegates, explicit empty prototype preset, native measured
+    Canvas geometry without hidden hit/drop handles, stable Properties, exact
+    generation, candidate proof, save/reopen/history and real SDK verification.
+    See [SliverPrototypeExtentList](SLIVER_PROTOTYPE_EXTENT_LIST.md).
+  - [x] Add all three SliverFixedExtentList constructors: required finite
+    non-negative item extent (zero valid), ordered box children, nullable item
+    builder/count, key-index callback and typed custom delegates; all native
+    fields, stable checkbox Properties, generation/save/reopen/history, typed
+    evidence, native Canvas geometry/drop and real SDK tests.
+    See [SliverFixedExtentList](SLIVER_FIXED_EXTENT_LIST.md).
+  - [x] Add SliverFillViewport: all native fields, visual children with complete
+    list-delegate options, and a typed project delegate variant for list/builder/
+    custom subclasses. Native Canvas sizing, scroll/RTL/reverse, empty-child
+    drop, reference limitations, generation/evidence/save/reopen/history and
+    real SDK tests. See [SliverFillViewport](SLIVER_FILL_VIEWPORT.md).
+  - [x] Add SliverFillRemaining: both optional boolean fields and optional box
+   child, native scrollable/intrinsic/overscroll branches, exact omission/defaults,
+   checkbox Properties, sliver/box placement, Save/reopen and Undo/Redo,
+   native/RTL/reversed geometry parity, SVG icons and real-SDK contracts.
+   See [SliverFillRemaining](SLIVER_FILL_REMAINING.md).
+  - [ ] Continue admitting the practical post-core backlog only as complete
+  vertical slices. The current catalog presents 209 admitted built-in
+   definitions: all 209 have reviewed Canvas/Create/DnD capability, while 201
+   expose typed Properties and eight structural definitions have child-slot
+   editors. The catalog contains 175 const definitions and 7,302 writable
+   property rows (7,284 outside Scaffold). This does not imply
+    Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated
   `lib/theme/app_theme.dart`, default light/dark Material seed themes,

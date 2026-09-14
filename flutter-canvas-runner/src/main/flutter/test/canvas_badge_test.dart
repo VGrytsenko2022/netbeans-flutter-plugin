@@ -23,7 +23,7 @@ void main() {
       final runtime = canvasRuntimeWidgetSchemaContractForTesting();
       final block = runtime.substring(
         runtime.indexOf('W|$_type\n'),
-        runtime.indexOf('W|flutter.material.Card\n'),
+        runtime.indexOf('W|flutter.material.BottomAppBar\n'),
       );
       final rows = block
           .split('\n')
@@ -55,7 +55,7 @@ void main() {
         'label',
         'child',
       ]);
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
     },
   );
 

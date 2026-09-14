@@ -102,7 +102,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.PhysicalShape\n');
-      final end = contract.indexOf('W|flutter.widgets.Placeholder\n', start);
+      final end = contract.indexOf('\nW|', start) + 1;
       final tokens = canvasColorSchemeThemeTokens.toList()..sort();
       final colors = 'color:any;themeToken:tokens:${tokens.join(',')}';
       expect(

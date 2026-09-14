@@ -1,6 +1,7 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.command.ClearSlotChildren;
+import dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder;
 import dev.flutter.netbeans.designer.command.DesignerCommandKind;
 import dev.flutter.netbeans.designer.command.ReplaceSlotChild;
 import dev.flutter.netbeans.designer.model.SlotName;
@@ -45,6 +46,14 @@ class DesignerCommandPresentationTest {
                 DesignerCommandPresentation.operation(clear));
         assertEquals(OWNER + ".children (2 children)",
                 DesignerCommandPresentation.target(clear));
+    }
+
+    @Test
+    void menuBuilderCreationNamesTheExactWidgetPropertyAndMethod() {
+        var command = new CreateMenuAnchorBuilder(OWNER, "_buildMenu");
+        assertEquals("Create Menu Anchor Builder", DesignerCommandPresentation.title(command.kind()));
+        assertEquals("Create MenuAnchor builder", DesignerCommandPresentation.operation(command));
+        assertEquals(OWNER + ".builder -> _buildMenu", DesignerCommandPresentation.target(command));
     }
 
     @Test

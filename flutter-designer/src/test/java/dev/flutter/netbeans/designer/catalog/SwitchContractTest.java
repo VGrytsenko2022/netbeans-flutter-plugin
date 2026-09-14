@@ -36,10 +36,10 @@ class SwitchContractTest {
         assertEquals(b(false), prototype.properties().get(p("value")));
         assertTrue(valid(prototype));
         assertTrue(WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).isEmpty());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
-        assertEquals(512, ValidationLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(1024, ValidationLimits.defaults().maxPropertiesPerWidget());
     }
 
     @Test

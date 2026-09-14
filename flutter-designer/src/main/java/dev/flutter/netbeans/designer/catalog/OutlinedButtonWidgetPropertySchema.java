@@ -131,7 +131,9 @@ public final class OutlinedButtonWidgetPropertySchema {
 
     /** Shared style semantics without imposing the Child/Icon constructor contract. */
     public static boolean usesFullStyleProjection(WidgetNode node) {
-        return isFullStyleButton(node) || node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE);
+        return isFullStyleButton(node) || node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE)
+                || node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
+                || node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE);
     }
 
     public static Optional<String> slotUnavailableReason(WidgetNode node, SlotName slot) {

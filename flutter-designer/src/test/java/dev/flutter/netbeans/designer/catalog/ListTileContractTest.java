@@ -223,15 +223,15 @@ class ListTileContractTest {
     @Test
     void aggregateCountsAndUnchangedBudgetsAreExecutable() {
         var definitions = CATALOG.definitions();
-        assertEquals(89, definitions.size());
-        assertEquals(82, definitions.stream().filter(WidgetDefinition::constConstructor).count());
-        assertEquals(3894, definitions.stream().mapToInt(v -> v.properties().size()).sum());
-        assertEquals(350, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
-        assertEquals(15, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
-        assertEquals(26, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(211, definitions.size());
+        assertEquals(177, definitions.stream().filter(WidgetDefinition::constConstructor).count());
+        assertEquals(7341, definitions.stream().mapToInt(v -> v.properties().size()).sum());
+        assertEquals(674, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
+        assertEquals(53, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
+        assertEquals(52, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 
     private static boolean valid(WidgetNode root) { return new WidgetTreeValidator().validate(document(root), CATALOG).valid(); }

@@ -145,7 +145,7 @@ class AbsorbPointerContractTest {
                     assertFalse(decoded.migrated());
                     assertEquals(document, decoded.document());
                     assertArrayEquals(encoded.copyBytes(), codec.encode(decoded.document()).copyBytes());
-                    assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 13"));
+                    assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 16"));
                 }
             }
         }
@@ -184,9 +184,9 @@ class AbsorbPointerContractTest {
         }
         var invalid = new WidgetNode(StableId.random(), TYPE, Map.of(), Map.of(CHILD, new WidgetSlot.ListSlot(List.of())));
         assertFalse(validator.validate(document(invalid), BuiltInWidgetCatalog.getDefault()).valid());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     private static Map<PropertyName, PropertyValue> values(Optional<Boolean> absorbing, Optional<Boolean> semantics) {

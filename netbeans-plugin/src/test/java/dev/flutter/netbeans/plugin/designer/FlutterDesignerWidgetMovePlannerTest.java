@@ -206,6 +206,70 @@ class FlutterDesignerWidgetMovePlannerTest {
     }
 
     @Test
+    void tooltipMovesWithExactAnchorAndAllowsOptionalAnchorExtractionWithoutRemovingContent() {
+        var base = dev.flutter.netbeans.plugin.designer.properties.TooltipPropertyContractTest.prototype();
+        var tooltip = new WidgetNode(A_ID, base.type(), base.properties(), base.slots());
+        var doc = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(tooltip, listParent(B_ID, STACK, CHILDREN, List.of()))));
+        assertAcceptedCommandApplies(doc, BUILT_INS, tooltip, planner.plan(doc, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        var anchor = ((WidgetSlot.SingleSlot) tooltip.slots().get(CHILD)).child().orElseThrow();
+        assertAcceptedCommandApplies(doc, BUILT_INS, anchor, planner.plan(doc, BUILT_INS, anchor.id(), new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        assertEquals(base.slots(), tooltip.slots()); assertEquals(base.properties(), tooltip.properties());
+    }
+
+    @Test
+    void expansionTileMovesAllFiveSlotsTogetherAndOnlyTheRequiredTitleCannotBeExtracted() {
+        var base = dev.flutter.netbeans.plugin.designer.properties.ExpansionTilePropertyContractTest.prototype();
+        var tile = new WidgetNode(A_ID, base.type(), base.properties(), base.slots());
+        var doc = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(tile, listParent(B_ID, STACK, CHILDREN, List.of()))));
+        assertAcceptedCommandApplies(doc, BUILT_INS, tile, planner.plan(doc, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        for (String slot : List.of("title", "leading", "subtitle", "trailing")) {
+            var child = ((WidgetSlot.SingleSlot) tile.slots().get(new SlotName(slot))).child().orElseThrow();
+            var extraction = planner.plan(doc, BUILT_INS, child.id(), new FlutterDesignerWidgetMovePlanner.On(B_ID));
+            if (slot.equals("title")) assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class, extraction);
+            else assertAcceptedCommandApplies(doc, BUILT_INS, child, extraction);
+        }
+        for (var child : ((WidgetSlot.ListSlot) tile.slots().get(CHILDREN)).children())
+            assertAcceptedCommandApplies(doc, BUILT_INS, child, planner.plan(doc, BUILT_INS, child.id(), new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+        assertEquals(base.slots(), tile.slots());
+    }
+
+    @Test
+    void radioListTileMovesWithChildrenAndBlocksSubtitleExtractionOnlyWhileThreeLineIsTrue() {
+        var base = dev.flutter.netbeans.plugin.designer.properties.RadioListTilePropertyContractTest.prototype();
+        var title = base.slots().get(new SlotName("title")); var secondary = base.slots().get(new SlotName("secondary"));
+        var subtitle = ((WidgetSlot.SingleSlot) base.slots().get(new SlotName("subtitle"))).child().orElseThrow();
+        for (String variant : List.of("standard", "adaptive")) for (boolean threeLine : List.of(false, true)) {
+            var properties = new LinkedHashMap<>(base.properties()); properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            properties.put(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine));
+            var tile = new WidgetNode(A_ID, base.type(), properties, base.slots());
+            var doc = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(tile, listParent(B_ID, STACK, CHILDREN, List.of()))));
+            assertAcceptedCommandApplies(doc, BUILT_INS, tile, planner.plan(doc, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+            var extraction = planner.plan(doc, BUILT_INS, subtitle.id(), new FlutterDesignerWidgetMovePlanner.On(B_ID));
+            if (threeLine) assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class, extraction);
+            else assertAcceptedCommandApplies(doc, BUILT_INS, subtitle, extraction);
+            assertEquals(title, tile.slots().get(new SlotName("title"))); assertEquals(secondary, tile.slots().get(new SlotName("secondary")));
+        }
+    }
+
+    @Test
+    void switchListTileMovesWithChildrenAndBlocksSubtitleExtractionOnlyWhileThreeLineIsTrue() {
+        var base = dev.flutter.netbeans.plugin.designer.properties.SwitchListTilePropertyContractTest.prototype();
+        var title = base.slots().get(new SlotName("title")); var secondary = base.slots().get(new SlotName("secondary"));
+        var subtitle = ((WidgetSlot.SingleSlot) base.slots().get(new SlotName("subtitle"))).child().orElseThrow();
+        for (String variant : List.of("standard", "adaptive")) for (boolean threeLine : List.of(false, true)) {
+            var properties = new LinkedHashMap<>(base.properties()); properties.put(new PropertyName("variant"), new PropertyValue.StringValue(variant));
+            properties.put(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine));
+            var tile = new WidgetNode(A_ID, base.type(), properties, base.slots());
+            var doc = document(listParent(ROOT_ID, COLUMN, CHILDREN, List.of(tile, listParent(B_ID, STACK, CHILDREN, List.of()))));
+            assertAcceptedCommandApplies(doc, BUILT_INS, tile, planner.plan(doc, BUILT_INS, A_ID, new FlutterDesignerWidgetMovePlanner.On(B_ID)));
+            var extraction = planner.plan(doc, BUILT_INS, subtitle.id(), new FlutterDesignerWidgetMovePlanner.On(B_ID));
+            if (threeLine) assertInstanceOf(FlutterDesignerWidgetMovePlanner.Rejected.class, extraction);
+            else assertAcceptedCommandApplies(doc, BUILT_INS, subtitle, extraction);
+            assertEquals(title, tile.slots().get(new SlotName("title"))); assertEquals(secondary, tile.slots().get(new SlotName("secondary")));
+        }
+    }
+
+    @Test
     void rangeSliderMovesExactFullPropertiesAsLeafAndRejectsInventedChild() {
         var source = WidgetNodePrototypeFactory.create(BUILT_INS.find(type("flutter.widgets.Text")).orElseThrow(), A_ID);
         var rangeSlider = new WidgetNode(B_ID, type("flutter.material.RangeSlider"),

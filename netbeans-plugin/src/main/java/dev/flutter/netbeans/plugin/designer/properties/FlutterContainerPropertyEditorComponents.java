@@ -385,10 +385,15 @@ final class FlutterContainerPropertyEditorComponents {
             super(editor, binding, environment);
             setLayout(new BorderLayout(0, 8));
             setPreferredSize(new Dimension(480, 245));
+            boolean physicalOnly = binding.definition().constraints().stream().anyMatch(
+                    dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.AlignmentValues.class::isInstance);
+            if (physicalOnly) basis.setModel(new javax.swing.DefaultComboBoxModel<>(
+                    new PropertyValue.AlignmentGeometryValue.HorizontalBasis[]{PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL}));
             setName("flutter.container.alignment.custom");
             getAccessibleContext().setAccessibleName("Container alignment editor");
             getAccessibleContext().setAccessibleDescription(
-                    "Edits physical or text-direction-aware Flutter AlignmentGeometry coordinates.");
+                    physicalOnly ? "Edits physical Flutter Alignment coordinates. Directional alignment is not accepted. Finite coordinates outside [-1,1] are allowed."
+                    : "Edits physical or text-direction-aware Flutter AlignmentGeometry coordinates.");
 
             preset.addItem("Custom coordinates");
             Arrays.stream(PRESETS).map(AlignmentPreset::label).forEach(preset::addItem);
@@ -406,8 +411,8 @@ final class FlutterContainerPropertyEditorComponents {
             }
             addRow(form, row++, "Preset:", preset);
             addRow(form, row++, "Horizontal basis:", basis);
-            addRow(form, row++, "Horizontal (−1…1):", horizontal);
-            addRow(form, row, "Vertical (−1…1):", vertical);
+            addRow(form, row++, "Horizontal coordinate:", horizontal);
+            addRow(form, row, "Vertical coordinate:", vertical);
             add(form, BorderLayout.NORTH);
 
             PropertyValue.AlignmentGeometryValue value = initialValue().explicitValue()

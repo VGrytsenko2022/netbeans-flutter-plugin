@@ -43,6 +43,28 @@ public final class DartSourceTransitionPlanner {
             byte[] liveSourceBytes,
             DartSourceDescriptor baselineDescriptor,
             DartGenerationResult prospectiveGeneration) {
+        return planInternal(baseline, liveSourceBytes, baselineDescriptor,
+                prospectiveGeneration, Optional.empty());
+    }
+
+    /** Includes only the bounded, retained user-member contribution in the candidate. */
+    public DartSourceTransitionResult plan(
+            DartThreeWayIntegrityResult baseline,
+            byte[] liveSourceBytes,
+            DartSourceDescriptor baselineDescriptor,
+            DartGenerationResult prospectiveGeneration,
+            DartUserSourceProjection userSourceProjection) {
+        return planInternal(baseline, liveSourceBytes, baselineDescriptor,
+                prospectiveGeneration, Optional.of(Objects.requireNonNull(
+                        userSourceProjection, "userSourceProjection")));
+    }
+
+    private DartSourceTransitionResult planInternal(
+            DartThreeWayIntegrityResult baseline,
+            byte[] liveSourceBytes,
+            DartSourceDescriptor baselineDescriptor,
+            DartGenerationResult prospectiveGeneration,
+            Optional<DartUserSourceProjection> projection) {
         Objects.requireNonNull(baseline, "baseline");
         Objects.requireNonNull(liveSourceBytes, "liveSourceBytes");
         Objects.requireNonNull(baselineDescriptor, "baselineDescriptor");
@@ -117,7 +139,21 @@ public final class DartSourceTransitionPlanner {
                             "Generated Dart text, UTF-8 bytes, size and normalized "
                             + "SHA-256 do not agree."));
         }
-        if (!hashesChanged(baselineDescriptor, generated)) {
+        final DartUserSourceProjection exactProjection;
+        final byte[] userSourceBytes;
+        try {
+            exactProjection = projection.isPresent()
+                    ? projection.orElseThrow().rebaseOnto(liveSourceBytes, baselineDescriptor)
+                    : DartUserSourceProjection.identity(liveSourceBytes, baselineDescriptor);
+            userSourceBytes = exactProjection.applyTo(liveSourceBytes, baselineDescriptor);
+        } catch (IllegalArgumentException invalidProjection) {
+            return failure(DartSourceTransitionStatus.CONFLICT, baseline, live,
+                    prospectiveGeneration, DartSourceTransitionDiagnostic.source(
+                            DartSourceTransitionDiagnosticCode.USER_SOURCE_PROJECTION_CONFLICT,
+                            SOURCE_PATH, invalidProjection.getMessage()));
+        }
+        if (!hashesChanged(baselineDescriptor, generated)
+                && Arrays.equals(liveSourceBytes, userSourceBytes)) {
             return new DartSourceTransitionResult(
                     DartSourceTransitionStatus.NO_CHANGES,
                     baseline,
@@ -129,7 +165,12 @@ public final class DartSourceTransitionPlanner {
 
         DartSourceDescriptor prospectiveDescriptor = descriptorWithGeneratedHashes(
                 baselineDescriptor, generated);
-        OptionalLong candidateSize = candidateSize(live, generated);
+        DartSourceIntegrityResult projectedLive = scanner.scan(userSourceBytes, baselineDescriptor);
+        if (!projectedLive.onDiskDeclaredMatch()) {
+            return failure(statusForCandidate(projectedLive), baseline, live,
+                    prospectiveGeneration, candidateDiagnostic(projectedLive));
+        }
+        OptionalLong candidateSize = candidateSize(projectedLive, generated);
         if (candidateSize.isEmpty()) {
             return failure(
                     DartSourceTransitionStatus.CONFLICT,
@@ -158,7 +199,7 @@ public final class DartSourceTransitionPlanner {
                             + scanner.limits().maxSourceBytes()
                             + " byte writable-source limit."));
         }
-        Optional<byte[]> candidate = candidate(live, generated);
+        Optional<byte[]> candidate = candidate(projectedLive, generated);
         if (candidate.isEmpty()) {
             return failure(
                     DartSourceTransitionStatus.CONFLICT,
@@ -190,7 +231,10 @@ public final class DartSourceTransitionPlanner {
                 prospectiveGeneration,
                 prospectiveDescriptor,
                 candidateSnapshot,
-                candidateIntegrity);
+                candidateIntegrity,
+                exactProjection,
+                userSourceBytes,
+                baselineDescriptor);
         return new DartSourceTransitionResult(
                 DartSourceTransitionStatus.READY,
                 baseline,

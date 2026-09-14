@@ -1,15 +1,21 @@
 package dev.flutter.netbeans.plugin.designer.wizard;
 
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.plugin.dart.wizard.DartClassNaming;
+import java.awt.Component;
 import java.awt.GridBagConstraints;
 import java.awt.GridBagLayout;
 import java.awt.Insets;
 import java.io.File;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.util.Objects;
+import javax.swing.DefaultListCellRenderer;
 import javax.swing.JButton;
+import javax.swing.JComboBox;
 import javax.swing.JFileChooser;
 import javax.swing.JLabel;
+import javax.swing.JList;
 import javax.swing.JPanel;
 import javax.swing.JTextField;
 import javax.swing.event.DocumentEvent;
@@ -17,7 +23,9 @@ import javax.swing.event.DocumentListener;
 import org.openide.awt.Mnemonics;
 
 final class FlutterDesignerFormWizardVisual extends JPanel {
+    static final String WIDGET_KIND_NAME = "flutter.designer.widgetKind";
     private final JTextField className = new JTextField(28);
+    private final JComboBox<WidgetClassKind> widgetKind = new JComboBox<>(WidgetClassKind.values());
     private final JTextField location = new JTextField(28);
     private final JTextField dartFile = new JTextField(28);
     private final JTextField modelFile = new JTextField(28);
@@ -41,21 +49,36 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
 
         addRow(0, label(Bundle.LBL_DesignerClassName(), className),
                 className, null, base);
+        widgetKind.setName(WIDGET_KIND_NAME);
+        widgetKind.setSelectedItem(WidgetClassKind.STATELESS);
+        widgetKind.setRenderer(new DefaultListCellRenderer() {
+            @Override
+            public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                    boolean selected, boolean focused) {
+                super.getListCellRendererComponent(list, value, index, selected, focused);
+                if (value instanceof WidgetClassKind kind) {
+                    setText(kind == WidgetClassKind.STATEFUL
+                            ? Bundle.LBL_DesignerKindStateful() : Bundle.LBL_DesignerKindStateless());
+                }
+                return this;
+            }
+        });
+        addRow(1, label(Bundle.LBL_DesignerWidgetKind(), widgetKind), widgetKind, null, base);
         Mnemonics.setLocalizedText(browse, Bundle.LBL_BrowseDesignerLocation());
-        addRow(1, label(Bundle.LBL_DesignerLocation(), location),
+        addRow(2, label(Bundle.LBL_DesignerLocation(), location),
                 location, browse, base);
 
         dartFile.setEditable(false);
         modelFile.setEditable(false);
-        addRow(2, label(Bundle.LBL_DesignerDartFile(), dartFile),
+        addRow(3, label(Bundle.LBL_DesignerDartFile(), dartFile),
                 dartFile, null, base);
-        addRow(3, label(Bundle.LBL_DesignerModelFile(), modelFile),
+        addRow(4, label(Bundle.LBL_DesignerModelFile(), modelFile),
                 modelFile, null, base);
 
         JLabel hint = new JLabel(Bundle.LBL_DesignerFormHint());
         GridBagConstraints hintConstraints = (GridBagConstraints) base.clone();
         hintConstraints.gridx = 0;
-        hintConstraints.gridy = 4;
+        hintConstraints.gridy = 5;
         hintConstraints.gridwidth = 3;
         hintConstraints.weightx = 1;
         hintConstraints.weighty = 1;
@@ -67,6 +90,8 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
                 Bundle.ACS_DesignerClassName());
         className.getAccessibleContext().setAccessibleDescription(
                 Bundle.ACD_DesignerClassName());
+        widgetKind.getAccessibleContext().setAccessibleName(Bundle.ACS_DesignerWidgetKind());
+        widgetKind.getAccessibleContext().setAccessibleDescription(Bundle.ACD_DesignerWidgetKind());
         location.getAccessibleContext().setAccessibleName(
                 Bundle.ACS_DesignerLocation());
         location.getAccessibleContext().setAccessibleDescription(
@@ -81,7 +106,7 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
                 Bundle.ACS_DesignerModelFile());
     }
 
-    private static JLabel label(String text, JTextField field) {
+    private static JLabel label(String text, Component field) {
         JLabel label = new JLabel();
         Mnemonics.setLocalizedText(label, text);
         label.setLabelFor(field);
@@ -91,7 +116,7 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
     private void addRow(
             int row,
             JLabel label,
-            JTextField field,
+            Component field,
             JButton button,
             GridBagConstraints base) {
         GridBagConstraints labelConstraints = (GridBagConstraints) base.clone();
@@ -122,6 +147,7 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
         };
         className.getDocument().addDocumentListener(listener);
         location.getDocument().addDocumentListener(listener);
+        widgetKind.addActionListener(event -> changed());
         browse.addActionListener(event -> chooseLocation());
     }
 
@@ -202,6 +228,14 @@ final class FlutterDesignerFormWizardVisual extends JPanel {
 
     String className() {
         return className.getText().trim();
+    }
+
+    WidgetClassKind widgetKind() {
+        return (WidgetClassKind) widgetKind.getSelectedItem();
+    }
+
+    void setWidgetKind(WidgetClassKind kind) {
+        widgetKind.setSelectedItem(Objects.requireNonNull(kind, "kind"));
     }
 
     String relativeLocation() {

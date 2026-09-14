@@ -22,7 +22,7 @@ class FdV13ShapeBorderClipperCodecTest {
                     var original = document(physicalShape(properties, true));
                     var encoded = codec.encode(original);
                     String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
-                    assertTrue(json.contains("\"schemaVersion\": 13"), json);
+                    assertTrue(json.contains("\"schemaVersion\": 16"), json);
                     assertTrue(json.contains("\"kind\": \"shapeBorderClipper\""), json);
                     var decoded = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(encoded));
                     assertFalse(decoded.migrated());
@@ -41,7 +41,7 @@ class FdV13ShapeBorderClipperCodecTest {
                 json.replace("\"textDirection\": null", "\"textDirection\": \"up\""),
                 json.replace("\"textDirection\": null", "\"rawCode\": \"danger()\""),
                 json.replace("\"textDirection\": null", "\"textDirection\": null, \"extra\": true"),
-                json.replace("\"schemaVersion\": 13", "\"schemaVersion\": 12"),
+                json.replace("\"schemaVersion\": 16", "\"schemaVersion\": 12"),
                 json.replace("\"x\": 0", "\"x\": -1"))) {
             assertInstanceOf(FdDecodeResult.Invalid.class, codec.decode(invalid.getBytes(StandardCharsets.UTF_8)), invalid);
         }
@@ -57,12 +57,12 @@ class FdV13ShapeBorderClipperCodecTest {
     void migratesV12WithoutChangingExistingValuesOrOriginalBytesAndReencodesV13() throws Exception {
         var original = document(text());
         String current = new String(codec.encode(original).copyBytes(), StandardCharsets.UTF_8);
-        byte[] old = current.replace("\"schemaVersion\": 13", "\"schemaVersion\": 12").getBytes(StandardCharsets.UTF_8);
+        byte[] old = current.replace("\"schemaVersion\": 16", "\"schemaVersion\": 12").getBytes(StandardCharsets.UTF_8);
         var migrated = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(old));
         assertTrue(migrated.migrated());
         assertEquals(12, migrated.sourceSchemaVersion());
         assertEquals(original, migrated.document());
         assertArrayEquals(old, migrated.original().copyBytes());
-        assertTrue(new String(codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 13"));
+        assertTrue(new String(codec.encode(migrated.document()).copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 16"));
     }
 }

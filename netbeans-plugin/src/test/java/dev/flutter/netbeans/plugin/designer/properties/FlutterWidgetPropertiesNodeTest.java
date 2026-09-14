@@ -30,6 +30,7 @@ import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.MaterialIconRegistry;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
@@ -800,7 +801,7 @@ class FlutterWidgetPropertiesNodeTest {
             Node.PropertySet set = propertySet(node, group.setName());
             assertEquals(group.displayName(), set.getDisplayName());
             assertEquals(group.description(), set.getShortDescription());
-            assertEquals("General", set.getValue(
+            assertEquals("Properties", set.getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
 
@@ -856,7 +857,7 @@ class FlutterWidgetPropertiesNodeTest {
             Node.PropertySet set = propertySet(node, group.setName());
             assertEquals(group.displayName(), set.getDisplayName());
             assertEquals(group.description(), set.getShortDescription());
-            assertEquals("General", set.getValue(
+            assertEquals("Properties", set.getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
 
@@ -903,7 +904,7 @@ class FlutterWidgetPropertiesNodeTest {
         Node.PropertySet[] sets = node.getPropertySets();
         assertEquals(2 + ListViewWidgetPropertySchema.Group.values().length,
                 sets.length);
-        assertEquals(17, Arrays.stream(sets)
+        assertEquals(18, Arrays.stream(sets)
                 .filter(set -> !FlutterWidgetPropertiesNode.IDENTITY_SET_NAME.equals(
                         set.getName()))
                 .filter(set -> !FlutterWidgetPropertiesNode.SLOTS_SET_NAME.equals(
@@ -913,7 +914,7 @@ class FlutterWidgetPropertiesNodeTest {
                 : ListViewWidgetPropertySchema.Group.values()) {
             Node.PropertySet set = propertySet(node, group.setName());
             assertEquals(group.displayName(), set.getDisplayName());
-            assertEquals("General", set.getValue(
+            assertEquals("Properties", set.getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
 
@@ -959,7 +960,7 @@ class FlutterWidgetPropertiesNodeTest {
                     ContainerWidgetPropertySchema.Group.values()[index];
             assertEquals(group.setName(), sets[index + 1].getName());
             assertEquals(group.displayName(), sets[index + 1].getDisplayName());
-            assertEquals("General", sets[index + 1].getValue(
+            assertEquals("Properties", sets[index + 1].getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
         assertEquals(13, Arrays.stream(sets)
@@ -1299,11 +1300,12 @@ class FlutterWidgetPropertiesNodeTest {
                 .map(set -> set.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
                 .toList();
-        assertEquals(Set.of("General", "Slots"), Set.copyOf(tabs),
-                "the native PropertySheet must render exactly General and Slots tabs");
+        assertEquals(Set.of("Properties", "Events", "Slots"), Set.copyOf(tabs),
+                "the native PropertySheet separates Properties, Events and Slots tabs");
         assertEquals("Slots", tabs.getLast());
-        assertTrue(tabs.subList(0, tabs.size() - 1).stream()
-                .allMatch("General"::equals));
+        assertEquals("Events", tabs.get(tabs.size() - 2));
+        assertTrue(tabs.subList(0, tabs.size() - 2).stream()
+                .allMatch("Properties"::equals));
         assertEquals(List.of("appBar", "body", "floatingActionButton"),
                 names(slots.getProperties()));
         assertEquals("Empty", slots.getProperties()[0].getValue().toString());
@@ -1339,7 +1341,7 @@ class FlutterWidgetPropertiesNodeTest {
         Node.PropertySet slots = propertySet(
                 node, FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
 
-        assertEquals(List.of("General", "General", "Slots"),
+        assertEquals(List.of("Properties", "Properties", "Slots"),
                 Arrays.stream(node.getPropertySets())
                         .map(set -> set.getValue(
                                 FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
@@ -1496,6 +1498,12 @@ class FlutterWidgetPropertiesNodeTest {
                         new PropertyName("quarterTurns"),
                         new PropertyValue.IntegerValue(BigInteger.ZERO)));
         requiredValues.put(
+                "flutter.widgets.PreferredSize",
+                Map.of(
+                        new PropertyName("preferredSize"),
+                        new PropertyValue.SizeValue(
+                                BigDecimal.valueOf(100), BigDecimal.valueOf(56))));
+        requiredValues.put(
                 GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 Map.of(
                         new PropertyName("crossAxisCount"),
@@ -1518,9 +1526,15 @@ class FlutterWidgetPropertiesNodeTest {
         requiredValues.put(
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
                 Map.of(new PropertyName("decoration"), emptyDecoration()));
+        requiredValues.put("flutter.widgets.Builder",
+                Map.of(new PropertyName("builder"), new PropertyValue.CallbackValue("noop")));
         requiredValues.put("flutter.widgets.IndexedSemantics",
                 Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(BigInteger.ZERO)));
         requiredValues.put("flutter.widgets.TickerMode",
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
+        requiredValues.put("flutter.material.TooltipVisibility",
+                Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(true)));
+        requiredValues.put("flutter.material.MenuItemButton",
                 Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)));
         requiredValues.put("flutter.widgets.DefaultSelectionStyle",
                 Map.of(new PropertyName("merge"), new PropertyValue.BooleanValue(false)));
@@ -1539,6 +1553,11 @@ class FlutterWidgetPropertiesNodeTest {
                 new PropertyName("value"), new PropertyValue.StringValue("option"),
                 new PropertyName("valueType"), new PropertyValue.StringValue("String"),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
+        requiredValues.put("flutter.material.RadioListTile", Map.of(
+                new PropertyName("value"), new PropertyValue.StringValue("option"),
+                new PropertyName("valueType"), new PropertyValue.StringValue("String"),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard"),
+                new PropertyName("onChanged"), new PropertyValue.StringValue("noop")));
         requiredValues.put("flutter.material.RangeSlider", Map.of(
                 new PropertyName("valuesStart"), new PropertyValue.IntegerValue(java.math.BigInteger.ZERO),
                 new PropertyName("valuesEnd"), new PropertyValue.IntegerValue(java.math.BigInteger.ONE),
@@ -1550,6 +1569,10 @@ class FlutterWidgetPropertiesNodeTest {
         requiredValues.put("flutter.material.Switch", Map.of(
                 new PropertyName("value"), new PropertyValue.BooleanValue(false),
                 new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                new PropertyName("variant"), new PropertyValue.StringValue("standard")));
+        requiredValues.put("flutter.material.SwitchListTile", Map.of(
+                new PropertyName("value"), new PropertyValue.BooleanValue(false),
+                new PropertyName("onChanged"), new PropertyValue.StringValue("noop"),
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.Checkbox", Map.of(
                 new PropertyName("value"), new PropertyValue.BooleanValue(false),
@@ -1576,6 +1599,9 @@ class FlutterWidgetPropertiesNodeTest {
                 new PropertyName("variant"), new PropertyValue.StringValue("standard")));
         requiredValues.put("flutter.material.RefreshIndicator",
                 Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")));
+        requiredValues.put("flutter.widgets.ListWheelScrollView",
+                Map.of(new PropertyName("itemExtent"),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(50))));
         List<String> types = List.of(
                 "flutter.material.Scaffold",
                 "flutter.material.AppBar",
@@ -1603,6 +1629,15 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.RadioGroup",
                 "flutter.material.ListTile",
                 CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.value(),
+                "flutter.material.SwitchListTile",
+                "flutter.material.RadioListTile",
+                "flutter.material.ExpansionTile",
+                "flutter.material.Tooltip",
+                "flutter.material.TooltipVisibility",
+                "flutter.material.TooltipTheme",
+                "flutter.material.MenuItemButton",
+                "flutter.material.MenuAnchor",
+                "flutter.material.SubmenuButton",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -1630,6 +1665,7 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
+                "flutter.widgets.PreferredSize",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
                 SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value(),
@@ -1637,6 +1673,8 @@ class FlutterWidgetPropertiesNodeTest {
                 GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
                 SingleChildScrollViewWidgetPropertySchema
                         .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+                "flutter.widgets.PageView",
+                "flutter.widgets.ListWheelScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
@@ -1644,6 +1682,7 @@ class FlutterWidgetPropertiesNodeTest {
                 PlaceholderWidgetPropertySchema.PLACEHOLDER_TYPE.value(),
                 DirectionalityWidgetPropertySchema.DIRECTIONALITY_TYPE.value(),
                 DecoratedBoxWidgetPropertySchema.DECORATED_BOX_TYPE.value(),
+                "flutter.widgets.Builder",
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
                 ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
                 ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
@@ -1700,7 +1739,7 @@ class FlutterWidgetPropertiesNodeTest {
             }
         }
 
-        assertEquals(3894, writableCount,
+        assertEquals(5960, writableCount,
                 "the reviewed surface includes complete Scaffold, AppBar, "
                 + "ElevatedButton, TextField, Text, Icon, AspectRatio, Container, "
                 + "Opacity, Align, "
@@ -1713,8 +1752,8 @@ class FlutterWidgetPropertiesNodeTest {
                 + "Image, ColoredBox, Placeholder, Directionality, DecoratedBox, and "
                 + "ExcludeSemantics, IndexedStack, ClipRect, ClipOval, ClipRRect, and "
                 + "ClipPath and ClipRSuperellipse leaves");
-        assertEquals(3877, nonScaffoldWritableCount,
-                "all non-Scaffold built-ins expose their complete writable surface");
+        assertEquals(5942, nonScaffoldWritableCount,
+                "all reviewed scalar-matrix built-ins outside Scaffold expose their complete writable surface");
     }
 
     @Test
@@ -2994,7 +3033,7 @@ class FlutterWidgetPropertiesNodeTest {
         assertEquals(
                 ColoredBoxWidgetPropertySchema.Group.APPEARANCE.description(),
                 properties.getShortDescription());
-        assertEquals("General", properties.getValue(
+        assertEquals("Properties", properties.getValue(
                 FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
 
         Node.Property<FlutterPropertyCellValue> color = cellProperty(
@@ -3076,7 +3115,7 @@ class FlutterWidgetPropertiesNodeTest {
             Node.PropertySet set = propertySet(node, group.setName());
             assertEquals(group.displayName(), set.getDisplayName());
             assertEquals(group.description(), set.getShortDescription());
-            assertEquals("General", set.getValue(
+            assertEquals("Properties", set.getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
         assertEquals(List.of("color", "strokeWidth"), names(propertySet(
@@ -3194,7 +3233,7 @@ class FlutterWidgetPropertiesNodeTest {
             Node.PropertySet set = propertySet(node, group.setName());
             assertEquals(group.displayName(), set.getDisplayName());
             assertEquals(group.description(), set.getShortDescription());
-            assertEquals("General", set.getValue(
+            assertEquals("Properties", set.getValue(
                     FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE));
         }
         assertEquals(List.of("left", "top", "right", "bottom"), names(propertySet(
@@ -3276,7 +3315,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Direction", direction.getDisplayName()),
                 () -> assertEquals("Text flow direction inherited by this subtree.",
                         direction.getShortDescription()),
-                () -> assertEquals("General", direction.getValue(
+                () -> assertEquals("Properties", direction.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("textDirection"),
                         names(direction.getProperties())));
@@ -3339,7 +3378,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals(
                         "Reviewed BoxDecoration and whether it paints behind or in front of the child.",
                         decorationSet.getShortDescription()),
-                () -> assertEquals("General", decorationSet.getValue(
+                () -> assertEquals("Properties", decorationSet.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("decoration", "position"),
                         names(decorationSet.getProperties())));
@@ -3416,7 +3455,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals(
                         "Accessibility semantics exclusion for this subtree.",
                         semantics.getShortDescription()),
-                () -> assertEquals("General", semantics.getValue(
+                () -> assertEquals("Properties", semantics.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("excluding"),
                         names(semantics.getProperties())));
@@ -3801,9 +3840,9 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals("Rectangular paint clipping behavior.",
                         clipping.getShortDescription()),
-                () -> assertEquals("General", clipping.getValue(
+                () -> assertEquals("Properties", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", delegate.getValue(
+                () -> assertEquals("Properties", delegate.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())));
@@ -3920,9 +3959,9 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals("Oval paint clipping behavior.",
                         clipping.getShortDescription()),
-                () -> assertEquals("General", clipping.getValue(
+                () -> assertEquals("Properties", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", delegate.getValue(
+                () -> assertEquals("Properties", delegate.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())));
@@ -4056,11 +4095,11 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())),
-                () -> assertEquals("General", geometry.getValue(
+                () -> assertEquals("Properties", geometry.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", delegate.getValue(
+                () -> assertEquals("Properties", delegate.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", clipping.getValue(
+                () -> assertEquals("Properties", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)));
 
         Node.Property<FlutterPropertyCellValue> borderRadius = cellProperty(
@@ -4210,11 +4249,11 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())),
-                () -> assertEquals("General", geometry.getValue(
+                () -> assertEquals("Properties", geometry.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", delegate.getValue(
+                () -> assertEquals("Properties", delegate.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", clipping.getValue(
+                () -> assertEquals("Properties", clipping.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)));
 
         Node.Property<FlutterPropertyCellValue> borderRadius = cellProperty(
@@ -4368,9 +4407,9 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals("Clipping", clipping.getDisplayName()),
                 () -> assertEquals(List.of("clipBehavior"),
                         names(clipping.getProperties())),
-                () -> assertEquals("General", delegate.getValue(
+                () -> assertEquals("Properties", delegate.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
-                () -> assertEquals("General", shape.getValue(
+                () -> assertEquals("Properties", shape.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)));
 
         Node.Property<FlutterPropertyCellValue> clipper = cellProperty(
@@ -4480,7 +4519,7 @@ class FlutterWidgetPropertiesNodeTest {
                 () -> assertEquals(
                         "Alignment, direction, sizing, clipping, and the visible child index.",
                         layout.getShortDescription()),
-                () -> assertEquals("General", layout.getValue(
+                () -> assertEquals("Properties", layout.getValue(
                         FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE)),
                 () -> assertEquals(List.of(
                         "alignment", "textDirection", "clipBehavior", "sizing", "index"),
@@ -5555,6 +5594,7 @@ class FlutterWidgetPropertiesNodeTest {
         Arrays.stream(ScaffoldWidgetPropertySchema.Group.values())
                 .map(ScaffoldWidgetPropertySchema.Group::setName)
                 .forEach(expectedSets::add);
+        expectedSets.add(FlutterWidgetPropertiesNode.EVENTS_SET_NAME);
         expectedSets.add(FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
         assertEquals(expectedSets,
                 Arrays.stream(sets).map(Node.PropertySet::getName).toList());
@@ -5629,7 +5669,9 @@ class FlutterWidgetPropertiesNodeTest {
                 "textFieldBehavior",
                 "textFieldCursorSelection",
                 "textFieldCallbacks",
-                "textFieldRestoration"),
+                "textFieldRestoration",
+                "textFieldBuilders",
+                FlutterWidgetPropertiesNode.EVENTS_SET_NAME),
                 Arrays.stream(sets).map(Node.PropertySet::getName).toList());
         assertEquals(List.of(
                 "keyboardType", "textInputAction", "textCapitalization",
@@ -5655,11 +5697,12 @@ class FlutterWidgetPropertiesNodeTest {
                 "cursorErrorColor", "selectionHeightStyle",
                 "selectionWidthStyle", "mouseCursor"),
                 names(sets[4].getProperties()));
-        assertEquals(List.of(
-                "onChanged", "onEditingComplete", "onSubmitted",
-                "onAppPrivateCommand", "onTap", "onTapAlwaysCalled", "onTapOutside",
-                "onTapUpOutside"), names(sets[5].getProperties()));
+        assertEquals(List.of("onTapAlwaysCalled"), names(sets[5].getProperties()));
         assertEquals(List.of("restorationId"), names(sets[6].getProperties()));
+        assertEquals(List.of("buildCounter", "contextMenuBuilder"), names(sets[7].getProperties()));
+        assertEquals(List.of("onChanged", "onEditingComplete", "onSubmitted",
+                "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside"),
+                names(sets[8].getProperties()));
 
         int writableRows = 0;
         for (int index = 0;
@@ -5698,9 +5741,16 @@ class FlutterWidgetPropertiesNodeTest {
                 writableRows++;
             }
         }
+        for (Node.Property<?> property : sets[8].getProperties()) {
+            assertTrue(property.canWrite(), property.getName());
+            assertTrue(property.supportsDefaultValue(), property.getName());
+            assertTrue(property.isDefaultValue(), property.getName());
+            assertNotNull(property.getPropertyEditor(), property.getName());
+            writableRows++;
+        }
         assertEquals(TextFieldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
                 writableRows);
-        assertEquals(54, writableRows);
+        assertEquals(56, writableRows);
 
         PropertyEditor keyboardType = property(node, "keyboardType")
                 .getPropertyEditor();
@@ -5923,16 +5973,18 @@ class FlutterWidgetPropertiesNodeTest {
         List<String> expectedSets = new ArrayList<>();
         expectedSets.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
         Arrays.stream(ElevatedButtonWidgetPropertySchema.Group.values())
+                .filter(group -> group != ElevatedButtonWidgetPropertySchema.Group.EVENTS)
                 .map(ElevatedButtonWidgetPropertySchema.Group::setName)
                 .forEach(expectedSets::add);
+        expectedSets.add(FlutterWidgetPropertiesNode.EVENTS_SET_NAME);
         expectedSets.add(FlutterWidgetPropertiesNode.SLOTS_SET_NAME);
         assertEquals(expectedSets,
                 Arrays.stream(sets).map(Node.PropertySet::getName).toList());
         assertEquals(java.util.Collections.nCopies(
-                        1 + ElevatedButtonWidgetPropertySchema.Group.values().length,
+                        ElevatedButtonWidgetPropertySchema.Group.values().length,
                         FlutterWidgetPropertiesNode.GENERAL_TAB_NAME),
                 Arrays.stream(sets)
-                        .limit(1 + ElevatedButtonWidgetPropertySchema.Group.values().length)
+                        .limit(ElevatedButtonWidgetPropertySchema.Group.values().length)
                         .map(set -> set.getValue(
                                 FlutterWidgetPropertiesNode.TAB_NAME_ATTRIBUTE))
                         .toList());
@@ -5952,7 +6004,7 @@ class FlutterWidgetPropertiesNodeTest {
         }
         assertEquals(ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
                 writableLeaves);
-        assertEquals(286, writableLeaves);
+        assertEquals(288, writableLeaves);
         assertEquals(List.of("child"),
                 names(sets[sets.length - 1].getProperties()));
 
@@ -6140,11 +6192,9 @@ class FlutterWidgetPropertiesNodeTest {
 
         PropertyEditor predicate = property(node, "notificationPredicate")
                 .getPropertyEditor();
-        assertEquals(List.of(
-                FlutterPropertyCellValue.NOT_SET_TEXT,
-                "default", "depthZero", "all"),
-                List.of(predicate.getTags()));
-        predicate.setAsText("all");
+        assertNull(predicate.getTags(), "The preset/reference union uses its structured editor, not a preset-only combo.");
+        assertTrue(predicate.supportsCustomEditor());
+        predicate.setValue(FlutterPropertyCellValue.explicit(new PropertyValue.StringValue("all")));
         assertEquals(FlutterPropertyCellValue.explicit(
                         new PropertyValue.StringValue("all")),
                 predicate.getValue());
@@ -6554,13 +6604,17 @@ class FlutterWidgetPropertiesNodeTest {
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
+                "flutter.widgets.PreferredSize",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
                 SafeAreaWidgetPropertySchema.SAFE_AREA_TYPE.value(),
                 "flutter.widgets.ListView",
                 GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value(),
+                GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value(),
                 SingleChildScrollViewWidgetPropertySchema
                         .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+                "flutter.widgets.PageView",
+                "flutter.widgets.ListWheelScrollView",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
@@ -6571,10 +6625,11 @@ class FlutterWidgetPropertiesNodeTest {
                 ClipRectWidgetPropertySchema.CLIP_RECT_TYPE.value(),
                 ClipOvalWidgetPropertySchema.CLIP_OVAL_TYPE.value(),
                 ClipRRectWidgetPropertySchema.CLIP_RRECT_TYPE.value(),
-                ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
-                ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
-                ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
-                IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value());
+                 ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.value(),
+                 ClipRSuperellipseWidgetPropertySchema.CLIP_RSUPERELLIPSE_TYPE.value(),
+                 ExcludeSemanticsWidgetPropertySchema.EXCLUDE_SEMANTICS_TYPE.value(),
+                 IndexedStackWidgetPropertySchema.INDEXED_STACK_TYPE.value(),
+                 "flutter.widgets.Builder");
         Set<String> iconPaths = new HashSet<>();
         typeIds = new ArrayList<>(typeIds);
         typeIds.add(PhysicalModelWidgetPropertySchema.PHYSICAL_MODEL_TYPE.value());
@@ -6593,6 +6648,29 @@ class FlutterWidgetPropertiesNodeTest {
         typeIds.add("flutter.widgets.IgnorePointer");
         typeIds.add("flutter.widgets.AbsorbPointer");
         typeIds.add("flutter.widgets.BlockSemantics");
+        typeIds.add("flutter.widgets.GestureDetector");
+        typeIds.add("flutter.widgets.Listener");
+        typeIds.add("flutter.widgets.MouseRegion");
+        typeIds.add("flutter.widgets.Focus");
+        typeIds.add("flutter.widgets.NotificationListener");
+        typeIds.add("flutter.material.SwitchListTile");
+        typeIds.add("flutter.material.RadioListTile");
+        typeIds.add("flutter.material.ExpansionTile");
+        typeIds.add("flutter.material.Tooltip");
+        typeIds.add("flutter.material.TooltipVisibility");
+        typeIds.add("flutter.material.TooltipTheme");
+        typeIds.add("flutter.material.MenuItemButton");
+        typeIds.add("flutter.material.MenuAnchor");
+        typeIds.add("flutter.material.SubmenuButton");
+        typeIds.add("flutter.material.MenuBar");
+        typeIds.add("flutter.material.NavigationBar");
+        typeIds.add("flutter.material.NavigationRail");
+        typeIds.add("flutter.material.NavigationDrawer");
+        typeIds.add("flutter.material.Drawer");
+        typeIds.add("flutter.material.BottomAppBar");
+        typeIds.add("flutter.material.BottomNavigationBar");
+        typeIds.add("flutter.material.Material");
+        typeIds.add("flutter.material.Scrollbar");
 
         for (String typeId : typeIds) {
             WidgetDefinition definition = definition(typeId);
@@ -6604,7 +6682,10 @@ class FlutterWidgetPropertiesNodeTest {
                                             PropertyValue.ImageProviderValue.ProviderKind.ASSET,
                                             "assets/image.png",
                                             Optional.empty(), Optional.empty(), Optional.empty()))
-                            : Map.of();
+                            : "flutter.widgets.Builder".equals(typeId)
+                                    ? Map.of(new PropertyName("builder"),
+                                            new PropertyValue.CallbackValue("noop"))
+                                    : Map.of();
             WidgetNode widget = WidgetNodePrototypeFactory.create(
                     definition,
                     StableId.parse("5cf3483b-d627-41b4-bb1d-4a321aa36da4"),
@@ -6619,7 +6700,7 @@ class FlutterWidgetPropertiesNodeTest {
             iconPaths.add(declaredIconPath(node));
         }
 
-        assertEquals(89, iconPaths.size(),
+        assertEquals(117, iconPaths.size(),
                 "Design tree nodes must not share a generic widget icon");
     }
 

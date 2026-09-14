@@ -98,6 +98,7 @@ final class PairSaveCoordinator implements Node.Cookie,
     private long sourceStateEpoch;
     private PairPreparation preparation;
     private PairReplacement replacement;
+    private SourceRestageClaim sourceRestage;
     private StagedPairAuthority staged;
     private final Map<HistoryEdgeKey, UnsavedPairHistoryEdge>
             unsavedPairHistory = new HashMap<>();
@@ -414,7 +415,7 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     private boolean pairPathOperationStateCleanLocked() {
-        return preparation == null
+        return sourceRestage == null && preparation == null
                 && replacement == null
                 && staged == null
                 && historyTransition == null
@@ -674,7 +675,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 throw new StalePairEpochException(
                         "The selected Flutter Designer pair epoch changed before staged command capture");
             }
-            if (preparation != null || replacement != null
+            if (sourceRestage != null || preparation != null || replacement != null
                     || historyTransition != null || activePairSave != null
                     || activeSourceSave != null || activeFdOnlySave != null
                     || staged == null || unsavedHistoryCursor == null
@@ -705,7 +706,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                     || editor.liveDocumentVersion(
                             freshLive.documentIdentity())
                         != freshLive.documentVersion()
-                    || preparation != null || replacement != null
+                    || sourceRestage != null || preparation != null || replacement != null
                     || historyTransition != null || activePairSave != null
                     || activeSourceSave != null || activeFdOnlySave != null
                     || staged == null || unsavedHistoryCursor == null
@@ -1138,6 +1139,23 @@ final class PairSaveCoordinator implements Node.Cookie,
                 && metadata.currentIdentity() == controller.state();
     }
 
+    /** Exact retained unchanged-Source cursors which can accept native metadata edits. */
+    boolean retainsUnchangedSourceHistory(DesignerCommandSessionOrchestrator owner,
+            DesignerCommandRevision revision) {
+        synchronized (this) {
+            return retainsUnchangedSourceHistoryLocked(owner, revision);
+        }
+    }
+
+    private boolean retainsUnchangedSourceHistoryLocked(DesignerCommandSessionOrchestrator owner,
+            DesignerCommandRevision revision) {
+        if (retainsMetadataHistoryLocked(owner, revision)) return true;
+        return unsavedHistoryOwner == owner && staged == null && unsavedHistoryCursor != null
+                && unsavedHistoryCursor.endpoint() instanceof BaselineHistoryEndpoint baseline
+                && baseline.revision() == revision && baseline.currentIdentity() == controller.state()
+                && revision.persistenceKind() == DesignerRevisionPersistenceKind.BASELINE;
+    }
+
     /**
      * Extends an already retained metadata cursor without touching Source or
      * persisting implicitly. The validated command and exact durable/live
@@ -1165,7 +1183,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                     DesignerCommandRevision after = commandLease.candidateRevision();
                     if (!ownsCloseRevisionLocked(expectedRevision)
                             || controller.state() != expectedCurrent
-                            || !retainsMetadataHistoryLocked(commandLease.owner(), before)
+                            || !retainsUnchangedSourceHistoryLocked(commandLease.owner(), before)
                             || commandLease.catalogIdentity() != expectedCurrent.catalog()
                             || commandLease.kind() != DesignerCommandSessionOrchestrator.PendingTransitionKind.APPLY
                             || !commandLease.ownsExactActiveTransition()
@@ -1399,6 +1417,205 @@ final class PairSaveCoordinator implements Node.Cookie,
         throw failure;
     }
 
+    /** Revalidates a manually edited Source overlay without applying another editor edit. */
+    private void restageObservedSourceBeforeSave() throws IOException {
+        StagedPairAuthority expected;
+        UnsavedPairHistoryCursor cursor;
+        long expectedEpoch;
+        long eventEpoch;
+        synchronized (this) {
+            // CES confirmation reentry belongs to the already pinned serializer.
+            if (activePairSave != null || activeSourceSave != null) return;
+            if (sourceRestage != null) throw new IOException("Save is already analyzing this form's Source changes.");
+            if (staged == null) return;
+            rejectConflictSaveLocked();
+            if (preparation != null || replacement != null || historyTransition != null
+                    || activeFdOnlySave != null || activePairPathOperation != null) {
+                throw new IOException("Cannot analyze Source while another Designer operation owns the form.");
+            }
+            expected = staged;
+            cursor = unsavedHistoryCursor;
+            expectedEpoch = epoch;
+            eventEpoch = externalEventEpoch;
+        }
+        LiveDartDocumentSnapshot observed = editor.liveSnapshot();
+        if (expected.proof().liveCandidateIdentity().sameEvidence(observed)) return;
+        if (cursor == null || cursor.endpoint().revision() != expected.revision()
+                || !expected.proof().liveCandidateIdentity().sameManagedContent(observed)) {
+            throw new IOException("Cannot save Source changes: the document identity or generated sections changed. No files were written.");
+        }
+        DesignerSourceRestageWork.run(() -> {
+            restageObservedSource(expected, cursor, observed, expectedEpoch, eventEpoch);
+            return null;
+        });
+    }
+
+    private void restageObservedSource(StagedPairAuthority expected,
+            UnsavedPairHistoryCursor cursor, LiveDartDocumentSnapshot observed,
+            long expectedEpoch, long eventEpoch) throws IOException {
+        var analyzer = dataObject.mutationController().sourceAnalyzerContext();
+        try (var lease = expected.owner().beginSourceRestage(expected.revision(),
+                expected.proof().preparedPairIdentity(), observed.markerBearingUtf8())) {
+            SourceRestageClaim claim = new SourceRestageClaim(expected, cursor, observed, eventEpoch);
+            StateChange started;
+            synchronized (this) {
+                if (staged != expected || unsavedHistoryCursor != cursor || epoch != expectedEpoch
+                        || externalEventEpoch != eventEpoch || sourceRestage != null
+                        || preparation != null || replacement != null || historyTransition != null
+                        || activePairSave != null || activeSourceSave != null || activeFdOnlySave != null
+                        || activePairPathOperation != null || !lease.ownsExactActiveRevision()
+                        || controller.state() != expected.proof().loadedCurrentIdentity()) {
+                    throw new IOException("Cannot analyze Source: the staged form changed before admission.");
+                }
+                started = transitionLocked(PairSaveCoordinatorStatus.PREPARING_REPLACEMENT,
+                        null);
+                sourceRestage = claim;
+                claim.coordinatorEpoch = epoch;
+            }
+            publishEffects(started);
+            try {
+                requireSourceRestageCurrent(claim, lease);
+                var ticket = PairSaveEvidenceGate.prepareAnalysis(expected.proof().loadedCurrentIdentity(),
+                        lease.preparedPair(), analyzer.projectRoot(), FileUtil.toFile(dartFile).toPath(),
+                        dev.flutter.netbeans.dart.DartCandidateWarningPolicy.ALLOW, trustedFlutterSdkRoot());
+                claim.analysis = analyzer.analyze(ticket);
+                dev.flutter.netbeans.dart.DartCandidateAnalysisResult result;
+                try {
+                    var pending = claim.analysis.result().toCompletableFuture();
+                    // A stalled analyzer must not retain the owner after Source,
+                    // external files, or the owning DataObject has changed.
+                    long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.MINUTES.toNanos(2);
+                    while (true) {
+                        requireSourceRestageCurrent(claim, lease);
+                        try {
+                            result = pending.get(200, java.util.concurrent.TimeUnit.MILLISECONDS);
+                            break;
+                        } catch (java.util.concurrent.TimeoutException waiting) {
+                            if (System.nanoTime() - deadline >= 0) {
+                                throw new IOException("Source analysis before Save timed out. No files were written.", waiting);
+                            }
+                        }
+                    }
+                } catch (InterruptedException interrupted) {
+                    Thread.currentThread().interrupt();
+                    throw new IOException("Source analysis before Save was interrupted. No files were written.", interrupted);
+                } catch (java.util.concurrent.ExecutionException failed) {
+                    throw new IOException("Source analysis before Save failed. No files were written.", failed.getCause());
+                } catch (java.util.concurrent.CancellationException cancelled) {
+                    throw new IOException("Source analysis before Save was cancelled. No files were written.", cancelled);
+                }
+                PairAnalyzedCandidateResult evaluated = PairSaveEvidenceGate.evaluateAnalysis(ticket, result);
+                if (!(evaluated instanceof PairAnalyzedCandidateResult.Ready ready)) {
+                    throw new IOException("Cannot save current Source: " + evaluated.diagnostics().getFirst().message());
+                }
+                DesignerCommandSessionOrchestrator.DeferredLeaseEffects effects = onEdt(() -> {
+                    requireSourceRestageCurrent(claim, lease);
+                    PairSaveEvidenceResult bound = PairSaveEvidenceGate.bindApplied(ready.analyzed(), observed);
+                    if (!(bound instanceof PairSaveEvidenceResult.Ready accepted)) {
+                        throw new IOException("Cannot bind current Source analysis: " + bound.diagnostics().getFirst().message());
+                    }
+                    PairSaveEvidence evidence = accepted.evidence();
+                    var proof = new AnalyzedStagedPairProof(evidence);
+                    var authority = new StagedPairAuthority(proof, expected.owner(), expected.revision(), lease);
+                    var endpoint = new ReanchoredPairedHistoryEndpoint(expected.revision(),
+                            expected.proof().loadedCurrentIdentity(), evidence.baselineDartBytes(),
+                            evidence.baselineFdBytes(), evidence.preparedPairIdentity(),
+                            new ReanchoredAnalyzedHistorySeed(evidence));
+                    var nextCursor = new UnsavedPairHistoryCursor(endpoint, observed, proof);
+                    var committedEffects = new java.util.concurrent.atomic.AtomicReference<DesignerCommandSessionOrchestrator.DeferredLeaseEffects>();
+                    editor.verifyAndFinalizePreparation(observed, false, () -> {
+                      synchronized (PairSaveCoordinator.this) {
+                        try {
+                        requireSourceRestageAuthorityLocked(claim, lease);
+                        RetainedPhysicalEndpointBudget budget = new RetainedPhysicalEndpointBudget(lease.maxRetainedPairBytes());
+                        for (var edge : unsavedPairHistory.values()) {
+                            budget.retain(edge.before());
+                            budget.retain(edge.after());
+                        }
+                        budget.retain(cursor.endpoint());
+                        budget.retain(endpoint);
+                        committedEffects.set(lease.adoptAnalyzedDeferredEffects(evidence, () -> {
+                            staged = authority;
+                            unsavedHistoryCursor = nextCursor;
+                            sourceRestage = null;
+                            claim.completed = transitionLocked(PairSaveCoordinatorStatus.STAGED_PAIR,
+                                    null);
+                        }));
+                        } catch (IOException failure) {
+                            throw new java.io.UncheckedIOException(failure);
+                        }
+                      }
+                    });
+                    return Objects.requireNonNull(committedEffects.get());
+                });
+                effects.publish();
+                publishEffects(claim.completed);
+            } finally {
+                if (claim.analysis != null) {
+                    try {
+                        claim.analysis.cancel();
+                    } catch (RuntimeException cancellationFailure) {
+                        LOGGER.log(Level.WARNING, "Cannot cancel completed Source analysis", cancellationFailure);
+                    }
+                }
+                StateChange aborted = null;
+                synchronized (this) {
+                    if (sourceRestage == claim) {
+                        sourceRestage = null;
+                        if (externalEventEpoch == claim.eventEpoch && staged == expected
+                                && state.status() == PairSaveCoordinatorStatus.PREPARING_REPLACEMENT) {
+                            aborted = transitionLocked(PairSaveCoordinatorStatus.STAGED_PAIR,
+                                    null);
+                        }
+                    }
+                }
+                if (aborted != null) publishEffects(aborted);
+            }
+        } catch (IllegalArgumentException | IllegalStateException failure) {
+            throw new IOException("Cannot prepare current Source changes for Save: " + reason(failure), failure);
+        }
+    }
+
+    private void requireSourceRestageCurrent(SourceRestageClaim claim,
+            DesignerCommandSessionOrchestrator.SourceRestageLease lease) throws IOException {
+        LiveDartDocumentSnapshot fresh = editor.liveSnapshot();
+        synchronized (this) {
+            requireSourceRestageAuthorityLocked(claim, lease);
+            if (!claim.observed.sameEvidence(fresh)) {
+                throw new IOException("Source changed while Save was analyzing it. Retry Save; no files were written.");
+            }
+        }
+    }
+
+    private void requireSourceRestageAuthorityLocked(SourceRestageClaim claim,
+            DesignerCommandSessionOrchestrator.SourceRestageLease lease) throws IOException {
+        if (sourceRestage != claim || staged != claim.authority || unsavedHistoryCursor != claim.cursor
+                || epoch != claim.coordinatorEpoch || externalEventEpoch != claim.eventEpoch
+                || controller.state() != claim.authority.proof().loadedCurrentIdentity()
+                || !lease.ownsExactActiveRevision()
+                || !claim.authority.owner().retainsOpenHistoryAuthority()) {
+            throw new IOException("The form or Source analysis authority changed. No files were written.");
+        }
+    }
+
+    private static final class SourceRestageClaim {
+        final StagedPairAuthority authority;
+        final UnsavedPairHistoryCursor cursor;
+        final LiveDartDocumentSnapshot observed;
+        final long eventEpoch;
+        long coordinatorEpoch;
+        volatile dev.flutter.netbeans.dart.DartCandidateAnalysisOperation analysis;
+        StateChange completed;
+
+        SourceRestageClaim(StagedPairAuthority authority, UnsavedPairHistoryCursor cursor,
+                LiveDartDocumentSnapshot observed, long eventEpoch) {
+            this.authority = authority;
+            this.cursor = cursor;
+            this.observed = observed;
+            this.eventEpoch = eventEpoch;
+        }
+    }
+
     /** Called by the only SaveCookie and every direct editor save entry point. */
     void save() throws IOException {
         // Revalidate ownership at the entry edge; a foreign cookie must never
@@ -1409,6 +1626,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         // modified edge. Rebind that exact retained endpoint before pinning
         // Save authority.
         refreshPairedVariantCursorFromLiveIfExact();
+        restageObservedSourceBeforeSave();
         ActiveSourceSave sourceAttempt = null;
         DesignerCommandSessionOrchestrator sourceHistoryOwner = null;
         boolean semanticBaselineHistory = false;
@@ -1443,7 +1661,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                             + ": another save is already running");
                 }
             } else {
-                if (preparation != null || replacement != null) {
+                if (sourceRestage != null || preparation != null || replacement != null) {
                     throw new IOException(
                             "Cannot save the Flutter Designer pair while a visual "
                             + "change is being applied or analyzed");
@@ -1628,6 +1846,9 @@ final class PairSaveCoordinator implements Node.Cookie,
     /** Rejects a foreign save owner before CES accepts a document edit. */
     void beforeSourceModification() throws IOException {
         synchronized (this) {
+            if (sourceRestage != null) {
+                throw new IOException("Cannot edit Dart source while Save is analyzing its exact current version.");
+            }
             if (activePairPathOperation != null) {
                 throw new IOException(
                         "Cannot edit Dart source while paired "
@@ -2150,10 +2371,24 @@ final class PairSaveCoordinator implements Node.Cookie,
 
                 GeneratedDartRegions generated = lease.candidate.generation()
                         .generated().orElseThrow();
+                PreparedDesignerPair previousPair = lease.predecessorProof.preparedPairIdentity();
+                var previousLiveBaseline = new DartThreeWayIntegrityGate().evaluate(
+                        previousPair.dartTransition().candidateIntegrity(),
+                        lease.predecessor.document().source(), lease.predecessor.generation());
+                var baselineTransition = new DartSourceTransitionPlanner().plan(
+                        previousLiveBaseline, lease.initialLive.markerBearingUtf8(),
+                        lease.predecessor.document().source(), lease.candidate.generation(),
+                        previousPair.dartTransition().userSourceProjection().inverse());
+                if (baselineTransition.status() != DartSourceTransitionStatus.READY
+                        || !Arrays.equals(baselineTransition.plan().orElseThrow().candidateBytes(),
+                                lease.candidate.dartCandidateBytes())) {
+                    throw new IOException("Cannot restore baseline: the proved source transition differs from the retained candidate.");
+                }
                 editor.applyPreparedRegionsAndFinalize(
                         lease.initialLive,
                         generated,
                         lease.candidate.dartCandidateBytes(),
+                        baselineTransition.plan().orElseThrow(),
                         forwardSemanticEdge(lease.commandLease),
                         applied -> prepareBaselineReplacementAdmissionWithinDocumentLock(
                                 lease, applied, effectsDeferral));
@@ -2325,6 +2560,7 @@ final class PairSaveCoordinator implements Node.Cookie,
         } else {
             editor.applyPreparedRegionsAndFinalize(lease.initialLive, generated,
                     lease.candidatePair.prospectiveDartBytes(),
+                    lease.liveTransition.plan().orElseThrow(),
                     forwardSemanticEdge(lease.commandLease), finalizer);
         }
         PairSaveEvidenceResult evaluated = result.get();
@@ -2775,6 +3011,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                 lease.initialLive,
                 generated,
                 lease.prepared.prospectiveDartBytes(),
+                lease.prepared.dartTransition(),
                 forwardSemanticEdge(lease.commandLease),
                 applied -> prepareInitialAdmissionWithinDocumentLock(
                         lease,
@@ -5264,7 +5501,8 @@ final class PairSaveCoordinator implements Node.Cookie,
     }
 
     static boolean acceptsPairTransaction(PairFileTransactionResult result) {
-        // A prepared pair always changes both candidates by construction.
+        // A prepared pair changes at least one candidate by construction;
+        // retained event methods can make the transition source-only.
         // UNCHANGED is therefore not a valid publication for this path.
         return result != null
                 && result.status() == PairFileTransactionStatus.COMMITTED;
@@ -5570,12 +5808,10 @@ final class PairSaveCoordinator implements Node.Cookie,
                             ? edge.after() : edge.before();
             expectedCursor = unsavedHistoryCursor;
             expectedAuthority = staged;
-            if (!(sourceEndpoint
-                        instanceof ReanchoredPairedHistoryEndpoint)
+            if (!isPairedPhysicalEndpoint(sourceEndpoint)
                     || expectedCursor == null
                     || expectedCursor.endpoint() == sourceEndpoint
-                    || !(expectedCursor.endpoint()
-                        instanceof ReanchoredPairedHistoryEndpoint)
+                    || !isPairedPhysicalEndpoint(expectedCursor.endpoint())
                     || expectedCursor.endpoint().revision()
                         != sourceEndpoint.revision()
                     || expectedAuthority == null
@@ -5646,8 +5882,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             expectedAuthority = staged;
             if (expectedCursor == null
                     || expectedAuthority == null
-                    || !(expectedCursor.endpoint()
-                        instanceof ReanchoredPairedHistoryEndpoint)
+                    || !isPairedPhysicalEndpoint(expectedCursor.endpoint())
                     || expectedCursor.stagedProof()
                         != expectedAuthority.proof()
                     || expectedCursor.endpoint().revision()
@@ -5733,7 +5968,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             List<HistoryEndpoint> variants,
             HistoryEndpoint endpoint,
             DesignerCommandRevision revision) {
-        if (!(endpoint instanceof ReanchoredPairedHistoryEndpoint)
+        if (!isPairedPhysicalEndpoint(endpoint)
                 || endpoint.revision() != revision) {
             return;
         }
@@ -5743,6 +5978,11 @@ final class PairSaveCoordinator implements Node.Cookie,
             }
         }
         variants.add(endpoint);
+    }
+
+    private static boolean isPairedPhysicalEndpoint(HistoryEndpoint endpoint) {
+        return endpoint instanceof PairedHistoryEndpoint
+                || endpoint instanceof ReanchoredPairedHistoryEndpoint;
     }
 
     @Override
@@ -5765,7 +6005,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             DesignerSemanticUndoableEdit.Direction direction,
             long currentRevisionId,
             long targetRevisionId) throws IOException {
-        if (historyTransition != null || preparation != null
+        if (sourceRestage != null || historyTransition != null || preparation != null
                 || replacement != null || activePairSave != null
                 || activeSourceSave != null || activeFdOnlySave != null) {
             throw new IOException(
@@ -6662,13 +6902,16 @@ final class PairSaveCoordinator implements Node.Cookie,
 
         void retain(HistoryEndpoint endpoint) throws IOException {
             Objects.requireNonNull(endpoint, "endpoint");
+            // A Source-history variant owns an exact source proof as well as
+            // its pair bytes; its logical revision may retain another envelope.
             retainBytes(
                     endpoint,
                     endpoint.dartBytes(),
-                    endpoint.revision().fdBytes());
+                    endpoint.revision().fdBytes(),
+                    endpoint.userSourceProofBytes());
         }
 
-        void retainBytes(Object identity, byte[] dart, byte[] fd)
+        void retainBytes(Object identity, byte[] dart, byte[] fd, long userSourceProofBytes)
                 throws IOException {
             Objects.requireNonNull(identity, "identity");
             Objects.requireNonNull(dart, "dart");
@@ -6680,6 +6923,7 @@ final class PairSaveCoordinator implements Node.Cookie,
             try {
                 endpointBytes = Math.addExact(
                         (long) dart.length, (long) fd.length);
+                endpointBytes = Math.addExact(endpointBytes, userSourceProofBytes);
                 retainedBytes = Math.addExact(retainedBytes, endpointBytes);
             } catch (ArithmeticException overflow) {
                 retained.remove(identity);
@@ -7691,7 +7935,9 @@ final class PairSaveCoordinator implements Node.Cookie,
                         liveBaseline,
                         expectedStaged.candidateDartBytes(),
                         predecessor.document().source(),
-                        candidate.generation());
+                        candidate.generation(),
+                        predecessorPair.dartTransition().userSourceProjection().inverse()
+                                .then(candidatePair.dartTransition().userSourceProjection()));
         boolean unchanged = liveResult.status() == DartSourceTransitionStatus.NO_CHANGES;
         if (!unchanged && (liveResult.status() != DartSourceTransitionStatus.READY
                 || liveResult.plan().isEmpty())) {
@@ -7739,17 +7985,19 @@ final class PairSaveCoordinator implements Node.Cookie,
             budget.retainBytes(
                     candidate,
                     candidate.dartCandidateBytes(),
-                    candidate.fdBytes());
+                    candidate.fdBytes(),
+                    candidate.userSourceProjection().retainedBytes());
         } else {
             budget.retainBytes(
                     candidatePair,
                     candidatePair.prospectiveDartBytes(),
-                    candidatePair.prospectiveFdBytes());
+                    candidatePair.prospectiveFdBytes(),
+                    candidatePair.dartTransition().userSourceProjection().retainedBytes());
         }
     }
 
     private void ensureStageableLocked() throws IOException {
-        if (preparation != null || replacement != null || staged != null
+        if (sourceRestage != null || preparation != null || replacement != null || staged != null
                 || historyTransition != null || forwardAdmission != null
                 || activePairSave != null
                 || activeSourceSave != null || activeFdOnlySave != null
@@ -7762,7 +8010,7 @@ final class PairSaveCoordinator implements Node.Cookie,
 
     private void ensureReplaceableLocked(StagedCommandSource expectedSource)
             throws IOException {
-        if (preparation != null || replacement != null
+        if (sourceRestage != null || preparation != null || replacement != null
                 || historyTransition != null
                 || activePairSave != null || activeSourceSave != null
                 || activeFdOnlySave != null || activePairPathOperation != null
@@ -9251,6 +9499,11 @@ final class PairSaveCoordinator implements Node.Cookie,
                 StagedPairProof proof,
                 DesignerCommandSessionOrchestrator owner,
                 DesignerCommandRevision revision) {
+            this(proof, owner, revision, null);
+        }
+
+        StagedPairAuthority(StagedPairProof proof, DesignerCommandSessionOrchestrator owner,
+                DesignerCommandRevision revision, DesignerCommandSessionOrchestrator.SourceRestageLease restageLease) {
             this.proof = Objects.requireNonNull(proof, "proof");
             this.owner = Objects.requireNonNull(owner, "owner");
             this.revision = Objects.requireNonNull(revision, "revision");
@@ -9262,9 +9515,13 @@ final class PairSaveCoordinator implements Node.Cookie,
             boolean retainedPhysicalVariant = proof instanceof SavedHistoryProof
                     && proof.preparedPairIdentity().prospectiveDocument()
                             .equals(revision.document());
+            boolean observedPhysicalVariant = restageLease != null && restageLease.owner() == owner
+                    && restageLease.revision() == revision && restageLease.ownsExactActiveRevision()
+                    && restageLease.preparedPair() == proof.preparedPairIdentity()
+                    && proof.analyzedEvidence() != null;
             if (revision.persistenceKind()
                         != DesignerRevisionPersistenceKind.PAIRED
-                    || !(canonicalVariant || retainedPhysicalVariant)
+                    || !(canonicalVariant || retainedPhysicalVariant || observedPhysicalVariant)
                     || !Arrays.equals(
                             revision.fdBytes(),
                             proof.preparedPairIdentity()
@@ -9350,6 +9607,10 @@ final class PairSaveCoordinator implements Node.Cookie,
 
     private interface HistoryEndpoint {
         DesignerCommandRevision revision();
+
+        default long userSourceProofBytes() {
+            return revision().userSourceProjection().retainedBytes();
+        }
 
         FlutterDesignerDocumentState.Current currentIdentity();
 
@@ -9584,6 +9845,11 @@ final class PairSaveCoordinator implements Node.Cookie,
             byte[] baselineFdBytes,
             PreparedDesignerPair endpointPair,
             SavedHistorySeed seed) implements HistoryEndpoint {
+        @Override
+        public long userSourceProofBytes() {
+            return endpointPair.dartTransition().userSourceProjection().retainedBytes();
+        }
+
         ReanchoredPairedHistoryEndpoint {
             Objects.requireNonNull(revision, "revision");
             Objects.requireNonNull(currentIdentity, "currentIdentity");
@@ -9642,6 +9908,11 @@ final class PairSaveCoordinator implements Node.Cookie,
             byte[] baselineFdBytes,
             DesignerCommandRevision physicalRevision,
             SavedHistorySeed seed) implements HistoryEndpoint {
+        @Override
+        public long userSourceProofBytes() {
+            return physicalRevision.userSourceProjection().retainedBytes();
+        }
+
         MetadataHistoryEndpoint {
             Objects.requireNonNull(revision, "revision");
             Objects.requireNonNull(currentIdentity, "currentIdentity");
@@ -10404,6 +10675,7 @@ final class PairSaveCoordinator implements Node.Cookie,
                     throw new IOException(
                             "NetBeans serialized Dart bytes differ from the exact planned semantic BASELINE revision");
                 }
+                requireBoundStateFieldsForSourceSave(attempt, candidate);
                 synchronized (PairSaveCoordinator.this) {
                     if (activeSourceSave != attempt) {
                         throw new IOException(
@@ -10468,6 +10740,55 @@ final class PairSaveCoordinator implements Node.Cookie,
                         + MAX_SOURCE_PERSISTENCE_BYTES
                         + " byte writable safety limit");
             }
+        }
+    }
+
+    /** Checks the exact serialized source against the exact .fd bytes the transaction retains. */
+    private static void requireBoundStateFieldsForSourceSave(ActiveSourceSave attempt, byte[] candidate)
+            throws IOException {
+        byte[] fd = attempt.semanticBaselinePlan == null ? attempt.baseline.fdBytes()
+                : attempt.semanticBaselinePlan.savedBaseline().fdBytes();
+        FdDecodeResult decoded;
+        try {
+            decoded = new FdDocumentCodec().decode(fd);
+        } catch (dev.flutter.netbeans.designer.codec.FdInputLimitException tooLarge) {
+            throw new IOException("Cannot validate State-bound Source against the retained .fd: "
+                    + tooLarge.getMessage(), tooLarge);
+        }
+        if (!(decoded instanceof FdDecodeResult.Current current)) return;
+        var bindings = new java.util.ArrayList<dev.flutter.netbeans.designer.model.StateBinding>();
+        var propertyBindings = new java.util.ArrayList<dev.flutter.netbeans.designer.model.StatePropertyBinding>();
+        var pending = new ArrayDeque<dev.flutter.netbeans.designer.model.WidgetNode>();
+        pending.push(current.document().root());
+        while (!pending.isEmpty()) {
+            var node = pending.pop();
+            node.stateBinding().ifPresent(bindings::add);
+            propertyBindings.addAll(node.propertyBindings().values());
+            for (var slot : node.slots().values()) {
+                switch (slot) {
+                    case dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot single -> single.child().ifPresent(pending::push);
+                    case dev.flutter.netbeans.designer.model.WidgetSlot.ListSlot list -> list.children().forEach(pending::push);
+                }
+            }
+        }
+        if (bindings.isEmpty() && propertyBindings.isEmpty()) return;
+        try {
+            if (current.document().source().widgetKind() != dev.flutter.netbeans.designer.model.WidgetClassKind.STATEFUL) {
+                throw new IllegalArgumentException("Bound values require a Stateful form.");
+            }
+            var scanner = new DartSourceIntegrityScanner();
+            var original = scanner.scan(attempt.baseline.dartBytes(), current.document().source());
+            var prospective = scanner.scan(candidate, current.document().source());
+            String owner = original.verifiedMemberClassName().orElseThrow(() ->
+                    new IllegalArgumentException("The durable State field owner is not verified."));
+            if (!prospective.onDiskDeclaredMatch()
+                    || !prospective.verifiedMemberClassName().filter(owner::equals).isPresent()) {
+                throw new IllegalArgumentException("Source must retain the verified State owner and managed regions while values are bound.");
+            }
+            dev.flutter.netbeans.designer.events.DartEventHandlerSource.requireStateBindingFields(candidate, owner, bindings);
+            dev.flutter.netbeans.designer.events.DartEventHandlerSource.requirePropertyBindingFields(candidate, owner, propertyBindings);
+        } catch (IllegalArgumentException invalid) {
+            throw new IOException("Cannot save State-bound source: " + invalid.getMessage(), invalid);
         }
     }
 

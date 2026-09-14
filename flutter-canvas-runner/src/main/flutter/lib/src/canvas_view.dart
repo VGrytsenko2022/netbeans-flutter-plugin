@@ -6,12 +6,24 @@ import 'dart:ui'
     show BoxHeightStyle, BoxWidthStyle, SemanticsRole, CheckedState;
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/foundation.dart' show precisionErrorTolerance, ValueListenable;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show
         OverflowBoxFit,
         ScrollCacheExtent,
         RenderProxyBox,
+        RenderTransform,
+        RenderPositionedBox,
+        RenderSliver,
+        RenderSliverConstrainedCrossAxis,
+        RenderSliverOffstage,
+        RenderViewportBase,
+        applyGrowthDirectionToAxisDirection,
+        RenderFlex,
+        RenderConstrainedBox,
+        RenderFractionallySizedOverflowBox,
+        FlexParentData,
         BoxParentData,
         BoxHitTestResult,
         RenderObjectVisitor,
@@ -159,6 +171,24 @@ String? _listTileStaticMessage(CanvasNode node, BuildContext? context) {
   return '${messages.join(' ')} Stored properties and generated Dart are unchanged.';
 }
 
+String? _switchListTileStaticMessage(CanvasNode node, BuildContext? context) {
+  final inherited = _listTileStaticMessage(node, context)
+      ?.replaceAll('ListTile', 'SwitchListTile')
+      .replaceAll(
+        'including disabled semantic-button presence',
+        'without changing the controlled stored value',
+      );
+  final radius = _listTileNumber(node, 'splashRadius');
+  final messages = [
+    ?inherited,
+    if (radius != null && !radius.isFinite)
+      'SwitchListTile ${node.id} splashRadius preview limitation: nonfinite reaction geometry cannot be painted safely. '
+          'Only the internal switch reaction is withheld using an explicit radius 0 approximation; '
+          'SDK tile geometry, controls and stored properties are unchanged.',
+  ];
+  return messages.isEmpty ? null : messages.join(' ');
+}
+
 String? _checkboxListTileStaticMessage(CanvasNode node, BuildContext? context) {
   final apple = _checkboxUsesCupertino(node, context);
   final refs = node.properties.entries
@@ -297,6 +327,77 @@ bool _radioHasInheritedRegistry(CanvasNode node, BuildContext context) {
           : RadioGroup.maybeOf<Object>(context) != null,
     _ => false,
   };
+}
+
+Object? _radioInheritedSelection(CanvasNode node, BuildContext context) {
+  final scoped = _canvasRadioScope(node, context)?.registry;
+  if (scoped is _RadioGroupForwardingRegistry) return scoped.groupValue;
+  Object? value<T>() => RadioGroup.maybeOf<T>(context)?.groupValue;
+  return switch (_radioTypeKey(node)) {
+    'String' => value<String>(),
+    'String?' => value<String?>(),
+    'int' => value<int>(),
+    'int?' => value<int?>(),
+    'double' => value<double>(),
+    'double?' => value<double?>(),
+    'num' => value<num>(),
+    'num?' => value<num?>(),
+    'bool' => value<bool>(),
+    'bool?' => value<bool?>(),
+    'Object' => value<Object>(),
+    'Object?' => value<Object?>(),
+    _ => null,
+  };
+}
+
+String? _radioListTileUnavailableMessage(
+  CanvasNode node,
+  BuildContext? context,
+) {
+  final barrier = context == null ? null : _canvasRadioScope(node, context);
+  final unresolved = ['valueType', 'value', 'groupValue']
+      .where(
+        (name) =>
+            node.properties[name]?.kind == 'dartObjectReferencePresence' &&
+            !(name == 'groupValue' &&
+                context != null &&
+                _radioInheritedSelection(node, context) != null),
+      )
+      .toList();
+  final missingActivation =
+      context != null &&
+      node.properties['enabled']?.value == true &&
+      !_radioHasCallback(node) &&
+      !_radioHasInheritedRegistry(node, context);
+  if (barrier?.unavailableReason == null &&
+      unresolved.isEmpty &&
+      !missingActivation) {
+    return null;
+  }
+  return 'Render RadioListTile ${node.id}: radio selection and navigation preview unavailable. '
+      '${barrier?.unavailableReason ?? ''} '
+      '${unresolved.isNotEmpty ? 'Unknown ${unresolved.join(', ')} cannot be evaluated; a null modern group value can fall back to the legacy groupValue. ' : ''}'
+      '${missingActivation ? 'Enabled true has no callback or matching typed group and the SDK asserts in this context. ' : ''}'
+      'Guarded slot children remain in an explicitly noninteractive tile layout; no radio, selection or callback is invented. Stored properties and generated Dart are unchanged.';
+}
+
+String? _radioListTileStaticMessage(CanvasNode node, BuildContext? context) {
+  final messages = <String>[
+    ?_radioListTileUnavailableMessage(node, context),
+    ?_listTileStaticMessage(node, context)
+        ?.replaceAll('ListTile', 'RadioListTile')
+        .replaceAll(
+          'including disabled semantic-button presence',
+          'without changing controlled group/value',
+        ),
+    if (['radioScaleFactor', 'splashRadius'].any((name) {
+      final value = _listTileNumber(node, name);
+      return value != null && !value.isFinite;
+    }))
+      'RadioListTile ${node.id} nonfinite scale/reaction geometry cannot be painted safely. '
+          'Only that control scale/reaction uses an explicit zero approximation; tile children, source and stored values remain unchanged.',
+  ];
+  return messages.isEmpty ? null : messages.join(' ');
 }
 
 bool _radioHasCallback(CanvasNode node) =>
@@ -678,7 +779,9 @@ class _SwitchPreview extends StatefulWidget {
     required this.cupertino,
     required this.message,
     required this.builder,
+    this.widgetName = 'Switch',
   });
+  final String widgetName;
   final bool cupertino;
   final String message;
   final Widget Function(FocusNode) builder;
@@ -706,7 +809,7 @@ class _SwitchPreviewState extends State<_SwitchPreview> {
     message: [
       widget.message,
       if (_resetConfiguration)
-        'Switch preview lifecycle guard: Flutter 3.44.8 retains its Cupertino painter flag after a platform-style change. '
+        '${widget.widgetName} preview lifecycle guard: Flutter 3.44.8 retains its Cupertino painter flag after a platform-style change. '
             'Canvas recreates only the SDK animation shell on that configuration boundary, retaining focus, selection and stored values.',
     ].where((message) => message.isNotEmpty).join(' '),
     child: widget.builder(_focus),
@@ -1020,7 +1123,12 @@ String? _textButtonReferenceMessage(CanvasNode node) {
   if (refs.isEmpty) return null;
   return '${node.type.split('.').last}.${refs.join('/')} preview limitation: isolated Canvas does not execute project or dependency Dart. '
       '${refs.contains('style') ? 'The configured ButtonStyle appearance is unavailable; this is an explicitly labeled SDK default/theme preview. ' : ''}'
-      '${refs.any((name) => name.endsWith('Builder')) ? 'Project layer content is unavailable; identity layers preserve the real child and SDK builder-dependent clipping. ' : ''}'
+      '${refs.contains('shortcut') ? 'The project shortcut and its hint are unavailable; preview supplies no shortcut and never registers global shortcuts. ' : ''}'
+      '${refs.any((name) => name.endsWith('Builder'))
+          ? node.type == 'flutter.material.MenuItemButton'
+                ? 'Project layer content is unavailable; identity layers preserve the real child. MenuItemButton retains native Clip.none unless explicitly overridden. '
+                : 'Project layer content is unavailable; identity layers preserve the real child and SDK builder-dependent clipping. '
+          : ''}'
       '${refs.contains('focusNode') || refs.contains('statesController') ? 'Project focus/controller state is unavailable; the SDK button uses isolated local state. ' : ''}'
       '${refs.any((name) => name.startsWith('on')) ? 'Project callbacks are not invoked; local button interactions use benign no-ops. ' : ''}'
       'The real SDK button, child, stored values and generated Dart are preserved.';
@@ -1091,6 +1199,1363 @@ String? _iconButtonMountedIconMessage(CanvasNode node, BuildContext context) {
       24;
   if (size.isFinite && size >= 0) return null;
   return 'Render Icon ${node.id} inside IconButton: iconSize preview unavailable because the actual mounted IconTheme resolves size $size; an Icon requires a finite nonnegative dimension. The SDK button remains active, and stored values and generated Dart are unchanged.';
+}
+
+const _expansionCurves = <String, Curve>{
+  'linear': Curves.linear,
+  'decelerate': Curves.decelerate,
+  'fastLinearToSlowEaseIn': Curves.fastLinearToSlowEaseIn,
+  'fastEaseInToSlowEaseOut': Curves.fastEaseInToSlowEaseOut,
+  'ease': Curves.ease,
+  'easeIn': Curves.easeIn,
+  'easeInToLinear': Curves.easeInToLinear,
+  'easeInSine': Curves.easeInSine,
+  'easeInQuad': Curves.easeInQuad,
+  'easeInCubic': Curves.easeInCubic,
+  'easeInQuart': Curves.easeInQuart,
+  'easeInQuint': Curves.easeInQuint,
+  'easeInExpo': Curves.easeInExpo,
+  'easeInCirc': Curves.easeInCirc,
+  'easeInBack': Curves.easeInBack,
+  'easeOut': Curves.easeOut,
+  'linearToEaseOut': Curves.linearToEaseOut,
+  'easeOutSine': Curves.easeOutSine,
+  'easeOutQuad': Curves.easeOutQuad,
+  'easeOutCubic': Curves.easeOutCubic,
+  'easeOutQuart': Curves.easeOutQuart,
+  'easeOutQuint': Curves.easeOutQuint,
+  'easeOutExpo': Curves.easeOutExpo,
+  'easeOutCirc': Curves.easeOutCirc,
+  'easeOutBack': Curves.easeOutBack,
+  'easeInOut': Curves.easeInOut,
+  'easeInOutSine': Curves.easeInOutSine,
+  'easeInOutQuad': Curves.easeInOutQuad,
+  'easeInOutCubic': Curves.easeInOutCubic,
+  'easeInOutCubicEmphasized': Curves.easeInOutCubicEmphasized,
+  'easeInOutQuart': Curves.easeInOutQuart,
+  'easeInOutQuint': Curves.easeInOutQuint,
+  'easeInOutExpo': Curves.easeInOutExpo,
+  'easeInOutCirc': Curves.easeInOutCirc,
+  'easeInOutBack': Curves.easeInOutBack,
+  'fastOutSlowIn': Curves.fastOutSlowIn,
+  'slowMiddle': Curves.slowMiddle,
+  'bounceIn': Curves.bounceIn,
+  'bounceOut': Curves.bounceOut,
+  'bounceInOut': Curves.bounceInOut,
+  'elasticIn': Curves.elasticIn,
+  'elasticOut': Curves.elasticOut,
+  'elasticInOut': Curves.elasticInOut,
+};
+
+// Only source-reviewed SDK/preview branch discriminants belong here. Values
+// which merely update an existing RenderObject must not reset descendant
+// Tooltip State. Resolved preview keys are appended at the document boundary;
+// context-dependent diagnostic wrappers stay stable in Tooltip-containing trees.
+bool _ownsNativeTooltip(CanvasNode node) =>
+    node.type == 'flutter.material.Tooltip' ||
+    ((node.type == 'flutter.material.IconButton' ||
+            node.type == 'flutter.material.FloatingActionButton') &&
+        node.properties['tooltip']?.value is String &&
+        (node.properties['tooltip']!.value as String).isNotEmpty);
+
+bool _containsNativeTooltip(CanvasNode node) =>
+    _ownsNativeTooltip(node) ||
+    node.slots.values.any((slot) => slot.children.any(_containsNativeTooltip));
+bool _menuAnchorFollowerAvailable(CanvasNode node) =>
+    node.properties['layerLink']?.kind == 'dartObjectReferencePresence' &&
+    !(node.slot('menuChildren')?.children.any(_containsNativeTooltip) ?? false);
+bool _ownsNativeMenu(CanvasNode node) =>
+    node.type == 'flutter.material.MenuAnchor' ||
+    node.type == 'flutter.material.MenuBar' ||
+    node.type == 'flutter.material.SubmenuButton';
+
+String _tooltipAncestorSdkTopology(CanvasNode node) {
+  bool present(String name) =>
+      node.properties[name] != null && node.properties[name]!.kind != 'null';
+  bool reference(String name) =>
+      node.properties[name]?.kind == 'dartObjectReferencePresence';
+  bool flag(String name, [bool fallback = false]) =>
+      node.properties[name]?.value is bool
+      ? node.properties[name]!.value as bool
+      : fallback;
+  Object? scalar(String name) => switch (node.properties[name]?.value) {
+    final CanvasEnumValue value => value.value,
+    final String value => value,
+    final bool value => value,
+    final num value => value.toString(),
+    _ => null,
+  };
+  bool slot(String name) => node.slot(name)?.children.isNotEmpty ?? false;
+  String text(String name, String fallback) =>
+      scalar(name) is String ? scalar(name)! as String : fallback;
+  List<Object?> scrollBranches({required bool sliver}) => [
+    // Omitted primary/padding/keyboard policy can inherit context. Retaining
+    // that distinct state is necessary; resolving it belongs to the preview.
+    scalar('primary'),
+    text('scrollDirection', 'vertical'),
+    scalar('keyboardDismissBehavior'),
+    present('padding'),
+    if (sliver) ...[
+      flag('shrinkWrap'),
+      flag('addAutomaticKeepAlives', true),
+      flag('addRepaintBoundaries', true),
+      flag('addSemanticIndexes', true),
+    ],
+  ];
+  final List<Object?> branches = switch (node.type) {
+    'flutter.material.MenuAnchor' => [
+      flag('animated'),
+      _menuAnchorFollowerAvailable(node),
+      flag('crossAxisUnconstrained', true),
+    ],
+    'flutter.material.MenuBar' => [slot('children')],
+    'flutter.material.SubmenuButton' => [
+      flag('animated'),
+      slot('menuChildren'),
+      slot('leadingIcon'),
+      slot('trailingIcon'),
+    ],
+    // Focus.withExternalFocusNode has a different SDK widget runtime type.
+    'flutter.widgets.Focus' => [
+      text('variant', 'standard'),
+      flag('includeSemantics', true),
+    ],
+    'flutter.widgets.GestureDetector' => [flag('excludeFromSemantics')],
+    'flutter.widgets.NotificationListener' => [
+      text('notificationType', 'Notification'),
+    ],
+    'flutter.widgets.DefaultSelectionStyle' ||
+    'flutter.widgets.IconTheme' => [flag('merge')],
+    'flutter.widgets.Visibility' => [
+      flag('maintainSize')
+          ? 'size'
+          : flag('maintainState')
+          ? (flag('maintainAnimation') ? 'offstage' : 'offstage+ticker')
+          : (flag('visible', true) ? 'child' : 'replacement'),
+    ],
+    'flutter.widgets.SingleChildScrollView' => scrollBranches(sliver: false),
+    'flutter.widgets.ListView' => [
+      ...scrollBranches(sliver: true),
+      present('itemExtent'),
+    ],
+    'flutter.widgets.GridView' ||
+    'flutter.widgets.GridView.extent' => scrollBranches(sliver: true),
+    'flutter.widgets.CustomScrollView' => scrollBranches(sliver: true),
+    'flutter.widgets.PageView' => scrollBranches(sliver: true),
+    'flutter.widgets.ListWheelScrollView' => [
+      reference('controller'),
+      reference('scrollBehavior'),
+      present('itemExtent'),
+      flag('renderChildrenOutsideViewport'),
+      text('changeReportingBehavior', 'onScrollUpdate'),
+    ],
+    'flutter.widgets.ClipRect' ||
+    'flutter.widgets.ClipOval' ||
+    'flutter.widgets.ClipRRect' ||
+    'flutter.widgets.ClipRSuperellipse' ||
+    'flutter.widgets.PhysicalShape' => [reference('clipper')],
+    'flutter.widgets.ClipPath' => [
+      reference('shape')
+          ? 'shape-unavailable'
+          : reference('clipper')
+          ? 'clipper-unavailable'
+          : 'native',
+    ],
+    'flutter.material.Card' => [
+      _cardShapePreviewUnavailableMessage(node) != null,
+    ],
+    'flutter.widgets.RadioGroup' => [
+      _radioTypeKey(node),
+      reference('groupValue'),
+    ],
+    'flutter.material.RadioListTile' => [
+      _radioTypeKey(node),
+      text('controlAffinity', 'platform'),
+      reference('value'),
+      reference('groupValue'),
+    ],
+    'flutter.material.CheckboxListTile' ||
+    'flutter.material.SwitchListTile' => [text('controlAffinity', 'platform')],
+    'flutter.material.Scaffold' => [
+      flag('extendBody') || flag('extendBodyBehindAppBar'),
+    ],
+    'flutter.material.AppBar' => [
+      flag('primary', true),
+      flag('excludeHeaderSemantics'),
+      flag('forceMaterialTransparency'),
+      present('shapeKind'),
+      slot('bottom'),
+      slot('flexibleSpace'),
+      slot('bottom') &&
+          scalar('bottomOpacity') != null &&
+          scalar('bottomOpacity') != '1.0' &&
+          scalar('bottomOpacity') != '1',
+    ],
+    'flutter.material.Badge' => [
+      flag('isLabelVisible', true),
+      present('count') || slot('label'),
+      slot('child'),
+      // Canvas deliberately recreates the SDK stadium for its changed minimum.
+      // Theme-derived minimum changes need the context-dependent companion.
+      if (flag('isLabelVisible', true) && (present('count') || slot('label')))
+        scalar('largeSize'),
+    ],
+    'flutter.material.FloatingActionButton' => [
+      text('variant', 'standard') == 'extended',
+      flag('isExtended', text('variant', 'standard') == 'extended'),
+      present('tooltip'),
+      present('tooltip') && text('tooltip', '').isNotEmpty,
+      // Omission selects the default non-null Hero tag; explicit null removes it.
+      node.properties['heroTag']?.kind != 'null',
+    ],
+    'flutter.material.TextButton' ||
+    'flutter.material.OutlinedButton' ||
+    'flutter.material.FilledButton' => [
+      {'icon', 'tonalIcon'}.contains(text('variant', 'standard')),
+      slot('icon'),
+      text('iconAlignment', 'start'),
+    ],
+    'flutter.material.IconButton' => [
+      present('tooltip'),
+      present('tooltip') && text('tooltip', '').isNotEmpty,
+    ],
+    'flutter.material.MenuItemButton' => [
+      // Native MenuItemButton conditionally inserts MouseRegion and the
+      // platform accelerator binding. Its label also has distinct semantic
+      // and horizontal/vertical ancestry. Ordinary styles/shortcut labels do
+      // not change these paths and therefore retain descendant preview state.
+      reference('onHover') || flag('requestFocusOnHover', true),
+      flag('enabled', true),
+      present('semanticsLabel'),
+      text('overflowAxis', 'horizontal'),
+    ],
+    _ => const [],
+  };
+  return branches.isEmpty ? '' : '@sdk:${jsonEncode(branches)}';
+}
+
+// Preserve the native AlignTransition and child state if finite coordinates
+// overflow the resulting paint offset. Do not clamp stored alignment values.
+class _AlignTransitionPreview extends StatefulWidget {
+  const _AlignTransitionPreview({required this.node, required this.message, required this.child});
+  final CanvasNode node;
+  final String message;
+  final Widget child;
+  @override State<_AlignTransitionPreview> createState() => _AlignTransitionPreviewState();
+}
+class _AlignTransitionPreviewState extends State<_AlignTransitionPreview> {
+  bool _blocked = false, _pending = false, _scheduled = false;
+  void _changed(bool blocked) {
+    _pending = blocked;
+    if (_scheduled || _blocked == blocked) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted || _blocked == _pending) return;
+      setState(() => _blocked = _pending);
+    });
+  }
+  @override Widget build(BuildContext context) => _TextButtonPreview(
+    stableDiagnostic: true,
+    message: [
+      if (widget.message.isNotEmpty) widget.message,
+      if (_blocked) 'AlignTransition ${widget.node.id} geometry preview unavailable: native alignment offset is non-finite. '
+        'Unsafe paint, semantics and pointer input are withheld. Reduce alignment coordinates. '
+        'Child state, stored values and generated Dart are unchanged.',
+    ].join('\n'),
+    child: _AlignTransitionGuard(changed: _changed, child: widget.child),
+  );
+}
+class _AlignTransitionGuard extends SingleChildRenderObjectWidget {
+  const _AlignTransitionGuard({required this.changed, required super.child});
+  final ValueChanged<bool> changed;
+  @override _AlignTransitionRenderBox createRenderObject(BuildContext context) => _AlignTransitionRenderBox(changed);
+  @override void updateRenderObject(BuildContext context, _AlignTransitionRenderBox render) {
+    render.changed = changed;
+    render.markNeedsPaint();
+    render.markNeedsSemanticsUpdate();
+  }
+}
+class _AlignTransitionRenderBox extends RenderProxyBox {
+  _AlignTransitionRenderBox(this.changed);
+  ValueChanged<bool> changed;
+  bool _blocked = false;
+  bool get _finite {
+    final aligned = child;
+    if (aligned is! RenderPositionedBox || aligned.child == null) return true;
+    final matrix = Matrix4.identity();
+    aligned.applyPaintTransform(aligned.child!, matrix);
+    return matrix.storage.every((value) => value.isFinite);
+  }
+  @override void paint(PaintingContext context, Offset offset) {
+    final blocked = !_finite;
+    if (_blocked != blocked) markNeedsSemanticsUpdate();
+    _blocked = blocked;
+    changed(blocked);
+    if (!blocked) super.paint(context, offset);
+  }
+  @override bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+    _finite && super.hitTest(result, position: position);
+  @override void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (_finite) super.visitChildrenForSemantics(visitor);
+  }
+}
+
+class _AnimatedMatrixPreview extends StatefulWidget {
+  const _AnimatedMatrixPreview({required this.node, required this.message, required this.child});
+  final CanvasNode node;
+  final String message;
+  final Widget child;
+  @override State<_AnimatedMatrixPreview> createState() => _AnimatedMatrixPreviewState();
+}
+class _AnimatedMatrixPreviewState extends State<_AnimatedMatrixPreview> {
+  bool _blocked = false, _pending = false, _scheduled = false;
+  void _changed(bool blocked) {
+    _pending = blocked;
+    if (_scheduled || _blocked == blocked) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted || _blocked == _pending) return;
+      setState(() => _blocked = _pending);
+    });
+  }
+  @override Widget build(BuildContext context) => _TextButtonPreview(
+    stableDiagnostic: true,
+    message: [
+      if (widget.message.isNotEmpty) widget.message,
+      if (_blocked) '${widget.node.type.split('.').last} ${widget.node.id} geometry preview unavailable: the native ${const {'flutter.widgets.AnimatedRotation', 'flutter.widgets.RotationTransition'}.contains(widget.node.type) ? 'rotation' : 'transform'} matrix is non-finite. '
+        'Unsafe paint, semantics and pointer input are withheld for this frame. '
+        '${const {'flutter.widgets.AnimatedRotation', 'flutter.widgets.RotationTransition'}.contains(widget.node.type) ? 'Reduce Turns or alignment coordinates.' : 'Reduce transform/pivot coordinates or use a nonsingular Matrix4.'} '
+        'The SDK tween, Child state, stored values and generated Dart are unchanged.',
+    ].join('\n'),
+    child: _AnimatedMatrixGuard(changed: _changed, child: widget.child),
+  );
+}
+// A positioned-only native Stack has zero intrinsic extents. The diagnostic
+// footprint must not replace them with 48 when queried by IntrinsicWidth/Height.
+class _PositionedStackFallback extends LeafRenderObjectWidget {
+  const _PositionedStackFallback();
+  @override
+  RenderObject createRenderObject(BuildContext context) => _PositionedStackFallbackRenderBox();
+}
+
+class _PositionedStackFallbackRenderBox extends RenderBox {
+  @override
+  Size computeDryLayout(BoxConstraints constraints) => constraints.constrain(const Size(48, 48));
+  @override
+  void performLayout() { size = computeDryLayout(constraints); }
+}
+
+// Position can animate without relaying out an unchanged zero-size child.
+// Paint notifications also cover those offset-only frames; the surface refresh
+// coalesces requests and only rebuilds when the measured target actually moved.
+class _PositionedGeometryObserver extends SingleChildRenderObjectWidget {
+  const _PositionedGeometryObserver({required super.child});
+  VoidCallback _refresh(BuildContext context) => () =>
+      context.findAncestorStateOfType<_CanvasDocumentViewState>()
+          ?._refreshZeroSizedWidgetTargetsAfterFrame();
+  @override
+  RenderObject createRenderObject(BuildContext context) =>
+      _PositionedGeometryRenderBox(_refresh(context));
+  @override
+  void updateRenderObject(BuildContext context, covariant _PositionedGeometryRenderBox renderObject) {
+    renderObject.refresh = _refresh(context);
+  }
+}
+
+class _PositionedGeometryRenderBox extends RenderProxyBox {
+  _PositionedGeometryRenderBox(this.refresh);
+  VoidCallback refresh;
+  @override
+  void performLayout() {
+    super.performLayout();
+    refresh();
+  }
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    super.paint(context, offset);
+    refresh();
+  }
+}
+
+// Keep child identity, but reset only the native animation shell when Flutter
+// cannot interpolate two otherwise valid TextStyles (inherit/paint mismatch).
+// Uses the real SDK animator. Preview-only guards do not rewrite the model.
+class _AnimatedFractionalPreview extends StatefulWidget {
+  const _AnimatedFractionalPreview({
+    required this.target,
+    required this.message,
+  });
+  final AnimatedFractionallySizedBox target;
+  final String message;
+  @override
+  State<_AnimatedFractionalPreview> createState() =>
+      _AnimatedFractionalPreviewState();
+}
+
+class _AnimatedFractionalPreviewState
+    extends State<_AnimatedFractionalPreview> {
+  GlobalKey _nativeKey = GlobalKey();
+  final GlobalKey _childKey = GlobalKey();
+  AnimatedFractionallySizedBox? _last;
+  double? _beginWidth, _endWidth, _beginHeight, _endHeight;
+  bool _blockedWidth = false, _blockedHeight = false;
+  String? _transitionMessage;
+
+  RenderFractionallySizedOverflowBox? _displayed() {
+    final renderObject = _nativeKey.currentContext?.findRenderObject();
+    return renderObject is RenderFractionallySizedOverflowBox
+        ? renderObject
+        : null;
+  }
+
+  bool _safeFactor(double? begin, double? end, double extent, Curve curve) {
+    if (end == null) return true;
+    for (var i = 0; i <= 100; i++) {
+      final t = curve.transform(i / 100);
+      final factor = (begin ?? end) * (1 - t) + end * t;
+      if (!factor.isFinite || factor < 0 || !(factor * extent).isFinite) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  @override
+  Widget build(BuildContext context) => _RefreshLayoutObserver(
+    builder: (context, constraints) {
+      final input = widget.target;
+      // Eager first build preserves the SDK's intrinsic measurements. Bounds are
+      // not real until the observer's first layout callback.
+      final eager = _last == null;
+      final blockWidth =
+          !eager &&
+          (!constraints.hasBoundedWidth ||
+              (input.widthFactor != null &&
+                  !(input.widthFactor! * constraints.maxWidth).isFinite));
+      final blockHeight =
+          !eager &&
+          (!constraints.hasBoundedHeight ||
+              (input.heightFactor != null &&
+                  !(input.heightFactor! * constraints.maxHeight).isFinite));
+      final width = blockWidth ? null : input.widthFactor;
+      final height = blockHeight ? null : input.heightFactor;
+      final messages = <String>[if (widget.message.isNotEmpty) widget.message];
+      if (blockWidth && (input.widthFactor != null || _endWidth != null) ||
+          blockHeight && (input.heightFactor != null || _endHeight != null)) {
+        messages.add(
+          'AnimatedFractionallySizedBox preview limitation: a factor needs a finite available axis and finite resulting extent. Using null on the unavailable axis; stored values and generated Dart are unchanged.',
+        );
+      }
+      final last = _last;
+      final constraintsChanged =
+          blockWidth != _blockedWidth || blockHeight != _blockedHeight;
+      final changed =
+          last == null ||
+          last.alignment != input.alignment ||
+          last.widthFactor != width ||
+          last.heightFactor != height ||
+          last.curve != input.curve ||
+          last.duration != input.duration;
+      if (last == null || constraintsChanged) {
+        if (last != null) _nativeKey = GlobalKey();
+        _beginWidth = _endWidth = width;
+        _beginHeight = _endHeight = height;
+        _transitionMessage = null;
+      } else if (changed) {
+        final displayed = _displayed();
+        final restarts =
+            last.alignment != input.alignment ||
+            width != null && _endWidth != null && width != _endWidth ||
+            height != null && _endHeight != null && height != _endHeight;
+        // The pinned SDK skips null factor visitors: their existing tween is
+        // retained, and can replay if another target restarts the controller.
+        if (width != null) {
+          if (_endWidth == null) {
+            _beginWidth = _endWidth = width;
+          } else if (restarts) {
+            _beginWidth = displayed?.widthFactor ?? _endWidth;
+            _endWidth = width;
+          }
+        }
+        if (height != null) {
+          if (_endHeight == null) {
+            _beginHeight = _endHeight = height;
+          } else if (restarts) {
+            _beginHeight = displayed?.heightFactor ?? _endHeight;
+            _endHeight = height;
+          }
+        }
+        _transitionMessage = null;
+      }
+      // Recheck after resize as well: an unchanged factor may overflow new bounds.
+      if (!eager &&
+          input.duration != Duration.zero &&
+          (!_safeFactor(
+                _beginWidth,
+                _endWidth,
+                constraints.maxWidth,
+                input.curve,
+              ) ||
+              !_safeFactor(
+                _beginHeight,
+                _endHeight,
+                constraints.maxHeight,
+                input.curve,
+              ))) {
+        _nativeKey = GlobalKey();
+        _beginWidth = _endWidth = width;
+        _beginHeight = _endHeight = height;
+        _transitionMessage =
+            'AnimatedFractionallySizedBox preview limitation: this curve produces unsafe factor interpolation. Showing the target without this transition; stored values and generated Dart are unchanged.';
+      }
+      if (_transitionMessage != null) messages.add(_transitionMessage!);
+      _blockedWidth = blockWidth;
+      _blockedHeight = blockHeight;
+      _last = AnimatedFractionallySizedBox(
+        alignment: input.alignment,
+        widthFactor: width,
+        heightFactor: height,
+        curve: input.curve,
+        duration: input.duration,
+      );
+      return _TextButtonPreview(
+        message: messages.join(' '),
+        child: AnimatedFractionallySizedBox(
+          key: _nativeKey,
+          alignment: input.alignment,
+          widthFactor: width,
+          heightFactor: height,
+          curve: input.curve,
+          duration: input.duration,
+          onEnd: null,
+          child: input.child == null
+              ? null
+              : KeyedSubtree(key: _childKey, child: input.child!),
+        ),
+      );
+    },
+  );
+}
+
+class _AnimatedPhysicalPreview extends StatefulWidget {
+  const _AnimatedPhysicalPreview({required this.target,required this.message});
+  final AnimatedPhysicalModel target;
+  final String message;
+  @override State<_AnimatedPhysicalPreview> createState()=>_AnimatedPhysicalPreviewState();
+}
+class _AnimatedPhysicalPreviewState extends State<_AnimatedPhysicalPreview> {
+  GlobalKey _nativeKey=GlobalKey();
+  final GlobalKey _childKey=GlobalKey();
+  late double _beginElevation;
+  late BorderRadius _beginRadius;
+  bool _unsafe=false;
+  @override void initState(){
+    super.initState();_beginElevation=widget.target.elevation;_beginRadius=widget.target.borderRadius??BorderRadius.zero;
+  }
+  @override void didUpdateWidget(covariant _AnimatedPhysicalPreview oldWidget){
+    super.didUpdateWidget(oldWidget);
+    final old=oldWidget.target,next=widget.target;
+    final displayed=_childKey.currentContext?.findAncestorWidgetOfExactType<PhysicalModel>();
+    final radius=next.borderRadius??BorderRadius.zero;
+    // A change to any of the four targets restarts all SDK tweens, even when
+    // animateColor/animateShadowColor are false. Curve-only edits retain begin.
+    if(old.elevation!=next.elevation||(old.borderRadius??BorderRadius.zero)!=radius||
+       old.color!=next.color||old.shadowColor!=next.shadowColor){
+      _beginElevation=displayed?.elevation??old.elevation;
+      _beginRadius=displayed?.borderRadius??old.borderRadius??BorderRadius.zero;
+    }
+    _unsafe=false;
+    if(next.duration!=Duration.zero){
+      for(var i=0;i<=100;i++){
+        final t=next.curve.transform(i/100);
+        final elevation=_beginElevation+(next.elevation-_beginElevation)*t;
+        final corners=BorderRadius.lerp(_beginRadius,radius,t)!;
+        if(!elevation.isFinite||elevation<0||
+           [corners.topLeft,corners.topRight,corners.bottomLeft,corners.bottomRight]
+             .any((r)=>!r.x.isFinite||!r.y.isFinite)){
+          _unsafe=true;break;
+        }
+      }
+    }
+    if(_unsafe){_nativeKey=GlobalKey();_beginElevation=next.elevation;_beginRadius=radius;}
+  }
+  @override Widget build(BuildContext context){
+    final v=widget.target;
+    return _TextButtonPreview(
+      message:[widget.message,if(_unsafe)'AnimatedPhysicalModel preview limitation: this curve produces unsafe elevation/radius interpolation. Showing the target without this transition; stored values and generated Dart are unchanged.'].where((s)=>s.isNotEmpty).join(' '),
+      child:AnimatedPhysicalModel(key:_nativeKey,shape:v.shape,clipBehavior:v.clipBehavior,
+        borderRadius:v.borderRadius,elevation:v.elevation,color:v.color,shadowColor:v.shadowColor,
+        animateColor:v.animateColor,animateShadowColor:v.animateShadowColor,curve:v.curve,duration:v.duration,
+        onEnd:null,child:KeyedSubtree(key:_childKey,child:v.child)));
+  }
+}
+
+class _AnimatedTextStylePreview extends StatefulWidget {
+  const _AnimatedTextStylePreview({required this.target, required this.message});
+  final AnimatedDefaultTextStyle target;
+  final String message;
+  @override
+  State<_AnimatedTextStylePreview> createState() => _AnimatedTextStylePreviewState();
+}
+
+class _AnimatedTextStylePreviewState extends State<_AnimatedTextStylePreview> {
+  GlobalKey _nativeKey = GlobalKey();
+  final GlobalKey _childKey = GlobalKey();
+  String? _transitionMessage;
+
+  TextStyle? _displayedStyle() => _childKey.currentContext
+      ?.getInheritedWidgetOfExactType<DefaultTextStyle>()?.style;
+
+  @override
+  void didUpdateWidget(covariant _AnimatedTextStylePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.target.style == widget.target.style) return;
+    _transitionMessage = null;
+    final current = _displayedStyle() ?? oldWidget.target.style;
+    try {
+      // Preflight the reviewed curve, including overshoot. Incompatible inherit
+      // and missing Paint/color peers fail before SDK build can poison Canvas.
+      for (var step = 0; step <= 100; step++) {
+        final style = TextStyle.lerp(current, widget.target.style, widget.target.curve.transform(step / 100))!;
+        if ([style.fontSize, style.letterSpacing, style.wordSpacing, style.height, style.decorationThickness]
+            .any((v) => v != null && !v.isFinite) || (style.fontSize != null && style.fontSize! < 0)) {
+          throw ArgumentError('Unsafe interpolated text metrics');
+        }
+      }
+    } on FlutterError {
+      _transitionMessage = 'Flutter TextStyle.lerp cannot interpolate this inherit/paint transition.';
+    } on TypeError {
+      _transitionMessage = 'Flutter TextStyle.lerp requires a matching color when interpolating a Paint.';
+    } on ArgumentError {
+      _transitionMessage = 'Flutter TextStyle.lerp produced unsafe text metrics.';
+    }
+    if (_transitionMessage != null) _nativeKey = GlobalKey();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final value = widget.target;
+    return _TextButtonPreview(
+      message: [widget.message, if (_transitionMessage != null)
+          'AnimatedDefaultTextStyle preview limitation: $_transitionMessage Showing the target without this transition; stored values and generated Dart are unchanged.']
+          .where((m) => m.isNotEmpty).join(' '),
+      child: NotificationListener<SizeChangedLayoutNotification>(
+        onNotification: (_) {
+          context.findAncestorStateOfType<_CanvasDocumentViewState>()?._refreshZeroSizedWidgetTargetsAfterFrame();
+          return false;
+        },
+        child: SizeChangedLayoutNotifier(
+          child: AnimatedDefaultTextStyle(
+            key: _nativeKey, style: value.style, textAlign: value.textAlign,
+            softWrap: value.softWrap, overflow: value.overflow, maxLines: value.maxLines,
+            textWidthBasis: value.textWidthBasis, textHeightBehavior: value.textHeightBehavior,
+            duration: value.duration, curve: value.curve, onEnd: null,
+            child: KeyedSubtree(key: _childKey, child: value.child),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _AnimatedMatrixGuard extends SingleChildRenderObjectWidget {
+  const _AnimatedMatrixGuard({required this.changed, required super.child});
+  final ValueChanged<bool> changed;
+  @override _AnimatedMatrixRenderBox createRenderObject(BuildContext context) => _AnimatedMatrixRenderBox(changed);
+  @override void updateRenderObject(BuildContext context, _AnimatedMatrixRenderBox render) {
+    render.changed = changed;
+    render.markNeedsPaint();
+    render.markNeedsSemanticsUpdate();
+  }
+}
+class _AnimatedMatrixRenderBox extends RenderProxyBox {
+  _AnimatedMatrixRenderBox(this.changed);
+  ValueChanged<bool> changed;
+  bool _blocked = false;
+  bool get _finite {
+    final rotation = child;
+    if (rotation is! RenderTransform || rotation.child == null) return true;
+    final matrix = Matrix4.identity();
+    rotation.applyPaintTransform(rotation.child!, matrix);
+    return matrix.storage.every((value) => value.isFinite);
+  }
+  @override void paint(PaintingContext context, Offset offset) {
+    final blocked = !_finite;
+    if (_blocked != blocked) markNeedsSemanticsUpdate();
+    _blocked = blocked;
+    changed(blocked);
+    if (!blocked) super.paint(context, offset);
+  }
+  @override bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+    _finite && super.hitTest(result, position: position);
+  @override void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (_finite) super.visitChildrenForSemantics(visitor);
+  }
+}
+
+class _MenuItemPreview extends StatefulWidget {
+  const _MenuItemPreview({
+    required this.node,
+    required this.message,
+    required this.child,
+  });
+  final CanvasNode node;
+  final String message;
+  final Widget child;
+  @override
+  State<_MenuItemPreview> createState() => _MenuItemPreviewState();
+}
+
+class _MenuItemPreviewState extends State<_MenuItemPreview> {
+  String? _geometryMessage;
+  String? _pendingMessage;
+  bool _scheduled = false;
+  String get message => [
+    if (widget.message.isNotEmpty) widget.message,
+    if (_geometryMessage != null)
+      '${widget.node.type.split('.').last} ${widget.node.id} geometry preview unavailable: $_geometryMessage. The real SDK subtree and model children are retained, but unsafe paint, semantics and pointer input are withheld. Stored values and generated Dart are unchanged.',
+  ].join('\n');
+  void _changed(String? value) {
+    _pendingMessage = value;
+    if (_scheduled || _geometryMessage == value) return;
+    _scheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _scheduled = false;
+      if (!mounted || _geometryMessage == _pendingMessage) return;
+      setState(() => _geometryMessage = _pendingMessage);
+      context
+          .findAncestorStateOfType<_CanvasDocumentViewState>()
+          ?._refreshZeroSizedWidgetTargetsAfterFrame();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) => _TextButtonPreview(
+    message: message,
+    stableDiagnostic: true,
+    child: _MenuItemGeometryGuard(
+      fallbackWidth: MediaQuery.sizeOf(context).width,
+      changed: _changed,
+      child: widget.child,
+    ),
+  );
+}
+
+class _MenuItemGeometryGuard extends SingleChildRenderObjectWidget {
+  const _MenuItemGeometryGuard({
+    required this.fallbackWidth,
+    required this.changed,
+    required super.child,
+  });
+  final double fallbackWidth;
+  final ValueChanged<String?> changed;
+  @override
+  _MenuItemGeometryRenderBox createRenderObject(BuildContext context) =>
+      _MenuItemGeometryRenderBox(fallbackWidth, changed);
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    _MenuItemGeometryRenderBox render,
+  ) {
+    render.fallbackWidth = fallbackWidth;
+    render.changed = changed;
+    render.markNeedsLayout();
+  }
+}
+
+class _MenuItemGeometryRenderBox extends RenderProxyBox {
+  _MenuItemGeometryRenderBox(this.fallbackWidth, this.changed);
+  double fallbackWidth;
+  ValueChanged<String?> changed;
+  bool blocked = false;
+  bool _unbounded = false;
+  bool get _labelNeedsBoundedWidth {
+    // The pinned native menu label is the first Flex below TextButton. Read
+    // only public topology, including SDK parent-menu axis overrides. A finite
+    // native style constraint already bounds the label and needs no quarantine.
+    bool? visit(RenderObject render) {
+      if (render is RenderConstrainedBox &&
+          render.additionalConstraints.hasBoundedWidth) {
+        return false;
+      }
+      if (render is RenderFlex) {
+        if (render.direction != Axis.horizontal) return false;
+        var needs = false;
+        render.visitChildren((child) {
+          final data = child.parentData;
+          if (data is FlexParentData &&
+              data.flex != null &&
+              data.flex! > 0 &&
+              (render.mainAxisSize == MainAxisSize.max ||
+                  data.fit == FlexFit.tight)) {
+            needs = true;
+          }
+        });
+        return needs;
+      }
+      bool? result;
+      render.visitChildren((child) {
+        result ??= visit(child);
+      });
+      return result;
+    }
+
+    return visit(child!) ?? false;
+  }
+
+  bool _requiresQuarantine(BoxConstraints value) =>
+      !value.hasBoundedWidth && _labelNeedsBoundedWidth;
+  BoxConstraints _safe(BoxConstraints value) => !_requiresQuarantine(value)
+      ? value
+      : value.copyWith(maxWidth: math.max(value.minWidth, fallbackWidth));
+  @override
+  Size computeDryLayout(BoxConstraints constraints) =>
+      !_requiresQuarantine(constraints)
+      ? super.computeDryLayout(constraints)
+      : constraints.constrain(Size.zero);
+  @override
+  double? computeDryBaseline(
+    BoxConstraints constraints,
+    TextBaseline baseline,
+  ) => !_requiresQuarantine(constraints)
+      ? super.computeDryBaseline(constraints, baseline)
+      : null;
+  @override
+  double? computeDistanceToActualBaseline(TextBaseline baseline) =>
+      blocked ? null : super.computeDistanceToActualBaseline(baseline);
+  bool _overflows(RenderObject render) {
+    if (render is RenderFlex && render.hasSize) {
+      var overflow = false;
+      render.visitChildren((child) {
+        if (child is! RenderBox ||
+            !child.hasSize ||
+            child.parentData is! BoxParentData) {
+          return;
+        }
+        final offset = (child.parentData! as BoxParentData).offset;
+        final start = render.direction == Axis.horizontal
+            ? offset.dx
+            : offset.dy;
+        final end = render.direction == Axis.horizontal
+            ? offset.dx + child.size.width
+            : offset.dy + child.size.height;
+        final limit = render.direction == Axis.horizontal
+            ? render.size.width
+            : render.size.height;
+        overflow |=
+            !start.isFinite ||
+            !end.isFinite ||
+            start < -precisionErrorTolerance ||
+            end > limit + precisionErrorTolerance;
+      });
+      if (overflow) return true;
+    }
+    var overflow = false;
+    render.visitChildren((child) {
+      if (!overflow) overflow = _overflows(child);
+    });
+    return overflow;
+  }
+
+  @override
+  void performLayout() {
+    child!.layout(_safe(constraints), parentUsesSize: true);
+    _unbounded = _requiresQuarantine(constraints);
+    if (_unbounded) {
+      if (!blocked) markNeedsSemanticsUpdate();
+      blocked = true;
+      changed('the native menu label requires a bounded horizontal layout');
+    }
+    size = _unbounded ? constraints.constrain(Size.zero) : child!.size;
+  }
+
+  @override
+  void paint(PaintingContext context, Offset offset) {
+    if (_unbounded) return;
+    // Inspect public descendant geometry only after layout, at the legal
+    // painting boundary, before an overflowing native Flex paints diagnostics.
+    final overflow = _overflows(child!);
+    if (blocked != overflow) markNeedsSemanticsUpdate();
+    blocked = overflow;
+    changed(
+      overflow
+          ? 'the native menu label or one of its real slots exceeds the available layout extent'
+          : null,
+    );
+    if (!blocked) super.paint(context, offset);
+  }
+
+  @override
+  bool hitTest(BoxHitTestResult result, {required Offset position}) =>
+      !blocked && super.hitTest(result, position: position);
+  @override
+  void visitChildrenForSemantics(RenderObjectVisitor visitor) {
+    if (!blocked) super.visitChildrenForSemantics(visitor);
+  }
+}
+
+// The preview is a logical application surface. Keep native menus/tooltips in
+// its own overlay coordinate space for zoom and clipping. MenuAnchor root-overlay
+// requests are explicitly approximated by this local overlay; LookupBoundary
+// cannot be used here because it hides View.of from real EditableText children.
+// This content entry is never recreated on edits.
+class _MenuAnchorPreview extends StatefulWidget {
+  const _MenuAnchorPreview({
+    super.key,
+    required this.owner,
+    this.menuBar = false,
+  });
+  final _CanvasNodeView owner;
+  final bool menuBar;
+  @override
+  State<_MenuAnchorPreview> createState() => _MenuAnchorPreviewState();
+}
+
+class _MenuPanelPreviewScope extends InheritedWidget {
+  const _MenuPanelPreviewScope({required this.linked, required super.child});
+  final bool linked;
+  static bool active(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_MenuPanelPreviewScope>() != null;
+  static bool linkedOf(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<_MenuPanelPreviewScope>()
+          ?.linked ??
+      false;
+  @override
+  bool updateShouldNotify(_MenuPanelPreviewScope oldWidget) =>
+      linked != oldWidget.linked;
+}
+
+class _MenuAnchorPreviewState extends State<_MenuAnchorPreview> {
+  final MenuController controller = MenuController();
+  final LayerLink _layerLink = LayerLink();
+  final GlobalKey _menuProbeKey = GlobalKey(debugLabel: 'menu-overlay-probe');
+  AnimationStatus _status = AnimationStatus.dismissed;
+  bool get interactive =>
+      controller.isOpen && _status != AnimationStatus.reverse;
+  bool _notifyScheduled = false;
+  void _changed() {
+    if (_notifyScheduled) return;
+    _notifyScheduled = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _notifyScheduled = false;
+      if (mounted) {
+        context
+            .findAncestorStateOfType<_CanvasDocumentViewState>()
+            ?._menuChanged();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final owner = widget.owner;
+    final documentState = context
+        .findAncestorStateOfType<_CanvasDocumentViewState>();
+    final menuBar =
+        widget.menuBar || owner.node.type == 'flutter.material.MenuBar';
+    final submenu = owner.node.type == 'flutter.material.SubmenuButton';
+    var style = submenu
+        ? owner._submenuMenuStyle(context)
+        : owner._menuAnchorStyle(context);
+    final themeStyle = MenuTheme.of(context).style;
+    var unsafeResolution = false;
+    T? resolve<T>(WidgetStateProperty<T?>? Function(MenuStyle style) field) =>
+        (() {
+          try {
+            return (style == null ? null : field(style)?.resolve({})) ??
+                (themeStyle == null ? null : field(themeStyle)?.resolve({}));
+          } catch (_) {
+            // ThemeData.lerp can expose a finite/non-finite state property
+            // while the host theme is animating. Do not resolve it again in
+            // this isolated preview; quarantine the complete menu style.
+            unsafeResolution = true;
+            return null;
+          }
+        })();
+    final minimum = resolve<Size>((value) => value.minimumSize) ?? Size.zero;
+    final maximum =
+        resolve<Size>((value) => value.maximumSize) ??
+        const Size(double.infinity, double.infinity);
+    final fixed = resolve<Size>((value) => value.fixedSize);
+    final elevation = resolve<double>((value) => value.elevation) ?? 3;
+    final menuPadding =
+        (resolve<EdgeInsetsGeometry>((value) => value.padding) ??
+                const EdgeInsets.symmetric(vertical: 8))
+            .resolve(Directionality.of(context));
+    final invalidGeometry =
+        unsafeResolution ||
+        !menuPadding.isNonNegative ||
+        !minimum.isFinite ||
+        minimum.width < 0 ||
+        minimum.height < 0 ||
+        maximum.width.isNaN ||
+        maximum.height.isNaN ||
+        maximum.width < minimum.width ||
+        maximum.height < minimum.height ||
+        (fixed != null &&
+            (fixed.width.isNaN ||
+                fixed.height.isNaN ||
+                fixed.width < 0 ||
+                fixed.height < 0)) ||
+        !elevation.isFinite ||
+        elevation < 0 ||
+        [
+          menuPadding.left,
+          menuPadding.top,
+          menuPadding.right,
+          menuPadding.bottom,
+        ].any((value) => !value.isFinite);
+    if (invalidGeometry) {
+      // Do not let a finite->infinite/NaN transition reach MenuStyle.lerp:
+      // Flutter asserts in dart:ui/lerp.dart before the popup can be painted.
+      // Use a complete finite quarantine style for the isolated preview. The
+      // model and generated source still retain every original value, while
+      // the native children remain mounted and selectable.
+      style = const MenuStyle(
+        minimumSize: WidgetStatePropertyAll(Size.zero),
+        maximumSize: WidgetStatePropertyAll(Size(100000, 100000)),
+        fixedSize: WidgetStatePropertyAll(Size(100000, 100000)),
+        padding: WidgetStatePropertyAll(EdgeInsets.symmetric(vertical: 8)),
+        elevation: WidgetStatePropertyAll(3.0),
+      );
+    }
+    Widget safeMenuTheme(Widget child) => invalidGeometry
+        ? MenuTheme(
+            data: MenuThemeData(style: style),
+            child: child,
+          )
+        : child;
+    final padding = owner._buttonReferencePresent('reservedPadding')
+        ? null
+        : owner._edgeInsetsGeometry('reservedPadding');
+    final resolvedPadding = padding?.resolve(Directionality.of(context));
+    final unavailablePadding =
+        resolvedPadding != null &&
+        [
+          resolvedPadding.left,
+          resolvedPadding.top,
+          resolvedPadding.right,
+          resolvedPadding.bottom,
+        ].any((value) => !value.isFinite);
+    final message = <String>[
+      if (menuBar) ...[
+        if (owner._buttonReferencePresent('controller'))
+          'MenuBar controller project reference is not executed in isolated Canvas. A stable preview-owned controller is used.',
+        if (owner._buttonReferencePresent('style'))
+          'MenuBar style project reference is not executed in isolated Canvas. Native defaults are used; unknown project content and behavior are unavailable.',
+      ] else if (submenu) ...[
+        ?_textButtonReferenceMessage(owner.node),
+        for (final name in [
+          'controller',
+          'focusNode',
+          'menuStyle',
+          'alignmentOffset',
+          'hoverOpenDelayUs',
+          'submenuIcon',
+          'submenuIconDefault',
+          'submenuIconDisabled',
+          'submenuIconHovered',
+          'submenuIconFocused',
+        ])
+          if (owner._buttonReferencePresent(name))
+            'SubmenuButton $name project reference is not executed in isolated Canvas. ${name == 'controller' ? 'A stable preview-owned controller is used.' : 'Native defaults are used; unknown project content and behavior are unavailable.'}',
+        if (owner._buttonReferencePresent('statesController'))
+          'SubmenuButton statesController project reference is not executed. The pinned SDK uses it only for the menu-padding prepass, not the internal TextButton states. Preview padding uses the native empty state set.',
+      ],
+      if (!submenu && !menuBar)
+        for (final name in [
+          'controller',
+          'childFocusNode',
+          'style',
+          'alignmentOffset',
+          'reservedPadding',
+          'layerLink',
+          'builder',
+        ])
+          if (owner._buttonReferencePresent(name))
+            'MenuAnchor $name project reference is not executed in isolated Canvas. ${name == 'builder'
+                ? 'The actual Child (or native empty fallback) is shown; Preview menu is a Designer action, not a generated opener.'
+                : name == 'controller'
+                ? 'A stable preview-owned controller is used.'
+                : name == 'layerLink'
+                ? 'An isolated preview-owned link is used; project connectivity is unavailable.'
+                : 'Native defaults are used for this reference.'}',
+      if (owner._boolean('useRootOverlay') == true)
+        '${submenu ? 'SubmenuButton' : 'MenuAnchor'} root-overlay preview is isolated to the logical Canvas viewport: root and nearest overlay are intentionally the same here. The source useRootOverlay flag is unchanged.',
+      if (owner._buttonReferencePresent('layerLink') &&
+          !_menuAnchorFollowerAvailable(owner.node))
+        'MenuAnchor LayerLink follower preview is unavailable with descendant Tooltip overlays: the pinned SDK cannot compute their overlay transform through a follower. The isolated link is omitted; the project reference and generated Dart are unchanged.',
+      if (unavailablePadding)
+        'MenuAnchor reservedPadding preview unavailable: nonfinite reserved padding cannot safely bound this isolated menu. Native default padding is used; stored values and generated Dart are unchanged.',
+      if (invalidGeometry)
+        '${menuBar
+            ? 'MenuBar'
+            : submenu
+            ? 'SubmenuButton'
+            : 'MenuAnchor'} inherited menu geometry preview unavailable: nonfinite, negative or inconsistent resolved constraints, elevation or padding. Native default geometry is substituted without changing model children, stored values or generated Dart.',
+    ].join('\n');
+    _changed();
+    final menuSlot = menuBar ? 'children' : 'menuChildren';
+    final children = [
+      for (final (index, child) in owner._children(menuSlot).indexed)
+        _MenuPanelPreviewScope(
+          linked: _menuAnchorFollowerAvailable(owner.node),
+          child: Focus(
+            // Menu overlays own their primary focus. This passive ancestor
+            // lets Designer shortcuts (notably F2) bubble out of a native
+            // menu without requesting focus or changing menu state.
+            canRequestFocus: false,
+            skipTraversal: true,
+            onKeyEvent: documentState?._onKeyEvent,
+            child: index == 0
+                ? KeyedSubtree(key: _menuProbeKey, child: child)
+                : child,
+          ),
+        ),
+    ];
+    void opened() {
+      _status = AnimationStatus.forward;
+      _changed();
+    }
+
+    void closed() {
+      _status = AnimationStatus.dismissed;
+      _changed();
+    }
+
+    void statusChanged(AnimationStatus status) {
+      _status = status;
+      _changed();
+    }
+
+    if (menuBar) {
+      return _TextButtonPreview(
+        message: message,
+        stableDiagnostic: true,
+        child: safeMenuTheme(
+          MenuBar(
+            controller: controller,
+            style: style,
+            clipBehavior: owner._clipBehavior() ?? Clip.none,
+            children: [for (final child in owner._children('children')) child],
+          ),
+        ),
+      );
+    }
+    if (submenu) {
+      return _MenuItemPreview(
+        node: owner.node,
+        message: message,
+        child: _MenuItemAnchorScope(
+          child: safeMenuTheme(
+            SubmenuButton(
+              controller: controller,
+              onHover: owner._buttonReferencePresent('onHover') ? (_) {} : null,
+              onFocusChange: owner._buttonReferencePresent('onFocusChange')
+                  ? (_) {}
+                  : null,
+              onOpen: opened,
+              onClose: closed,
+              style: owner._elevatedButtonStyle(context),
+              menuStyle: style,
+              alignmentOffset: owner._offset('alignmentOffset'),
+              clipBehavior: owner._clipBehavior() ?? Clip.hardEdge,
+              submenuIcon: owner._submenuIcon(),
+              useRootOverlay: false,
+              hoverOpenDelay: Duration(
+                microseconds: owner._integer('hoverOpenDelayUs') ?? 0,
+              ),
+              animated: owner._boolean('animated') ?? false,
+              onAnimationStatusChanged: statusChanged,
+              leadingIcon: owner._single('leadingIcon'),
+              trailingIcon: owner._single('trailingIcon'),
+              menuChildren: children,
+              child: owner._single('child'),
+            ),
+          ),
+        ),
+      );
+    }
+    return _TextButtonPreview(
+      message: message,
+      stableDiagnostic: true,
+      child: safeMenuTheme(
+        MenuAnchor(
+          controller: controller,
+          style: style,
+          alignmentOffset: owner._offset('alignmentOffset') ?? Offset.zero,
+          reservedPadding: unavailablePadding ? null : padding,
+          layerLink: _menuAnchorFollowerAvailable(owner.node)
+              ? _layerLink
+              : null,
+          clipBehavior: owner._clipBehavior() ?? Clip.hardEdge,
+          // This deprecated pinned argument is stored but intentionally inert.
+          // ignore: deprecated_member_use
+          anchorTapClosesMenu: owner._boolean('anchorTapClosesMenu') ?? false,
+          consumeOutsideTap: owner._boolean('consumeOutsideTap') ?? false,
+          onOpen: opened,
+          onClose: closed,
+          crossAxisUnconstrained:
+              owner._boolean('crossAxisUnconstrained') ?? true,
+          // A LookupBoundary would hide View.of from EditableText. Keep the
+          // supported local Overlay and label root-placement isolation above.
+          useRootOverlay: false,
+          animated: owner._boolean('animated') ?? false,
+          onAnimationStatusChanged: statusChanged,
+          menuChildren: children,
+          child: owner._single('child'),
+        ),
+      ),
+    );
+  }
+}
+
+class _CanvasViewportOverlay extends StatefulWidget {
+  const _CanvasViewportOverlay({required this.child});
+  final Widget child;
+  @override
+  State<_CanvasViewportOverlay> createState() => _CanvasViewportOverlayState();
+}
+
+class _CanvasViewportOverlayState extends State<_CanvasViewportOverlay> {
+  late final OverlayEntry _content = OverlayEntry(
+    opaque: true,
+    maintainState: true,
+    builder: (_) => widget.child,
+  );
+  @override
+  void didUpdateWidget(_CanvasViewportOverlay oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    _content.markNeedsBuild();
+  }
+
+  @override
+  void dispose() {
+    _content.remove();
+    _content.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Overlay(
+    key: const ValueKey('canvas-logical-viewport-overlay'),
+    initialEntries: [_content],
+  );
+}
+
+class _MenuItemAnchorScope extends InheritedWidget {
+  const _MenuItemAnchorScope({required super.child});
+  static bool active(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<_MenuItemAnchorScope>() != null;
+  @override
+  bool updateShouldNotify(_MenuItemAnchorScope oldWidget) => false;
+}
+
+class _TooltipAnchorScope extends InheritedWidget {
+  const _TooltipAnchorScope({required super.child});
+  static bool active(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<_TooltipAnchorScope>() != null;
+  @override
+  bool updateShouldNotify(_TooltipAnchorScope oldWidget) => false;
+}
+
+class _TooltipPreview extends StatefulWidget {
+  const _TooltipPreview({super.key, required this.node, required this.builder});
+  final CanvasNode node;
+  final Widget Function(GlobalKey, GlobalKey) builder;
+  @override
+  State<_TooltipPreview> createState() => _TooltipPreviewState();
+}
+
+class _TooltipPreviewState extends State<_TooltipPreview> {
+  final sdkKey = GlobalKey<TooltipState>();
+  var anchorKey = GlobalKey();
+  String? message;
+  @override
+  Widget build(BuildContext context) => widget.builder(sdkKey, anchorKey);
+}
+
+class _ExpansionTilePreview extends StatefulWidget {
+  const _ExpansionTilePreview({
+    super.key,
+    required this.node,
+    required this.builder,
+  });
+  final CanvasNode node;
+  final Widget Function(ExpansibleController, GlobalKey) builder;
+  @override
+  State<_ExpansionTilePreview> createState() => _ExpansionTilePreviewState();
+}
+
+class _ExpansionTilePreviewState extends State<_ExpansionTilePreview> {
+  final controller = ExpansibleController();
+  final sdkKey = GlobalKey();
+  int _seedRevision = 0;
+  bool get _seed => widget.node.properties['initiallyExpanded']?.value == true;
+  @override
+  void initState() {
+    super.initState();
+    if (_seed) controller.expand();
+    controller.addListener(_changed);
+  }
+
+  void _changed() {
+    if (!mounted) return;
+    setState(() {});
+    context
+        .findAncestorStateOfType<_CanvasDocumentViewState>()
+        ?._refreshZeroSizedWidgetTargetsAfterFrame();
+  }
+
+  @override
+  void didUpdateWidget(covariant _ExpansionTilePreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if ((oldWidget.node.properties['initiallyExpanded']?.value == true) !=
+        _seed) {
+      final revision = ++_seedRevision;
+      // SDK initiallyExpanded is only an initialization seed. A Designer edit
+      // explicitly previews the new seed without remounting the real SDK State.
+      // Controller notifications cannot run during this ancestor's build.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted || revision != _seedRevision) return;
+        if (_seed) {
+          controller.expand();
+        } else {
+          controller.collapse();
+        }
+      });
+    }
+  }
+
+  RenderBox? get headerBox {
+    RenderBox? result;
+    void visit(Element element) {
+      if (result != null) return;
+      if (element.widget is ListTile) {
+        final render = element.findRenderObject();
+        if (render is RenderBox && render.attached) result = render;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    final element = sdkKey.currentContext;
+    if (element is Element) visit(element);
+    return result;
+  }
+
+  @override
+  void dispose() {
+    controller.removeListener(_changed);
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(controller, sdkKey);
 }
 
 class _ListTilePreview extends StatefulWidget {
@@ -1401,7 +2866,13 @@ class _ListTileLayoutRenderBox extends RenderProxyBox {
     }
     final quarantine = message != null;
     child!.layout(
-      quarantine ? BoxConstraints.tight(Size.zero) : constraints,
+      quarantine
+          ? widgetName == 'ExpansionTile'
+                // Its SDK Column must still lay out the real header/body at
+                // natural height; tight zero height would cause Flex overflow.
+                ? const BoxConstraints(maxWidth: 0)
+                : BoxConstraints.tight(Size.zero)
+          : constraints,
       parentUsesSize: true,
     );
     size = quarantine ? constraints.constrain(Size.zero) : child!.size;
@@ -1491,6 +2962,7 @@ class _RadioGroupForwardingRegistry<T> {
   _RadioGroupForwardingRegistry(this.changed);
   final VoidCallback changed;
   RadioGroupRegistry<T>? _delegate;
+  Object? get groupValue => _delegate?.groupValue;
   final _clients = <RadioClient<T>, String>{};
   final _forwarded = <RadioClient<T>>{};
   final _members = <String, _RadioGroupMemberRegistry<T>>{};
@@ -1555,6 +3027,58 @@ class _RadioGroupForwardingRegistry<T> {
     _members.clear();
     _delegate = null;
     gate = null;
+  }
+}
+
+// RadioListTile registers itself and hides its inner Radio. Observe only that
+// public RadioClient, synchronously after descendant mount/rebuild, before the
+// SDK's queued post-frame duplicate-selection assertion. No proxy client or
+// additional RadioGroup is created and no private State fields are inspected.
+class _RadioListTileRegistration<T> extends StatelessWidget {
+  const _RadioListTileRegistration({
+    required this.registry,
+    required this.child,
+  });
+  final RadioGroupRegistry<T> registry;
+  final Widget child;
+  @override
+  Widget build(BuildContext context) {
+    // Mirror every direct inherited dependency of the pinned SDK tile. Its
+    // didChangeDependencies resets the public registry even for a theme-only
+    // update with a cached child widget, without a Canvas model replacement.
+    RadioGroup.maybeOf<T>(context);
+    ListTileTheme.of(context);
+    Theme.of(context);
+    RadioTheme.of(context);
+    return child;
+  }
+
+  @override
+  StatelessElement createElement() =>
+      _RadioListTileRegistrationElement<T>(this);
+}
+
+class _RadioListTileRegistrationElement<T> extends StatelessElement {
+  _RadioListTileRegistrationElement(_RadioListTileRegistration<T> super.widget);
+  @override
+  void performRebuild() {
+    super.performRebuild();
+    final owner = widget as _RadioListTileRegistration<T>;
+    visitChildren((child) {
+      if (child is StatefulElement &&
+          child.widget is RadioListTile<T> &&
+          child.state is RadioClient<T>) {
+        // updateChild can skip an identical cached widget while this SDK
+        // element is independently dirty from the same inherited update.
+        // Flush that queued didChangeDependencies before restoring membership.
+        child.rebuild();
+        (child.state as RadioClient<T>).registry = owner.registry;
+      } else {
+        throw StateError(
+          'RadioListTile registry observer requires its direct SDK RadioClient child.',
+        );
+      }
+    });
   }
 }
 
@@ -1810,10 +3334,526 @@ class _RadioGroupHostState<T> extends State<_RadioGroupHost<T>> {
   }
 }
 
+/// Removes Designer-only cursor/opaque annotations inside an application
+/// MouseRegion, so the real SDK mouse tracking and cursor ancestry stay exact.
+class _CanvasMouseRegionCursorScope extends InheritedWidget {
+  const _CanvasMouseRegionCursorScope({required super.child});
+  static bool active(BuildContext context) =>
+      context
+          .dependOnInheritedWidgetOfExactType<
+            _CanvasMouseRegionCursorScope
+          >() !=
+      null;
+  @override
+  bool updateShouldNotify(_CanvasMouseRegionCursorScope oldWidget) => false;
+}
+
+String? _mouseRegionPreviewMessage(CanvasNode node) =>
+    node.type == 'flutter.widgets.MouseRegion' &&
+        node.properties['cursor']?.kind == 'dartObjectReferencePresence'
+    ? 'MouseRegion.cursor preview unavailable: the project MouseCursor reference '
+          'is not executed in Canvas. MouseCursor.defer is used as an explicit '
+          'preview approximation; saved properties and generated Dart stay exact.'
+    : null;
+
+String? _focusPreviewMessage(CanvasNode node) {
+  final references = ['focusNode', 'parentNode']
+      .where(
+        (name) => node.properties[name]?.kind == 'dartObjectReferencePresence',
+      )
+      .toList();
+  if (references.isEmpty) return null;
+  final external = node.properties['variant']?.value == 'withExternalFocusNode';
+  return 'Focus ${node.id} preview limitation for ${references.join(', ')}: '
+      'isolated Canvas never executes project FocusNode references or factories. '
+      '${references.contains('focusNode') ? 'A Canvas-owned FocusNode with SDK defaults approximates the unknown project node. ' : ''}'
+      '${references.contains('parentNode') ? 'The nearest preview focus ancestor is used instead of the unknown project parentNode. ' : ''}'
+      '${external ? 'The external constructor ignores stored widget-owned key callbacks, focus flags and debugLabel, exactly as generated Dart does. ' : ''}'
+      'Application callbacks are not executed; local key callbacks return KeyEventResult.ignored. '
+      'Saved properties and generated Dart stay exact.';
+}
+
+/// Project-owned FocusNode instances cannot cross the isolated Canvas boundary.
+/// This owner supplies a stable, locally disposed approximation only when a
+/// reference is present. Otherwise the real Focus widget owns its SDK node.
+class _CanvasFocusPreview extends StatefulWidget {
+  const _CanvasFocusPreview({required this.node, required this.child});
+  final CanvasNode node;
+  final Widget child;
+  @override
+  State<_CanvasFocusPreview> createState() => _CanvasFocusPreviewState();
+}
+
+class _CanvasFocusPreviewState extends State<_CanvasFocusPreview> {
+  final _localNode = FocusNode(
+    debugLabel: 'Isolated Canvas FocusNode approximation',
+  );
+  final _childKey = GlobalKey();
+
+  @override
+  void didUpdateWidget(_CanvasFocusPreview oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.node.properties['variant']?.value !=
+            'withExternalFocusNode' &&
+        widget.node.properties['variant']?.value == 'withExternalFocusNode') {
+      // A prior standard Focus may have written its attributes to this local
+      // node. The new external branch cannot inherit those inactive fields.
+      _localNode
+        ..canRequestFocus = true
+        ..skipTraversal = false
+        ..descendantsAreFocusable = true
+        ..descendantsAreTraversable = true
+        ..debugLabel = 'Isolated Canvas FocusNode approximation'
+        ..onKeyEvent = null;
+      // ignore: deprecated_member_use
+      _localNode.onKey = null;
+    }
+  }
+
+  @override
+  void dispose() {
+    _localNode.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    bool? boolean(String name) => node.properties[name]?.value is bool
+        ? node.properties[name]!.value as bool
+        : null;
+    bool callback(String name) =>
+        node.properties[name]?.kind == 'callbackPresence' ||
+        node.properties[name]?.kind == 'dartObjectReferencePresence';
+    final child = KeyedSubtree(key: _childKey, child: widget.child);
+    final autofocus = boolean('autofocus') ?? false;
+    final includeSemantics = boolean('includeSemantics') ?? true;
+    final ValueChanged<bool>? onFocusChange = callback('onFocusChange')
+        ? (_) {}
+        : null;
+    final external =
+        node.properties['variant']?.value == 'withExternalFocusNode';
+    final Widget focus;
+    if (external) {
+      focus = Focus.withExternalFocusNode(
+        key: ValueKey('canvas-focus-${node.id}'),
+        focusNode: _localNode,
+        autofocus: autofocus,
+        onFocusChange: onFocusChange,
+        includeSemantics: includeSemantics,
+        child: child,
+      );
+    } else {
+      focus = Focus(
+        key: ValueKey('canvas-focus-${node.id}'),
+        focusNode:
+            node.properties['focusNode']?.kind == 'dartObjectReferencePresence'
+            ? _localNode
+            : null,
+        autofocus: autofocus,
+        onFocusChange: onFocusChange,
+        onKeyEvent: callback('onKeyEvent')
+            ? (_, _) => KeyEventResult.ignored
+            : null,
+        // ignore: deprecated_member_use
+        onKey: callback('onKey') ? (_, _) => KeyEventResult.ignored : null,
+        canRequestFocus: boolean('canRequestFocus'),
+        skipTraversal: boolean('skipTraversal'),
+        descendantsAreFocusable: boolean('descendantsAreFocusable'),
+        descendantsAreTraversable: boolean('descendantsAreTraversable'),
+        includeSemantics: includeSemantics,
+        debugLabel: node.properties['debugLabel']?.value as String?,
+        child: child,
+      );
+    }
+    return _TextButtonPreview(
+      message: _focusPreviewMessage(node) ?? '',
+      child: focus,
+    );
+  }
+}
+
+String? _sliverPaddingPreviewMessage(CanvasNode node) =>
+    node.type == 'flutter.widgets.SliverPadding' &&
+        node.properties['padding']?.kind == 'dartObjectReferencePresence'
+    ? 'SliverPadding preview limitation: project padding is not executed. Zero padding is an explicit approximation; the nested sliver is retained. Generated Dart uses the exact project geometry. Run the app to verify insets.'
+    : null;
+
+String? _viewportSliverPreviewMessage(CanvasNode node) {
+  if (node.type != 'flutter.widgets.SliverFillViewport' && node.type != 'flutter.widgets.SliverFillViewport.delegate') return null;
+  if (node.properties['delegate']?.kind == 'dartObjectReferencePresence') {
+    return 'SliverFillViewport preview limitation: project delegate is not executed; its children are not previewed. Generated Dart retains the exact list, builder or custom delegate. Run the app to verify content.';
+  }
+  if (node.properties['semanticIndexCallback']?.kind == 'dartObjectReferencePresence') {
+    return 'SliverFillViewport preview limitation: project semantic index callback is not executed. Native local indexes are a preview approximation; all visual children and the generated project reference are retained.';
+  }
+  return null;
+}
+
+String? _dynamicSliverPreviewMessage(CanvasNode node) {
+  if (!isCanvasDynamicSliverType(node.type)) return null;
+  final refs = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
+  if (refs.isEmpty) return null;
+  if (isCanvasPrototypeSliverType(node.type)) {
+    return 'SliverPrototypeExtentList preview limitation: ${refs.join(', ')} project code is not executed. '
+        'Project builder/delegate items are not previewed; the prototype is measured but not painted. '
+        'Generated Dart retains the exact references. Run the app to verify dynamic content and key-index mapping.';
+  }
+  if (node.type.startsWith('flutter.widgets.SliverVariedExtentList')) {
+    return 'SliverVariedExtentList preview limitation: ${refs.join(', ')} project code is not executed. '
+        'Project item builders/delegates are not previewed. For a project extent callback, natural child sizing is an explicit approximation; no callback result is fabricated. '
+        'Generated Dart retains the exact typed references. Run the app to verify per-index sizes and key-index mapping.';
+  }
+  if (node.type.startsWith('flutter.widgets.SliverFixedExtentList')) {
+    return 'SliverFixedExtentList preview limitation: ${refs.join(', ')} project code is not executed. '
+        'Project builder/delegate items are not previewed; item extent is preserved. '
+        'Generated Dart retains the exact references. Run the app to verify dynamic content and key-index mapping.';
+  }
+  return 'Sliver preview limitation: ${refs.join(', ')} project code is not executed. '
+      'Builder/delegate items are not previewed; custom grid geometry uses an explicit 2-column approximation. '
+      'Generated Dart keeps the exact project references. Run the application to verify dynamic content.';
+}
+
+String? _listViewExtentPreviewMessage(CanvasNode node) =>
+    node.properties['itemExtentBuilder']?.kind == 'dartObjectReferencePresence'
+    ? 'ListView item-extent preview limitation: isolated Canvas does not execute project or dependency Dart. '
+          'The configured callback may be null; its per-index sizes and null out-of-range result are unknown. '
+          'Natural child sizing with every configured child retained is an explicit approximation, not the project result. '
+          'No constant extent callback is fabricated; stored values and generated Dart are unchanged.'
+    : null;
+
+String? _listWheelPreviewMessage(CanvasNode node) {
+  final refs = <String>[
+    if (node.properties['controller']?.kind == 'dartObjectReferencePresence')
+      'controller',
+    if (node.properties['scrollBehavior']?.kind ==
+        'dartObjectReferencePresence')
+      'scrollBehavior',
+    if (node.properties['onSelectedItemChanged']?.kind ==
+        'dartObjectReferencePresence')
+      'onSelectedItemChanged',
+  ];
+  if (refs.isEmpty) return null;
+  return 'ListWheelScrollView project ${refs.join(', ')} reference${refs.length == 1 ? '' : 's'} '
+      'are not executed in isolated Canvas; native preview defaults are used. '
+      'Stored values and generated Dart are preserved.';
+}
+
+String? _textFieldBuilderPreviewMessage(CanvasNode node) {
+  final counter =
+      node.properties['buildCounter']?.kind == 'dartObjectReferencePresence';
+  final menu =
+      node.properties['contextMenuBuilder']?.kind ==
+      'dartObjectReferencePresence';
+  if (!counter && !menu) return null;
+  return 'TextField builder preview limitation: isolated Canvas does not execute project or dependency Dart. '
+      '${counter ? 'The configured counter callback may be null or return null or different content; its result is unknown. The actual SDK default counter is an explicit approximation, not the project result. ' : ''}'
+      '${menu ? 'The configured context-menu callback may be null or return different content; its result is unknown. The actual SDK platform menu is an explicit approximation, not the project result. ' : ''}'
+      'The existing noninteractive Designer focus/input guard, stored values and generated Dart are preserved.';
+}
+
+String? _appBarPredicatePreviewMessage(CanvasNode node) =>
+    node.properties['notificationPredicate']?.kind ==
+        'dartObjectReferencePresence'
+    ? 'Custom AppBar scroll predicate preview unavailable. Generated Dart uses '
+          'the configured ScrollNotificationPredicate; isolated Canvas does '
+          'not execute project or dependency Dart. The actual SDK depth-zero '
+          'predicate is retained as an explicit approximation for scrolled-under '
+          'elevation. This predicate does not consume or stop notifications.'
+    : null;
+
+String? _navigationBarPreviewMessage(CanvasNode node) {
+  final count = node.slot('destinations')?.children.length ?? 0;
+  final selected = node.properties['selectedIndex']?.value;
+  final invalidIndex = selected is int && (selected < 0 || selected >= count);
+  final unavailable = <String>[
+    if (node.properties['indicatorShape']?.kind ==
+        'dartObjectReferencePresence')
+      'indicatorShape',
+    if (node.properties['overlayColor']?.kind == 'dartObjectReferencePresence')
+      'overlayColor',
+    if (node.properties['labelTextStyle']?.kind ==
+        'dartObjectReferencePresence')
+      'labelTextStyle',
+    if (node.properties['labelPadding']?.kind == 'dartObjectReferencePresence')
+      'labelPadding',
+  ];
+  final messages = <String>[
+    if (count < 2)
+      'NavigationBar requires at least two destination widgets; add them in the Slots tab before the generated app is run.',
+    if (invalidIndex)
+      'NavigationBar selectedIndex is outside the current destination list; Canvas previews destination 0 without changing the stored value.',
+    if (unavailable.isNotEmpty)
+      'Canvas does not execute project references for ${unavailable.join(', ')}; the SDK/theme fallback is shown while the exact source values are retained.',
+  ];
+  return messages.isEmpty
+      ? null
+      : '${messages.join(' ')} Stored values, child identities and generated Dart remain unchanged.';
+}
+
+String? _navigationRailPreviewMessage(CanvasNode node) {
+  final destinations = node.slot('destinations')?.children.length ?? 0;
+  final selected = node.properties['selectedIndex']?.value;
+  final invalidIndex =
+      selected is int && (selected < 0 || selected >= destinations);
+  final extended = node.properties['extended']?.value == true;
+  final labelType = node.properties['labelType']?.value;
+  final labelConflict = extended && labelType is String && labelType != 'none';
+  final minWidth = node.properties['minWidth']?.value;
+  final minExtendedWidth = node.properties['minExtendedWidth']?.value;
+  final widthConflict =
+      minWidth is num && minExtendedWidth is num && minExtendedWidth < minWidth;
+  final unavailable = <String>[
+    if (node.properties['unselectedLabelTextStyle']?.kind ==
+        'dartObjectReferencePresence')
+      'unselectedLabelTextStyle',
+    if (node.properties['selectedLabelTextStyle']?.kind ==
+        'dartObjectReferencePresence')
+      'selectedLabelTextStyle',
+    if (node.properties['unselectedIconTheme']?.kind ==
+        'dartObjectReferencePresence')
+      'unselectedIconTheme',
+    if (node.properties['selectedIconTheme']?.kind ==
+        'dartObjectReferencePresence')
+      'selectedIconTheme',
+    if (node.properties['indicatorShape']?.kind ==
+        'dartObjectReferencePresence')
+      'indicatorShape',
+  ];
+  final messages = <String>[
+    if (destinations > 0)
+      'Canvas adapts destination slot widgets as NavigationRailDestination icons with synthetic labels; application-owned NavigationRailDestination fields remain in generated Dart.',
+    if (invalidIndex)
+      'NavigationRail selectedIndex is outside the current destination list; Canvas previews no selection without changing the stored value.',
+    if (labelConflict)
+      'NavigationRail extended mode requires labelType null or none; Canvas previews the rail collapsed without changing either stored value.',
+    if (widthConflict)
+      'NavigationRail minExtendedWidth must be at least minWidth; Canvas omits the invalid extended width without changing stored values.',
+    if (unavailable.isNotEmpty)
+      'Canvas does not execute project references for ${unavailable.join(', ')}; the SDK/theme fallback is shown while the exact source values are retained.',
+  ];
+  return messages.isEmpty
+      ? null
+      : '${messages.join(' ')} Stored values, child identities and generated Dart remain unchanged.';
+}
+
+String? _navigationDrawerPreviewMessage(CanvasNode node) {
+  final children = node.slot('children')?.children.length ?? 0;
+  final selected = node.properties['selectedIndex']?.value;
+  final invalidIndex =
+      selected is int && (selected < 0 || selected >= children);
+  final unavailable = <String>[
+    if (node.properties['indicatorShape']?.kind ==
+        'dartObjectReferencePresence')
+      'indicatorShape',
+  ];
+  final messages = <String>[
+    if (children > 0)
+      'Canvas adapts destination slot widgets as NavigationDrawerDestination entries with synthetic labels; application-owned destination fields remain in generated Dart.',
+    if (invalidIndex)
+      'NavigationDrawer selectedIndex is outside the current destination list; Canvas previews no selection without changing the stored value.',
+    if (unavailable.isNotEmpty)
+      'Canvas does not execute project references for ${unavailable.join(', ')}; the SDK/theme fallback is shown while the exact source values are retained.',
+  ];
+  return messages.isEmpty
+      ? null
+      : '${messages.join(' ')} Stored values, child identities and generated Dart remain unchanged.';
+}
+
+String? _drawerPreviewMessage(CanvasNode node) {
+  final unavailable = <String>[
+    if (node.properties['shape']?.kind == 'dartObjectReferencePresence')
+      'shape',
+  ];
+  return unavailable.isEmpty
+      ? null
+      : 'Canvas does not execute project references for ${unavailable.join(', ')}; '
+            'the Drawer theme/SDK fallback is shown while the exact source values '
+            'are retained. Stored values, child identity and generated Dart remain unchanged.';
+}
+
+String? _bottomAppBarPreviewMessage(CanvasNode node) {
+  final unavailable = <String>[
+    if (node.properties['shape']?.kind == 'dartObjectReferencePresence')
+      'shape',
+  ];
+  return unavailable.isEmpty
+      ? null
+      : 'Canvas does not execute project references for ${unavailable.join(', ')}; '
+            'the BottomAppBar SDK/theme rectangular fallback is shown while '
+            'the exact source values are retained. Stored values, child identity '
+            'and generated Dart remain unchanged.';
+}
+
+String? _bottomNavigationBarPreviewMessage(CanvasNode node) {
+  final items = node.slot('items')?.children.length ?? 0;
+  final selected = node.properties['currentIndex']?.value;
+  final invalidIndex = selected is int && (selected < 0 || selected >= items);
+  final unavailable = <String>[
+    if (node.properties['selectedIconTheme']?.kind ==
+        'dartObjectReferencePresence')
+      'selectedIconTheme',
+    if (node.properties['unselectedIconTheme']?.kind ==
+        'dartObjectReferencePresence')
+      'unselectedIconTheme',
+    if (node.properties['selectedLabelStyle']?.kind ==
+        'dartObjectReferencePresence')
+      'selectedLabelStyle',
+    if (node.properties['unselectedLabelStyle']?.kind ==
+        'dartObjectReferencePresence')
+      'unselectedLabelStyle',
+    if (node.properties['mouseCursor']?.kind == 'dartObjectReferencePresence')
+      'mouseCursor',
+  ];
+  final messages = <String>[
+    if (items < 2)
+      'BottomNavigationBar requires at least two item widgets; add them in the Slots tab before the generated app is run.',
+    if (invalidIndex)
+      'BottomNavigationBar currentIndex is outside the current item list; Canvas previews item 0 without changing the stored value.',
+    if (unavailable.isNotEmpty)
+      'Canvas does not execute project references for ${unavailable.join(', ')}; the SDK/theme fallback is shown while the exact source values are retained.',
+  ];
+  return messages.isEmpty
+      ? null
+      : '${messages.join(' ')} Stored values, child identities and generated Dart remain unchanged.';
+}
+
+String? _materialPreviewMessage(CanvasNode node) {
+  final unavailable = <String>[
+    if (node.properties['textStyle']?.kind == 'dartObjectReferencePresence')
+      'textStyle',
+    if (node.properties['shape']?.kind == 'dartObjectReferencePresence')
+      'shape',
+    if (node.properties['borderRadius']?.kind == 'dartObjectReferencePresence')
+      'borderRadius',
+  ];
+  final typeValue = node.properties['materialType']?.value;
+  final type = typeValue is CanvasEnumValue ? typeValue.value : typeValue;
+  final circle = type == 'circle';
+  final shapePresent =
+      node.properties['shape']?.kind != null &&
+      node.properties['shape']?.kind != 'null';
+  final radiusPresent =
+      node.properties['borderRadius']?.kind != null &&
+      node.properties['borderRadius']?.kind != 'null';
+  final conflicts = <String>[
+    if (shapePresent && radiusPresent)
+      'shape and borderRadius are mutually exclusive',
+    if (circle && (shapePresent || radiusPresent))
+      'circle Material cannot use shape or borderRadius',
+  ];
+  final messages = <String>[
+    if (unavailable.isNotEmpty)
+      'Canvas does not execute project references for ${unavailable.join(', ')}; the SDK/theme fallback is shown while the exact source values are retained.',
+    if (conflicts.isNotEmpty)
+      'Material has an SDK constructor conflict: ${conflicts.join('; ')}. Canvas omits the conflicting shape value without changing the stored model.',
+  ];
+  return messages.isEmpty
+      ? null
+      : '${messages.join(' ')} Stored values, child identity and generated Dart remain unchanged.';
+}
+
+String? _scrollbarPreviewMessage(CanvasNode node) {
+  final unavailable = <String>[
+    if (node.properties['controller']?.kind == 'dartObjectReferencePresence')
+      'controller',
+    if (node.properties['radius']?.kind == 'dartObjectReferencePresence')
+      'radius',
+    if (node.properties['notificationPredicate']?.kind ==
+        'dartObjectReferencePresence')
+      'notificationPredicate',
+  ];
+  if (unavailable.isEmpty) return null;
+  return 'Canvas does not execute project references for ${unavailable.join(', ')}; '
+      'the Scrollbar SDK/theme fallback is shown while the exact source values are retained. '
+      'Stored child identity and generated Dart remain unchanged.';
+}
+
+String? _scaffoldScrimPreviewMessage(CanvasNode node) =>
+    node.properties['bottomSheetScrimBuilder']?.kind ==
+        'dartObjectReferencePresence'
+    ? 'Scaffold ${node.id} bottom-sheet scrim preview unavailable: Canvas never '
+          'executes the project bottomSheetScrimBuilder. The actual SDK default '
+          'scrim is retained as an explicit preview approximation. A project '
+          'builder may return a different widget or null; generated Dart retains '
+          'that exact reference and behavior.'
+    : null;
+
+String? _notificationListenerPreviewMessage(CanvasNode node) =>
+    node.properties['notificationType']?.kind == 'dartObjectReferencePresence'
+    ? 'NotificationListener ${node.id} type preview unavailable: Canvas cannot '
+          'load or execute the project Notification subtype. Notification is '
+          'used as an explicit preview approximation; exact subtype filtering '
+          'and application callbacks require the generated application. '
+          'Local callbacks return false and never stop notification bubbling. '
+          'Saved properties and generated Dart retain the exact project type.'
+    : null;
+
+/// A type change replaces the SDK element but preserves the keyed model child.
+class _CanvasNotificationListenerPreview extends StatefulWidget {
+  const _CanvasNotificationListenerPreview({
+    required this.node,
+    required this.child,
+  });
+  final CanvasNode node;
+  final Widget child;
+  @override
+  State<_CanvasNotificationListenerPreview> createState() =>
+      _CanvasNotificationListenerPreviewState();
+}
+
+class _CanvasNotificationListenerPreviewState
+    extends State<_CanvasNotificationListenerPreview> {
+  final _childKey = GlobalKey();
+
+  @override
+  Widget build(BuildContext context) {
+    final node = widget.node;
+    final callbackKind = node.properties['onNotification']?.kind;
+    final present =
+        callbackKind == 'callbackPresence' ||
+        callbackKind == 'dartObjectReferencePresence';
+    final child = KeyedSubtree(key: _childKey, child: widget.child);
+    Widget listener<T extends Notification>() => NotificationListener<T>(
+      key: ValueKey('canvas-notification-listener-${node.id}'),
+      onNotification: present ? (_) => false : null,
+      child: child,
+    );
+    final listenerWidget = switch (node.properties['notificationType']?.value) {
+      'LayoutChangedNotification' => listener<LayoutChangedNotification>(),
+      'ScrollNotification' => listener<ScrollNotification>(),
+      'ScrollStartNotification' => listener<ScrollStartNotification>(),
+      'ScrollUpdateNotification' => listener<ScrollUpdateNotification>(),
+      'OverscrollNotification' => listener<OverscrollNotification>(),
+      'ScrollEndNotification' => listener<ScrollEndNotification>(),
+      'UserScrollNotification' => listener<UserScrollNotification>(),
+      'SizeChangedLayoutNotification' =>
+        listener<SizeChangedLayoutNotification>(),
+      'ScrollMetricsNotification' => listener<ScrollMetricsNotification>(),
+      'OverscrollIndicatorNotification' =>
+        listener<OverscrollIndicatorNotification>(),
+      'DraggableScrollableNotification' =>
+        listener<DraggableScrollableNotification>(),
+      'KeepAliveNotification' => listener<KeepAliveNotification>(),
+      'NavigationNotification' => listener<NavigationNotification>(),
+      _ => listener<Notification>(),
+    };
+    return _TextButtonPreview(
+      message: _notificationListenerPreviewMessage(node) ?? '',
+      child: listenerWidget,
+    );
+  }
+}
+
 class _TextButtonPreview extends StatefulWidget {
-  const _TextButtonPreview({required this.message, required this.child});
+  const _TextButtonPreview({
+    required this.message,
+    required this.child,
+    this.stableDiagnostic = false,
+  });
   final String message;
   final Widget child;
+  final bool stableDiagnostic;
 
   @override
   State<_TextButtonPreview> createState() => _TextButtonPreviewState();
@@ -1825,13 +3865,58 @@ class _TextButtonPreviewState extends State<_TextButtonPreview> {
   final _contentKey = GlobalKey();
 
   @override
-  Widget build(BuildContext context) => Tooltip(
-    message: widget.message,
-    child: Semantics(
-      tooltip: widget.message.isEmpty ? null : widget.message,
-      child: KeyedSubtree(key: _contentKey, child: widget.child),
-    ),
-  );
+  Widget build(BuildContext context) {
+    final owner = context.findAncestorWidgetOfExactType<_CanvasNodeView>();
+    final document = context
+        .findAncestorStateOfType<_CanvasDocumentViewState>();
+    final linkedMenuDiagnostic = _MenuPanelPreviewScope.linkedOf(context);
+    if (widget.stableDiagnostic ||
+        linkedMenuDiagnostic ||
+        (owner != null &&
+            (document?._tooltipAncestorIds.contains(owner.node.id) ?? false))) {
+      // This ancestor may acquire a diagnostic from theme/layout as well as
+      // model edits. Keep an open descendant OverlayPortal in the same branch.
+      // Outside Tooltip-containing model subtrees the existing preview is exact.
+      return Stack(
+        fit: StackFit.passthrough,
+        clipBehavior: Clip.none,
+        children: [
+          Semantics(
+            tooltip: widget.message.isEmpty ? null : widget.message,
+            child: KeyedSubtree(key: _contentKey, child: widget.child),
+          ),
+          if (widget.message.isNotEmpty)
+            Positioned(
+              top: 0,
+              right: 0,
+              child: IgnoreBaseline(
+                child: TooltipVisibility(
+                  visible: !linkedMenuDiagnostic,
+                  child: Tooltip(
+                    message: widget.message,
+                    child: const ColoredBox(
+                      color: Color(0xfffef3c7),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 12,
+                        color: Color(0xff92400e),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+    return Tooltip(
+      message: widget.message,
+      child: Semantics(
+        tooltip: widget.message.isEmpty ? null : widget.message,
+        child: KeyedSubtree(key: _contentKey, child: widget.child),
+      ),
+    );
+  }
 }
 
 bool _ignoreInlineTextCommit(
@@ -1848,11 +3933,372 @@ String _customClipperPreviewUnavailableMessage({
     'configured $expectedType; isolated Canvas does not execute project '
     'or dependency Dart.';
 
+// Preview owns no mutable notifier and never reads an application ValueListenable.
+ValueListenable<Object?> _valueListenablePreviewSource(CanvasNode node) {
+  if (node.properties['nullableValueType']?.value == true ||
+      node.properties['valueListenable']?.kind == 'dartObjectReferencePresence') {
+    return const AlwaysStoppedAnimation<Object?>(null);
+  }
+  return switch (node.properties['valueType']?.value) {
+    'String' => const AlwaysStoppedAnimation<Object?>(''),
+    'bool' => const AlwaysStoppedAnimation<Object?>(false),
+    'double' => const AlwaysStoppedAnimation<Object?>(0.0),
+    'int' || 'num' || 'Object' => const AlwaysStoppedAnimation<Object?>(0),
+    _ => const AlwaysStoppedAnimation<Object?>(null),
+  };
+}
+
 String? _customClipperPreviewUnavailableMessageForNode(
   CanvasNode node, {
   BuildContext? context,
   BoxConstraints? constraints,
 }) {
+  if (node.type == 'flutter.material.MenuItemButton' ||
+      node.type == 'flutter.material.SubmenuButton') {
+    _MenuItemPreviewState? state;
+    void visit(Element element) {
+      if (element is StatefulElement &&
+          element.state is _MenuItemPreviewState &&
+          (element.state as _MenuItemPreviewState).widget.node.id == node.id) {
+        state = element.state as _MenuItemPreviewState;
+        return;
+      }
+      if (state == null) element.visitChildElements(visit);
+    }
+
+    context?.visitChildElements(visit);
+    return state?.message;
+  }
+  if (node.type == 'flutter.material.Tooltip') {
+    final state = context
+        ?.findAncestorStateOfType<_CanvasDocumentViewState>()
+        ?._tooltipPreviewKeyFor(node.id)
+        ?.currentState;
+    return state is _TooltipPreviewState ? state.message : null;
+  }
+  if (isCanvasStackPositionedWidgetType(node.type) && node.type != 'flutter.widgets.PositionedTransition'
+      && node.type != 'flutter.widgets.RelativePositionedTransition') {
+    final refs = node.properties.entries.where((entry) => entry.value.kind == 'dartObjectReferencePresence').map((entry) => entry.key).toList();
+    return refs.isEmpty ? null : '${node.type.split('flutter.widgets.').last} ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Custom edges/sizes preview as null, rectangle as (0,0,48,48), duration as 300 ms, curve as linear, onEnd is not called.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedPhysicalModel') {
+    final refs=node.properties.entries.where((p)=>p.value.kind=='dartObjectReferencePresence').map((p)=>p.key).toList();
+    return refs.isEmpty?null:'AnimatedPhysicalModel ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+      'Color previews blue, shadow color black, elevation zero, border radius null/zero, duration 300 ms, curve linear, and On end absent. Source preserves the exact typed values.';
+  }
+  if (node.type == 'flutter.widgets.DefaultTextStyle' || node.type == 'flutter.widgets.DefaultTextStyle.merge') {
+    final refs = ['style', 'textHeightBehavior', 'maxLines']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : '${node.type} ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Custom style previews as empty TextStyle (direct) or inherited (merge); unknown height behavior/maxLines previews as null. '
+        'In merge mode null inherits the parent value. Generated Dart and stored values retain the references.';
+  }
+  if (node.type == 'flutter.widgets.RotationTransition') {
+    final refs = ['turns', 'alignment'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'RotationTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas previews a stopped rotation of 0 turns for animation references and center for Alignment references; generated Dart retains live values.';
+  }
+  if (node.type == 'flutter.widgets.RelativePositionedTransition') {
+    final messages = <String>[];
+    if (node.properties['rect']?.kind == 'dartObjectReferencePresence') {
+      messages.add('project-owned Animation<Rect?> is not executed; preview uses Rect.fromLTWH(0,0,48,48)');
+    }
+    if (node.properties['size']?.kind == 'dartObjectReferencePresence') {
+      messages.add('project-owned Size is not executed; preview uses Size(48,48)');
+    }
+    return messages.isEmpty ? null : 'RelativePositionedTransition ${node.id}: ${messages.join('; ')}. Reference Size is not the actual Stack size or a scale.';
+  }
+  if (node.type == 'flutter.widgets.PositionedTransition') {
+    return node.properties['rect']?.kind != 'dartObjectReferencePresence' ? null
+        : 'PositionedTransition ${node.id}: project-owned Animation<RelativeRect> is not executed. '
+          'Canvas previews stopped zero physical insets (fills the Stack); generated Dart retains the live animation.';
+  }
+  if (node.type == 'flutter.widgets.SizeTransition') {
+    final refs = ['sizeFactor', 'axisAlignment', 'alignment', 'fixedCrossAxisSizeFactor']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'SizeTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas previews sizeFactor at 1 and nullable alignment/cross-axis values at null, using native axis/RTL defaults; generated Dart retains live values.';
+  }
+  if (node.type == 'flutter.widgets.ScaleTransition') {
+    final refs = ['scale', 'alignment'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'ScaleTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas previews a stopped scale of 1 for animation references and center for Alignment references; generated Dart retains live values.';
+  }
+  if (node.type == 'flutter.widgets.SlideTransition') {
+    return node.properties['position']?.kind != 'dartObjectReferencePresence' ? null
+        : 'SlideTransition ${node.id}: project-owned position animation is not executed. '
+          'Canvas previews a stopped zero offset; generated Dart uses the typed animation and its live updates.';
+  }
+  if (node.type == 'flutter.widgets.FadeTransition' || node.type == 'flutter.widgets.SliverFadeTransition') {
+    return node.properties['opacity']?.kind != 'dartObjectReferencePresence' ? null
+        : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
+          'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
+  }
+  if (node.type == 'flutter.widgets.RawImage') {
+    final refs = node.properties.entries.where((entry) => entry.value.kind == 'dartObjectReferencePresence').map((entry) => entry.key).toList();
+    return refs.isEmpty ? null : 'RawImage ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Decoded image, opacity animation and center slice preview as null; source dimensions/color use null, scale 1 and alignment center. '
+        'Image decoding and disposal remain in project Dart code.';
+  }
+  if (node.type == 'flutter.widgets.FadeInImage') {
+    final refs = node.properties.entries.where((p)=>p.value.kind == 'dartObjectReferencePresence').map((p)=>p.key).toList();
+    return refs.isEmpty ? null : 'FadeInImage ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+      'Canvas substitutes ${refs.map((p)=>switch(p){
+'placeholder' || 'image'=>'$p = built-in image','fadeOutDurationUs'=>'$p = 300000','fadeInDurationUs'=>'$p = 700000',
+'fadeOutCurve'=>'$p = easeOut','fadeInCurve'=>'$p = easeIn','alignment'=>'$p = center',
+'placeholderErrorBuilder' || 'imageErrorBuilder'=>'$p = safe error placeholder',_=>'$p = native default'}).join(', ')}. '
+      'No project factory, callback or arbitrary network request is executed.';
+  }
+  if (node.type == 'flutter.material.AnimatedIcon') {
+    final refs=['icon','progress','color','size'].where((p)=>node.properties[p]?.kind=='dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'AnimatedIcon ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+      'Canvas substitutes ${refs.map((p)=>switch(p){'icon'=>'icon = AnimatedIcons.menu_close','progress'=>'progress = 0','color'=>'color = IconTheme',_=>'size = IconTheme'}).join(', ')}. '
+      'Stored values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedModalBarrier') {
+    final refs = ['color', 'onDismiss', 'clipDetailsNotifier'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return 'AnimatedModalBarrier ${node.id}: Canvas suppresses dismissal callbacks, route changes and alert sounds. '
+      '${refs.isEmpty ? '' : 'Project-owned ${refs.join(', ')} are not executed; Canvas substitutes ${refs.map((name) => switch (name) { 'color' => 'color = AlwaysStoppedAnimation<Color?>(null)', 'onDismiss' => 'onDismiss = no-op', _ => 'clipDetailsNotifier = null' }).join(', ')}. '}'
+      'Native application behavior and stored values are unchanged. Bounded width and height are required.';
+  }
+  if (node.type == 'flutter.widgets.ModalBarrier') {
+    final refs = ['color', 'onDismiss', 'clipDetailsNotifier'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return 'ModalBarrier ${node.id}: Canvas suppresses dismissal callbacks, route changes and alert sounds. '
+      '${refs.isEmpty ? '' : 'Project-owned ${refs.join(', ')} are not executed; Canvas substitutes ${refs.map((name) => switch (name) { 'color' => 'color = transparent', 'onDismiss' => 'onDismiss = no-op', _ => 'clipDetailsNotifier = null' }).join(', ')}. '}'
+      'Native application behavior and stored values are unchanged. Bounded width and height are required.';
+  }
+  if (node.type == 'flutter.widgets.MatrixTransition') {
+    final refs = ['animation', 'onTransform', 'alignment'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'MatrixTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+      'Canvas substitutes ${refs.map((name) => switch(name) { 'animation' => 'animation = 0', 'onTransform' => 'onTransform = identity', _ => 'alignment = center' }).join(', ')}. '
+      'Other local values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.AlignTransition') {
+    final refs=['alignment','widthFactor','heightFactor'].where((name)=>node.properties[name]?.kind=='dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AlignTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+      'Canvas substitutes ${refs.map((name) => name == 'alignment' ? 'alignment = center' : '$name = null').join(', ')}. '
+      'Other local values are unchanged; generated Dart retains live source values.';
+  }
+  if (node.type == 'flutter.widgets.DecoratedBoxTransition') {
+    return node.properties['decoration']?.kind == 'dartObjectReferencePresence'
+        ? 'DecoratedBoxTransition ${node.id}: project-owned Animation<Decoration> is not executed. '
+          'Canvas previews a stopped empty BoxDecoration; generated Dart retains custom and ShapeDecoration animations.'
+        : null;
+  }
+  if (node.type == 'flutter.widgets.DefaultTextStyleTransition') {
+    final refs = ['style', 'maxLines']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'DefaultTextStyleTransition ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Style previews as AlwaysStoppedAnimation<TextStyle> with empty TextStyle; unknown Max lines previews as null. '
+        'The source owns animation timing and lifecycle. Generated Dart and stored values retain the exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedDefaultTextStyle') {
+    final refs = ['style', 'textHeightBehavior', 'maxLines', 'curve', 'durationUs', 'onEnd']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'AnimatedDefaultTextStyle ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Custom style previews as empty TextStyle, height behavior/maxLines as null, curve as linear, duration as 300 ms and callback as absent. Generated Dart retains the references.';
+  }
+  if (node.type == 'flutter.material.Theme' &&
+      node.properties['data']?.kind == 'dartObjectReferencePresence') {
+    return 'Theme ${node.id}: project-owned ThemeData is not executed. Canvas uses ThemeData.fallback() (Material 3 light), not the parent theme. Stored values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.material.AnimatedTheme') {
+    final refs=node.properties.entries.where((p)=>p.value.kind=='dartObjectReferencePresence').map((p)=>p.key).toList();
+    return refs.isEmpty?null:'AnimatedTheme ${node.id}: project-owned ${refs.join(', ')} are not executed. Unknown ThemeData uses ThemeData.fallback() (Material 3 light), not the parent theme; unknown curve uses linear, duration 200 ms, and On end is inert. Stored values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedSwitcher') {
+    final refs = node.properties.entries.where((p) => p.value.kind == 'dartObjectReferencePresence').map((p) => p.key).toList();
+    return 'AnimatedSwitcher ${node.id}: Canvas isolates transition keys for repeated child types. '
+      'Flutter 3.44.8 defaultTransitionBuilder can omit outgoing children when transition keys repeat; generated Dart retains SDK behavior. '
+      '${refs.isEmpty ? '' : 'Project-owned ${refs.join(', ')} are not executed: unresolved duration uses 300 ms, reverseDuration null, curves linear, and builders the default fade/centered Stack. '}'
+      'Same-type unkeyed children update without a transition. Stored values are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedCrossFade') {
+    final refs = node.properties.entries.where((p) => p.value.kind == 'dartObjectReferencePresence').map((p) => p.key).toList();
+    return refs.isEmpty ? null : 'AnimatedCrossFade ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+      'Their previews use linear curves, topCenter alignment, 300 ms duration, null reverseDuration, native defaultLayoutBuilder and no onEnd handler. Stored values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedSize') {
+    final refs = ['alignment', 'curve', 'durationUs', 'reverseDurationUs', 'onEnd']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'AnimatedSize ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Preview uses center alignment, linear curve, 300 ms duration, null reverseDuration and no onEnd handler for those references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedContainer') {
+    final refs = node.properties.entries.where((entry) => entry.value.kind == 'dartObjectReferencePresence').map((entry) => entry.key).toList();
+    return refs.isEmpty ? null : 'AnimatedContainer ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+      'Custom geometry, color and decorations preview as null; custom duration uses 300 ms, curve uses linear, onEnd is not called. '
+      'Clipping previews as none when its project-owned background cannot be rendered.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedRotation') {
+    final refs = ['turns', 'alignment', 'curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedRotation ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses zero for custom Turns, center for a custom Alignment, linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedScale') {
+    final refs = ['scale', 'alignment', 'curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedScale ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses 1 for a custom scale, center for a custom Alignment, linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedSlide') {
+    final refs = ['offset', 'curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedSlide ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses zero for a custom Offset, linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedPadding') {
+    final refs = ['padding', 'curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedPadding ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses 16 pixels per side for custom EdgeInsetsGeometry, linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedFractionallySizedBox') {
+    final refs = ['alignment','widthFactor','heightFactor','curve','durationUs','onEnd']
+        .where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'AnimatedFractionallySizedBox ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Using center alignment, null factors, linear curve, 300 ms duration and no callback where required; generated Dart keeps the references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedAlign') {
+    final refs = ['alignment', 'curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedAlign ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses center for a custom AlignmentGeometry, linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.AnimatedOpacity') {
+    final refs = ['curve', 'durationUs', 'onEnd'].where(
+      (name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'AnimatedOpacity ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses linear for a custom Curve, 300 ms for a custom Duration, and no completion callback. Generated Dart retains exact references.';
+  }
+  if (node.type == 'flutter.widgets.SliverPersistentHeader') {
+    return 'SliverPersistentHeader preview limitation: project delegate is not executed. '
+        'Canvas shows a 56–112 logical-pixel header with the exact pinned/floating flags. '
+        'Custom content, extents, rebuild, vsync, snap, stretch and show-on-screen behavior are unavailable here. '
+        'Generated Dart retains the delegate; run the app to verify its behavior.';
+  }
+  if (node.type == 'flutter.material.FlexibleSpaceBar') {
+    final refs = ['titlePadding', 'stretchModes'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence');
+    return refs.isEmpty ? null : 'FlexibleSpaceBar ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed. Native default padding/effects are shown; stored values and generated Dart retain exact references.';
+  }
+  if (isCanvasSliverAppBarType(node.type)) {
+    final refs = node.properties.entries.where((entry) => entry.value.kind == 'dartObjectReferencePresence').map((entry) => entry.key).toList();
+    return refs.isEmpty ? null : 'SliverAppBar ${node.id} preview limitation: project-owned ${refs.join(', ')} are not executed in Canvas. Native/theme fallback is displayed; generated Dart keeps the exact references.';
+  }
+  if (node.type == 'flutter.widgets.SliverFloatingHeader') {
+    final messages = <String>[];
+    final refs = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
+    if (refs.isNotEmpty) messages.add('Project-owned ${refs.join(', ')} are not executed; Canvas uses the SDK defaults for those values.');
+    for (final name in ['animationStyleDurationUs', 'animationStyleReverseDurationUs']) {
+      final value = node.properties[name];
+      if (value?.kind == 'integer' && value!.value is int && (value.value as int) < 0) {
+        messages.add('Negative $name is unsafe when native animation starts; only its preview duration uses zero.');
+      }
+    }
+    return messages.isEmpty ? null : 'SliverFloatingHeader ${node.id} preview limitation: ${messages.join(' ')} Stored values and generated Dart are unchanged.';
+  }
+  if (node.type == 'flutter.widgets.LayoutBuilder' &&
+      node.properties['builder']?.kind == 'dartObjectReferencePresence') {
+    return 'LayoutBuilder preview limitation: project builder is not executed. '
+        'Its constraint-dependent subtree is unavailable in isolated Canvas; an empty box is shown. '
+        'Generated Dart retains the exact builder. Run the app to verify responsive layout. '
+        'Flutter LayoutBuilder does not support intrinsic/dry layout.';
+  }
+  if ((node.type == 'flutter.widgets.TweenAnimationBuilder' ||
+      node.type == 'flutter.widgets.TweenAnimationBuilder.sliver') &&
+      ['tween', 'builder', 'curve', 'durationUs', 'onEnd'].any(
+        (name) => node.properties[name]?.kind == 'dartObjectReferencePresence')) {
+    return 'TweenAnimationBuilder preview limitation: project tweens, builders, durations, curves and onEnd are not executed. '
+        'Canvas displays Child with an isolated 0-to-1 tween; run the application to test value-dependent output, target changes and completion.';
+  }
+  if ((node.type == 'flutter.widgets.ValueListenableBuilder' ||
+      node.type == 'flutter.widgets.ValueListenableBuilder.sliver') &&
+      (node.properties['valueListenable']?.kind == 'dartObjectReferencePresence' ||
+       node.properties['builder']?.kind == 'dartObjectReferencePresence')) {
+    return 'ValueListenableBuilder preview limitation: project sources/getters/factories and builders are not executed. '
+        'No value changes are simulated. Child is shown unchanged as a design-time fallback, not custom builder output. '
+        'Generated Dart retains selected T, source and builder; run the app to verify values and listener ownership.';
+  }
+  if ((node.type == 'flutter.widgets.AnimatedBuilder' ||
+      node.type == 'flutter.widgets.AnimatedBuilder.sliver') &&
+      (node.properties['animation']?.kind == 'dartObjectReferencePresence' ||
+       node.properties['builder']?.kind == 'dartObjectReferencePresence')) {
+    return 'AnimatedBuilder preview limitation: project Listenable objects/getters/factories and builders are not executed. '
+        'No notifications are simulated. Child is shown unchanged as a design-time fallback, not custom builder output. '
+        'Generated Dart retains both exact bindings; run the app to verify behavior and subscription ownership.';
+  }
+  if ((node.type == 'flutter.widgets.ListenableBuilder' ||
+      node.type == 'flutter.widgets.ListenableBuilder.sliver') &&
+      (node.properties['listenable']?.kind == 'dartObjectReferencePresence' ||
+       node.properties['builder']?.kind == 'dartObjectReferencePresence')) {
+    return 'ListenableBuilder preview limitation: project Listenable objects/getters/factories and builders are not executed. '
+        'No notifications are simulated. Child is shown unchanged as a design-time fallback, not custom builder output. '
+        'Generated Dart retains both exact bindings; run the app to verify behavior and subscription ownership.';
+  }
+  if ((node.type == 'flutter.widgets.DeviceOrientationBuilder' ||
+      node.type == 'flutter.widgets.DeviceOrientationBuilder.sliver') &&
+      node.properties['builder']?.kind == 'dartObjectReferencePresence') {
+    return 'DeviceOrientationBuilder preview limitation: project builder is not executed. '
+        'An empty result matching the box/sliver placement is shown; run the app to see custom content. '
+        'Orientation comes from MediaQuery, not parent layout constraints.';
+  }
+  if (node.type == 'flutter.widgets.OrientationBuilder' &&
+      node.properties['builder']?.kind == 'dartObjectReferencePresence') {
+    return 'OrientationBuilder preview limitation: project builder is not executed. '
+        'Its constraint-dependent subtree is unavailable in isolated Canvas; an empty box is shown. '
+        'Generated Dart retains the exact builder. Run the app to verify responsive layout. '
+        'Flutter OrientationBuilder does not support intrinsic/dry layout.';
+  }
+  if (node.type == 'flutter.widgets.SliverLayoutBuilder' &&
+      node.properties['builder']?.kind == 'dartObjectReferencePresence') {
+    return 'SliverLayoutBuilder preview limitation: project builder is not executed. '
+        'Its constraint-dependent subtree is unavailable in isolated Canvas; a zero-extent sliver is shown. '
+        'Generated Dart retains the exact builder. Run the app to verify its sliver result and responsive layout.';
+  }
+  if (node.type == 'flutter.widgets.SliverPadding') return _sliverPaddingPreviewMessage(node);
+  if (node.type.startsWith('flutter.widgets.SliverFillViewport')) return _viewportSliverPreviewMessage(node);
+  if (isCanvasDynamicSliverType(node.type)) return _dynamicSliverPreviewMessage(node);
+  if (node.type == 'flutter.widgets.ListView') {
+    return _listViewExtentPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.TextField') {
+    return _textFieldBuilderPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.AppBar') {
+    return _appBarPredicatePreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.NavigationBar') {
+    return _navigationBarPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.NavigationRail') {
+    return _navigationRailPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.NavigationDrawer') {
+    return _navigationDrawerPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.Drawer') {
+    return _drawerPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.BottomAppBar') {
+    return _bottomAppBarPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.BottomNavigationBar') {
+    return _bottomNavigationBarPreviewMessage(node);
+  }
+  if (node.type == 'flutter.material.Scaffold') {
+    return _scaffoldScrimPreviewMessage(node);
+  }
+  if (node.type == 'flutter.widgets.MouseRegion') {
+    return _mouseRegionPreviewMessage(node);
+  }
+  if (node.type == 'flutter.widgets.Focus') {
+    return _focusPreviewMessage(node);
+  }
+  if (node.type == 'flutter.widgets.NotificationListener') {
+    return _notificationListenerPreviewMessage(node);
+  }
   if (node.type == 'flutter.material.FloatingActionButton') {
     return _fabPreviewMessage(node, context);
   }
@@ -1895,7 +4341,10 @@ String? _customClipperPreviewUnavailableMessageForNode(
         ? state!._message
         : _listTileStaticMessage(node, context);
   }
-  if (node.type == 'flutter.material.CheckboxListTile') {
+  if (node.type == 'flutter.material.CheckboxListTile' ||
+      node.type == 'flutter.material.SwitchListTile' ||
+      node.type == 'flutter.material.RadioListTile' ||
+      node.type == 'flutter.material.ExpansionTile') {
     _ListTilePreviewState? state;
     void visit(Element element) {
       if (element is StatefulElement &&
@@ -1910,6 +4359,12 @@ String? _customClipperPreviewUnavailableMessageForNode(
     context?.visitChildElements(visit);
     return state?._message.isNotEmpty == true
         ? state!._message
+        : node.type == 'flutter.material.SwitchListTile'
+        ? _switchListTileStaticMessage(node, context)
+        : node.type == 'flutter.material.RadioListTile'
+        ? _radioListTileStaticMessage(node, context)
+        : node.type == 'flutter.material.ExpansionTile'
+        ? null
         : _checkboxListTileStaticMessage(node, context);
   }
   if (node.type == 'flutter.material.RangeSlider') {
@@ -1923,7 +4378,8 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if (node.type == 'flutter.widgets.Icon' && context != null) {
     return _iconButtonMountedIconMessage(node, context);
   }
-  if (node.type == 'flutter.material.TextButton' ||
+  if (node.type == 'flutter.material.ElevatedButton' ||
+      node.type == 'flutter.material.TextButton' ||
       node.type == 'flutter.material.OutlinedButton' ||
       node.type == 'flutter.material.FilledButton') {
     return _textButtonReferenceMessage(node);
@@ -2524,6 +4980,264 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
 
   final GlobalKey _surfaceKey = GlobalKey();
   final Map<String, GlobalKey> _nodeKeys = <String, GlobalKey>{};
+  // Geometry aliases only: never reuse retained switcher GlobalKeys for ordinary rendering.
+  final Map<String, GlobalKey> _switcherGeometryKeys = <String, GlobalKey>{};
+  final Map<String, GlobalKey<_MenuAnchorPreviewState>> _switcherMenuKeys = {};
+  final Map<String, GlobalKey> _switcherTooltipKeys = {};
+  GlobalKey? _tooltipPreviewKeyFor(String id) => _switcherTooltipKeys[id] ?? _tooltipPreviewKeys[id];
+  GlobalKey? _geometryNodeKey(String id) => _switcherGeometryKeys[id] ?? _nodeKeys[id];
+  final Map<String, GlobalKey<_MenuAnchorPreviewState>> _menuAnchorPreviewKeys =
+      {};
+  Rect? _menuChromeRect;
+  String? _menuChromeOwnerId;
+  bool _menuChromeOpen = false;
+  void _menuChanged() {
+    if (mounted) _refreshZeroSizedWidgetTargetsAfterFrame();
+  }
+
+  _MenuAnchorPreviewState? _menuState(String id) =>
+      (_switcherMenuKeys[id] ?? _menuAnchorPreviewKeys[id])?.currentState;
+  RenderBox? _menuPanelBox(String id) {
+    final menu = _menuState(id);
+    if (menu == null || !menu.interactive) return null;
+    RenderBox? box;
+    menu._menuProbeKey.currentContext?.visitAncestorElements((element) {
+      if (element.widget is SingleChildScrollView) {
+        final render = element.findRenderObject();
+        if (render is RenderBox && render.attached) box = render;
+        return false;
+      }
+      return true;
+    });
+    return box;
+  }
+
+  final Map<String, GlobalKey> _expansionTilePreviewKeys =
+      <String, GlobalKey>{};
+  final Map<String, GlobalKey> _tooltipPreviewKeys = <String, GlobalKey>{};
+  final Map<String, GlobalKey> _tooltipAnchorPreviewKeys =
+      <String, GlobalKey>{};
+  final Set<String> _tooltipAncestorIds = {};
+  // Structural reparenting while an OverlayPortal is open cannot happen inside
+  // the viewport LayoutBuilder's layout callback. Scalar edits and selection
+  // retain State; changed Tooltip ancestry gets fresh preview keys so the old
+  // overlay is disposed instead of GlobalKey-reparented across layout owners.
+  void _invalidateStructurallyMovedTooltipKeys(CanvasNode previous) {
+    String sdkTopology(CanvasNode node) {
+      if (node.type != 'flutter.widgets.Container') {
+        final source = _tooltipAncestorSdkTopology(node);
+        if (node.type == 'flutter.material.ExpansionTile') {
+          final ownerContext = _geometryNodeKey(node.id)?.currentContext ?? context;
+          final owner = ownerContext
+              .findAncestorWidgetOfExactType<_CanvasNodeView>();
+          final theme = ExpansionTileTheme.of(ownerContext);
+          bool localShape(String family) =>
+              node.properties['${family}Kind']?.value != null &&
+              _cardShapePreviewUnavailableMessage(
+                    node,
+                    widgetName: 'ExpansionTile',
+                    prefix: family,
+                  ) ==
+                  null;
+          final shaped =
+              localShape('shape') ||
+              localShape('collapsedShape') ||
+              theme.shape != null ||
+              theme.collapsedShape != null;
+          Color? localColor(String name) {
+            final property = node.properties[name];
+            if (property?.kind == 'color') return Color(property!.value as int);
+            final value = property?.value;
+            return value is CanvasThemeToken
+                ? owner?._themeColor(ownerContext, value)
+                : null;
+          }
+
+          // SDK chooses Material vs DecoratedBox from shape presence, then
+          // inserts transparent Material only for positive animated alpha.
+          // Endpoint zero/nonzero changes may cross that branch; ordinary RGB
+          // and positive-to-positive alpha updates never change this token.
+          final alphaBranches = [
+            ((localColor('collapsedBackgroundColor') ??
+                            theme.collapsedBackgroundColor)
+                        ?.a ??
+                    0) >
+                0,
+            ((localColor('backgroundColor') ?? theme.backgroundColor)?.a ?? 0) >
+                0,
+            (theme.backgroundColor?.a ?? 0) > 0,
+          ];
+          return '$source@expansion:${shaped ? 'shape' : jsonEncode(alphaBranches)}';
+        }
+        return node.type == 'flutter.material.FloatingActionButton'
+            ? '$source@fab:${_fabElevations(node, context).every((value) => value.isInfinite)}:${_fabLayoutMessage(node, context) != null}'
+            : source;
+      }
+      bool present(String name) =>
+          node.properties[name] != null &&
+          node.properties[name]!.kind != 'null';
+      final decoration = node.properties['decoration']?.value;
+      final decorationPadding =
+          decoration is CanvasBoxDecorationValue && decoration.border != null;
+      final clip = node.properties['clipBehavior']?.value;
+      // The actual pinned Container inserts each of these wrappers only while
+      // present. Numeric/color/shape changes within the same topology preserve
+      // the Tooltip's State. The last bit is the Designer inset-guide wrapper.
+      return '@container:${[present('alignment'), present('padding') || decorationPadding, present('color'), clip is CanvasEnumValue && clip.value != 'none', present('decoration'), present('foregroundDecoration'), present('constraints') || present('width') || present('height'), present('margin'), present('transform'), present('padding') || present('margin')].map((value) => value ? '1' : '0').join()}';
+    }
+
+    Map<
+      String,
+      ({String path, String tooltips, bool contains, bool? rawTooltip})
+    >
+    placements(CanvasNode root) {
+      final result =
+          <
+            String,
+            ({String path, String tooltips, bool contains, bool? rawTooltip})
+          >{};
+      final containsTooltip = <String, bool>{};
+      bool recordTooltipDescendants(CanvasNode node) {
+        var contains = _ownsNativeTooltip(node) || _ownsNativeMenu(node);
+        for (final slot in node.slots.values) {
+          for (final child in slot.children) {
+            if (recordTooltipDescendants(child)) contains = true;
+          }
+        }
+        return containsTooltip[node.id] = contains;
+      }
+
+      recordTooltipDescendants(root);
+      bool visit(CanvasNode node, String path, String tooltips, bool visible) {
+        if (node.type == 'flutter.material.TooltipVisibility') {
+          visible = node.properties['visible']!.value as bool;
+        }
+        path = '$path:${node.type}${sdkTopology(node)}';
+        final isTooltip = _ownsNativeTooltip(node);
+        final isOverlayOwner = isTooltip || _ownsNativeMenu(node);
+        final ancestry = isOverlayOwner ? '$tooltips/${node.id}' : tooltips;
+        var contains = isOverlayOwner;
+        for (final slot in node.slots.entries) {
+          for (var i = 0; i < slot.value.children.length; i++) {
+            final child = slot.value.children[i];
+            // The pinned Tooltip adds/removes its RawTooltip when its nearest
+            // visibility scope changes. Only a nested Tooltip branch needs
+            // fresh keys: its open Portal cannot be reparented during layout.
+            // Ordinary anchors and the outer Tooltip retain their SDK State.
+            final rawTooltipBranch = isTooltip && containsTooltip[child.id]!
+                ? '@rawTooltip:$visible'
+                : '';
+            if (visit(
+              child,
+              '$path$rawTooltipBranch/${slot.key}/$i/${child.id}',
+              ancestry,
+              visible,
+            )) {
+              contains = true;
+            }
+          }
+        }
+        final nested =
+            isTooltip &&
+            node.slots.values.any(
+              (slot) =>
+                  slot.children.any((child) => containsTooltip[child.id]!),
+            );
+        result[node.id] = (
+          path: path,
+          tooltips: ancestry,
+          contains: contains,
+          rawTooltip: nested ? visible : null,
+        );
+        return contains;
+      }
+
+      visit(root, root.id, '', true);
+      return result;
+    }
+
+    final old = placements(previous);
+    final next = placements(widget.model.root);
+    for (final entry in next.entries) {
+      final before = old[entry.key];
+      if (before == null) continue;
+      final after = entry.value;
+      if (before.rawTooltip != after.rawTooltip) {
+        final preview = _tooltipPreviewKeyFor(entry.key)?.currentState;
+        if (preview is _TooltipPreviewState) preview.anchorKey = GlobalKey();
+      }
+      final affected =
+          before.tooltips != after.tooltips ||
+          before.contains != after.contains ||
+          (before.path != after.path &&
+              (before.contains ||
+                  after.contains ||
+                  before.tooltips.isNotEmpty ||
+                  after.tooltips.isNotEmpty));
+      if (!affected) continue;
+      _nodeKeys.remove(entry.key);
+      _tooltipPreviewKeys.remove(entry.key);
+      _tooltipAnchorPreviewKeys.remove(entry.key);
+      _expansionTilePreviewKeys.remove(entry.key);
+      _menuAnchorPreviewKeys.remove(entry.key);
+    }
+  }
+
+  void _refreshTooltipAncestors() {
+    _tooltipAncestorIds.clear();
+    bool visit(CanvasNode node) {
+      var contains = _ownsNativeTooltip(node) || _ownsNativeMenu(node);
+      for (final slot in node.slots.values) {
+        for (final child in slot.children) {
+          if (visit(child)) contains = true;
+        }
+      }
+      if (contains) _tooltipAncestorIds.add(node.id);
+      return contains;
+    }
+
+    visit(widget.model.root);
+  }
+
+  (int, Duration)? _lastTooltipSelectionPointer;
+  String? _tooltipSelectedAnchorId;
+  void _selectTooltipAnchor(PointerDownEvent event, String id) {
+    final pointer = (event.pointer, event.timeStamp);
+    if (_lastTooltipSelectionPointer == pointer) return;
+    _lastTooltipSelectionPointer = pointer;
+    _tooltipSelectedAnchorId = null;
+    // A menu item/descendant is already inside Flutter's native focus scope.
+    // Selecting it must not move focus to the document node: doing so makes
+    // SubmenuButton close its own menu before MenuItemButton receives the tap.
+    // Tooltip anchors outside a native menu retain the document focus behavior.
+    _selectWidget(
+      id,
+      requestCanvasFocus: !_pointerInsideInteractiveMenu(event.position),
+    );
+    _tooltipSelectedAnchorId = id;
+  }
+
+  bool _pointerInsideInteractiveMenu(Offset position) {
+    for (final entry in {..._menuAnchorPreviewKeys, ..._switcherMenuKeys}.entries) {
+      final box = _menuPanelBox(entry.key);
+      if (box == null || !box.hasSize || !box.attached) continue;
+      final rect = box.localToGlobal(Offset.zero) & box.size;
+      if (rect.contains(position)) return true;
+    }
+    return false;
+  }
+
+  void _finishTooltipAnchorPointer(PointerEvent event) {
+    final pointer = _lastTooltipSelectionPointer;
+    if (pointer?.$1 != event.pointer) return;
+    scheduleMicrotask(() {
+      if (_lastTooltipSelectionPointer == pointer) {
+        _lastTooltipSelectionPointer = null;
+        _tooltipSelectedAnchorId = null;
+      }
+    });
+  }
+
   final FocusNode _focusNode = FocusNode(debugLabel: 'native-canvas');
   final Map<Object, List<String>> _fabHeroOwners = {};
   void _refreshFabHeroOwners() {
@@ -2566,6 +5280,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   void initState() {
     super.initState();
     _refreshFabHeroOwners();
+    _refreshTooltipAncestors();
     widget.onDropResolverChanged?.call(_resolveDrop);
     widget.onMovePreviewResolverChanged?.call(_resolveMovePreview);
   }
@@ -2574,9 +5289,26 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   void didUpdateWidget(CanvasDocumentView oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.model != widget.model) {
+      _switcherGeometryKeys.clear();
+      _switcherMenuKeys.clear();
+      _switcherTooltipKeys.clear();
+      _invalidateStructurallyMovedTooltipKeys(oldWidget.model.root);
       _refreshFabHeroOwners();
+      _refreshTooltipAncestors();
     }
     _nodeKeys.removeWhere((id, _) => !widget.model.widgetIds.contains(id));
+    _menuAnchorPreviewKeys.removeWhere(
+      (id, _) => !widget.model.widgetIds.contains(id),
+    );
+    _tooltipPreviewKeys.removeWhere(
+      (id, _) => !widget.model.widgetIds.contains(id),
+    );
+    _tooltipAnchorPreviewKeys.removeWhere(
+      (id, _) => !widget.model.widgetIds.contains(id),
+    );
+    _expansionTilePreviewKeys.removeWhere(
+      (id, _) => !widget.model.widgetIds.contains(id),
+    );
     if (_inlineTextEditSession case final session?
         when !_inlineTextEditStillCurrent(session)) {
       _inlineTextEditSession = null;
@@ -2631,9 +5363,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               return Listener(
                 key: const ValueKey('canvas-interaction-surface'),
                 behavior: HitTestBehavior.opaque,
-                onPointerDown: (_) {
+                onPointerDown: (event) {
                   if (widget.interactionInputSynchronized) {
-                    if (_inlineTextEditSession == null) {
+                    if (_inlineTextEditSession == null &&
+                        !_pointerInsideInteractiveMenu(event.position)) {
                       _focusNode.requestFocus();
                     }
                     widget.onInteraction?.call();
@@ -2684,26 +5417,28 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                                   ? Brightness.dark
                                   : Brightness.light,
                             ),
-                            child: ClipRect(
-                              child: _CanvasNodeView(
-                                node: widget.model.root,
-                                imageResources:
-                                    widget.imageResources ??
-                                    CanvasImageResourceBundle.empty,
-                                onImageError: widget.onImageError,
-                                selectedWidgetId: widget.selectedWidgetId,
-                                onSelected: _selectWidget,
-                                nodeKey: _nodeKey,
-                                designerFocusParent: _focusNode,
-                                overlayScale: geometry.scale,
-                                inlineTextEditEnabled:
-                                    widget.inlineTextEditEnabled &&
-                                    widget.interactionInputSynchronized,
-                                inlineTextEditingWidgetId:
-                                    _inlineTextEditSession?.widgetId,
-                                onBeginInlineTextEdit: _beginInlineTextEdit,
-                                onCommitInlineTextEdit: _commitInlineTextEdit,
-                                onCancelInlineTextEdit: _cancelInlineTextEdit,
+                            child: _CanvasViewportOverlay(
+                              child: ClipRect(
+                                child: _CanvasNodeView(
+                                  node: widget.model.root,
+                                  imageResources:
+                                      widget.imageResources ??
+                                      CanvasImageResourceBundle.empty,
+                                  onImageError: widget.onImageError,
+                                  selectedWidgetId: widget.selectedWidgetId,
+                                  onSelected: _selectWidget,
+                                  nodeKey: _nodeKey,
+                                  designerFocusParent: _focusNode,
+                                  overlayScale: geometry.scale,
+                                  inlineTextEditEnabled:
+                                      widget.inlineTextEditEnabled &&
+                                      widget.interactionInputSynchronized,
+                                  inlineTextEditingWidgetId:
+                                      _inlineTextEditSession?.widgetId,
+                                  onBeginInlineTextEdit: _beginInlineTextEdit,
+                                  onCommitInlineTextEdit: _commitInlineTextEdit,
+                                  onCancelInlineTextEdit: _cancelInlineTextEdit,
+                                ),
                               ),
                             ),
                           ),
@@ -2729,6 +5464,40 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
                         target: target,
                         constraints: constraints,
                         indicatorKind: widget.dropIndicatorKind,
+                      ),
+                    if (_menuChromeRect case final rect?
+                        when _menuChromeOwnerId != null)
+                      Positioned.fromRect(
+                        rect: rect,
+                        child: Material(
+                          elevation: 2,
+                          borderRadius: BorderRadius.circular(4),
+                          child: TextButton(
+                            key: ValueKey(
+                              'canvas-menu-preview-$_menuChromeOwnerId',
+                            ),
+                            onPressed: !widget.interactionInputSynchronized
+                                ? null
+                                : _menuChromeOpen
+                                ? () {
+                                    _menuState(
+                                      _menuChromeOwnerId!,
+                                    )?.controller.close();
+                                    _menuChanged();
+                                  }
+                                : () {
+                                    _menuState(
+                                      _menuChromeOwnerId!,
+                                    )?.controller.open();
+                                    _menuChanged();
+                                  },
+                            child: Text(
+                              _menuChromeOpen
+                                  ? 'Close preview'
+                                  : 'Preview menu',
+                            ),
+                          ),
+                        ),
                       ),
                     if (geometry.horizontalScrollable)
                       Positioned(
@@ -2809,7 +5578,25 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       );
       final coincidentTargets = <Rect, List<CanvasNode>>{};
       for (final node in _zeroSizedDesignerTargets(widget.model.root)) {
-        final box = _renderBox(_nodeKeys[node.id]);
+        if (!_isInPaintedSliverVisibilityBranch(widget.model.root, node.id)) continue;
+        if (isCanvasSliverWidgetType(node.type)) {
+          final rect = _sliverGlobalRect(node, surfaceRect);
+          if (rect != null) {
+            // Small external handle avoids stealing taps from ordinary children.
+            final render = _geometryNodeKey(node.id)!.currentContext!.findRenderObject() as RenderSliver;
+            final direction = applyGrowthDirectionToAxisDirection(
+                render.constraints.axisDirection, render.constraints.growthDirection);
+            final width = math.min(24.0, rect.width);
+            final height = math.min(24.0, rect.height);
+            final handle = Rect.fromLTWH(
+                direction == AxisDirection.left ? rect.right - width : rect.left,
+                direction == AxisDirection.up ? rect.bottom - height : rect.top,
+                width, height).shift(-surfaceRect.topLeft);
+            coincidentTargets.putIfAbsent(handle, () => <CanvasNode>[]).add(node);
+          }
+          continue;
+        }
+        final box = _renderBox(_geometryNodeKey(node.id));
         // Spacer owns no child where instrumentation can safely live. An
         // external target is therefore required even when stretch gives its
         // internal SizedBox a non-zero cross-axis extent.
@@ -2851,25 +5638,86 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               for (final node in target.value)
                 _customClipperPreviewUnavailableMessageForNode(
                   node,
-                  context: _nodeKeys[node.id]?.currentContext,
-                  constraints: _renderBox(_nodeKeys[node.id])?.constraints,
+                  context: _geometryNodeKey(node.id)?.currentContext,
+                  constraints: _renderBox(_geometryNodeKey(node.id))?.constraints,
                 ),
             ]),
           ),
       ];
-      if (_sameTargets(_zeroSizedWidgetTargets, targets)) {
+      CanvasNode? owningMenu(CanvasNode node) {
+        final selected = widget.selectedWidgetId;
+        if (selected == null || _findCanvasNode(node, selected) == null) {
+          return null;
+        }
+        for (final slot in node.slots.values) {
+          for (final child in slot.children) {
+            final nested = owningMenu(child);
+            if (nested != null) return nested;
+          }
+        }
+        return _ownsNativeMenu(node) && _renderBox(_geometryNodeKey(node.id)) != null
+            ? node
+            : null;
+      }
+
+      final menu = owningMenu(widget.model.root);
+      final anchor = menu == null ? null : _renderBox(_geometryNodeKey(menu.id));
+      final anchorRect = anchor == null
+          ? null
+          : _finiteGlobalRect(anchor)?.shift(-surfaceRect.topLeft);
+      final chrome = anchorRect == null
+          ? null
+          : Rect.fromLTWH(
+              anchorRect.left.clamp(
+                0.0,
+                math.max(0.0, surface.size.width - 132),
+              ),
+              (anchorRect.top >= 36
+                      ? anchorRect.top - 36
+                      : anchorRect.bottom + 4)
+                  .clamp(0.0, math.max(0.0, surface.size.height - 32)),
+              132,
+              32,
+            );
+      final open =
+          menu != null && (_menuState(menu.id)?.controller.isOpen ?? false);
+      if (_sameTargets(_zeroSizedWidgetTargets, targets) &&
+          _menuChromeRect == chrome &&
+          _menuChromeOwnerId == menu?.id &&
+          _menuChromeOpen == open) {
         return;
       }
-      setState(() => _zeroSizedWidgetTargets = List.unmodifiable(targets));
+      setState(() {
+        _zeroSizedWidgetTargets = List.unmodifiable(targets);
+        _menuChromeRect = chrome;
+        _menuChromeOwnerId = menu?.id;
+        _menuChromeOpen = open;
+      });
     });
   }
 
   Iterable<CanvasNode> _zeroSizedDesignerTargets(CanvasNode node) sync* {
-    if ((node.type == 'flutter.widgets.SizedBox' &&
+    if (isCanvasSliverWidgetType(node.type) ||
+        node.type == 'flutter.widgets.LayoutBuilder' ||
+        node.type == 'flutter.widgets.OrientationBuilder' ||
+        node.type == 'flutter.widgets.DeviceOrientationBuilder' ||
+        node.type == 'flutter.widgets.ListenableBuilder' ||
+        node.type == 'flutter.widgets.AnimatedBuilder' ||
+        node.type == 'flutter.widgets.TweenAnimationBuilder' ||
+        node.type == 'flutter.widgets.ValueListenableBuilder' ||
+        (node.type == 'flutter.widgets.SizedBox' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
         (node.type == 'flutter.widgets.Container' &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
         node.type == 'flutter.widgets.DecoratedBox' ||
+        node.type == 'flutter.widgets.DecoratedBoxTransition' ||
+        node.type == 'flutter.widgets.AlignTransition' ||
+        node.type == 'flutter.widgets.MatrixTransition' ||
+        node.type == 'flutter.widgets.ModalBarrier' ||
+        node.type == 'flutter.widgets.AnimatedModalBarrier' ||
+        node.type == 'flutter.widgets.FadeInImage' ||
+        node.type == 'flutter.widgets.RawImage' ||
+        node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
         node.type == 'flutter.widgets.ExcludeFocusTraversal' ||
@@ -2879,19 +5727,44 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.DefaultSelectionStyle' ||
         node.type == 'flutter.widgets.IconTheme' ||
         node.type == 'flutter.widgets.IgnorePointer' ||
+        node.type == 'flutter.widgets.GestureDetector' ||
+        node.type == 'flutter.widgets.Listener' ||
+        node.type == 'flutter.widgets.MouseRegion' ||
+        node.type == 'flutter.widgets.Focus' ||
+        node.type == 'flutter.widgets.NotificationListener' ||
         node.type == 'flutter.widgets.AbsorbPointer' ||
         node.type == 'flutter.widgets.BlockSemantics' ||
         node.type == 'flutter.widgets.MergeSemantics' ||
         node.type == 'flutter.widgets.IndexedSemantics' ||
         node.type == 'flutter.widgets.RepaintBoundary' ||
+        node.type == 'flutter.widgets.AnimatedPadding' ||
+        node.type == 'flutter.widgets.AnimatedSlide' ||
+        node.type == 'flutter.widgets.AnimatedScale' ||
+        node.type == 'flutter.widgets.RotationTransition' ||
+        node.type == 'flutter.widgets.SizeTransition' ||
+        node.type == 'flutter.widgets.ScaleTransition' ||
+        isCanvasStackPositionedWidgetType(node.type) ||
+        node.type == 'flutter.widgets.AnimatedPhysicalModel' ||
+        node.type == 'flutter.widgets.AnimatedFractionallySizedBox' ||
+        node.type == 'flutter.widgets.AnimatedDefaultTextStyle' ||
+        node.type == 'flutter.widgets.DefaultTextStyle' ||
+        node.type == 'flutter.widgets.DefaultTextStyle.merge' ||
+        node.type == 'flutter.widgets.DefaultTextStyleTransition' ||
+        node.type == 'flutter.material.AnimatedTheme' ||
+        node.type == 'flutter.material.Theme' ||
+        node.type == 'flutter.widgets.AnimatedSwitcher' ||
+        node.type == 'flutter.widgets.AnimatedCrossFade' ||
+        node.type == 'flutter.widgets.AnimatedSize' ||
+        node.type == 'flutter.widgets.AnimatedContainer' ||
+        node.type == 'flutter.widgets.AnimatedRotation' ||
         node.type == 'flutter.widgets.ColoredBox' ||
-        (node.type == 'flutter.widgets.Opacity' &&
+        ((node.type == 'flutter.widgets.Opacity' || node.type == 'flutter.widgets.AnimatedOpacity' || node.type == 'flutter.widgets.FadeTransition' || node.type == 'flutter.widgets.SlideTransition') &&
             (node.slot('child')?.children.isEmpty ?? true)) ||
-        (node.type == 'flutter.widgets.Align' &&
+        ((node.type == 'flutter.widgets.Align' || node.type == 'flutter.widgets.AnimatedAlign') &&
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
-        (node.type == 'flutter.widgets.FractionallySizedBox' &&
+        ((node.type == 'flutter.widgets.FractionallySizedBox' || node.type == 'flutter.widgets.AnimatedFractionallySizedBox') &&
             ((node.slot('child')?.children.isEmpty ?? true) ||
                 node.properties['widthFactor']?.value == 0 ||
                 node.properties['heightFactor']?.value == 0)) ||
@@ -2909,6 +5782,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ClipPath' ||
         node.type == 'flutter.widgets.ClipRect' ||
         node.type == 'flutter.widgets.RotatedBox' ||
+        node.type == 'flutter.widgets.PreferredSize' ||
         node.type == 'flutter.widgets.SizedOverflowBox' ||
         node.type == 'flutter.widgets.Transform' ||
         node.type == 'flutter.widgets.ConstrainedBox' ||
@@ -2927,8 +5801,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.OverflowBar' ||
         node.type == 'flutter.widgets.ListView' ||
         node.type == 'flutter.widgets.GridView' ||
+        node.type == 'flutter.widgets.GridView.extent' ||
+        node.type == 'flutter.widgets.CustomScrollView' ||
         node.type == 'flutter.widgets.SingleChildScrollView' ||
         node.type == 'flutter.widgets.Image' ||
+        node.type == 'flutter.widgets.FadeInImage' ||
+        node.type == 'flutter.widgets.RawImage' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -2940,6 +5818,14 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.RadioGroup' ||
         node.type == 'flutter.material.ListTile' ||
         node.type == 'flutter.material.CheckboxListTile' ||
+        node.type == 'flutter.material.SwitchListTile' ||
+        node.type == 'flutter.material.RadioListTile' ||
+        node.type == 'flutter.material.ExpansionTile' ||
+        node.type == 'flutter.material.Tooltip' ||
+        node.type == 'flutter.material.TooltipVisibility' ||
+        node.type == 'flutter.material.TooltipTheme' ||
+        node.type == 'flutter.material.MenuItemButton' ||
+        _ownsNativeMenu(node) ||
         node.type == 'flutter.material.RangeSlider' ||
         node.type == 'flutter.material.Slider' ||
         node.type == 'flutter.material.LinearProgressIndicator' ||
@@ -3091,7 +5977,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     widget.onViewportPresentationChanged?.call(presentation);
   }
 
-  void _selectWidget(String widgetId) {
+  void _selectWidget(String widgetId, {bool requestCanvasFocus = true}) {
+    if (!_isInPaintedSliverVisibilityBranch(widget.model.root, widgetId)) return;
+    final anchorId = _tooltipSelectedAnchorId;
+    if (anchorId != null) {
+      final candidate = _findCanvasNode(widget.model.root, widgetId);
+      if (candidate != null && _findCanvasNode(candidate, anchorId) != null) {
+        return;
+      }
+    }
     if (_inlineTextEditSession != null &&
         SchedulerBinding.instance.schedulerPhase ==
             SchedulerPhase.persistentCallbacks) {
@@ -3103,8 +5997,28 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (_inlineTextEditSession != null) {
       return;
     }
-    _focusNode.requestFocus();
+    if (requestCanvasFocus && !_widgetInsideInteractiveMenu(widgetId)) {
+      _focusNode.requestFocus();
+    }
     widget.onSelected(widgetId);
+  }
+
+  bool _widgetInsideInteractiveMenu(String widgetId) {
+    bool visit(CanvasNode node) {
+      if (_ownsNativeMenu(node) &&
+          _menuState(node.id)?.interactive == true &&
+          _findCanvasNode(node, widgetId) != null) {
+        return true;
+      }
+      for (final slot in node.slots.values) {
+        for (final child in slot.children) {
+          if (visit(child)) return true;
+        }
+      }
+      return false;
+    }
+
+    return visit(widget.model.root);
   }
 
   KeyEventResult _onKeyEvent(FocusNode node, KeyEvent event) {
@@ -3125,9 +6039,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         return KeyEventResult.handled;
       }
       final selected = widget.selectedWidgetId;
-      return selected != null && _beginInlineTextEdit(selected)
-          ? KeyEventResult.handled
-          : KeyEventResult.ignored;
+      final began = selected != null && _beginInlineTextEdit(selected);
+      return began ? KeyEventResult.handled : KeyEventResult.ignored;
     }
     if (event.logicalKey == LogicalKeyboardKey.delete &&
         _inlineTextEditSession != null) {
@@ -3300,12 +6213,23 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final source = _findCanvasNode(widget.model.root, sourceWidgetId);
     final parentNode = _findCanvasNode(widget.model.root, parentWidgetId);
     final surface = _renderBox(_surfaceKey);
-    final parentBox = _renderBox(_nodeKeys[parentWidgetId]);
+    final parentBox =
+        parentNode != null &&
+            _ownsNativeMenu(parentNode) &&
+            slotName == 'menuChildren'
+        ? _menuPanelBox(parentWidgetId) ?? _renderBox(_geometryNodeKey(parentWidgetId))
+        : _renderBox(_geometryNodeKey(parentWidgetId));
     if (source == null ||
         parentNode == null ||
         surface == null ||
         surface.size.isEmpty ||
-        parentBox == null) {
+        (parentBox == null && !isCanvasSliverWidgetType(parentNode.type))) {
+      return null;
+    }
+    if (isCanvasStackPositionedWidgetType(source.type) &&
+        !(parentNode.type == 'flutter.widgets.Stack' && slotName == 'children')) { return null; }
+    if (source.type == canvasSliverCrossAxisExpandedType &&
+        !isCanvasSliverCrossAxisExpandedDestination(parentNode.type, slotName)) {
       return null;
     }
     final requiredChildOwner = _requiredChildOwner(
@@ -3313,7 +6237,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       sourceWidgetId,
     );
     if (requiredChildOwner != null &&
-        (requiredChildOwner.id != parentWidgetId || slotName != 'child')) {
+        (requiredChildOwner.id != parentWidgetId ||
+            slotName !=
+                (requiredChildOwner.type == 'flutter.widgets.SliverFloatingHeader' ? 'child' : canvasReviewedRequiredWrapperSlot(requiredChildOwner.type)))) {
       // A move cannot expose an invalid empty required slot. Keep same-slot
       // no-op previews; the host still owns final mutation validation.
       return null;
@@ -3329,6 +6255,25 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       return null;
     }
     final surfaceRect = _finiteGlobalRect(surface);
+    if (isCanvasSliverWidgetType(parentNode.type)) {
+      final children = modelSlot?.children.where((child) => child.id != sourceWidgetId).toList() ?? <CanvasNode>[];
+      if (surfaceRect == null || reviewedSlot == null ||
+          !reviewedSlot.acceptsSource(CanvasPaletteDragSource(token: 'move-preview', widgetType: source.type,
+            traits: isCanvasSliverWidgetType(source.type) ? const {canvasSliverWidgetTrait} : const {})) ||
+          isCanvasFlexRestrictedWidgetType(source.type) ||
+          _findCanvasNode(source, parentWidgetId) != null ||
+          insertionIndex < 0 || insertionIndex > children.length ||
+          (slotKind == 'single' && (insertionIndex != 0 || children.isNotEmpty))) {
+        return null;
+      }
+      final rect = isCanvasSliverAppBarType(parentNode.type)
+          ? _sliverAppBarDropZone(parentNode, slotName, surfaceRect)
+          : _sliverGlobalRect(parentNode, surfaceRect);
+      if (rect == null) return null;
+      return CanvasDropTarget(parentWidgetId: parentWidgetId, slotName: slotName,
+          insertionIndex: insertionIndex, zone: _normalizeZone(surfaceRect, rect));
+    }
+    if (parentBox == null) return null;
     final renderedParentRect = _finiteGlobalRect(parentBox);
     if (surfaceRect == null ||
         renderedParentRect == null ||
@@ -3357,11 +6302,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         return null;
       }
       zone = switch (reviewedSlot?.zonePlacement) {
+        CanvasDropZonePlacement.menuItemChild ||
         CanvasDropZonePlacement.listTileLeading ||
         CanvasDropZonePlacement.listTileTitle ||
         CanvasDropZonePlacement.listTileSubtitle ||
         CanvasDropZonePlacement.listTileTrailing => _listTileDropZone(
-          parentRect,
+          _expansionHeaderRect(parentNode, parentBox, parentRect),
           reviewedSlot!.zonePlacement,
           _resolvedTextDirection(parentNode),
         ),
@@ -3394,6 +6340,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           slotName,
         ),
         CanvasDropZonePlacement.appBarFlexibleSpace => parentRect,
+        CanvasDropZonePlacement.flexibleSpaceBarTitle => _flexibleSpaceTitleZone(parentRect),
         CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(
           parentNode,
           parentBox,
@@ -3414,6 +6361,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final listParentRect =
           parentNode.type == 'flutter.material.AppBar' && slotName == 'actions'
           ? _appBarToolbarZone(parentNode, parentBox, parentRect)
+          : parentNode.type == 'flutter.material.ExpansionTile' &&
+                slotName == 'children'
+          ? _expansionBodyRect(parentNode, parentBox, parentRect)
           : parentRect;
       zone =
           parentNode.type == 'flutter.material.AppBar' &&
@@ -3466,7 +6416,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     int insertionIndex,
     String slotName,
   ) {
-    if (parentNode.type == 'flutter.widgets.GridView' &&
+    if (parentNode.type == 'flutter.widgets.CustomScrollView' &&
+        slotName == 'slivers') {
+      return parentRect;
+    }
+    if ((parentNode.type == 'flutter.widgets.GridView' ||
+            parentNode.type == 'flutter.widgets.GridView.extent') &&
         slotName == 'children') {
       return _gridInsertionZone(
         parentNode,
@@ -3494,11 +6449,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parentNode.type == 'flutter.material.AppBar' ||
         _isHorizontalListBody(parentNode) ||
         _isHorizontalListView(parentNode) ||
+        _isHorizontalCustomScrollView(parentNode) ||
+        _isHorizontalPageView(parentNode) ||
         (parentNode.type == 'flutter.widgets.OverflowBar' &&
             !overflowBarVertical);
     final reverse = switch (parentNode.type) {
       'flutter.widgets.ListBody' => _isVisuallyReversedListBody(parentNode),
       'flutter.widgets.ListView' => _isVisuallyReversedListView(parentNode),
+      'flutter.widgets.PageView' =>
+        _booleanValue(parentNode, 'reverse') == true,
       'flutter.widgets.OverflowBar' =>
         overflowBarVertical
             ? _enumValue(parentNode, 'overflowDirection') == 'up'
@@ -3511,7 +6470,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final referenceIndex = insertionIndex < children.length
         ? insertionIndex
         : children.length - 1;
-    final reference = _renderBox(_nodeKeys[children[referenceIndex].id]);
+    final reference = _renderBox(_geometryNodeKey(children[referenceIndex].id));
     if (reference == null) {
       return Rect.zero;
     }
@@ -3561,6 +6520,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   CanvasNode? _requiredChildOwner(CanvasNode node, String childId) {
+    if (node.type == 'flutter.widgets.SliverFloatingHeader' && node.slot('child')?.child?.id == childId) return node;
     if (isCanvasReviewedRequiredChildWrapperWidgetType(node.type) &&
         node.slot(canvasReviewedRequiredWrapperSlot(node.type)!)?.child?.id ==
             childId) {
@@ -3622,7 +6582,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           parentWidgetType: node.type,
           slotName: slotEntry.key,
         );
-        if (wrapSlot == null ||
+        if ((isCanvasStackPositionedWidgetType(source.widgetType) &&
+              !(node.type == 'flutter.widgets.Stack' && slotEntry.key == 'children')) ||
+            (source.widgetType == canvasSliverCrossAxisExpandedType &&
+              !isCanvasSliverCrossAxisExpandedDestination(node.type, slotEntry.key)) ||
+            wrapSlot == null ||
             modelSlot.kind != wrapSlot.modelSlotKind ||
             !wrapSlot.acceptsSource(source)) {
           continue;
@@ -3639,16 +6603,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           )) {
             continue;
           }
-          final box = _renderBox(_nodeKeys[child.id]);
-          if (box == null) {
-            continue;
-          }
-          final zone = _resolvedGlobalDropZone(
-            box,
-            Offset.zero & box.size,
-            point,
-            surfaceRect,
-          );
+          final box = _renderBox(_geometryNodeKey(child.id));
+          final sliverZone = isCanvasSliverWidgetType(child.type)
+              ? _sliverGlobalRect(child, surfaceRect) : null;
+          final zone = sliverZone != null
+              ? (sliverZone.contains(point) ? sliverZone : null)
+              : box == null ? null : _resolvedGlobalDropZone(
+                  box, Offset.zero & box.size, point, surfaceRect);
           if (zone != null) {
             result.add(
               _DropCandidate(
@@ -3673,7 +6634,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           if (isCanvasFlexRestrictedWidgetType(child.type)) {
             continue;
           }
-          final box = _renderBox(_nodeKeys[child.id]);
+          final box = _renderBox(_geometryNodeKey(child.id));
           if (box == null) {
             continue;
           }
@@ -3699,6 +6660,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       }
     } else {
       for (final dropSlot in canvasDropSlotsForWidgetType(node.type)) {
+        // Prototype is measurement-only. Its explicit tree/Slots target remains
+        // available, but pointer drops on the painted list address real children.
+        if (isCanvasPrototypeSliverType(node.type) && dropSlot.slotName == 'prototypeItem') continue;
+        if (node.type == 'flutter.widgets.SliverResizingHeader' && dropSlot.slotName != 'child') continue;
         if (!dropSlot.acceptsSource(source) ||
             !_isEligibleDropSlot(node, dropSlot.slotName)) {
           continue;
@@ -3709,18 +6674,30 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         }
         final currentChildCount = modelSlot?.children.length ?? 0;
         final insertionIndex = dropSlot.insertionIndexFor(currentChildCount);
-        final box = _renderBox(_nodeKeys[node.id]);
+        if (isCanvasSliverWidgetType(node.type)) {
+          final zone = isCanvasSliverAppBarType(node.type)
+              ? _sliverAppBarDropZone(node, dropSlot.slotName, surfaceRect) : _sliverGlobalRect(node, surfaceRect);
+          if (insertionIndex != null && zone != null && zone.contains(point)) {
+            result.add(_DropCandidate(node, depth, zone.width * zone.height,
+                dropSlot, insertionIndex, zone));
+          }
+          continue;
+        }
+        final box = _ownsNativeMenu(node) && dropSlot.slotName == 'menuChildren'
+            ? _menuPanelBox(node.id) ?? _renderBox(_geometryNodeKey(node.id))
+            : _renderBox(_geometryNodeKey(node.id));
         if (insertionIndex != null && box != null) {
           if (dropSlot.zonePlacement == CanvasDropZonePlacement.existingChild) {
             continue;
           }
           final localParent = Offset.zero & box.size;
           final localZone = switch (dropSlot.zonePlacement) {
+            CanvasDropZonePlacement.menuItemChild ||
             CanvasDropZonePlacement.listTileLeading ||
             CanvasDropZonePlacement.listTileTitle ||
             CanvasDropZonePlacement.listTileSubtitle ||
             CanvasDropZonePlacement.listTileTrailing => _listTileDropZone(
-              localParent,
+              _expansionHeaderRect(node, box, localParent),
               dropSlot.zonePlacement,
               _resolvedTextDirection(node),
             ),
@@ -3752,6 +6729,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
               dropSlot.slotName,
             ),
             CanvasDropZonePlacement.appBarFlexibleSpace => localParent,
+            CanvasDropZonePlacement.flexibleSpaceBarTitle => _flexibleSpaceTitleZone(localParent),
             CanvasDropZonePlacement.appBarBottom => _appBarBottomZone(
               node,
               box,
@@ -3782,6 +6760,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       }
     }
     for (final slotEntry in node.slots.entries) {
+      if (_ownsNativeMenu(node) && slotEntry.key == 'menuChildren') {
+        final panel = _menuPanelBox(node.id);
+        final panelRect = panel == null ? null : _finiteGlobalRect(panel);
+        if (panelRect == null || !panelRect.contains(point)) continue;
+      }
       for (final index in _interactiveChildIndexes(
         node,
         slotEntry.key,
@@ -3831,6 +6814,22 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   bool _isInteractiveSlot(CanvasNode node, String slotName) {
+    if (node.type == 'flutter.widgets.AnimatedCrossFade') {
+      // Only the top child accepts native pointer input. The other branch stays editable in the tree/Slots.
+      return slotName == (_enumValue(node, 'crossFadeState') == 'showSecond' ? 'secondChild' : 'firstChild');
+    }
+    if (_ownsNativeMenu(node) && slotName == 'menuChildren') {
+      return _menuState(node.id)?.interactive ?? false;
+    }
+    if (node.type == 'flutter.material.ExpansionTile') {
+      if (slotName == 'children') {
+        return _expansionState(node)?.controller.isExpanded ??
+            node.properties['initiallyExpanded']?.value == true;
+      }
+      if (slotName == 'trailing') {
+        return node.properties['showTrailingIcon']?.value != false;
+      }
+    }
     if (node.type == 'flutter.material.FloatingActionButton' &&
         slotName == 'icon') {
       return node.properties['variant']?.value == 'extended';
@@ -3844,6 +6843,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (node.type == 'flutter.material.Badge' && slotName == 'label') {
       return !node.properties.containsKey('count') &&
           node.properties['isLabelVisible']?.value != false;
+    }
+    if (isCanvasSliverVisibilityType(node.type)) {
+      final visible = node.properties['visible']?.value != false;
+      final maintain = node.type.endsWith('.maintain') || node.properties['maintainState']?.value == true;
+      return slotName == 'sliver' ? visible : slotName == 'replacementSliver' && !visible && !maintain;
     }
     if (node.type != 'flutter.widgets.Visibility') return true;
     final visible = node.properties['visible']?.value != false;
@@ -3975,6 +6979,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parent.right,
         parent.bottom,
       ),
+      CanvasDropZonePlacement.menuItemChild => Rect.fromLTRB(
+        start,
+        parent.top,
+        end,
+        parent.bottom,
+      ),
       CanvasDropZonePlacement.listTileTitle => Rect.fromLTRB(
         start,
         parent.top,
@@ -4000,6 +7010,53 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     return _isInteractiveSlot(node, slotName);
   }
 
+  _ExpansionTilePreviewState? _expansionState(CanvasNode node) {
+    _ExpansionTilePreviewState? result;
+    void visit(Element element) {
+      if (result != null) return;
+      if (element is StatefulElement &&
+          element.state is _ExpansionTilePreviewState &&
+          (element.state as _ExpansionTilePreviewState).widget.node.id ==
+              node.id) {
+        result = element.state as _ExpansionTilePreviewState;
+        return;
+      }
+      element.visitChildren(visit);
+    }
+
+    final element = _geometryNodeKey(node.id)?.currentContext;
+    if (element is Element) visit(element);
+    return result;
+  }
+
+  Rect _expansionHeaderRect(CanvasNode node, RenderBox box, Rect parent) {
+    if (node.type != 'flutter.material.ExpansionTile') return parent;
+    final header = _expansionState(node)?.headerBox;
+    return header == null
+        ? parent
+        : (_finiteRectInAncestor(header, box)?.intersect(parent) ?? parent);
+  }
+
+  Rect _expansionBodyRect(CanvasNode node, RenderBox box, Rect parent) {
+    // Always resolve against the actual tile, including when a move resolver
+    // already narrowed its candidate rectangle to this body.
+    parent = Offset.zero & box.size;
+    final header = _expansionHeaderRect(node, box, parent);
+    final top = header.bottom.clamp(parent.top, parent.bottom);
+    if ((node.slot('children')?.children.isNotEmpty ?? false) &&
+        top < parent.bottom) {
+      return Rect.fromLTRB(parent.left, top, parent.right, parent.bottom);
+    }
+    // An expanded empty body remains zero-sized in the SDK. Its compact append
+    // band is Designer-only geometry over the header edge, never fake children.
+    return Rect.fromLTRB(
+      parent.left,
+      math.max(parent.top, top - math.min(16, header.height / 4)),
+      parent.right,
+      parent.bottom,
+    );
+  }
+
   Rect _terminalZone(
     CanvasNode node,
     RenderBox parentBox,
@@ -4007,8 +7064,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     String slotName, {
     List<CanvasNode>? effectiveChildren,
   }) {
+    if (node.type == 'flutter.material.ExpansionTile' &&
+        slotName == 'children') {
+      parent = _expansionBodyRect(node, parentBox, parent);
+    }
     if (parent.width <= 0 || parent.height <= 0) {
       return Rect.zero;
+    }
+    if (node.type == 'flutter.widgets.CustomScrollView' &&
+        slotName == 'slivers') {
+      return parent;
     }
     final children =
         effectiveChildren ??
@@ -4018,7 +7083,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       // With no siblings there is only one legal ordering result: index 0.
       // Expose the complete visible container instead of making users find a
       // synthetic terminal edge on an otherwise blank linear container.
-      if (node.type == 'flutter.material.AppBar' && slotName == 'actions') {
+      if ((node.type == 'flutter.material.AppBar' || isCanvasSliverAppBarType(node.type)) && slotName == 'actions') {
         final width = math.min(parent.width, math.max(72.0, parent.width / 3));
         return _resolvedTextDirection(node) == TextDirection.rtl
             ? Rect.fromLTRB(
@@ -4036,7 +7101,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       }
       return parent;
     }
-    if (node.type == 'flutter.widgets.GridView' && slotName == 'children') {
+    if ((node.type == 'flutter.widgets.GridView' ||
+            node.type == 'flutter.widgets.GridView.extent') &&
+        slotName == 'children') {
       return _gridInsertionZone(
         node,
         parentBox,
@@ -4046,7 +7113,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         markerExtent: _minimumTerminalBand,
       );
     }
-    final last = _renderBox(_nodeKeys[children.last.id]);
+    final last = _renderBox(_geometryNodeKey(children.last.id));
     if (last == null) {
       return Rect.zero;
     }
@@ -4058,14 +7125,18 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.OverflowBar' &&
         _isOverflowBarVertical(node, parentBox);
     if (node.type == 'flutter.widgets.Column' ||
+        _ownsNativeMenu(node) ||
         overflowBarVertical ||
         (node.type == 'flutter.widgets.ListBody' &&
             !_isHorizontalListBody(node)) ||
         (node.type == 'flutter.widgets.ListView' &&
-            !_isHorizontalListView(node))) {
+            !_isHorizontalListView(node)) ||
+        (node.type == 'flutter.widgets.PageView' &&
+            !_isHorizontalPageView(node))) {
       final upward = switch (node.type) {
         'flutter.widgets.ListBody' ||
-        'flutter.widgets.ListView' => _booleanValue(node, 'reverse') == true,
+        'flutter.widgets.ListView' ||
+        'flutter.widgets.PageView' => _booleanValue(node, 'reverse') == true,
         'flutter.widgets.OverflowBar' =>
           _enumValue(node, 'overflowDirection') == 'up',
         _ => _enumValue(node, 'verticalDirection') == 'up',
@@ -4088,6 +7159,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final rightToLeft = switch (node.type) {
       'flutter.widgets.ListBody' => _isVisuallyReversedListBody(node),
       'flutter.widgets.ListView' => _isVisuallyReversedListView(node),
+      'flutter.widgets.PageView' =>
+        _isHorizontalPageView(node)
+            ? (_resolvedTextDirection(node) == TextDirection.rtl) !=
+                  (_booleanValue(node, 'reverse') == true)
+            : false,
       _ => _resolvedTextDirection(node) == TextDirection.rtl,
     };
     final band = _minimumTerminalBand.clamp(1.0, parent.width);
@@ -4121,7 +7197,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final referenceIndex = beforeExisting
         ? insertionIndex
         : children.length - 1;
-    final reference = _renderBox(_nodeKeys[children[referenceIndex].id]);
+    final reference = _renderBox(_geometryNodeKey(children[referenceIndex].id));
     if (reference == null) {
       return Rect.zero;
     }
@@ -4188,7 +7264,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (explicit == 'ltr') {
       return TextDirection.ltr;
     }
-    final context = _nodeKeys[node.id]?.currentContext;
+    final context = _geometryNodeKey(node.id)?.currentContext;
     return context == null
         ? TextDirection.ltr
         : Directionality.maybeOf(context) ?? TextDirection.ltr;
@@ -4198,8 +7274,17 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       node.type == 'flutter.widgets.ListView' &&
       _enumValue(node, 'scrollDirection') == 'horizontal';
 
+  static bool _isHorizontalPageView(CanvasNode node) =>
+      node.type == 'flutter.widgets.PageView' &&
+      _enumValue(node, 'scrollDirection') == 'horizontal';
+
   static bool _isHorizontalGridView(CanvasNode node) =>
-      node.type == 'flutter.widgets.GridView' &&
+      (node.type == 'flutter.widgets.GridView' ||
+          node.type == 'flutter.widgets.GridView.extent') &&
+      _enumValue(node, 'scrollDirection') == 'horizontal';
+
+  static bool _isHorizontalCustomScrollView(CanvasNode node) =>
+      node.type == 'flutter.widgets.CustomScrollView' &&
       _enumValue(node, 'scrollDirection') == 'horizontal';
 
   static bool _isHorizontalListBody(CanvasNode node) =>
@@ -4214,7 +7299,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     var actualWidth = _numberValue(node, 'spacing') ?? 0.0;
     actualWidth *= children.length - 1;
     for (final child in children) {
-      final childBox = _renderBox(_nodeKeys[child.id]);
+      final childBox = _renderBox(_geometryNodeKey(child.id));
       if (childBox == null || !childBox.size.width.isFinite) {
         return false;
       }
@@ -4244,9 +7329,12 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     return rightToLeft != reversed;
   }
 
+  Rect _flexibleSpaceTitleZone(Rect parent) => Rect.fromLTRB(
+    parent.left, math.max(parent.top, parent.bottom - kToolbarHeight), parent.right, parent.bottom);
+
   Rect _appBarToolbarZone(CanvasNode node, RenderBox parentBox, Rect parent) {
     final bottom = node.slot('bottom')?.child;
-    final bottomBox = bottom == null ? null : _renderBox(_nodeKeys[bottom.id]);
+    final bottomBox = bottom == null ? null : _renderBox(_geometryNodeKey(bottom.id));
     final bottomRect = bottomBox == null
         ? null
         : _finiteRectInAncestor(bottomBox, parentBox);
@@ -4255,6 +7343,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         ? math.min(_minimumTerminalBand, parent.height / 3)
         : 0.0;
     final bottomHeight = math.max(renderedBottomHeight, fallbackBottom);
+    if (isCanvasSliverAppBarType(node.type)) {
+      final topInset = _booleanValue(node, 'primary') == false ? 0.0
+          : MediaQuery.maybeOf(_geometryNodeKey(node.id)!.currentContext!)?.padding.top ?? 0.0;
+      final top = math.min(parent.bottom, parent.top + topInset);
+      final height = _numberValue(node, 'toolbarHeight') ?? (node.type == 'flutter.material.SliverAppBar' ? 56.0 : 64.0);
+      return Rect.fromLTRB(parent.left, top, parent.right, math.max(top, math.min(top + height, parent.bottom - bottomHeight)));
+    }
     return Rect.fromLTRB(
       parent.left,
       parent.top,
@@ -4264,6 +7359,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   Rect _appBarBottomZone(CanvasNode node, RenderBox parentBox, Rect parent) {
+    if (isCanvasSliverAppBarType(node.type)) {
+      final height = math.min(_minimumTerminalBand, parent.height / 3);
+      return Rect.fromLTRB(parent.left, parent.bottom - height, parent.right, parent.bottom);
+    }
     final toolbar = _appBarToolbarZone(node, parentBox, parent);
     return Rect.fromLTRB(
       parent.left,
@@ -4319,8 +7418,122 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           );
   }
 
+  /// Slivers have no RenderBox. Project their paint geometry into the same
+  /// surface coordinates used by the host, clipped to the owning viewport.
+  // Retained hidden slivers can still have layout and even native hit testing.
+  // Designer handles must address only the currently painted branch; the tree
+  // remains the explicit editing surface for inactive/hidden branches.
+  Object? _sliverVisibilityGeometryModel;
+  Set<String> _paintedSliverVisibilityBranchIds = const {};
+
+  bool _isInPaintedSliverVisibilityBranch(CanvasNode root, String id) {
+    // Canvas models are immutable. Build once per model rather than walking
+    // the entire tree separately for every sliver/box overlay or pointer hit.
+    if (!identical(_sliverVisibilityGeometryModel, widget.model)) {
+      final ids = <String>{};
+      void visit(CanvasNode node) {
+        ids.add(node.id);
+        for (final entry in node.slots.entries) {
+          if ((isCanvasSliverVisibilityType(node.type) || node.type == 'flutter.widgets.AnimatedCrossFade') && !_isInteractiveSlot(node, entry.key)) continue;
+          for (final child in entry.value.children) {
+            visit(child);
+          }
+        }
+      }
+      visit(root);
+      _paintedSliverVisibilityBranchIds = ids;
+      _sliverVisibilityGeometryModel = widget.model;
+    }
+    return _paintedSliverVisibilityBranchIds.contains(id);
+  }
+
+  Rect? _sliverAppBarDropZone(CanvasNode node, String slot, Rect surfaceRect) {
+    final painted = _sliverGlobalRect(node, surfaceRect);
+    if (painted == null) return null;
+    RenderBox? box;
+    void visit(RenderObject render) {
+      if (box != null) return;
+      if (render is RenderBox && render.hasSize) { box = render; return; }
+      render.visitChildren(visit);
+    }
+    final render = _geometryNodeKey(node.id)?.currentContext?.findRenderObject();
+    if (render == null) return null;
+    visit(render);
+    final parent = box;
+    if (parent == null) return null;
+    final bounds = Offset.zero & parent.size;
+    final local = switch (slot) {
+      'leading' => _appBarLeadingZone(node, parent, bounds),
+      'title' => _appBarTitleZone(node, parent, bounds),
+      'actions' => _terminalZone(node, parent, _appBarToolbarZone(node, parent, bounds), 'actions'),
+      'bottom' => _appBarBottomZone(node, parent, bounds),
+      'flexibleSpace' => bounds,
+      _ => Rect.zero,
+    };
+    final global = _finiteTransformedRect(parent.getTransformTo(null), local)?.intersect(painted);
+    return global == null || global.isEmpty ? null : global;
+  }
+
+  Rect? _sliverGlobalRect(CanvasNode node, Rect surfaceRect) {
+    if (!_isInPaintedSliverVisibilityBranch(widget.model.root, node.id)) return null;
+    final render = _geometryNodeKey(node.id)?.currentContext?.findRenderObject();
+    if (render is! RenderSliver || !render.attached || render.geometry == null) {
+      return null;
+    }
+    for (RenderObject? ancestor = render.parent; ancestor != null; ancestor = ancestor.parent) {
+      // Offstage descendants are laid out but have no painted Canvas geometry.
+      // Keep only the owning SliverOffstage's compact selection/drop handle.
+      if (ancestor is _PrototypeMeasurementRenderBox ||
+          ancestor is RenderSliverOffstage && ancestor.offstage) {
+        return null;
+      }
+    }
+    final horizontal = render.constraints.axis == Axis.horizontal;
+    final extent = render.geometry!.paintExtent;
+    if (extent == 0 && (render.constraints.scrollOffset > 0 ||
+        render.constraints.remainingPaintExtent <= 0)) {
+      return null;
+    }
+    final direction = applyGrowthDirectionToAxisDirection(
+        render.constraints.axisDirection, render.constraints.growthDirection);
+    final reversed = direction == AxisDirection.up || direction == AxisDirection.left;
+    final start = extent == 0 && reversed ? -24.0 : 0.0;
+    // Constrained slivers report their actual lane width in geometry, while
+    // groups can inherit a child's geometry and still occupy the full constraint.
+    final crossExtent = render is RenderSliverConstrainedCrossAxis
+        ? render.geometry!.crossAxisExtent! : render.constraints.crossAxisExtent;
+    final hitCrossExtent = crossExtent == 0 ? 24.0 : crossExtent;
+    final local = horizontal
+        ? Rect.fromLTWH(start, 0, math.max(24, extent), hitCrossExtent)
+        : Rect.fromLTWH(0, start, hitCrossExtent, math.max(24, extent));
+    final global = _finiteTransformedRect(render.getTransformTo(null), local);
+    if (global == null) return null;
+    var clip = surfaceRect;
+    for (RenderObject? ancestor = render.parent; ancestor != null; ancestor = ancestor.parent) {
+      if (ancestor is RenderViewportBase) {
+        final viewport = _finiteGlobalRect(ancestor);
+        if (viewport == null) return null;
+        clip = clip.intersect(viewport);
+        break;
+      }
+    }
+    final rect = global.intersect(clip);
+    return rect.isFinite && !rect.isEmpty ? rect : null;
+  }
+
   static RenderBox? _renderBox(GlobalKey? key) {
     final renderObject = key?.currentContext?.findRenderObject();
+    for (
+      RenderObject? ancestor = renderObject?.parent;
+      ancestor != null;
+      ancestor = ancestor.parent
+    ) {
+      if (ancestor is _PrototypeMeasurementRenderBox ||
+          ancestor is RenderSliverOffstage && ancestor.offstage ||
+          ancestor is _MenuItemGeometryRenderBox && ancestor.blocked) {
+        return null;
+      }
+    }
     return renderObject is RenderBox && renderObject.attached
         ? renderObject
         : null;
@@ -4342,6 +7555,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final bounded = _boundedDesignerHitRect(renderedBox, surfaceRect);
       final synthetic = switch (placement) {
         CanvasDropZonePlacement.badgeLabel => _badgeLabelZone(bounded),
+        CanvasDropZonePlacement.menuItemChild ||
         CanvasDropZonePlacement.listTileLeading ||
         CanvasDropZonePlacement.listTileTitle ||
         CanvasDropZonePlacement.listTileSubtitle ||
@@ -4877,6 +8091,176 @@ class _CanvasVisibilityState extends State<_CanvasVisibility> {
       KeyedSubtree(key: _sdkKey, child: widget.visibility);
 }
 
+/// The pinned SDK's maintained-size sliver visibility also dirties only paint
+/// on visible changes. Refresh native semantics without replacing SDK behavior.
+class _CanvasSliverVisibility extends StatefulWidget {
+  const _CanvasSliverVisibility({required this.visibility});
+  final SliverVisibility visibility;
+  @override
+  State<_CanvasSliverVisibility> createState() => _CanvasSliverVisibilityState();
+}
+class _CanvasSliverVisibilityState extends State<_CanvasSliverVisibility> {
+  final _sdkKey = GlobalKey();
+  @override
+  void didUpdateWidget(_CanvasSliverVisibility oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.visibility.visible != widget.visibility.visible && oldWidget.visibility.maintainSize) {
+      _sdkKey.currentContext?.findRenderObject()?.markNeedsSemanticsUpdate();
+    }
+  }
+  @override
+  Widget build(BuildContext context) => KeyedSubtree(key: _sdkKey, child: widget.visibility);
+}
+
+/// Native medium/large mount title twice. Canonical model keys follow the
+/// active presentation; mirror keys are stable and private to that mount.
+class _CanvasSliverAppBarTitle extends StatefulWidget {
+  const _CanvasSliverAppBarTitle({required this.builder});
+  final Widget Function(GlobalKey Function(String)? keys) builder;
+  @override
+  State<_CanvasSliverAppBarTitle> createState() => _CanvasSliverAppBarTitleState();
+}
+class _CanvasSliverAppBarTitleState extends State<_CanvasSliverAppBarTitle> {
+  final _mirrorKeys = <String, GlobalKey>{};
+  @override
+  Widget build(BuildContext context) {
+    final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final inToolbar = context.findAncestorWidgetOfExactType<NavigationToolbar>() != null;
+    final active = inToolbar == (settings?.isScrolledUnder ?? false);
+    return widget.builder(active ? null : (id) => _mirrorKeys.putIfAbsent(id, GlobalKey.new));
+  }
+}
+
+
+// Runtime type, not Designer StableId, controls unkeyed Flutter replacement.
+String _switcherRuntimeType(CanvasNode node) => node.type.split('.').take(3).join('.');
+
+class _SwitcherBranch extends InheritedWidget {
+  const _SwitcherBranch({required this.active, required super.child});
+  final bool active;
+  @override
+  bool updateShouldNotify(_SwitcherBranch oldWidget) => active != oldWidget.active;
+}
+
+// Flutter 3.44.8 wraps transition.key rather than the entry sequence number.
+// Keep an unkeyed outer wrapper so repeated child types retain independent
+// preview episodes. No project builder is executed. Source keeps SDK defaults.
+Widget _switcherPreviewTransition(Widget child, Animation<double> animation) =>
+    KeyedSubtree(child: AnimatedSwitcher.defaultTransitionBuilder(child, animation));
+
+Widget _switcherPreviewLayout(Widget? current, List<Widget> previous) => Stack(
+  alignment: Alignment.center,
+  children: [
+    for (final child in [...previous, ?current])
+      KeyedSubtree(
+        key: child.key,
+        child: _SwitcherBranch(
+          active: identical(child, current),
+          child: IgnorePointer(
+            ignoring: !identical(child, current),
+            child: ExcludeFocus(
+              excluding: !identical(child, current),
+              child: ExcludeSemantics(excluding: !identical(child, current), child: child),
+            ),
+          ),
+        ),
+      ),
+  ],
+);
+
+/// Each retained SDK entry owns separate instrumentation keys. A -> B -> A and
+/// moving descendants out of a still-fading entry must never duplicate GlobalKeys.
+class _SwitcherEntryView extends StatefulWidget {
+  const _SwitcherEntryView({super.key, required this.node, required this.builder});
+  final CanvasNode node;
+  final Widget Function(GlobalKey Function(String)) builder;
+  @override
+  State<_SwitcherEntryView> createState() => _SwitcherEntryViewState();
+}
+
+class _SwitcherEntryViewState extends State<_SwitcherEntryView> {
+  final Map<String, GlobalKey> _keys = {};
+  final Map<String, GlobalKey<_MenuAnchorPreviewState>> _menus = {};
+  final Map<String, GlobalKey> _tooltips = {};
+  _CanvasDocumentViewState? _owner;
+  bool _scheduled = false;
+  GlobalKey _key(String id) => _keys.putIfAbsent(id, () => GlobalKey(debugLabel: 'switcher-$id'));
+  bool get _active {
+    var active = true;
+    context.visitAncestorElements((element) {
+      if (element.widget case _SwitcherBranch(active: false)) { active = false; return false; }
+      return true;
+    });
+    return active;
+  }
+  void _release() {
+    final registry = _owner?._switcherGeometryKeys;
+    registry?.removeWhere((id, key) => identical(_keys[id], key));
+    _owner?._switcherMenuKeys.removeWhere((id,key)=>identical(_menus[id],key));
+    _owner?._switcherTooltipKeys.removeWhere((id,key)=>identical(_tooltips[id],key));
+  }
+  @override
+  void didUpdateWidget(_SwitcherEntryView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!identical(oldWidget.node, widget.node)) {
+      // Unkeyed same-type replacements update existing native State, even when
+      // the editor allocates new IDs. Reassociate structurally matching keys.
+      final retained = <String, GlobalKey>{};
+      final menus = <String, GlobalKey<_MenuAnchorPreviewState>>{};
+      final tooltips = <String, GlobalKey>{};
+      void match(CanvasNode old, CanvasNode next) {
+        if (_switcherRuntimeType(old) != _switcherRuntimeType(next)) return;
+        if (_keys[old.id] case final key?) retained[next.id] = key;
+        if (_menus[old.id] case final key?) menus[next.id] = key;
+        if (_tooltips[old.id] case final key?) tooltips[next.id] = key;
+        for (final slot in next.slots.entries) {
+          final prior = old.slot(slot.key)?.children ?? const <CanvasNode>[];
+          for (var i = 0; i < math.min(prior.length, slot.value.children.length); i++) {
+            match(prior[i], slot.value.children[i]);
+          }
+        }
+      }
+      match(oldWidget.node, widget.node);
+      _release(); _keys..clear()..addAll(retained);
+      _menus..clear()..addAll(menus);
+      _tooltips..clear()..addAll(tooltips);
+    }
+  }
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    context.dependOnInheritedWidgetOfExactType<_SwitcherBranch>();
+    _owner = context.findAncestorStateOfType<_CanvasDocumentViewState>();
+  }
+  @override
+  Widget build(BuildContext context) {
+    if (!_scheduled) {
+      _scheduled = true;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _scheduled = false;
+        if (!mounted || _owner?.mounted != true) return;
+        if (_active) {
+          for (final entry in _keys.entries) {
+            if (_owner!.widget.model.widgetIds.contains(entry.key)) {
+              _owner!._switcherGeometryKeys[entry.key] = entry.value;
+            }
+          }
+          for(final entry in _menus.entries) {
+            if(_owner!.widget.model.widgetIds.contains(entry.key)) _owner!._switcherMenuKeys[entry.key]=entry.value;
+          }
+          for(final entry in _tooltips.entries) {
+            if(_owner!.widget.model.widgetIds.contains(entry.key)) _owner!._switcherTooltipKeys[entry.key]=entry.value;
+          }
+        } else { _release(); }
+        _owner!._refreshZeroSizedWidgetTargetsAfterFrame();
+      });
+    }
+    return widget.builder(_key);
+  }
+  @override
+  void dispose() { _release(); super.dispose(); }
+}
+
 class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
@@ -4916,7 +8300,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           toolbarHeight: _number('toolbarHeight'),
           bottom: _preferredSizeSingle('bottom'),
         ).preferredSize
-      : Size.zero;
+      : node.type == 'flutter.widgets.PreferredSize'
+        ? Size((node.properties['preferredSize']!.value as CanvasSizeValue).width,
+            (node.properties['preferredSize']!.value as CanvasSizeValue).height)
+        : Size.zero;
 
   @override
   Widget build(BuildContext context) {
@@ -4929,9 +8316,25 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         ? _edgeInsetsGeometry('margin')
         : null;
     final editing = inlineTextEditingWidgetId == node.id;
-    final child = switch (node.type) {
+    final sdkChild = switch (node.type) {
       'flutter.material.Scaffold' => _scaffold(context),
       'flutter.material.AppBar' => _appBar(context),
+      'flutter.material.FlexibleSpaceBar' => _flexibleSpaceBar(context),
+      'flutter.material.FlexibleSpaceBarSettings' => FlexibleSpaceBarSettings(
+        toolbarOpacity: _number('toolbarOpacity')!,
+        minExtent: _number('minExtent')!, maxExtent: _number('maxExtent')!, currentExtent: _number('currentExtent')!,
+        isScrolledUnder: _boolean('isScrolledUnder'), hasLeading: _boolean('hasLeading'),
+        child: _single('child')!,
+      ),
+      'flutter.material.SliverAppBar' || 'flutter.material.SliverAppBar.medium' || 'flutter.material.SliverAppBar.large' => _sliverAppBar(context),
+      'flutter.material.NavigationBar' => _navigationBar(context),
+      'flutter.material.NavigationRail' => _navigationRail(context),
+      'flutter.material.NavigationDrawer' => _navigationDrawer(context),
+      'flutter.material.Drawer' => _drawer(context),
+      'flutter.material.BottomAppBar' => _bottomAppBar(context),
+      'flutter.material.BottomNavigationBar' => _bottomNavigationBar(context),
+      'flutter.material.Material' => _material(context),
+      'flutter.material.Scrollbar' => _scrollbar(),
       'flutter.material.Card' => _card(context),
       'flutter.material.Badge' => _badge(context),
       'flutter.material.CircleAvatar' => _circleAvatar(context),
@@ -4973,14 +8376,38 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'flutter.material.ElevatedButton' => _elevatedButton(context),
       'flutter.material.TextButton' => _textButton(context),
+      'flutter.material.MenuItemButton' => _menuItemButton(context),
+      'flutter.material.MenuAnchor' ||
+      'flutter.material.MenuBar' ||
+      'flutter.material.SubmenuButton' => _MenuAnchorPreview(
+        key: (context.findAncestorStateOfType<_SwitcherEntryViewState>()?._menus ??
+            context.findAncestorStateOfType<_CanvasDocumentViewState>()?._menuAnchorPreviewKeys)
+            ?.putIfAbsent(
+              node.id,
+              () => GlobalKey<_MenuAnchorPreviewState>(
+                debugLabel: 'menu-anchor-${node.id}',
+              ),
+            ),
+        owner: this,
+        menuBar: node.type == 'flutter.material.MenuBar',
+      ),
       'flutter.material.OutlinedButton' => _textButton(context),
       'flutter.material.FilledButton' => _textButton(context),
       'flutter.material.IconButton' => _iconButton(context),
       'flutter.material.Checkbox' => _checkbox(context),
       'flutter.material.Switch' => _switch(context),
       'flutter.material.Radio' => _radio(context),
+      'flutter.material.RadioListTile' => _radioListTile(context),
+      'flutter.material.ExpansionTile' => _expansionTile(context),
+      'flutter.material.Tooltip' => _tooltip(context),
+      'flutter.material.TooltipVisibility' => TooltipVisibility(
+        visible: _boolean('visible')!,
+        child: _single('child')!,
+      ),
+      'flutter.material.TooltipTheme' => _tooltipTheme(context),
       'flutter.material.ListTile' => _listTile(context),
       'flutter.material.CheckboxListTile' => _checkboxListTile(context),
+      'flutter.material.SwitchListTile' => _switchListTile(context),
       'flutter.widgets.RadioGroup' => _RadioGroupPreview(
         node: node,
         child: _single('child')!,
@@ -4995,9 +8422,174 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.OverflowBar' => _overflowBar(),
       'flutter.widgets.ListView' => _listView(),
       'flutter.widgets.GridView' => _gridView(),
+      'flutter.widgets.GridView.extent' => _gridView(extent: true),
       'flutter.widgets.SingleChildScrollView' => _singleChildScrollView(),
+      'flutter.widgets.PageView' => _pageView(),
+      'flutter.widgets.ListWheelScrollView' => _listWheelScrollView(),
+      'flutter.widgets.CustomScrollView' => _customScrollView(),
+      'flutter.widgets.SliverMainAxisGroup' => SliverMainAxisGroup(slivers: _children('slivers')),
+      'flutter.widgets.SliverCrossAxisGroup' => SliverCrossAxisGroup(slivers: _children('slivers')),
+      'flutter.widgets.SliverConstrainedCrossAxis' => SliverConstrainedCrossAxis(
+        maxExtent: node.properties['maxExtent']!.value is CanvasEnumValue
+            ? double.infinity : _number('maxExtent')!,
+        sliver: _single('sliver')!),
+      'flutter.widgets.SliverCrossAxisExpanded' => SliverCrossAxisExpanded(flex: _integer('flex')!, sliver: _single('sliver')!),
+      'flutter.widgets.SliverToBoxAdapter' => _sliverToBoxAdapter(context),
+      'flutter.widgets.SliverVisibility' => _CanvasSliverVisibility(
+        visibility: SliverVisibility(
+          visible: _boolean('visible') ?? true,
+          maintainState: _boolean('maintainState') ?? false,
+          maintainAnimation: _boolean('maintainAnimation') ?? false,
+          maintainSize: _boolean('maintainSize') ?? false,
+          maintainSemantics: _boolean('maintainSemantics') ?? false,
+          maintainInteractivity: _boolean('maintainInteractivity') ?? false,
+          sliver: _single('sliver')!,
+          replacementSliver: _single('replacementSliver') ?? const SliverToBoxAdapter(),
+        ),
+      ),
+      'flutter.widgets.SliverVisibility.maintain' => _CanvasSliverVisibility(
+        visibility: SliverVisibility.maintain(
+          visible: _boolean('visible') ?? true,
+          sliver: _single('sliver')!,
+          replacementSliver: _single('replacementSliver') ?? const SliverToBoxAdapter(),
+        ),
+      ),
+      'flutter.widgets.SliverSafeArea' => SliverSafeArea(
+        left: _boolean('left') ?? true,
+        top: _boolean('top') ?? true,
+        right: _boolean('right') ?? true,
+        bottom: _boolean('bottom') ?? true,
+        minimum: _physicalEdgeInsets('minimum') ?? EdgeInsets.zero,
+        sliver: _single('sliver')!,
+      ),
+      'flutter.widgets.SliverOffstage' => SliverOffstage(
+        offstage: _boolean('offstage') ?? true,
+        sliver: _single('sliver') ?? const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverIgnorePointer' => SliverIgnorePointer(
+        ignoring: _boolean('ignoring') ?? true,
+        // Retained for complete pinned-SDK compatibility; omission/null uses modern semantics.
+        // ignore: deprecated_member_use
+        ignoringSemantics: _boolean('ignoringSemantics'),
+        sliver: _single('sliver') ?? const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverFloatingHeader' => SliverFloatingHeader(
+        animationStyle: _floatingHeaderAnimationStyle(),
+        snapMode: _enum('snapMode') == 'scroll' ? FloatingHeaderSnapMode.scroll
+            : _enum('snapMode') == 'overlay' ? FloatingHeaderSnapMode.overlay : null,
+        child: _single('child')!,
+      ),
+      'flutter.widgets.PinnedHeaderSliver' => PinnedHeaderSliver(child: _single('child')),
+      'flutter.widgets.SliverResizingHeader' => SliverResizingHeader(
+        minExtentPrototype: _headerPrototype('minExtentPrototype'),
+        maxExtentPrototype: _headerPrototype('maxExtentPrototype'),
+        child: _single('child'),
+      ),
+      'flutter.widgets.SliverPersistentHeader' => SliverPersistentHeader(
+        delegate: const _PersistentHeaderPreviewDelegate(),
+        pinned: _boolean('pinned') ?? false,
+        floating: _boolean('floating') ?? false,
+      ),
+      'flutter.widgets.ValueListenableBuilder.sliver' => ValueListenableBuilder<Object?>(
+        key: ValueKey('canvas-value-listenable-builder-${node.id}'),
+        valueListenable: _valueListenablePreviewSource(node),
+        builder: (context, value, child) => child ?? const SliverToBoxAdapter(),
+        child: _single('child'),
+      ),
+      'flutter.widgets.TweenAnimationBuilder.sliver' => TweenAnimationBuilder<double>(
+        key: ValueKey('canvas-tween-animation-builder-${node.id}'),
+        tween: Tween<double>(begin: 0.0, end: 1.0),
+        duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+        curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+        builder: (context, value, child) => child ?? const SliverToBoxAdapter(),
+        child: _single('child'),
+      ),
+      'flutter.widgets.AnimatedBuilder.sliver' => AnimatedBuilder(
+        key: ValueKey('canvas-animated-builder-${node.id}'),
+        animation: const AlwaysStoppedAnimation<double>(0.0),
+        builder: (context, child) => child ?? const SliverToBoxAdapter(),
+        child: _single('child'),
+      ),
+      'flutter.widgets.ListenableBuilder.sliver' => ListenableBuilder(
+        key: ValueKey('canvas-listenable-builder-${node.id}'),
+        listenable: const AlwaysStoppedAnimation<double>(0.0),
+        builder: (context, child) => child ?? const SliverToBoxAdapter(),
+        child: _single('child'),
+      ),
+      'flutter.widgets.DeviceOrientationBuilder.sliver' => DeviceOrientationBuilder(
+        key: ValueKey('canvas-device-orientation-builder-${node.id}'),
+        builder: (context, orientation) => const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverLayoutBuilder' => SliverLayoutBuilder(
+        builder: (context, constraints) => const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverFadeTransition' => SliverFadeTransition(
+        opacity: AlwaysStoppedAnimation<double>(_number('opacity') ?? 1),
+        alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+        sliver: _single('sliver') ?? const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverAnimatedOpacity' => SliverAnimatedOpacity(
+        opacity: _number('opacity')!,
+        curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+        duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+        // Project callbacks are preserved in source but never executed in Canvas.
+        onEnd: null,
+        alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+        sliver: _single('sliver') ?? const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverOpacity' => SliverOpacity(
+        opacity: _number('opacity')!,
+        alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+        // Match generated Dart: RenderProxySliver requires a non-null child at layout.
+        sliver: _single('sliver') ?? const SliverToBoxAdapter(),
+      ),
+      'flutter.widgets.SliverPadding' => _sliverPadding(),
+      'flutter.widgets.SliverFillViewport' || 'flutter.widgets.SliverFillViewport.delegate' => _sliverFillViewport(),
+      'flutter.widgets.SliverFillRemaining' => SliverFillRemaining(
+        hasScrollBody: _boolean('hasScrollBody') ?? true,
+        fillOverscroll: _boolean('fillOverscroll') ?? false,
+        child: _single('child'),
+      ),
+      'flutter.widgets.SliverList.builder' ||
+      'flutter.widgets.SliverList.separated' ||
+      'flutter.widgets.SliverList.delegate' ||
+      'flutter.widgets.SliverGrid.builder' ||
+      'flutter.widgets.SliverGrid.list' ||
+      'flutter.widgets.SliverGrid.delegate' ||
+      'flutter.widgets.SliverVariedExtentList' ||
+      'flutter.widgets.SliverVariedExtentList.builder' ||
+      'flutter.widgets.SliverVariedExtentList.delegate' ||
+      'flutter.widgets.SliverFixedExtentList' ||
+      'flutter.widgets.SliverFixedExtentList.builder' ||
+      'flutter.widgets.SliverFixedExtentList.delegate' ||
+      'flutter.widgets.SliverPrototypeExtentList' ||
+      'flutter.widgets.SliverPrototypeExtentList.builder' ||
+      'flutter.widgets.SliverPrototypeExtentList.delegate' => _dynamicSliver(),
+      'flutter.widgets.SliverList' => SliverList.list(
+        addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+        addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+        addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+        children: _children('children'),
+      ),
+      'flutter.widgets.SliverGrid' => SliverGrid.count(
+        crossAxisCount: _integer('crossAxisCount') ?? 2,
+        mainAxisSpacing: _number('mainAxisSpacing') ?? 0,
+        crossAxisSpacing: _number('crossAxisSpacing') ?? 0,
+        childAspectRatio: _number('childAspectRatio') ?? 1,
+        children: _children('children'),
+      ),
+      'flutter.widgets.SliverGrid.extent' => SliverGrid.extent(
+        maxCrossAxisExtent: _number('maxCrossAxisExtent') ?? 200,
+        mainAxisSpacing: _number('mainAxisSpacing') ?? 0,
+        crossAxisSpacing: _number('crossAxisSpacing') ?? 0,
+        childAspectRatio: _number('childAspectRatio') ?? 1,
+        children: _children('children'),
+      ),
       'flutter.widgets.Stack' => _stack(),
       'flutter.widgets.IndexedStack' => _indexedStack(),
+      'flutter.widgets.AnimatedPositioned' || 'flutter.widgets.AnimatedPositioned.fromRect' ||
+      'flutter.widgets.AnimatedPositionedDirectional' || 'flutter.widgets.PositionedTransition'
+      || 'flutter.widgets.RelativePositionedTransition' => _single('child')!,
       'flutter.widgets.Expanded' => _single('child')!,
       'flutter.widgets.Flexible' => _single('child')!,
       'flutter.widgets.SafeArea' => _safeArea(),
@@ -5045,6 +8637,67 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.IntrinsicWidth' => _intrinsicWidth(),
       'flutter.widgets.Offstage' => _offstage(),
       'flutter.widgets.RotatedBox' => _rotatedBox(),
+      'flutter.widgets.PreferredSize' => _preferredSize(),
+      'flutter.widgets.Builder' => _builder(),
+      'flutter.widgets.LayoutBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: LayoutBuilder(
+          key: ValueKey('canvas-layout-builder-${node.id}'),
+          builder: (context, constraints) => const SizedBox.shrink(),
+        ),
+      ),
+      'flutter.widgets.OrientationBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: OrientationBuilder(
+          key: ValueKey('canvas-orientation-builder-${node.id}'),
+          builder: (context, orientation) => const SizedBox.shrink(),
+        ),
+      ),
+      'flutter.widgets.ValueListenableBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: ValueListenableBuilder<Object?>(
+          key: ValueKey('canvas-value-listenable-builder-${node.id}'),
+          valueListenable: _valueListenablePreviewSource(node),
+          builder: (context, value, child) => child ?? const SizedBox.shrink(),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.TweenAnimationBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: TweenAnimationBuilder<double>(
+          key: ValueKey('canvas-tween-animation-builder-${node.id}'),
+          tween: Tween<double>(begin: 0.0, end: 1.0),
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          builder: (context, value, child) => child ?? const SizedBox.shrink(),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedBuilder(
+          key: ValueKey('canvas-animated-builder-${node.id}'),
+          animation: const AlwaysStoppedAnimation<double>(0.0),
+          builder: (context, child) => child ?? const SizedBox.shrink(),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.ListenableBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: ListenableBuilder(
+          key: ValueKey('canvas-listenable-builder-${node.id}'),
+          listenable: const AlwaysStoppedAnimation<double>(0.0),
+          builder: (context, child) => child ?? const SizedBox.shrink(),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.DeviceOrientationBuilder' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: DeviceOrientationBuilder(
+          key: ValueKey('canvas-device-orientation-builder-${node.id}'),
+          builder: (context, orientation) => const SizedBox.shrink(),
+        ),
+      ),
       'flutter.widgets.SizedOverflowBox' => _sizedOverflowBox(),
       'flutter.widgets.Transform' =>
         _single('child') ?? const SizedBox.shrink(),
@@ -5060,12 +8713,34 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.ClipPath' => _clipPath(),
       'flutter.widgets.ClipRect' => _clipRect(),
       'flutter.widgets.ColoredBox' => _coloredBox(context),
+      'flutter.widgets.AnimatedPhysicalModel' => _animatedPhysicalModel(context),
       'flutter.widgets.PhysicalModel' => _physicalModel(context),
       'flutter.widgets.PhysicalShape' => _physicalShape(context),
       'flutter.widgets.Container' => _container(context),
       'flutter.widgets.DecoratedBox' => _decoratedBox(context),
+      'flutter.widgets.AlignTransition' => _AlignTransitionPreview(
+        node: node,
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AlignTransition(
+          alignment: AlwaysStoppedAnimation<AlignmentGeometry>(_alignmentGeometry('alignment') ?? Alignment.center),
+          widthFactor: _number('widthFactor'), heightFactor: _number('heightFactor'), child: _single('child')!,
+        ),
+      ),
+      'flutter.widgets.DecoratedBoxTransition' => _decoratedBoxTransition(context),
       'flutter.widgets.ExcludeSemantics' => _excludeSemantics(),
       'flutter.widgets.IgnorePointer' => _ignorePointer(),
+      'flutter.widgets.GestureDetector' => _gestureDetector(),
+      'flutter.widgets.Listener' => _listener(),
+      'flutter.widgets.MouseRegion' => _mouseRegion(),
+      'flutter.widgets.NotificationListener' =>
+        _CanvasNotificationListenerPreview(
+          node: node,
+          child: _single('child')!,
+        ),
+      'flutter.widgets.Focus' => _CanvasFocusPreview(
+        node: node,
+        child: _single('child')!,
+      ),
       'flutter.widgets.AbsorbPointer' => _absorbPointer(),
       'flutter.widgets.BlockSemantics' => _blockSemantics(),
       'flutter.widgets.MergeSemantics' => MergeSemantics(
@@ -5080,20 +8755,274 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
       'flutter.widgets.FittedBox' => _fittedBox(),
       'flutter.widgets.FractionallySizedBox' => _fractionallySizedBox(),
+      'flutter.widgets.AnimatedDefaultTextStyle' => _animatedDefaultTextStyle(context),
+      'flutter.widgets.DefaultTextStyle' => _defaultTextStyle(context, false),
+      'flutter.widgets.DefaultTextStyle.merge' => _defaultTextStyle(context, true),
+      'flutter.widgets.DefaultTextStyleTransition' => _defaultTextStyleTransition(context),
+      'flutter.material.Theme' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: Theme(data: _materialThemeData(), child: _single('child')!),
+      ),
+      'flutter.material.AnimatedTheme' => _TextButtonPreview(
+        message:_customClipperPreviewUnavailableMessageForNode(node)??'',
+        child:AnimatedTheme(
+          data:_materialThemeData(),
+          curve:_expansionCurves[_string('curve')]??Curves.linear,
+          duration:Duration(microseconds:_integer('durationUs')??200000),
+          onEnd:null,
+          child:_single('child')!,
+        ),
+      ),
+      'flutter.widgets.AnimatedSwitcher' => _animatedSwitcher(context),
+      'flutter.widgets.AnimatedCrossFade' => _animatedCrossFade(context),
+      'flutter.widgets.AnimatedSize' => _animatedSize(context),
+      'flutter.widgets.AnimatedContainer' => _animatedContainer(context),
+      'flutter.widgets.AnimatedRotation' => _AnimatedMatrixPreview(
+        node: node,
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedRotation(
+          turns: node.properties['turns']?.kind == 'dartObjectReferencePresence' ? 0 : _number('turns') ?? 0,
+          alignment: _alignmentGeometry('alignment') as Alignment? ?? Alignment.center,
+          filterQuality: _enum('filterQuality') == null ? null : _filterQuality(_enum('filterQuality')!),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedScale' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedScale(
+          scale: node.properties['scale']?.kind == 'dartObjectReferencePresence' ? 1 : _number('scale') ?? 1,
+          alignment: _alignmentGeometry('alignment') as Alignment? ?? Alignment.center,
+          filterQuality: _enum('filterQuality') == null ? null : _filterQuality(_enum('filterQuality')!),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedSlide' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedSlide(
+          offset: _offset('offset') ?? Offset.zero,
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedPadding' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedPadding(
+          padding: _edgeInsetsGeometry('padding') ?? const EdgeInsets.all(16),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedFractionallySizedBox' => _AnimatedFractionalPreview(
+        target: AnimatedFractionallySizedBox(
+          alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+          widthFactor: _number('widthFactor'), heightFactor: _number('heightFactor'),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          onEnd: null, child: _single('child'),
+        ),
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+      ),
+      'flutter.widgets.AnimatedAlign' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedAlign(
+          alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+          widthFactor: _number('widthFactor'),
+          heightFactor: _number('heightFactor'),
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedModalBarrier' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: LayoutBuilder(builder: (context, constraints) {
+        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+          return Tooltip(message: 'AnimatedModalBarrier ${node.id}: preview unavailable because '
+              '${!constraints.hasBoundedWidth ? 'width' : ''}${!constraints.hasBoundedWidth && !constraints.hasBoundedHeight ? ' and ' : ''}${!constraints.hasBoundedHeight ? 'height' : ''} is unbounded. '
+              'Use a bounded parent such as SizedBox or Stack. No dimensions are written to the model.',
+            child: const SizedBox.shrink());
+        }
+        return AbsorbPointer(child: AnimatedModalBarrier(
+          key: ValueKey('canvas-animated-modal-barrier-${node.id}'),
+          color: AlwaysStoppedAnimation<Color?>(_resolvedColor(context, 'color')),
+          dismissible: _boolean('dismissible') ?? true,
+          // No application callbacks, Navigator.maybePop or SDK alert sounds in Canvas.
+          onDismiss: () {},
+          semanticsLabel: _string('semanticsLabel'),
+          barrierSemanticsDismissible: node.properties['barrierSemanticsDismissible']?.kind == 'null'
+              ? null : _boolean('barrierSemanticsDismissible'),
+          clipDetailsNotifier: null,
+          semanticsOnTapHint: _string('semanticsOnTapHint'),
+        ));
+      })),
+      'flutter.widgets.ModalBarrier' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: LayoutBuilder(builder: (context, constraints) {
+        if (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight) {
+          return Tooltip(message: 'ModalBarrier ${node.id}: preview unavailable because '
+              '${!constraints.hasBoundedWidth ? 'width' : ''}${!constraints.hasBoundedWidth && !constraints.hasBoundedHeight ? ' and ' : ''}${!constraints.hasBoundedHeight ? 'height' : ''} is unbounded. '
+              'Use a bounded parent such as SizedBox or Stack. No dimensions are written to the model.',
+            child: const SizedBox.shrink());
+        }
+        return AbsorbPointer(child: ModalBarrier(
+          key: ValueKey('canvas-modal-barrier-${node.id}'),
+          color: _resolvedColor(context, 'color'),
+          dismissible: _boolean('dismissible') ?? true,
+          // No application callbacks, Navigator.maybePop or SDK alert sounds in Canvas.
+          onDismiss: () {},
+          semanticsLabel: _string('semanticsLabel'),
+          barrierSemanticsDismissible: node.properties['barrierSemanticsDismissible']?.kind == 'null'
+              ? null : _boolean('barrierSemanticsDismissible') ?? true,
+          clipDetailsNotifier: null,
+          semanticsOnTapHint: _string('semanticsOnTapHint'),
+        ));
+      })),
+      'flutter.widgets.MatrixTransition' => _AnimatedMatrixPreview(
+        node: node,
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: MatrixTransition(
+          animation: AlwaysStoppedAnimation<double>(_number('animation') ?? 0),
+          // Never execute a project callback; each local invocation gets a fresh matrix.
+          onTransform: (_) => _matrix4('onTransform') ?? Matrix4.identity(),
+          alignment: _alignmentGeometry('alignment') as Alignment? ?? Alignment.center,
+          filterQuality: _enum('filterQuality') == null ? null : _filterQuality(_enum('filterQuality')!),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.RotationTransition' => _AnimatedMatrixPreview(
+        node: node,
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: RotationTransition(
+          turns: AlwaysStoppedAnimation<double>(_number('turns') ?? 0),
+          alignment: _alignmentGeometry('alignment') as Alignment? ?? Alignment.center,
+          filterQuality: _enum('filterQuality') == null ? null : _filterQuality(_enum('filterQuality')!),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.SizeTransition' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: SizeTransition(
+          axis: _enum('axis') == 'horizontal' ? Axis.horizontal : Axis.vertical,
+          sizeFactor: AlwaysStoppedAnimation<double>(_number('sizeFactor') ?? 1),
+          // Deliberately retain the pinned SDK's deprecated constructor branch.
+          // ignore: deprecated_member_use
+          axisAlignment: _number('axisAlignment'),
+          alignment: _alignmentGeometry('alignment'),
+          fixedCrossAxisSizeFactor: _number('fixedCrossAxisSizeFactor'),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.ScaleTransition' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: ScaleTransition(
+          scale: AlwaysStoppedAnimation<double>(_number('scale') ?? 1),
+          alignment: _alignmentGeometry('alignment') as Alignment? ?? Alignment.center,
+          filterQuality: _enum('filterQuality') == null ? null : _filterQuality(_enum('filterQuality')!),
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.SlideTransition' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: SlideTransition(
+          position: AlwaysStoppedAnimation<Offset>(_offset('position') ?? Offset.zero),
+          transformHitTests: _boolean('transformHitTests') ?? true,
+          textDirection: switch (_enum('textDirection')) {
+            'ltr' => TextDirection.ltr,
+            'rtl' => TextDirection.rtl,
+            _ => null,
+          },
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.FadeTransition' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: FadeTransition(
+          opacity: AlwaysStoppedAnimation<double>(_number('opacity') ?? 1),
+          alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+          child: _single('child'),
+        ),
+      ),
+      'flutter.widgets.AnimatedOpacity' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedOpacity(
+          opacity: _number('opacity')!,
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          // Project handlers are preserved in generated source, never invoked here.
+          onEnd: null,
+          alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
+          child: _single('child'),
+        ),
+      ),
       'flutter.widgets.Opacity' => _opacity(),
       'flutter.widgets.SizedBox' => _sizedBox(),
+      'flutter.material.AnimatedIcon' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedIcon(
+          key:ValueKey('canvas-animated-icon-${node.id}'),
+          icon:switch(_string('icon')){'add_event'=>AnimatedIcons.add_event,'arrow_menu'=>AnimatedIcons.arrow_menu,'close_menu'=>AnimatedIcons.close_menu,'ellipsis_search'=>AnimatedIcons.ellipsis_search,'event_add'=>AnimatedIcons.event_add,'home_menu'=>AnimatedIcons.home_menu,'list_view'=>AnimatedIcons.list_view,'menu_arrow'=>AnimatedIcons.menu_arrow,'menu_close'=>AnimatedIcons.menu_close,'menu_home'=>AnimatedIcons.menu_home,'pause_play'=>AnimatedIcons.pause_play,'play_pause'=>AnimatedIcons.play_pause,'search_ellipsis'=>AnimatedIcons.search_ellipsis,'view_list'=>AnimatedIcons.view_list,_=>AnimatedIcons.menu_close},
+          progress:AlwaysStoppedAnimation<double>(_number('progress')??0),
+          color:_resolvedColor(context,'color'),size:_number('size'),
+          semanticLabel:_string('semanticLabel'),textDirection:_enum('textDirection')=='rtl'?TextDirection.rtl:_enum('textDirection')=='ltr'?TextDirection.ltr:null,
+        )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.RawImage' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '', child: _rawImage(context)),
+      'flutter.widgets.FadeInImage' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '', child: _fadeInImage(context)),
       'flutter.widgets.ImageIcon' => _imageIcon(context),
       'flutter.material.TextField' => _textField(context),
       'flutter.widgets.Text' =>
         editing ? _inlineTextEditor(context) : _text(context),
       _ => const SizedBox.shrink(),
     };
+    final tooltipAnchor =
+        _TooltipAnchorScope.active(context) ||
+        _MenuItemAnchorScope.active(context) ||
+        node.type == 'flutter.material.MenuItemButton' ||
+        _isSubmenuButton;
+    final documentState = context
+        .findAncestorStateOfType<_CanvasDocumentViewState>();
+    final child = tooltipAnchor
+        ? KeyedSubtree(
+            key: documentState?._tooltipAnchorPreviewKeys.putIfAbsent(
+              node.id,
+              GlobalKey.new,
+            ),
+            child: sdkChild,
+          )
+        : sdkChild;
     if (node.type == canvasSpacerWidgetType) {
       // Every wrapper here is a component widget. A RenderObjectWidget between
       // Spacer's internal Expanded and the enclosing Flex would invalidate its
       // ParentData path; selection and outlines live in the surface overlay.
+      return KeyedSubtree(
+        key: ValueKey('canvas-widget-${node.id}'),
+        child: KeyedSubtree(key: nodeKey(node.id), child: child),
+      );
+    }
+    if (isCanvasSliverWidgetType(node.type)) {
+      // Slivers participate in a RenderSliver viewport and cannot be wrapped
+      // in the box-oriented Semantics/GestureDetector/CustomPaint stack used
+      // by ordinary nodes. Their child remains fully instrumented; selection
+      // and drop overlays are resolved from the owning CustomScrollView.
       return KeyedSubtree(
         key: ValueKey('canvas-widget-${node.id}'),
         child: KeyedSubtree(key: nodeKey(node.id), child: child),
@@ -5149,6 +9078,71 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final suppressNodeDesignerSemantics =
         suppressDesignerSemantics ||
         node.type == 'flutter.widgets.IndexedSemantics';
+    final selectable = KeyedSubtree(
+      key: ValueKey('canvas-widget-${node.id}'),
+      child: GestureDetector(
+        key: nodeKey(node.id),
+        excludeFromSemantics: suppressNodeDesignerSemantics,
+        behavior: HitTestBehavior.translucent,
+        onTap:
+            editing ||
+                tooltipAnchor ||
+                node.type == 'flutter.material.Tooltip' ||
+                _ignoresPointersForNode(node)
+            ? null
+            : () => onSelected(node.id),
+        onDoubleTap:
+            !editing &&
+                inlineTextEditEnabled &&
+                selected &&
+                node.type == 'flutter.widgets.Text'
+            ? () => Future<void>.microtask(() => onBeginInlineTextEdit(node.id))
+            : null,
+        child:
+            tooltipAnchor ||
+                (documentState?._tooltipAncestorIds.contains(node.id) ?? false)
+            ? Stack(
+                fit: StackFit.passthrough,
+                children: [
+                  outlinedChild,
+                  if (selected)
+                    Positioned.fill(
+                      child: IgnoreBaseline(
+                        child: IgnorePointer(
+                          child: SizedBox(
+                            key: ValueKey(
+                              'canvas-selection-outline-${node.id}',
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )
+            : selected
+            ? KeyedSubtree(
+                key: ValueKey('canvas-selection-outline-${node.id}'),
+                child: outlinedChild,
+              )
+            : outlinedChild,
+      ),
+    );
+    final tooltipSelectable =
+        tooltipAnchor || node.type == 'flutter.material.Tooltip'
+        ? Listener(
+            onPointerDown: !editing && !_ignoresPointersForNode(node)
+                ? (event) => documentState?._selectTooltipAnchor(event, node.id)
+                : null,
+            onPointerUp: documentState?._finishTooltipAnchorPointer,
+            onPointerCancel: documentState?._finishTooltipAnchorPointer,
+            child: selectable,
+          )
+        : selectable;
+    final applicationMouseRegion =
+        tooltipAnchor ||
+        node.type == 'flutter.material.Tooltip' ||
+        node.type == 'flutter.widgets.MouseRegion' ||
+        _CanvasMouseRegionCursorScope.active(context);
     final instrumented = Semantics(
       // Synthetic Designer labels, selected states and tap actions must not
       // contaminate merged nodes or consume an IndexedSemantics annotation.
@@ -5157,41 +9151,24 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           ? _imageStatusSemantics()
           : '${_displayType(node.type)} ${node.id}${_imageStatusSemantics()}',
       selected: suppressNodeDesignerSemantics ? null : selected,
-      child: MouseRegion(
-        cursor: editing ? SystemMouseCursors.text : SystemMouseCursors.click,
-        opaque: !_ignoresPointersForNode(node),
-        hitTestBehavior: _ignoresPointersForNode(node)
-            ? HitTestBehavior.deferToChild
-            : null,
-        child: KeyedSubtree(
-          key: ValueKey('canvas-widget-${node.id}'),
-          child: GestureDetector(
-            key: nodeKey(node.id),
-            excludeFromSemantics: suppressNodeDesignerSemantics,
-            behavior: HitTestBehavior.translucent,
-            onTap: editing || _ignoresPointersForNode(node)
-                ? null
-                : () => onSelected(node.id),
-            onDoubleTap:
-                !editing &&
-                    inlineTextEditEnabled &&
-                    selected &&
-                    node.type == 'flutter.widgets.Text'
-                ? () => Future<void>.microtask(
-                    () => onBeginInlineTextEdit(node.id),
-                  )
-                : null,
-            child: selected
-                ? KeyedSubtree(
-                    key: ValueKey('canvas-selection-outline-${node.id}'),
-                    child: outlinedChild,
-                  )
-                : outlinedChild,
-          ),
-        ),
-      ),
+      child: applicationMouseRegion
+          ? tooltipSelectable
+          : MouseRegion(
+              cursor: editing
+                  ? SystemMouseCursors.text
+                  : SystemMouseCursors.click,
+              opaque: !_ignoresPointersForNode(node),
+              hitTestBehavior: _ignoresPointersForNode(node)
+                  ? HitTestBehavior.deferToChild
+                  : null,
+              child: tooltipSelectable,
+            ),
     );
     return switch (node.type) {
+      'flutter.widgets.AnimatedPositioned' || 'flutter.widgets.AnimatedPositioned.fromRect' ||
+      'flutter.widgets.AnimatedPositionedDirectional' => _animatedPositioned(context, instrumented),
+      'flutter.widgets.PositionedTransition' => _positionedTransition(instrumented),
+      'flutter.widgets.RelativePositionedTransition' => _relativePositionedTransition(instrumented),
       'flutter.widgets.Transform' => _transform(instrumented),
       'flutter.widgets.Expanded' => Expanded(
         flex: _integer('flex') ?? 1,
@@ -5207,33 +9184,37 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _scaffold(BuildContext context) {
-    return Scaffold(
-      appBar: _preferredSizeSingle('appBar'),
-      body: _single('body') ?? const SizedBox.expand(),
-      floatingActionButton: _single('floatingActionButton'),
-      floatingActionButtonLocation: _scaffoldFloatingActionButtonLocation(),
-      floatingActionButtonAnimator: _scaffoldFloatingActionButtonAnimator(),
-      persistentFooterAlignment:
-          _scaffoldPersistentFooterAlignment() ??
-          AlignmentDirectional.centerEnd,
-      onDrawerChanged: _callbackPresent('onDrawerChanged') ? (_) {} : null,
-      onEndDrawerChanged: _callbackPresent('onEndDrawerChanged')
-          ? (_) {}
-          : null,
-      backgroundColor: _resolvedColor(context, 'backgroundColor'),
-      resizeToAvoidBottomInset: _boolean('resizeToAvoidBottomInset'),
-      primary: _boolean('primary') ?? true,
-      drawerDragStartBehavior: _scaffoldDrawerDragStartBehavior(),
-      extendBody: _boolean('extendBody') ?? false,
-      drawerBarrierDismissible: _boolean('drawerBarrierDismissible') ?? true,
-      extendBodyBehindAppBar: _boolean('extendBodyBehindAppBar') ?? false,
-      drawerScrimColor: _resolvedColor(context, 'drawerScrimColor'),
-      drawerEdgeDragWidth: _number('drawerEdgeDragWidth'),
-      drawerEnableOpenDragGesture:
-          _boolean('drawerEnableOpenDragGesture') ?? true,
-      endDrawerEnableOpenDragGesture:
-          _boolean('endDrawerEnableOpenDragGesture') ?? true,
-      restorationId: _string('restorationId'),
+    return _TextButtonPreview(
+      message: _scaffoldScrimPreviewMessage(node) ?? '',
+      child: Scaffold(
+        key: ValueKey('canvas-scaffold-${node.id}'),
+        appBar: _preferredSizeSingle('appBar'),
+        body: _single('body') ?? const SizedBox.expand(),
+        floatingActionButton: _single('floatingActionButton'),
+        floatingActionButtonLocation: _scaffoldFloatingActionButtonLocation(),
+        floatingActionButtonAnimator: _scaffoldFloatingActionButtonAnimator(),
+        persistentFooterAlignment:
+            _scaffoldPersistentFooterAlignment() ??
+            AlignmentDirectional.centerEnd,
+        onDrawerChanged: _callbackPresent('onDrawerChanged') ? (_) {} : null,
+        onEndDrawerChanged: _callbackPresent('onEndDrawerChanged')
+            ? (_) {}
+            : null,
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        resizeToAvoidBottomInset: _boolean('resizeToAvoidBottomInset'),
+        primary: _boolean('primary') ?? true,
+        drawerDragStartBehavior: _scaffoldDrawerDragStartBehavior(),
+        extendBody: _boolean('extendBody') ?? false,
+        drawerBarrierDismissible: _boolean('drawerBarrierDismissible') ?? true,
+        extendBodyBehindAppBar: _boolean('extendBodyBehindAppBar') ?? false,
+        drawerScrimColor: _resolvedColor(context, 'drawerScrimColor'),
+        drawerEdgeDragWidth: _number('drawerEdgeDragWidth'),
+        drawerEnableOpenDragGesture:
+            _boolean('drawerEnableOpenDragGesture') ?? true,
+        endDrawerEnableOpenDragGesture:
+            _boolean('endDrawerEnableOpenDragGesture') ?? true,
+        restorationId: _string('restorationId'),
+      ),
     );
   }
 
@@ -5299,41 +9280,454 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     children: _children('children'),
   );
 
-  Widget _appBar(BuildContext context) => AppBar(
-    leading: _single('leading'),
-    automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
-    title: _single('title'),
-    actions: node.slots.containsKey('actions') ? _children('actions') : null,
-    automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
-    flexibleSpace: _single('flexibleSpace'),
-    bottom: _preferredSizeSingle('bottom'),
-    elevation: _number('elevation'),
-    scrolledUnderElevation: _number('scrolledUnderElevation'),
-    notificationPredicate: _notificationPredicate(),
-    shadowColor: _resolvedColor(context, 'shadowColor'),
-    surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
-    shape: _appBarShape(context),
-    backgroundColor: _resolvedColor(context, 'backgroundColor'),
-    foregroundColor: _resolvedColor(context, 'foregroundColor'),
-    iconTheme: _iconTheme(context, 'iconTheme'),
-    actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
-    primary: _boolean('primary') ?? true,
-    centerTitle: _boolean('centerTitle'),
-    excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
-    titleSpacing: _number('titleSpacing'),
-    toolbarOpacity: _number('toolbarOpacity') ?? 1.0,
-    bottomOpacity: _number('bottomOpacity') ?? 1.0,
-    toolbarHeight: _number('toolbarHeight'),
-    leadingWidth: _number('leadingWidth'),
-    toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'),
-    titleTextStyle: _textStyle(context, 'titleTextStyle'),
-    systemOverlayStyle: _systemOverlayStyle(context),
-    forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
-    useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true,
-    clipBehavior: _clipBehavior(),
-    actionsPadding: _edgeInsetsGeometry('actionsPadding'),
-    animateColor: _boolean('animateColor') ?? false,
+  Widget _sliverAppBar(BuildContext context) {
+    final modelTitle = node.slot('title')?.child;
+    // Medium/large mount the title twice; isolate the mirror's model keys.
+    final title = modelTitle == null ? null
+      : node.type != 'flutter.material.SliverAppBar' && node.slot('flexibleSpace')?.child == null
+        ? _CanvasSliverAppBarTitle(builder: (keys) => _view(modelTitle, keyProvider: keys))
+        : _view(modelTitle);
+    return switch (node.type) {
+      'flutter.material.SliverAppBar' => SliverAppBar(
+      key: ValueKey('canvas-sliver-app-bar-${node.id}-${_number('stretchTriggerOffset')}-${_callbackPresent('onStretchTrigger')}'),
+      leading: _single('leading'), title: title, actions: node.slots.containsKey('actions') ? _children('actions') : null,
+      flexibleSpace: _single('flexibleSpace'), bottom: _preferredSizeSingle('bottom'),
+      automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
+      automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
+      elevation: _number('elevation'), scrolledUnderElevation: _number('scrolledUnderElevation'),
+      shadowColor: _resolvedColor(context, 'shadowColor'), surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+      forceElevated: _boolean('forceElevated') ?? false,
+      backgroundColor: _resolvedColor(context, 'backgroundColor'), foregroundColor: _resolvedColor(context, 'foregroundColor'),
+      iconTheme: _iconTheme(context, 'iconTheme'), actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
+      primary: _boolean('primary') ?? true, centerTitle: _boolean('centerTitle'),
+      excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
+      titleSpacing: _number('titleSpacing'), collapsedHeight: _number('collapsedHeight'), expandedHeight: _number('expandedHeight'),
+      floating: _boolean('floating') ?? false, pinned: _boolean('pinned') ?? false,
+      snap: _boolean('snap') ?? false, stretch: _boolean('stretch') ?? false,
+      stretchTriggerOffset: _number('stretchTriggerOffset') ?? 100,
+      onStretchTrigger: _callbackPresent('onStretchTrigger') ? () async {} : null,
+      shape: _appBarShape(context), toolbarHeight: _number('toolbarHeight') ?? 56, leadingWidth: _number('leadingWidth'),
+      toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'), titleTextStyle: _textStyle(context, 'titleTextStyle'),
+      systemOverlayStyle: _systemOverlayStyle(context), forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
+      useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true, clipBehavior: _clipBehavior(),
+      actionsPadding: _edgeInsetsGeometry('actionsPadding'),
+      ),
+      'flutter.material.SliverAppBar.medium' => SliverAppBar.medium(
+      key: ValueKey('canvas-sliver-app-bar-${node.id}-${_number('stretchTriggerOffset')}-${_callbackPresent('onStretchTrigger')}'),
+      leading: _single('leading'), title: title, actions: node.slots.containsKey('actions') ? _children('actions') : null,
+      flexibleSpace: _single('flexibleSpace'), bottom: _preferredSizeSingle('bottom'),
+      automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
+      automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
+      elevation: _number('elevation'), scrolledUnderElevation: _number('scrolledUnderElevation'),
+      shadowColor: _resolvedColor(context, 'shadowColor'), surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+      forceElevated: _boolean('forceElevated') ?? false,
+      backgroundColor: _resolvedColor(context, 'backgroundColor'), foregroundColor: _resolvedColor(context, 'foregroundColor'),
+      iconTheme: _iconTheme(context, 'iconTheme'), actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
+      primary: _boolean('primary') ?? true, centerTitle: _boolean('centerTitle'),
+      excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
+      titleSpacing: _number('titleSpacing'), collapsedHeight: _number('collapsedHeight'), expandedHeight: _number('expandedHeight'),
+      floating: _boolean('floating') ?? false, pinned: _boolean('pinned') ?? true,
+      snap: _boolean('snap') ?? false, stretch: _boolean('stretch') ?? false,
+      stretchTriggerOffset: _number('stretchTriggerOffset') ?? 100,
+      onStretchTrigger: _callbackPresent('onStretchTrigger') ? () async {} : null,
+      shape: _appBarShape(context), toolbarHeight: _number('toolbarHeight') ?? 64, leadingWidth: _number('leadingWidth'),
+      toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'), titleTextStyle: _textStyle(context, 'titleTextStyle'),
+      systemOverlayStyle: _systemOverlayStyle(context), forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
+      useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true, clipBehavior: _clipBehavior(),
+      actionsPadding: _edgeInsetsGeometry('actionsPadding'),
+      ),
+      'flutter.material.SliverAppBar.large' => SliverAppBar.large(
+      key: ValueKey('canvas-sliver-app-bar-${node.id}-${_number('stretchTriggerOffset')}-${_callbackPresent('onStretchTrigger')}'),
+      leading: _single('leading'), title: title, actions: node.slots.containsKey('actions') ? _children('actions') : null,
+      flexibleSpace: _single('flexibleSpace'), bottom: _preferredSizeSingle('bottom'),
+      automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
+      automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
+      elevation: _number('elevation'), scrolledUnderElevation: _number('scrolledUnderElevation'),
+      shadowColor: _resolvedColor(context, 'shadowColor'), surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+      forceElevated: _boolean('forceElevated') ?? false,
+      backgroundColor: _resolvedColor(context, 'backgroundColor'), foregroundColor: _resolvedColor(context, 'foregroundColor'),
+      iconTheme: _iconTheme(context, 'iconTheme'), actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
+      primary: _boolean('primary') ?? true, centerTitle: _boolean('centerTitle'),
+      excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
+      titleSpacing: _number('titleSpacing'), collapsedHeight: _number('collapsedHeight'), expandedHeight: _number('expandedHeight'),
+      floating: _boolean('floating') ?? false, pinned: _boolean('pinned') ?? true,
+      snap: _boolean('snap') ?? false, stretch: _boolean('stretch') ?? false,
+      stretchTriggerOffset: _number('stretchTriggerOffset') ?? 100,
+      onStretchTrigger: _callbackPresent('onStretchTrigger') ? () async {} : null,
+      shape: _appBarShape(context), toolbarHeight: _number('toolbarHeight') ?? 64, leadingWidth: _number('leadingWidth'),
+      toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'), titleTextStyle: _textStyle(context, 'titleTextStyle'),
+      systemOverlayStyle: _systemOverlayStyle(context), forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
+      useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true, clipBehavior: _clipBehavior(),
+      actionsPadding: _edgeInsetsGeometry('actionsPadding'),
+      ),
+      _ => throw StateError('Unreviewed SliverAppBar variant'),
+    };
+  }
+
+  Widget _appBar(BuildContext context) => _TextButtonPreview(
+    message: _appBarPredicatePreviewMessage(node) ?? '',
+    child: AppBar(
+      key: ValueKey('canvas-app-bar-${node.id}'),
+      leading: _single('leading'),
+      automaticallyImplyLeading: _boolean('automaticallyImplyLeading') ?? true,
+      title: _single('title'),
+      actions: node.slots.containsKey('actions') ? _children('actions') : null,
+      automaticallyImplyActions: _boolean('automaticallyImplyActions') ?? true,
+      flexibleSpace: _single('flexibleSpace'),
+      bottom: _preferredSizeSingle('bottom'),
+      elevation: _number('elevation'),
+      scrolledUnderElevation: _number('scrolledUnderElevation'),
+      notificationPredicate: _notificationPredicate(),
+      shadowColor: _resolvedColor(context, 'shadowColor'),
+      surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+      shape: _appBarShape(context),
+      backgroundColor: _resolvedColor(context, 'backgroundColor'),
+      foregroundColor: _resolvedColor(context, 'foregroundColor'),
+      iconTheme: _iconTheme(context, 'iconTheme'),
+      actionsIconTheme: _iconTheme(context, 'actionsIconTheme'),
+      primary: _boolean('primary') ?? true,
+      centerTitle: _boolean('centerTitle'),
+      excludeHeaderSemantics: _boolean('excludeHeaderSemantics') ?? false,
+      titleSpacing: _number('titleSpacing'),
+      toolbarOpacity: _number('toolbarOpacity') ?? 1.0,
+      bottomOpacity: _number('bottomOpacity') ?? 1.0,
+      toolbarHeight: _number('toolbarHeight'),
+      leadingWidth: _number('leadingWidth'),
+      toolbarTextStyle: _textStyle(context, 'toolbarTextStyle'),
+      titleTextStyle: _textStyle(context, 'titleTextStyle'),
+      systemOverlayStyle: _systemOverlayStyle(context),
+      forceMaterialTransparency: _boolean('forceMaterialTransparency') ?? false,
+      useDefaultSemanticsOrder: _boolean('useDefaultSemanticsOrder') ?? true,
+      clipBehavior: _clipBehavior(),
+      actionsPadding: _edgeInsetsGeometry('actionsPadding'),
+      animateColor: _boolean('animateColor') ?? false,
+    ),
   );
+
+  Widget _navigationBar(BuildContext context) {
+    final destinations = _children('destinations');
+    final rawSelectedIndex = _integer('selectedIndex') ?? 0;
+    final selectedIndex = destinations.isEmpty
+        ? 0
+        : rawSelectedIndex >= 0 && rawSelectedIndex < destinations.length
+        ? rawSelectedIndex
+        : 0;
+    if (destinations.length < 2) {
+      return _TextButtonPreview(
+        message: _navigationBarPreviewMessage(node) ?? '',
+        child: Container(
+          key: ValueKey('canvas-navigation-bar-empty-${node.id}'),
+          height: _number('height') ?? 80,
+          alignment: Alignment.center,
+          color:
+              _resolvedColor(context, 'backgroundColor') ??
+              Theme.of(context).colorScheme.surfaceContainer,
+          child: const Text('Add at least two destinations'),
+        ),
+      );
+    }
+    final animationDuration =
+        switch (node.properties['animationDurationUs']?.value) {
+          final int value => Duration(microseconds: value),
+          _ => null,
+        };
+    final labelBehavior = switch (_enumOrString('labelBehavior')) {
+      'alwaysShow' => NavigationDestinationLabelBehavior.alwaysShow,
+      'onlyShowSelected' => NavigationDestinationLabelBehavior.onlyShowSelected,
+      'alwaysHide' => NavigationDestinationLabelBehavior.alwaysHide,
+      _ => null,
+    };
+    return _TextButtonPreview(
+      message: _navigationBarPreviewMessage(node) ?? '',
+      child: NavigationBar(
+        key: ValueKey('canvas-navigation-bar-${node.id}'),
+        animationDuration: animationDuration ?? kThemeChangeDuration,
+        selectedIndex: selectedIndex,
+        destinations: destinations,
+        onDestinationSelected: _callbackPresent('onDestinationSelected')
+            ? (_) {}
+            : null,
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        elevation: _number('elevation'),
+        shadowColor: _resolvedColor(context, 'shadowColor'),
+        surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+        indicatorColor: _resolvedColor(context, 'indicatorColor'),
+        // A ShapeBorder reference is intentionally not executed by Canvas.
+        indicatorShape: null,
+        height: _number('height'),
+        labelBehavior: labelBehavior,
+        // WidgetStateProperty references are application-owned and therefore
+        // use the SDK/theme fallback in the isolated preview.
+        overlayColor: null,
+        labelTextStyle: null,
+        labelPadding: _edgeInsetsGeometry('labelPadding'),
+        maintainBottomViewPadding:
+            _boolean('maintainBottomViewPadding') ?? false,
+      ),
+    );
+  }
+
+  Widget _navigationRail(BuildContext context) {
+    final destinationWidgets = _children('destinations');
+    final destinations = [
+      for (final (index, child) in destinationWidgets.indexed)
+        NavigationRailDestination(
+          icon: child,
+          label: Text('Destination ${index + 1}'),
+        ),
+    ];
+    final rawSelectedIndex = _integer('selectedIndex');
+    final selectedIndex = rawSelectedIndex == null
+        ? null
+        : rawSelectedIndex >= 0 && rawSelectedIndex < destinations.length
+        ? rawSelectedIndex
+        : null;
+    final labelType = switch (_enumOrString('labelType')) {
+      'none' => NavigationRailLabelType.none,
+      'selected' => NavigationRailLabelType.selected,
+      'all' => NavigationRailLabelType.all,
+      _ => null,
+    };
+    final extended = _boolean('extended') ?? false;
+    final safeExtended =
+        extended &&
+            labelType != null &&
+            labelType != NavigationRailLabelType.none
+        ? false
+        : extended;
+    final minWidth = _number('minWidth');
+    final minExtendedWidth = _number('minExtendedWidth');
+    final safeMinExtendedWidth =
+        minWidth != null &&
+            minExtendedWidth != null &&
+            minExtendedWidth < minWidth
+        ? null
+        : minExtendedWidth;
+    return _TextButtonPreview(
+      message: _navigationRailPreviewMessage(node) ?? '',
+      child: NavigationRail(
+        key: ValueKey('canvas-navigation-rail-${node.id}'),
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        extended: safeExtended,
+        leading: _single('leading'),
+        trailing: _single('trailing'),
+        destinations: destinations,
+        selectedIndex: selectedIndex,
+        onDestinationSelected: _callbackPresent('onDestinationSelected')
+            ? (_) {}
+            : null,
+        elevation: _number('elevation'),
+        groupAlignment: _number('groupAlignment'),
+        labelType: labelType,
+        // TextStyle and IconThemeData references are application-owned and
+        // therefore use NavigationRailTheme/SDK fallbacks in isolated Canvas.
+        unselectedLabelTextStyle: null,
+        selectedLabelTextStyle: null,
+        unselectedIconTheme: null,
+        selectedIconTheme: null,
+        minWidth: minWidth,
+        minExtendedWidth: safeMinExtendedWidth,
+        useIndicator: _boolean('useIndicator'),
+        indicatorColor: _resolvedColor(context, 'indicatorColor'),
+        indicatorShape: null,
+        leadingAtTop: _boolean('leadingAtTop') ?? true,
+        trailingAtBottom: _boolean('trailingAtBottom') ?? false,
+        scrollable: _boolean('scrollable') ?? false,
+        mainAxisAlignment: _mainAxisAlignment(),
+      ),
+    );
+  }
+
+  Widget _navigationDrawer(BuildContext context) {
+    final childWidgets = _children('children');
+    final children = [
+      for (final (index, child) in childWidgets.indexed)
+        NavigationDrawerDestination(
+          // NavigationDrawer lays out its icon as a non-flex Row child. A
+          // designer widget can otherwise report the full canvas width (the
+          // selection/semantics wrappers are intentionally unconstrained),
+          // overflowing the drawer before the synthetic label is rendered.
+          // Keep the adapted icon in the SDK's compact icon slot while
+          // preserving the original widget subtree and its identity.
+          icon: SizedBox(width: 24.0, height: 24.0, child: child),
+          label: Text('Destination ${index + 1}'),
+        ),
+    ];
+    final rawSelectedIndex = _integer('selectedIndex');
+    final selectedIndex = rawSelectedIndex == null
+        ? null
+        : rawSelectedIndex >= 0 && rawSelectedIndex < children.length
+        ? rawSelectedIndex
+        : null;
+    return _TextButtonPreview(
+      message: _navigationDrawerPreviewMessage(node) ?? '',
+      child: NavigationDrawer(
+        key: ValueKey('canvas-navigation-drawer-${node.id}'),
+        header: _single('header'),
+        footer: _single('footer'),
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        shadowColor: _resolvedColor(context, 'shadowColor'),
+        surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+        elevation: _number('elevation'),
+        indicatorColor: _resolvedColor(context, 'indicatorColor'),
+        // A ShapeBorder reference is intentionally not executed by Canvas.
+        indicatorShape: null,
+        onDestinationSelected: _callbackPresent('onDestinationSelected')
+            ? (_) {}
+            : null,
+        selectedIndex: selectedIndex,
+        tilePadding:
+            _edgeInsetsGeometry('tilePadding') ??
+            const EdgeInsets.symmetric(horizontal: 12.0),
+        children: children,
+      ),
+    );
+  }
+
+  Widget _drawer(BuildContext context) {
+    return _TextButtonPreview(
+      message: _drawerPreviewMessage(node) ?? '',
+      child: Drawer(
+        key: ValueKey('canvas-drawer-${node.id}'),
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        elevation: _number('elevation'),
+        shadowColor: _resolvedColor(context, 'shadowColor'),
+        surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+        // ShapeBorder references are application-owned and intentionally not
+        // executed in the isolated Canvas preview.
+        shape: null,
+        width: _number('width'),
+        semanticLabel: _string('semanticLabel'),
+        clipBehavior: _clipBehavior(),
+        child: _single('child'),
+      ),
+    );
+  }
+
+  Widget _bottomAppBar(BuildContext context) {
+    return _TextButtonPreview(
+      message: _bottomAppBarPreviewMessage(node) ?? '',
+      child: BottomAppBar(
+        key: ValueKey('canvas-bottom-app-bar-${node.id}'),
+        color: _resolvedColor(context, 'color'),
+        elevation: _number('elevation'),
+        // NotchedShape references are application-owned and intentionally not
+        // executed in the isolated Canvas preview.
+        shape: null,
+        clipBehavior: _clipBehavior() ?? Clip.none,
+        notchMargin: _number('notchMargin') ?? 4.0,
+        padding: _edgeInsetsGeometry('padding'),
+        surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+        shadowColor: _resolvedColor(context, 'shadowColor'),
+        height: _number('height'),
+        child: _single('child'),
+      ),
+    );
+  }
+
+  Widget _bottomNavigationBar(BuildContext context) {
+    final itemWidgets = _children('items');
+    final items = [
+      for (final (index, child) in itemWidgets.indexed)
+        BottomNavigationBarItem(icon: child, label: 'Item ${index + 1}'),
+    ];
+    if (items.length < 2) {
+      return _TextButtonPreview(
+        message: _bottomNavigationBarPreviewMessage(node) ?? '',
+        child: Container(
+          key: ValueKey('canvas-bottom-navigation-bar-empty-${node.id}'),
+          height: 56,
+          alignment: Alignment.center,
+          color:
+              _resolvedColor(context, 'backgroundColor') ??
+              Theme.of(context).colorScheme.surface,
+          child: const Text('Add at least two items'),
+        ),
+      );
+    }
+    final rawCurrentIndex = _integer('currentIndex') ?? 0;
+    final currentIndex = rawCurrentIndex >= 0 && rawCurrentIndex < items.length
+        ? rawCurrentIndex
+        : 0;
+    final type = switch (_enumOrString('barType')) {
+      'fixed' => BottomNavigationBarType.fixed,
+      'shifting' => BottomNavigationBarType.shifting,
+      _ => null,
+    };
+    final landscapeLayout = switch (_enumOrString('landscapeLayout')) {
+      'spread' => BottomNavigationBarLandscapeLayout.spread,
+      'centered' => BottomNavigationBarLandscapeLayout.centered,
+      'linear' => BottomNavigationBarLandscapeLayout.linear,
+      _ => null,
+    };
+    return _TextButtonPreview(
+      message: _bottomNavigationBarPreviewMessage(node) ?? '',
+      child: BottomNavigationBar(
+        key: ValueKey('canvas-bottom-navigation-bar-${node.id}'),
+        items: items,
+        onTap: _callbackPresent('onTap') ? (_) {} : null,
+        currentIndex: currentIndex,
+        elevation: _number('elevation'),
+        type: type,
+        backgroundColor: _resolvedColor(context, 'backgroundColor'),
+        iconSize: _number('iconSize') ?? 24.0,
+        selectedItemColor: _resolvedColor(context, 'selectedItemColor'),
+        unselectedItemColor: _resolvedColor(context, 'unselectedItemColor'),
+        // Application-owned theme/style/cursor references are not executed.
+        selectedIconTheme: null,
+        unselectedIconTheme: null,
+        selectedFontSize: _number('selectedFontSize') ?? 14.0,
+        unselectedFontSize: _number('unselectedFontSize') ?? 12.0,
+        selectedLabelStyle: null,
+        unselectedLabelStyle: null,
+        showSelectedLabels: _boolean('showSelectedLabels'),
+        showUnselectedLabels: _boolean('showUnselectedLabels'),
+        mouseCursor: null,
+        enableFeedback: _boolean('enableFeedback'),
+        landscapeLayout: landscapeLayout,
+        useLegacyColorScheme: _boolean('useLegacyColorScheme') ?? true,
+      ),
+    );
+  }
+
+  Widget _material(BuildContext context) {
+    final materialType = _materialType();
+    final circle = materialType == MaterialType.circle;
+    final shapeReference =
+        node.properties['shape']?.kind == 'dartObjectReferencePresence';
+    final radius = switch (node.properties['borderRadius']?.value) {
+      final CanvasBorderRadiusGeometryValue value
+          when !circle && !shapeReference =>
+        _borderRadius(value),
+      _ => null,
+    };
+    final animationDuration =
+        switch (node.properties['animationDurationUs']?.value) {
+          final int value => Duration(microseconds: value),
+          _ => null,
+        };
+    return _TextButtonPreview(
+      message: _materialPreviewMessage(node) ?? '',
+      child: Material(
+        key: ValueKey('canvas-material-${node.id}'),
+        type: materialType ?? MaterialType.canvas,
+        elevation: _number('elevation') ?? 0.0,
+        color: _resolvedColor(context, 'color'),
+        shadowColor: _resolvedColor(context, 'shadowColor'),
+        surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+        // TextStyle and ShapeBorder references are application-owned and are
+        // intentionally not executed in the isolated Canvas preview.
+        textStyle: null,
+        borderRadius: radius,
+        shape: null,
+        borderOnForeground: _boolean('borderOnForeground') ?? true,
+        clipBehavior: _clipBehavior() ?? Clip.none,
+        animationDuration: animationDuration ?? kThemeChangeDuration,
+        animateColor: _boolean('animateColor') ?? false,
+        child: _single('child'),
+      ),
+    );
+  }
 
   Widget _elevatedButton(BuildContext context) {
     final enabled = _boolean('enabled') ?? true;
@@ -5341,30 +9735,39 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final onLongPressPresent = _callbackPresent('onLongPress');
     final onHoverPresent = _callbackPresent('onHover');
     final onFocusChangePresent = _callbackPresent('onFocusChange');
-    return ElevatedButton(
-      onPressed: enabled && (onPressedPresent || !onLongPressPresent)
-          ? () {}
-          : null,
-      onLongPress: enabled && onLongPressPresent ? () {} : null,
-      onHover: onHoverPresent ? (_) {} : null,
-      onFocusChange: onFocusChangePresent ? (_) {} : null,
-      autofocus: _boolean('autofocus') ?? false,
-      clipBehavior: _clipBehavior(),
-      style: _elevatedButtonStyle(context),
-      child: _single('child'),
+    return _TextButtonPreview(
+      message: _textButtonReferenceMessage(node) ?? '',
+      child: ElevatedButton(
+        key: ValueKey('canvas-elevated-button-${node.id}'),
+        onPressed: enabled && (onPressedPresent || !onLongPressPresent)
+            ? () {}
+            : null,
+        onLongPress: enabled && onLongPressPresent ? () {} : null,
+        onHover: onHoverPresent ? (_) {} : null,
+        onFocusChange: onFocusChangePresent ? (_) {} : null,
+        autofocus: _boolean('autofocus') ?? false,
+        clipBehavior: _clipBehavior(),
+        style: _elevatedButtonStyle(context),
+        child: _single('child'),
+      ),
     );
   }
 
   bool get _isOutlinedButton => node.type == 'flutter.material.OutlinedButton';
   bool get _isFilledButton => node.type == 'flutter.material.FilledButton';
   bool get _isIconButton => node.type == 'flutter.material.IconButton';
+  bool get _isMenuItemButton => node.type == 'flutter.material.MenuItemButton';
+  bool get _isSubmenuButton => node.type == 'flutter.material.SubmenuButton';
   bool get _buttonIconVariant =>
       {'icon', 'tonalIcon'}.contains(_string('variant'));
   bool get _usesExtendedButtonStyle =>
       node.type == 'flutter.material.TextButton' ||
       _isOutlinedButton ||
       _isFilledButton ||
-      _isIconButton;
+      _isIconButton ||
+      node.type == 'flutter.material.MenuAnchor' ||
+      _isMenuItemButton ||
+      _isSubmenuButton;
 
   bool _buttonReferencePresent(String name) =>
       node.properties[name]?.kind == 'dartObjectReferencePresence';
@@ -5451,14 +9854,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         _number('${prefix}StrokeAlign') ?? BorderSide.strokeAlignInside,
   );
 
-  BorderSide? _checkboxSide(BuildContext context) {
-    final base = _checkboxHasSideDetails('side')
-        ? _checkboxLocalSide(context, 'side')
+  BorderSide? _checkboxSide(BuildContext context, {String family = 'side'}) {
+    final base = _checkboxHasSideDetails(family)
+        ? _checkboxLocalSide(context, family)
         : null;
-    if (_boolean('sideStateful') != true) return base;
+    if (_boolean('${family}Stateful') != true) return base;
     final entries = <WidgetStatesConstraint, BorderSide?>{};
     for (final entry in _checkboxStateLayers.entries) {
-      final prefix = 'side${entry.value}';
+      final prefix = '$family${entry.value}';
       final mode = _string('${prefix}Mode');
       if (mode == 'inherit') {
         entries[entry.key] = null;
@@ -5677,6 +10080,263 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _switchListTile(BuildContext context) => _SwitchPreview(
+    cupertino: _checkboxUsesCupertino(node, context),
+    widgetName: 'SwitchListTile',
+    message: '',
+    builder: (focusNode) {
+      final tileTheme = ListTileTheme.of(context);
+      final height =
+          _listTileNumber(node, 'minTileHeight') ?? tileTheme.minTileHeight;
+      final padding =
+          _listTileNumber(node, 'minVerticalPadding') ??
+          tileTheme.minVerticalPadding ??
+          (Theme.of(context).useMaterial3 ? 8 : 4);
+      return _ListTilePreview(
+        node: node,
+        widgetName: 'SwitchListTile',
+        message: _switchListTileStaticMessage(node, context),
+        riskyUnboundedHeight:
+            (height != null &&
+                !height.isFinite &&
+                height != double.negativeInfinity) ||
+            !(padding * 2).isFinite && padding != double.negativeInfinity,
+        hasMaterial: context.findAncestorWidgetOfExactType<Material>() != null,
+        slots: {
+          for (final name in ['title', 'subtitle', 'secondary'])
+            if (_single(name) case final Widget child) name: child,
+        },
+        builder: (slots) => _switchListTileWithSlots(context, slots, focusNode),
+      );
+    },
+  );
+
+  Widget _switchListTileWithSlots(
+    BuildContext context,
+    Map<String, Widget> slots,
+    FocusNode focusNode,
+  ) {
+    final cursors = <WidgetStatesConstraint, MouseCursor>{};
+    var unresolved = false;
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'mouseCursor${entry.value}';
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') {
+        unresolved = true;
+      }
+      if (_mouseCursor(name) case final MouseCursor cursor) {
+        cursors[entry.key] = cursor;
+      }
+    }
+    final cursor = unresolved
+        ? null
+        : cursors.isEmpty
+        ? _mouseCursor('mouseCursor')
+        : WidgetStateMouseCursor.fromMap(cursors);
+    ({ImageProvider<Object>? provider, ImageErrorListener? onError}) image(
+      String name,
+    ) {
+      final value = node.properties[name]?.value;
+      if (value is! CanvasImageProviderValue) {
+        return (provider: null, onError: null);
+      }
+      final binding = _imageProvider(value);
+      if (binding.placeholder) return (provider: null, onError: null);
+      final resource = binding.resolution as CanvasResolvedImageValue;
+      return (
+        provider: binding.provider,
+        onError: (error, stack) =>
+            onImageError?.call(resource.resourceId, error, stack),
+      );
+    }
+
+    final active = image('activeThumbImage');
+    final inactive = image('inactiveThumbImage');
+    // Only the public SDK tile shell changes at the known Cupertino painter
+    // configuration boundary. The outer focus owner and keyed slot children survive.
+    final key = ValueKey(
+      'canvas-switch-list-tile-${node.id}-${_checkboxUsesCupertino(node, context)}',
+    );
+    return _string('variant') == 'adaptive'
+        ? SwitchListTile.adaptive(
+            key: key,
+            value: _boolean('value')!,
+            onChanged: _listTileHasCallback(node, 'onChanged')
+                ? (_) => onSelected(node.id)
+                : null,
+            // ignore: deprecated_member_use
+            activeColor: _resolvedColor(context, 'activeColor'),
+            activeThumbColor: _resolvedColor(context, 'activeThumbColor'),
+            activeTrackColor: _resolvedColor(context, 'activeTrackColor'),
+            inactiveThumbColor: _resolvedColor(context, 'inactiveThumbColor'),
+            inactiveTrackColor: _resolvedColor(context, 'inactiveTrackColor'),
+            activeThumbImage: active.provider,
+            onActiveThumbImageError: active.onError,
+            inactiveThumbImage: inactive.provider,
+            onInactiveThumbImageError: inactive.onError,
+            thumbColor: _checkboxStateColor(context, 'thumbColor'),
+            trackColor: _checkboxStateColor(context, 'trackColor'),
+            trackOutlineColor: _checkboxStateColor(
+              context,
+              'trackOutlineColor',
+            ),
+            thumbIcon: _switchStateIcon(context),
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            dragStartBehavior: _dragStartBehavior(),
+            mouseCursor: cursor,
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: switch (_listTileNumber(node, 'splashRadius')) {
+              final double radius when !radius.isFinite => 0,
+              final radius => radius,
+            },
+            focusNode: focusNode,
+            statesController: null,
+            onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+                ? (_) {}
+                : null,
+            autofocus: _boolean('autofocus') ?? false,
+            tileColor: _resolvedColor(context, 'tileColor'),
+            title: slots['title'],
+            subtitle: slots['subtitle'],
+            isThreeLine: _boolean('isThreeLine'),
+            dense: _boolean('dense'),
+            contentPadding:
+                node.properties['contentPadding']?.kind ==
+                    'dartObjectReferencePresence'
+                ? null
+                : _edgeInsetsGeometry('contentPadding'),
+            secondary: slots['secondary'],
+            selected: _boolean('selected') ?? false,
+            controlAffinity: switch (_enum('controlAffinity')) {
+              'leading' => ListTileControlAffinity.leading,
+              'trailing' => ListTileControlAffinity.trailing,
+              'platform' => ListTileControlAffinity.platform,
+              _ => null,
+            },
+            shape:
+                _cardShapePreviewUnavailableMessage(
+                      node,
+                      widgetName: 'SwitchListTile',
+                    ) ==
+                    null
+                ? _cardShape(context)
+                : null,
+            selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+            visualDensity: switch ((
+              _number('visualDensityHorizontal'),
+              _number('visualDensityVertical'),
+            )) {
+              (null, null) => null,
+              (final h, final v) => VisualDensity(
+                horizontal: h ?? 0,
+                vertical: v ?? 0,
+              ),
+            },
+            enableFeedback: _boolean('enableFeedback'),
+            horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+            minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+            minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+            minTileHeight: _listTileNumber(node, 'minTileHeight'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            internalAddSemanticForOnTap:
+                _boolean('internalAddSemanticForOnTap') ?? false,
+            applyCupertinoTheme: _boolean('applyCupertinoTheme'),
+          )
+        : SwitchListTile(
+            key: key,
+            value: _boolean('value')!,
+            onChanged: _listTileHasCallback(node, 'onChanged')
+                ? (_) => onSelected(node.id)
+                : null,
+            // ignore: deprecated_member_use
+            activeColor: _resolvedColor(context, 'activeColor'),
+            activeThumbColor: _resolvedColor(context, 'activeThumbColor'),
+            activeTrackColor: _resolvedColor(context, 'activeTrackColor'),
+            inactiveThumbColor: _resolvedColor(context, 'inactiveThumbColor'),
+            inactiveTrackColor: _resolvedColor(context, 'inactiveTrackColor'),
+            activeThumbImage: active.provider,
+            onActiveThumbImageError: active.onError,
+            inactiveThumbImage: inactive.provider,
+            onInactiveThumbImageError: inactive.onError,
+            thumbColor: _checkboxStateColor(context, 'thumbColor'),
+            trackColor: _checkboxStateColor(context, 'trackColor'),
+            trackOutlineColor: _checkboxStateColor(
+              context,
+              'trackOutlineColor',
+            ),
+            thumbIcon: _switchStateIcon(context),
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            dragStartBehavior: _dragStartBehavior(),
+            mouseCursor: cursor,
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: switch (_listTileNumber(node, 'splashRadius')) {
+              final double radius when !radius.isFinite => 0,
+              final radius => radius,
+            },
+            focusNode: focusNode,
+            statesController: null,
+            onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+                ? (_) {}
+                : null,
+            autofocus: _boolean('autofocus') ?? false,
+            tileColor: _resolvedColor(context, 'tileColor'),
+            title: slots['title'],
+            subtitle: slots['subtitle'],
+            isThreeLine: _boolean('isThreeLine'),
+            dense: _boolean('dense'),
+            contentPadding:
+                node.properties['contentPadding']?.kind ==
+                    'dartObjectReferencePresence'
+                ? null
+                : _edgeInsetsGeometry('contentPadding'),
+            secondary: slots['secondary'],
+            selected: _boolean('selected') ?? false,
+            controlAffinity: switch (_enum('controlAffinity')) {
+              'leading' => ListTileControlAffinity.leading,
+              'trailing' => ListTileControlAffinity.trailing,
+              'platform' => ListTileControlAffinity.platform,
+              _ => null,
+            },
+            shape:
+                _cardShapePreviewUnavailableMessage(
+                      node,
+                      widgetName: 'SwitchListTile',
+                    ) ==
+                    null
+                ? _cardShape(context)
+                : null,
+            selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+            visualDensity: switch ((
+              _number('visualDensityHorizontal'),
+              _number('visualDensityVertical'),
+            )) {
+              (null, null) => null,
+              (final h, final v) => VisualDensity(
+                horizontal: h ?? 0,
+                vertical: v ?? 0,
+              ),
+            },
+            enableFeedback: _boolean('enableFeedback'),
+            horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+            minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+            minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+            minTileHeight: _listTileNumber(node, 'minTileHeight'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            internalAddSemanticForOnTap:
+                _boolean('internalAddSemanticForOnTap') ?? false,
+          );
+  }
+
   Widget _checkboxListTile(BuildContext context) {
     final tileTheme = ListTileTheme.of(context);
     final height =
@@ -5820,6 +10480,824 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       internalAddSemanticForOnTap:
           _boolean('internalAddSemanticForOnTap') ?? false,
     );
+  }
+
+  Widget _tooltipTheme(BuildContext context) {
+    final messages = <String>[];
+    final references = node.properties.entries
+        .where((entry) => entry.value.kind == 'dartObjectReferencePresence')
+        .map((entry) => entry.key)
+        .toList();
+    if (references.isNotEmpty) {
+      messages.add(
+        'TooltipTheme ${node.id} preview limitation for ${references.join(', ')}: isolated Canvas never executes project Dart. Unknown whole data uses an explicit empty nearest TooltipThemeData; unknown local values use null SDK defaults, not values from an outer TooltipTheme. Stored values and generated Dart remain exact.',
+      );
+    }
+    EdgeInsetsGeometry? insets(String name) {
+      final local = node.properties[name]?.kind == 'dartObjectReferencePresence'
+          ? null
+          : _edgeInsetsGeometry(name);
+      final resolved = local?.resolve(Directionality.of(context));
+      if (resolved != null &&
+          (!resolved.isNonNegative ||
+              !resolved.horizontal.isFinite ||
+              !resolved.vertical.isFinite)) {
+        messages.add(
+          'TooltipTheme ${node.id}.$name preview limitation: negative or overflowing overlay Container insets cannot be mounted safely; this inset uses zero.',
+        );
+        return EdgeInsets.zero;
+      }
+      return local;
+    }
+
+    var height = _listTileNumber(node, 'height');
+    if (height != null && (height.isNaN || height < 0)) {
+      messages.add(
+        'TooltipTheme ${node.id}.height preview limitation: negative or NaN minimum height uses zero.',
+      );
+      height = 0;
+    }
+    var verticalOffset = _listTileNumber(node, 'verticalOffset');
+    if (verticalOffset != null &&
+        (verticalOffset.isNaN || verticalOffset == double.negativeInfinity)) {
+      messages.add(
+        'TooltipTheme ${node.id}.verticalOffset preview limitation: nonfinite overlay position uses the SDK default 24; positive infinity remains exact.',
+      );
+      verticalOffset = 24;
+    }
+    Duration? duration(String name) => switch (_integer(name)) {
+      final int value => Duration(microseconds: value),
+      _ => null,
+    };
+    final padding = insets('padding');
+    final margin = insets('margin');
+    final localStyle =
+        node.properties.keys.any(
+          (name) => name.startsWith('textStyle') && name != 'textStyle',
+        )
+        ? _textStyle(context, 'textStyle')
+        : null;
+    // Fresh construction is deliberate: the pinned copyWith drops exitDuration
+    // and lerp drops all five duration/trigger/feedback behavior fields.
+    final data = TooltipThemeData(
+      // ignore: deprecated_member_use
+      height: height,
+      constraints: _boxConstraints('constraints'),
+      padding: padding,
+      margin: margin,
+      verticalOffset: verticalOffset,
+      preferBelow: _boolean('preferBelow'),
+      excludeFromSemantics: _boolean('excludeFromSemantics'),
+      decoration: _boxDecoration(context, 'decoration'),
+      textStyle: localStyle,
+      textAlign: _textAlign(),
+      waitDuration: duration('waitDurationUs'),
+      showDuration: duration('showDurationUs'),
+      exitDuration: duration('exitDurationUs'),
+      triggerMode: switch (_enum('triggerMode')) {
+        'manual' => TooltipTriggerMode.manual,
+        'tap' => TooltipTriggerMode.tap,
+        'longPress' => TooltipTriggerMode.longPress,
+        _ => null,
+      },
+      enableFeedback: _boolean('enableFeedback'),
+    );
+    return _TextButtonPreview(
+      message: messages.join(' '),
+      stableDiagnostic: true,
+      child: TooltipTheme(data: data, child: _single('child')!),
+    );
+  }
+
+  Widget _tooltip(BuildContext context) {
+    final previewKey = (context.findAncestorStateOfType<_SwitcherEntryViewState>()?._tooltips ??
+        context.findAncestorStateOfType<_CanvasDocumentViewState>()?._tooltipPreviewKeys)
+        ?.putIfAbsent(node.id, GlobalKey.new);
+    return _TooltipPreview(
+      key: previewKey,
+      node: node,
+      builder: (sdkKey, anchorKey) {
+        final theme = TooltipTheme.of(context);
+        final plainMessage = _string('message');
+        final rich =
+            node.properties['richMessage']?.kind ==
+            'dartObjectReferencePresence';
+        final active = rich || (plainMessage?.isNotEmpty ?? false);
+        final messages = <String>[];
+        final refs = node.properties.entries
+            .where((entry) => entry.value.kind == 'dartObjectReferencePresence')
+            .map((entry) => entry.key)
+            .toList();
+        if (active && refs.isNotEmpty) {
+          messages.add(
+            'Tooltip ${node.id} preview limitation for ${refs.join(', ')}: isolated Canvas never executes project Dart. '
+            'Unknown appearance, durations and position use SDK theme/default approximations; project callbacks are benign no-ops. '
+            'Project InlineSpan content, WidgetSpan interaction and semantics cannot be reproduced and are explicitly labeled unavailable. Stored values and generated Dart remain exact.',
+          );
+        }
+        EdgeInsetsGeometry? padding(
+          String name,
+          EdgeInsetsGeometry? inherited,
+        ) {
+          final local =
+              node.properties[name]?.kind == 'dartObjectReferencePresence'
+              ? null
+              : _edgeInsetsGeometry(name);
+          final resolved = (local ?? inherited)?.resolve(
+            Directionality.of(context),
+          );
+          if (active &&
+              resolved != null &&
+              (!resolved.isNonNegative ||
+                  !resolved.horizontal.isFinite ||
+                  !resolved.vertical.isFinite)) {
+            messages.add(
+              'Tooltip ${node.id}.$name preview limitation: negative or overflowing Container insets cannot be mounted safely; only this inset uses an explicit zero approximation.',
+            );
+            return EdgeInsets.zero;
+          }
+          return local;
+        }
+
+        var height = _listTileNumber(node, 'height');
+        // The deprecated constructor field remains part of the reviewed SDK.
+        // ignore: deprecated_member_use
+        final effectiveHeight = height ?? theme.height;
+        if (active &&
+            effectiveHeight != null &&
+            (effectiveHeight.isNaN || effectiveHeight < 0)) {
+          messages.add(
+            'Tooltip ${node.id}.height preview limitation: negative or NaN minimum height produces invalid SDK constraints; only this height uses zero.',
+          );
+          height = 0;
+        }
+        var constraints = _boxConstraints('constraints');
+        final effectiveConstraints = constraints ?? theme.constraints;
+        if (active &&
+            effectiveConstraints != null &&
+            !effectiveConstraints.isNormalized) {
+          messages.add(
+            'Tooltip ${node.id}.constraints preview limitation: invalid theme constraints use unconstrained SDK-default geometry without changing stored values.',
+          );
+          constraints = const BoxConstraints();
+        }
+        // Height is deprecated but still supplied exactly when legal. SDK allows
+        // explicit null next to constraints; never create two nonnull arguments.
+        if (constraints != null) height = null;
+        var verticalOffset = _listTileNumber(node, 'verticalOffset');
+        final effectiveOffset = verticalOffset ?? theme.verticalOffset;
+        if (active &&
+            effectiveOffset != null &&
+            (effectiveOffset.isNaN ||
+                effectiveOffset == double.negativeInfinity)) {
+          messages.add(
+            'Tooltip ${node.id}.verticalOffset preview limitation: the default delegate produces a nonfinite position; only this offset uses the SDK default 24. Positive infinity remains exact.',
+          );
+          verticalOffset = 24;
+        }
+        final localPadding = padding('padding', theme.padding);
+        final localMargin = padding('margin', theme.margin);
+        Duration? duration(String name) => switch (_integer(name)) {
+          final int value => Duration(microseconds: value),
+          _ => null,
+        };
+        final anchor = _single('child');
+        final message = messages.isEmpty ? null : messages.join(' ');
+        final state = previewKey?.currentState;
+        if (state is _TooltipPreviewState) state.message = message;
+        final localStyle =
+            node.properties.keys.any(
+              (name) => name.startsWith('textStyle') && name != 'textStyle',
+            )
+            ? _textStyle(context, 'textStyle')
+            : null;
+        return Stack(
+          fit: StackFit.passthrough,
+          clipBehavior: Clip.none,
+          children: [
+            Tooltip(
+              key: sdkKey,
+              message: plainMessage,
+              richMessage: rich
+                  ? const TextSpan(
+                      text: '[Preview unavailable: project InlineSpan]',
+                    )
+                  : null,
+              // ignore: deprecated_member_use
+              height: height,
+              constraints: constraints,
+              padding: localPadding,
+              margin: localMargin,
+              verticalOffset: verticalOffset,
+              preferBelow: _boolean('preferBelow'),
+              excludeFromSemantics: _boolean('excludeFromSemantics'),
+              decoration: _boxDecoration(context, 'decoration'),
+              textStyle: localStyle,
+              textAlign: _textAlign(),
+              waitDuration: duration('waitDurationUs'),
+              showDuration: duration('showDurationUs'),
+              exitDuration: duration('exitDurationUs'),
+              enableTapToDismiss: _boolean('enableTapToDismiss') ?? true,
+              triggerMode: switch (_enum('triggerMode')) {
+                'manual' => TooltipTriggerMode.manual,
+                'tap' => TooltipTriggerMode.tap,
+                'longPress' => TooltipTriggerMode.longPress,
+                _ => null,
+              },
+              enableFeedback: _boolean('enableFeedback'),
+              onTriggered: _listTileHasCallback(node, 'onTriggered')
+                  ? () {}
+                  : null,
+              mouseCursor: _mouseCursor('mouseCursor'),
+              ignorePointer: _boolean('ignorePointer'),
+              positionDelegate: null,
+              child: anchor == null
+                  ? null
+                  : _TooltipAnchorScope(
+                      child: KeyedSubtree(key: anchorKey, child: anchor),
+                    ),
+            ),
+            if (message != null)
+              Positioned(
+                top: 0,
+                right: 0,
+                child: IgnoreBaseline(
+                  child: Tooltip(
+                    key: ValueKey('canvas-tooltip-diagnostic-${node.id}'),
+                    message: message,
+                    child: const ColoredBox(
+                      color: Color(0xfffef3c7),
+                      child: Icon(
+                        Icons.info_outline,
+                        size: 12,
+                        color: Color(0xff92400e),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
+
+  Widget _expansionTile(BuildContext context) => _ExpansionTilePreview(
+    // Selection adds/removes an outline wrapper below the node's outer key.
+    // Retain the complete SDK subtree across that editor-only reparenting.
+    key: context
+        .findAncestorStateOfType<_CanvasDocumentViewState>()
+        ?._expansionTilePreviewKeys
+        .putIfAbsent(node.id, GlobalKey.new),
+    node: node,
+    builder: (controller, sdkKey) {
+      final theme = ExpansionTileTheme.of(context);
+      final messages = <String>[];
+      final refs = node.properties.entries
+          .where((entry) => entry.value.kind == 'dartObjectReferencePresence')
+          .map((entry) => entry.key)
+          .where((name) => name != 'expansionAnimationStyleReverseDurationUs')
+          .toList();
+      if (refs.isNotEmpty) {
+        messages.add(
+          'ExpansionTile ${node.id} preview limitation for ${refs.join(', ')}: isolated Canvas never executes project Dart. '
+          'Appearance, padding and animation references use the actual SDK theme/default as an explicit approximation; callbacks are benign no-ops. '
+          'The preview owns a local ExpansibleController and SDK header states, not referenced project controllers. Stored values and generated Dart remain unchanged.',
+        );
+      }
+      ShapeBorder? shape(String family) {
+        final message = _cardShapePreviewUnavailableMessage(
+          node,
+          widgetName: 'ExpansionTile',
+          prefix: family,
+        );
+        if (message != null) messages.add(message);
+        return message == null ? _cardShapeForFamily(context, family) : null;
+      }
+
+      final expandedShape = shape('shape');
+      final collapsedShape = shape('collapsedShape');
+      EdgeInsetsGeometry? padding(String name, EdgeInsetsGeometry? inherited) {
+        final local =
+            node.properties[name]?.kind == 'dartObjectReferencePresence'
+            ? null
+            : _edgeInsetsGeometry(name);
+        final effective = (local ?? inherited)?.resolve(
+          Directionality.of(context),
+        );
+        if (effective != null &&
+            (!effective.isNonNegative ||
+                !effective.horizontal.isFinite ||
+                !effective.vertical.isFinite)) {
+          messages.add(
+            'ExpansionTile ${node.id}.$name preview limitation: the resolved negative or overflowing Padding geometry cannot be mounted safely. '
+            'Only this padding uses an explicit zero approximation; actual children and stored values are unchanged.',
+          );
+          return EdgeInsets.zero;
+        }
+        return local;
+      }
+
+      final tilePadding = padding('tilePadding', theme.tilePadding);
+      final childrenPadding = padding('childrenPadding', theme.childrenPadding);
+      Duration? duration(String name) => switch (_integer(name)) {
+        final int value => Duration(microseconds: value),
+        _ => null,
+      };
+      AnimationStyle? style;
+      if (_string('expansionAnimationStyle') == 'noAnimation') {
+        style = AnimationStyle.noAnimation;
+      } else if (node.properties.keys.any(
+        (name) =>
+            name.startsWith('expansionAnimationStyle') &&
+            name != 'expansionAnimationStyle',
+      )) {
+        style = AnimationStyle(
+          duration: duration('expansionAnimationStyleDurationUs'),
+          reverseDuration: duration('expansionAnimationStyleReverseDurationUs'),
+          curve: _expansionCurves[_string('expansionAnimationStyleCurve')],
+          reverseCurve:
+              _expansionCurves[_string('expansionAnimationStyleReverseCurve')],
+        );
+      }
+      var effectiveDuration =
+          style?.duration ??
+          theme.expansionAnimationStyle?.duration ??
+          const Duration(milliseconds: 200);
+      if (effectiveDuration.isNegative) {
+        messages.add(
+          'ExpansionTile ${node.id} expansionAnimationStyle.duration preview limitation: negative duration is accepted by the constructor but the SDK animation asserts when started. '
+          'Only the preview duration uses Duration.zero; stored signed microseconds remain exact.',
+        );
+        style = (style ?? const AnimationStyle()).copyWith(
+          duration: Duration.zero,
+        );
+        effectiveDuration = Duration.zero;
+      }
+      bool undershoots(Curve? curve) => const [
+        Curves.easeInBack,
+        Curves.easeInOutBack,
+        Curves.elasticIn,
+        Curves.elasticInOut,
+      ].contains(curve);
+      if (effectiveDuration != Duration.zero) {
+        final forward =
+            style?.curve ??
+            theme.expansionAnimationStyle?.curve ??
+            Curves.easeIn;
+        final reverse =
+            style?.reverseCurve ?? theme.expansionAnimationStyle?.reverseCurve;
+        if (undershoots(forward) || undershoots(reverse)) {
+          messages.add(
+            'ExpansionTile ${node.id} expansion curve preview limitation: the configured SDK curve has negative height factors, which Expansible Align rejects during animation. '
+            'Only affected preview height curves use Curves.easeIn as an explicit approximation; stored curve presets and generated Dart are unchanged.',
+          );
+          style = (style ?? const AnimationStyle()).copyWith(
+            curve: undershoots(forward) ? Curves.easeIn : null,
+            reverseCurve: undershoots(reverse) ? Curves.easeIn : null,
+          );
+        }
+      }
+      // reverseDuration is intentionally not used for safety decisions or timing:
+      // the pinned ExpansionTile and Expansible ignore that AnimationStyle field.
+      final background = _resolvedColor(context, 'backgroundColor');
+      final collapsedBackground = _resolvedColor(
+        context,
+        'collapsedBackgroundColor',
+      );
+      final hasShape =
+          expandedShape != null ||
+          collapsedShape != null ||
+          theme.shape != null ||
+          theme.collapsedShape != null;
+      final activeBackground = controller.isExpanded
+          ? background ?? theme.backgroundColor
+          : collapsedBackground ?? theme.collapsedBackgroundColor;
+      var hasModelMaterial = false;
+      final rootId = context
+          .findAncestorWidgetOfExactType<CanvasDocumentView>()
+          ?.model
+          .root
+          .id;
+      if (node.id != rootId) {
+        context.visitAncestorElements((element) {
+          // The editor chrome's Scaffold sits behind the viewport decoration;
+          // it is not a valid painted Material ancestor in the designed tree.
+          if (element.widget is CanvasDocumentView ||
+              (element.widget is _CanvasNodeView &&
+                  (element.widget as _CanvasNodeView).node.id == rootId)) {
+            return false;
+          }
+          if (element.widget is Material) {
+            hasModelMaterial = true;
+            return false;
+          }
+          return true;
+        });
+      }
+      final hasMaterial =
+          hasModelMaterial || hasShape || (activeBackground?.a ?? 0) > 0;
+      if (!hasMaterial) {
+        messages.add(
+          'ExpansionTile ${node.id} preview unavailable: no Material ancestor or actual SDK shape/background Material branch is available. No synthetic Material is inserted.',
+        );
+      }
+      final height =
+          _listTileNumber(node, 'minTileHeight') ??
+          ListTileTheme.of(context).minTileHeight;
+      final unsafeHeight =
+          height != null &&
+          !height.isFinite &&
+          height != double.negativeInfinity;
+      if (unsafeHeight) {
+        messages.add(
+          'ExpansionTile ${node.id}.minTileHeight preview limitation: its SDK Column gives the header unbounded height, so positive infinity or NaN cannot be laid out. '
+          'Only this minimum uses an explicit zero approximation; actual header/body State and stored values are retained.',
+        );
+      }
+      return _ListTilePreview(
+        node: node,
+        widgetName: 'ExpansionTile',
+        message: messages.isEmpty ? null : messages.join(' '),
+        hasMaterial: hasMaterial,
+        riskyUnboundedHeight:
+            height != null &&
+            !height.isFinite &&
+            height != double.negativeInfinity,
+        slots: {
+          for (final name in ['title', 'leading', 'subtitle', 'trailing'])
+            if (_single(name) case final Widget child) name: child,
+        },
+        builder: (slots) => ExpansionTile(
+          key: sdkKey,
+          controller: controller,
+          title: slots['title']!,
+          leading: slots['leading'],
+          subtitle: slots['subtitle'],
+          trailing: slots['trailing'],
+          onExpansionChanged: _listTileHasCallback(node, 'onExpansionChanged')
+              ? (_) {}
+              : null,
+          showTrailingIcon: _boolean('showTrailingIcon') ?? true,
+          initiallyExpanded: _boolean('initiallyExpanded') ?? false,
+          maintainState: _boolean('maintainState') ?? false,
+          tilePadding: tilePadding,
+          expandedCrossAxisAlignment: switch (_enum(
+            'expandedCrossAxisAlignment',
+          )) {
+            'start' => CrossAxisAlignment.start,
+            'end' => CrossAxisAlignment.end,
+            'center' => CrossAxisAlignment.center,
+            'stretch' => CrossAxisAlignment.stretch,
+            _ => null,
+          },
+          expandedAlignment: _alignmentGeometry('expandedAlignment'),
+          childrenPadding: childrenPadding,
+          backgroundColor: background,
+          collapsedBackgroundColor: collapsedBackground,
+          textColor: _resolvedColor(context, 'textColor'),
+          collapsedTextColor: _resolvedColor(context, 'collapsedTextColor'),
+          iconColor: _resolvedColor(context, 'iconColor'),
+          collapsedIconColor: _resolvedColor(context, 'collapsedIconColor'),
+          shape: expandedShape,
+          collapsedShape: collapsedShape,
+          clipBehavior: _clipBehavior(),
+          controlAffinity: switch (_enum('controlAffinity')) {
+            'leading' => ListTileControlAffinity.leading,
+            'trailing' => ListTileControlAffinity.trailing,
+            'platform' => ListTileControlAffinity.platform,
+            _ => null,
+          },
+          dense: _boolean('dense'),
+          splashColor: _resolvedColor(context, 'splashColor'),
+          visualDensity: switch ((
+            _number('visualDensityHorizontal'),
+            _number('visualDensityVertical'),
+          )) {
+            (null, null) => null,
+            (final h, final v) => VisualDensity(
+              horizontal: h ?? 0,
+              vertical: v ?? 0,
+            ),
+          },
+          minTileHeight: unsafeHeight
+              ? 0
+              : _listTileNumber(node, 'minTileHeight'),
+          enableFeedback: node.properties.containsKey('enableFeedback')
+              ? _boolean('enableFeedback')
+              : true,
+          enabled: _boolean('enabled') ?? true,
+          expansionAnimationStyle: style,
+          internalAddSemanticForOnTap:
+              _boolean('internalAddSemanticForOnTap') ?? false,
+          statesController: null,
+          children: _children('children'),
+        ),
+      );
+    },
+  );
+
+  Widget _radioListTile(BuildContext context) {
+    final tileTheme = ListTileTheme.of(context);
+    final height =
+        _listTileNumber(node, 'minTileHeight') ?? tileTheme.minTileHeight;
+    final padding =
+        _listTileNumber(node, 'minVerticalPadding') ??
+        tileTheme.minVerticalPadding ??
+        (Theme.of(context).useMaterial3 ? 8 : 4);
+    return _ListTilePreview(
+      node: node,
+      widgetName: 'RadioListTile',
+      message: _radioListTileStaticMessage(node, context),
+      riskyUnboundedHeight:
+          (height != null &&
+              !height.isFinite &&
+              height != double.negativeInfinity) ||
+          !(padding * 2).isFinite && padding != double.negativeInfinity,
+      hasMaterial: context.findAncestorWidgetOfExactType<Material>() != null,
+      slots: {
+        for (final name in ['title', 'subtitle', 'secondary'])
+          if (_single(name) case final Widget child) name: child,
+      },
+      builder: (slots) {
+        if (_radioListTileUnavailableMessage(node, context) != null) {
+          // Preserve the actual slot children without inventing a radio value,
+          // checked state or activation. This is explicitly unavailable layout.
+          return ExcludeFocus(
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: ListTile(
+                  title: slots['title'],
+                  subtitle: slots['subtitle'],
+                  trailing: slots['secondary'],
+                  enabled: false,
+                  internalAddSemanticForOnTap: false,
+                ),
+              ),
+            ),
+          );
+        }
+        Widget build<T>() => _typedRadioListTile<T>(context, slots);
+        return switch (_radioTypeKey(node)) {
+          'String' => build<String>(),
+          'String?' => build<String?>(),
+          'int' => build<int>(),
+          'int?' => build<int?>(),
+          'double' => build<double>(),
+          'double?' => build<double?>(),
+          'num' => build<num>(),
+          'num?' => build<num?>(),
+          'bool' => build<bool>(),
+          'bool?' => build<bool?>(),
+          'Object?' => build<Object?>(),
+          _ => build<Object>(),
+        };
+      },
+    );
+  }
+
+  Widget _typedRadioListTile<T>(
+    BuildContext context,
+    Map<String, Widget> slots,
+  ) {
+    final cursors = <WidgetStatesConstraint, MouseCursor>{};
+    var unresolvedCursor = false;
+    final radii = <WidgetStatesConstraint, double?>{};
+    for (final entry in {
+      ..._checkboxStateLayers,
+      WidgetState.any: 'Default',
+    }.entries) {
+      final name = 'mouseCursor${entry.value}';
+      if (node.properties[name]?.kind == 'dartObjectReferencePresence') {
+        unresolvedCursor = true;
+      }
+      if (_mouseCursor(name) case final MouseCursor cursor) {
+        cursors[entry.key] = cursor;
+      }
+      final radiusName = 'radioInnerRadius${entry.value}';
+      if (node.properties.containsKey(radiusName)) {
+        radii[entry.key] = _sliderNumber(node, radiusName);
+      }
+    }
+    final cursor = unresolvedCursor
+        ? null
+        : cursors.isEmpty
+        ? _mouseCursor('mouseCursor')
+        : WidgetStateMouseCursor.fromMap(cursors);
+    final legacyValue =
+        node.properties['groupValue']?.kind == 'dartObjectReferencePresence'
+        ? null
+        : _radioIdentityValue(node, 'groupValue') as T?;
+    final control = _string('variant') == 'adaptive'
+        ? RadioListTile<T>.adaptive(
+            value: _radioIdentityValue(node, 'value') as T,
+            // A null modern group value genuinely falls back to this legacy value.
+            // ignore: deprecated_member_use
+            groupValue: legacyValue,
+            // ignore: deprecated_member_use
+            onChanged: _radioHasCallback(node)
+                ? (_) => onSelected(node.id)
+                : null,
+            enabled: _boolean('enabled'),
+            mouseCursor: cursor,
+            toggleable: _boolean('toggleable') ?? false,
+            activeColor: _resolvedColor(context, 'activeColor'),
+            fillColor: _checkboxStateColor(context, 'fillColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: switch (_listTileNumber(node, 'splashRadius')) {
+              final double radius when !radius.isFinite => 0,
+              final radius => radius,
+            },
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            title: slots['title'],
+            subtitle: slots['subtitle'],
+            isThreeLine: _boolean('isThreeLine'),
+            dense: _boolean('dense'),
+            secondary: slots['secondary'],
+            selected: _boolean('selected') ?? false,
+            controlAffinity: switch (_enum('controlAffinity')) {
+              'leading' => ListTileControlAffinity.leading,
+              'trailing' => ListTileControlAffinity.trailing,
+              'platform' => ListTileControlAffinity.platform,
+              _ => null,
+            },
+            autofocus: _boolean('autofocus') ?? false,
+            contentPadding:
+                node.properties['contentPadding']?.kind ==
+                    'dartObjectReferencePresence'
+                ? null
+                : _edgeInsetsGeometry('contentPadding'),
+            shape:
+                _cardShapePreviewUnavailableMessage(
+                      node,
+                      widgetName: 'RadioListTile',
+                    ) ==
+                    null
+                ? _cardShape(context)
+                : null,
+            tileColor: _resolvedColor(context, 'tileColor'),
+            selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+            visualDensity: switch ((
+              _number('visualDensityHorizontal'),
+              _number('visualDensityVertical'),
+            )) {
+              (null, null) => null,
+              (final h, final v) => VisualDensity(
+                horizontal: h ?? 0,
+                vertical: v ?? 0,
+              ),
+            },
+            focusNode: null,
+            statesController: null,
+            onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+                ? (_) {}
+                : null,
+            enableFeedback: _boolean('enableFeedback'),
+            horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+            minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+            minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+            minTileHeight: _listTileNumber(node, 'minTileHeight'),
+            radioScaleFactor: switch (_listTileNumber(
+              node,
+              'radioScaleFactor',
+            )) {
+              final double scale when !scale.isFinite => 0,
+              final scale => scale ?? 1,
+            },
+            titleAlignment: switch (_enum('titleAlignment')) {
+              'threeLine' => ListTileTitleAlignment.threeLine,
+              'titleHeight' => ListTileTitleAlignment.titleHeight,
+              'top' => ListTileTitleAlignment.top,
+              'center' => ListTileTitleAlignment.center,
+              'bottom' => ListTileTitleAlignment.bottom,
+              _ => null,
+            },
+            internalAddSemanticForOnTap:
+                _boolean('internalAddSemanticForOnTap') ?? false,
+            radioBackgroundColor: _checkboxStateColor(
+              context,
+              'radioBackgroundColor',
+            ),
+            radioSide: _checkboxSide(context, family: 'radioSide'),
+            radioInnerRadius: radii.isEmpty
+                ? null
+                : WidgetStateProperty<double?>.fromMap(radii),
+            useCupertinoCheckmarkStyle:
+                _boolean('useCupertinoCheckmarkStyle') ?? false,
+          )
+        : RadioListTile<T>(
+            value: _radioIdentityValue(node, 'value') as T,
+            // A null modern group value genuinely falls back to this legacy value.
+            // ignore: deprecated_member_use
+            groupValue: legacyValue,
+            // ignore: deprecated_member_use
+            onChanged: _radioHasCallback(node)
+                ? (_) => onSelected(node.id)
+                : null,
+            enabled: _boolean('enabled'),
+            mouseCursor: cursor,
+            toggleable: _boolean('toggleable') ?? false,
+            activeColor: _resolvedColor(context, 'activeColor'),
+            fillColor: _checkboxStateColor(context, 'fillColor'),
+            hoverColor: _resolvedColor(context, 'hoverColor'),
+            overlayColor: _checkboxStateColor(context, 'overlayColor'),
+            splashRadius: switch (_listTileNumber(node, 'splashRadius')) {
+              final double radius when !radius.isFinite => 0,
+              final radius => radius,
+            },
+            materialTapTargetSize: switch (_enum('materialTapTargetSize')) {
+              'padded' => MaterialTapTargetSize.padded,
+              'shrinkWrap' => MaterialTapTargetSize.shrinkWrap,
+              _ => null,
+            },
+            title: slots['title'],
+            subtitle: slots['subtitle'],
+            isThreeLine: _boolean('isThreeLine'),
+            dense: _boolean('dense'),
+            secondary: slots['secondary'],
+            selected: _boolean('selected') ?? false,
+            controlAffinity: switch (_enum('controlAffinity')) {
+              'leading' => ListTileControlAffinity.leading,
+              'trailing' => ListTileControlAffinity.trailing,
+              'platform' => ListTileControlAffinity.platform,
+              _ => null,
+            },
+            autofocus: _boolean('autofocus') ?? false,
+            contentPadding:
+                node.properties['contentPadding']?.kind ==
+                    'dartObjectReferencePresence'
+                ? null
+                : _edgeInsetsGeometry('contentPadding'),
+            shape:
+                _cardShapePreviewUnavailableMessage(
+                      node,
+                      widgetName: 'RadioListTile',
+                    ) ==
+                    null
+                ? _cardShape(context)
+                : null,
+            tileColor: _resolvedColor(context, 'tileColor'),
+            selectedTileColor: _resolvedColor(context, 'selectedTileColor'),
+            visualDensity: switch ((
+              _number('visualDensityHorizontal'),
+              _number('visualDensityVertical'),
+            )) {
+              (null, null) => null,
+              (final h, final v) => VisualDensity(
+                horizontal: h ?? 0,
+                vertical: v ?? 0,
+              ),
+            },
+            focusNode: null,
+            statesController: null,
+            onFocusChange: _listTileHasCallback(node, 'onFocusChange')
+                ? (_) {}
+                : null,
+            enableFeedback: _boolean('enableFeedback'),
+            horizontalTitleGap: _listTileNumber(node, 'horizontalTitleGap'),
+            minVerticalPadding: _listTileNumber(node, 'minVerticalPadding'),
+            minLeadingWidth: _listTileNumber(node, 'minLeadingWidth'),
+            minTileHeight: _listTileNumber(node, 'minTileHeight'),
+            radioScaleFactor: switch (_listTileNumber(
+              node,
+              'radioScaleFactor',
+            )) {
+              final double scale when !scale.isFinite => 0,
+              final scale => scale ?? 1,
+            },
+            titleAlignment: switch (_enum('titleAlignment')) {
+              'threeLine' => ListTileTitleAlignment.threeLine,
+              'titleHeight' => ListTileTitleAlignment.titleHeight,
+              'top' => ListTileTitleAlignment.top,
+              'center' => ListTileTitleAlignment.center,
+              'bottom' => ListTileTitleAlignment.bottom,
+              _ => null,
+            },
+            internalAddSemanticForOnTap:
+                _boolean('internalAddSemanticForOnTap') ?? false,
+            radioBackgroundColor: _checkboxStateColor(
+              context,
+              'radioBackgroundColor',
+            ),
+            radioSide: _checkboxSide(context, family: 'radioSide'),
+            radioInnerRadius: radii.isEmpty
+                ? null
+                : WidgetStateProperty<double?>.fromMap(radii),
+          );
+    final scoped = _canvasRadioScope(node, context)?.registry;
+    return scoped == null
+        ? control
+        : _RadioListTileRegistration<T>(
+            registry: (scoped as _RadioGroupForwardingRegistry<T>).forRadio(
+              node.id,
+            ),
+            child: control,
+          );
   }
 
   Widget _radio(BuildContext context) {
@@ -6505,6 +11983,225 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return null;
   }
 
+  _CanvasNodeView _withProperties(Map<String, CanvasValue> properties) =>
+      _CanvasNodeView(
+        node: CanvasNode(
+          id: node.id,
+          type: node.type,
+          properties: properties,
+          slots: node.slots,
+        ),
+        imageResources: imageResources,
+        onImageError: onImageError,
+        selectedWidgetId: selectedWidgetId,
+        onSelected: onSelected,
+        nodeKey: nodeKey,
+        designerFocusParent: designerFocusParent,
+        overlayScale: overlayScale,
+        inlineTextEditEnabled: inlineTextEditEnabled,
+        inlineTextEditingWidgetId: inlineTextEditingWidgetId,
+        onBeginInlineTextEdit: onBeginInlineTextEdit,
+        onCommitInlineTextEdit: onCommitInlineTextEdit,
+        onCancelInlineTextEdit: onCancelInlineTextEdit,
+        suppressDesignerSemantics: suppressDesignerSemantics,
+      );
+
+  MenuStyle? _submenuMenuStyle(BuildContext context) {
+    final projected = _withProperties({
+      for (final entry in node.properties.entries)
+        if (entry.key.startsWith('menuStyle'))
+          'style${entry.key.substring(9)}': entry.value,
+    });
+    final style = projected._menuAnchorStyle(context);
+    final localPadding = style?.padding;
+    if (localPadding == null) return style;
+    // Native SubmenuButton resolves the chosen padding property once and
+    // force-unwraps it before building the menu. Sparse Designer locals retry
+    // MenuTheme then the reviewed native vertical-8 default, as generated Dart.
+    return style!.copyWith(
+      padding: WidgetStateProperty.resolveWith(
+        (states) =>
+            localPadding.resolve(states) ??
+            MenuTheme.of(context).style?.padding?.resolve(states) ??
+            const EdgeInsetsDirectional.symmetric(vertical: 8),
+      ),
+    );
+  }
+
+  WidgetStateProperty<Widget?>? _submenuIcon() {
+    const buckets = {
+      WidgetState.disabled: 'Disabled',
+      WidgetState.hovered: 'Hovered',
+      WidgetState.focused: 'Focused',
+    };
+    if (!node.properties.keys.any(
+      (name) => name != 'submenuIcon' && name.startsWith('submenuIcon'),
+    )) {
+      return null;
+    }
+    return WidgetStateProperty.resolveWith((states) {
+      CanvasValue? value;
+      for (final entry in buckets.entries) {
+        if (states.contains(entry.key) &&
+            node.properties.containsKey('submenuIcon${entry.value}')) {
+          value = node.properties['submenuIcon${entry.value}'];
+          break;
+        }
+      }
+      value ??= node.properties['submenuIconDefault'];
+      if (value?.kind != 'iconData') return null;
+      final data = value!.value as CanvasIconDataValue;
+      return Icon(
+        data.codePoint == null
+            ? null
+            : IconData(
+                // Closed reviewed icon data; no project widget expressions are run.
+                // ignore: non_const_argument_for_const_parameter
+                data.codePoint!,
+                // ignore: non_const_argument_for_const_parameter
+                fontFamily: data.fontFamily,
+                // ignore: non_const_argument_for_const_parameter
+                fontPackage: data.fontPackage,
+                matchTextDirection: data.matchTextDirection,
+                fontFamilyFallback: data.fontFamilyFallback.isEmpty
+                    ? null
+                    : data.fontFamilyFallback,
+              ),
+      );
+    });
+  }
+
+  MenuStyle? _menuAnchorStyle(BuildContext context) {
+    if (!node.properties.keys.any(
+      (name) => name.startsWith('style') && name != 'style',
+    )) {
+      return null;
+    }
+    // MenuAnchor has its own MenuTheme and pinned defaults. Only generic
+    // sparse-state/compound assembly is shared with buttons, never ButtonStyle.
+    final theme = MenuTheme.of(context).style;
+    const defaultShape = WidgetStatePropertyAll<OutlinedBorder>(
+      RoundedRectangleBorder(
+        borderRadius: BorderRadius.all(Radius.circular(4)),
+      ),
+    );
+    final sizes = _buttonConstraintSizeStateProperties(
+      themeMinimum: theme?.minimumSize,
+      defaultMinimum: null,
+      themeMaximum: theme?.maximumSize,
+      defaultMaximum: null,
+    );
+    return MenuStyle(
+      backgroundColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}BackgroundColor'),
+      ),
+      shadowColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}ShadowColor'),
+      ),
+      surfaceTintColor: _buttonStateProperty<Color>(
+        (prefix) => _resolvedColor(context, '${prefix}SurfaceTintColor'),
+      ),
+      elevation: _buttonStateProperty<double>(
+        (prefix) => _number('${prefix}Elevation'),
+      ),
+      padding: _buttonStateProperty<EdgeInsetsGeometry>(
+        (prefix) => _edgeInsetsGeometry('${prefix}Padding'),
+      ),
+      minimumSize: sizes.minimum,
+      maximumSize: sizes.maximum,
+      fixedSize: _buttonSizeStateProperty(
+        'Fixed',
+        missingDimension: double.infinity,
+        themeValue: theme?.fixedSize,
+        defaultValue: null,
+      ),
+      side: _buttonBorderSideStateProperty(
+        context,
+        theme?.side,
+        null,
+        theme?.shape,
+        defaultShape,
+      ),
+      shape: _buttonShapeStateProperty(context, theme?.shape, defaultShape),
+      mouseCursor: _buttonStateProperty<MouseCursor>(
+        (prefix) => _mouseCursor('${prefix}MouseCursor'),
+      ),
+      visualDensity:
+          _number('styleVisualDensityHorizontal') == null &&
+              _number('styleVisualDensityVertical') == null
+          ? null
+          : VisualDensity(
+              horizontal: _number('styleVisualDensityHorizontal') ?? 0,
+              vertical: _number('styleVisualDensityVertical') ?? 0,
+            ),
+      alignment: _buttonAlignment(),
+    );
+  }
+
+  Widget _menuItemButton(BuildContext context) {
+    final trigger = _enum('shortcutTrigger');
+    final character = _string('shortcutCharacter');
+    // CharacterActivator accepts any String, but the pinned native menu hint
+    // serializer requires exactly one UTF-16 code unit. Keep the model exact
+    // and preserve the native button when that hint cannot be rendered.
+    final unavailableCharacter = character != null && character.length != 1;
+    final MenuSerializableShortcut? shortcut = trigger != null
+        ? SingleActivator(
+            LogicalKeyboardKey.findKeyByKeyId(
+              canvasMenuShortcutKeyIds[trigger]!,
+            )!,
+            control: _boolean('shortcutControl') ?? false,
+            shift: _boolean('shortcutShift') ?? false,
+            alt: _boolean('shortcutAlt') ?? false,
+            meta: _boolean('shortcutMeta') ?? false,
+            numLock: switch (_enum('shortcutNumLock')) {
+              'locked' => LockState.locked,
+              'unlocked' => LockState.unlocked,
+              _ => LockState.ignored,
+            },
+            includeRepeats: _boolean('shortcutIncludeRepeats') ?? true,
+          )
+        : character != null && !unavailableCharacter
+        ? CharacterActivator(
+            character,
+            control: _boolean('shortcutControl') ?? false,
+            alt: _boolean('shortcutAlt') ?? false,
+            meta: _boolean('shortcutMeta') ?? false,
+            includeRepeats: _boolean('shortcutIncludeRepeats') ?? true,
+          )
+        : null;
+    return _MenuItemPreview(
+      node: node,
+      message: [
+        ?_textButtonReferenceMessage(node),
+        if (unavailableCharacter)
+          'MenuItemButton shortcut preview unavailable: the pinned SDK menu hint serializer requires exactly one UTF-16 code unit. The stored CharacterActivator string is unchanged; only its preview hint is omitted.',
+      ].join('\n'),
+      child: _MenuItemAnchorScope(
+        child: MenuItemButton(
+          onPressed: (_boolean('enabled') ?? true) ? () {} : null,
+          onHover: _buttonReferencePresent('onHover') ? (_) {} : null,
+          requestFocusOnHover: _boolean('requestFocusOnHover') ?? true,
+          onFocusChange: _buttonReferencePresent('onFocusChange')
+              ? (_) {}
+              : null,
+          autofocus: _boolean('autofocus') ?? false,
+          shortcut: shortcut,
+          semanticsLabel: _string('semanticsLabel'),
+          style: _elevatedButtonStyle(context),
+          clipBehavior: _clipBehavior() ?? Clip.none,
+          leadingIcon: _single('leadingIcon'),
+          trailingIcon: _single('trailingIcon'),
+          closeOnActivate: _boolean('closeOnActivate') ?? true,
+          overflowAxis: _enum('overflowAxis') == 'vertical'
+              ? Axis.vertical
+              : Axis.horizontal,
+          child: _single('child'),
+        ),
+      ),
+    );
+  }
+
   Widget _textButton(BuildContext context) {
     final enabled = _boolean('enabled') ?? true;
     final pressed = _buttonReferencePresent('onPressed');
@@ -6675,10 +12372,16 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     if (_usesExtendedButtonStyle && _buttonReferencePresent('style')) {
       return null;
     }
+    if ((_isMenuItemButton || _isSubmenuButton) &&
+        node.properties['style']?.kind == 'null') {
+      return null;
+    }
     if (!node.properties.keys.any((name) => name.startsWith('style'))) {
       return null;
     }
-    final themeStyle = _isIconButton
+    final themeStyle = (_isMenuItemButton || _isSubmenuButton)
+        ? MenuButtonTheme.of(context).style
+        : _isIconButton
         ? _iconButtonCompoundTheme(context)
         : _isFilledButton
         ? FilledButtonTheme.of(context).style
@@ -6716,7 +12419,14 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
             label: const SizedBox.shrink(),
           )
         : TextButton(onPressed: () {}, child: const SizedBox.shrink());
-    final defaultStyle = _isIconButton
+    final defaultStyle = _isMenuItemButton
+        ? const MenuItemButton().defaultStyleOf(context)
+        : _isSubmenuButton
+        ? const SubmenuButton(
+            menuChildren: [],
+            child: null,
+          ).defaultStyleOf(context)
+        : _isIconButton
         ? _iconButtonCompoundDefaults(context, _string('variant') ?? 'standard')
         : switch (defaultButton) {
             FilledButton button => button.defaultStyleOf(context),
@@ -6798,14 +12508,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       iconAlignment: _usesExtendedButtonStyle
           ? _buttonIconAlignment('styleIconAlignment')
           : null,
-      backgroundBuilder:
-          _usesExtendedButtonStyle &&
-              _buttonReferencePresent('styleBackgroundBuilder')
+      backgroundBuilder: _buttonReferencePresent('styleBackgroundBuilder')
           ? (_, _, child) => child ?? const SizedBox.shrink()
           : null,
-      foregroundBuilder:
-          _usesExtendedButtonStyle &&
-              _buttonReferencePresent('styleForegroundBuilder')
+      foregroundBuilder: _buttonReferencePresent('styleForegroundBuilder')
           ? (_, _, child) => child ?? const SizedBox.shrink()
           : null,
     );
@@ -7410,8 +13116,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           node.type == 'flutter.widgets.ListBody' ||
           node.type == 'flutter.widgets.OverflowBar' ||
           node.type == 'flutter.widgets.ListView' ||
-          node.type == 'flutter.widgets.GridView') &&
-      (node.slot('children')?.children.isEmpty ?? false);
+          node.type == 'flutter.widgets.GridView' ||
+          node.type == 'flutter.widgets.GridView.extent' ||
+          node.type == 'flutter.widgets.PageView' ||
+          node.type == 'flutter.widgets.ListWheelScrollView')
+      ? (node.slot('children')?.children.isEmpty ?? false)
+      : node.type == 'flutter.widgets.CustomScrollView' &&
+            (node.slot('slivers')?.children.isEmpty ?? false);
 
   Widget _row() => Row(
     mainAxisAlignment: _mainAxisAlignment(),
@@ -7533,6 +13244,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     final shrinkWrap = _boolean('shrinkWrap') ?? false;
 
     Widget buildListView() => ListView(
+      key: ValueKey('canvas-list-view-${node.id}'),
       scrollDirection: scrollDirection,
       reverse: _boolean('reverse') ?? false,
       primary: _boolean('primary'),
@@ -7540,6 +13252,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       shrinkWrap: shrinkWrap,
       padding: _edgeInsetsGeometry('padding'),
       itemExtent: _number('itemExtent'),
+      // Unknown project extents and out-of-range results cannot be reproduced.
+      // Omit itemExtentBuilder so the labeled approximation uses natural sizing.
       addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
       addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
       addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
@@ -7553,60 +13267,92 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       children: _children('children'),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final fallbackWidth =
-            !constraints.hasBoundedWidth &&
-                (scrollDirection == Axis.vertical || !shrinkWrap)
-            ? 240.0
-            : null;
-        final fallbackHeight =
-            !constraints.hasBoundedHeight &&
-                (scrollDirection == Axis.horizontal || !shrinkWrap)
-            ? 120.0
-            : null;
-        if (fallbackWidth != null || fallbackHeight != null) {
-          return SizedBox(
-            width: fallbackWidth,
-            height: fallbackHeight,
-            child: buildListView(),
-          );
-        }
-        return buildListView();
-      },
+    return _TextButtonPreview(
+      message: _listViewExtentPreviewMessage(node) ?? '',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final fallbackWidth =
+              !constraints.hasBoundedWidth &&
+                  (scrollDirection == Axis.vertical || !shrinkWrap)
+              ? 240.0
+              : null;
+          final fallbackHeight =
+              !constraints.hasBoundedHeight &&
+                  (scrollDirection == Axis.horizontal || !shrinkWrap)
+              ? 120.0
+              : null;
+          if (fallbackWidth != null || fallbackHeight != null) {
+            return SizedBox(
+              width: fallbackWidth,
+              height: fallbackHeight,
+              child: buildListView(),
+            );
+          }
+          return buildListView();
+        },
+      ),
     );
   }
 
-  Widget _gridView() {
+  Widget _gridView({bool extent = false}) {
     final scrollDirection = _enum('scrollDirection') == 'horizontal'
         ? Axis.horizontal
         : Axis.vertical;
     final shrinkWrap = _boolean('shrinkWrap') ?? false;
 
-    Widget buildGridView() => GridView.count(
-      scrollDirection: scrollDirection,
-      reverse: _boolean('reverse') ?? false,
-      primary: _boolean('primary'),
-      physics: _scrollPhysics(),
-      shrinkWrap: shrinkWrap,
-      padding: _edgeInsetsGeometry('padding'),
-      crossAxisCount: _integer('crossAxisCount') ?? 2,
-      mainAxisSpacing: _number('mainAxisSpacing') ?? 0.0,
-      crossAxisSpacing: _number('crossAxisSpacing') ?? 0.0,
-      childAspectRatio: _number('childAspectRatio') ?? 1.0,
-      mainAxisExtent: _number('mainAxisExtent'),
-      addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
-      addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
-      addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
-      scrollCacheExtent: _scrollCacheExtent(),
-      semanticChildCount: _integer('semanticChildCount'),
-      dragStartBehavior: _dragStartBehavior(),
-      keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
-      restorationId: _string('restorationId'),
-      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
-      hitTestBehavior: _scrollHitTestBehavior(),
-      children: _children('children'),
-    );
+    Widget buildGridView() {
+      final commonChildren = _children('children');
+      if (extent) {
+        return GridView.extent(
+          scrollDirection: scrollDirection,
+          reverse: _boolean('reverse') ?? false,
+          primary: _boolean('primary'),
+          physics: _scrollPhysics(),
+          shrinkWrap: shrinkWrap,
+          padding: _edgeInsetsGeometry('padding'),
+          maxCrossAxisExtent: _number('maxCrossAxisExtent') ?? 200.0,
+          mainAxisSpacing: _number('mainAxisSpacing') ?? 0.0,
+          crossAxisSpacing: _number('crossAxisSpacing') ?? 0.0,
+          childAspectRatio: _number('childAspectRatio') ?? 1.0,
+          mainAxisExtent: _number('mainAxisExtent'),
+          addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+          addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+          addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+          scrollCacheExtent: _scrollCacheExtent(),
+          semanticChildCount: _integer('semanticChildCount'),
+          dragStartBehavior: _dragStartBehavior(),
+          keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
+          restorationId: _string('restorationId'),
+          clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+          hitTestBehavior: _scrollHitTestBehavior(),
+          children: commonChildren,
+        );
+      }
+      return GridView.count(
+        scrollDirection: scrollDirection,
+        reverse: _boolean('reverse') ?? false,
+        primary: _boolean('primary'),
+        physics: _scrollPhysics(),
+        shrinkWrap: shrinkWrap,
+        padding: _edgeInsetsGeometry('padding'),
+        crossAxisCount: _integer('crossAxisCount') ?? 2,
+        mainAxisSpacing: _number('mainAxisSpacing') ?? 0.0,
+        crossAxisSpacing: _number('crossAxisSpacing') ?? 0.0,
+        childAspectRatio: _number('childAspectRatio') ?? 1.0,
+        mainAxisExtent: _number('mainAxisExtent'),
+        addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+        addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+        addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+        scrollCacheExtent: _scrollCacheExtent(),
+        semanticChildCount: _integer('semanticChildCount'),
+        dragStartBehavior: _dragStartBehavior(),
+        keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
+        restorationId: _string('restorationId'),
+        clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+        hitTestBehavior: _scrollHitTestBehavior(),
+        children: commonChildren,
+      );
+    }
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -7635,6 +13381,188 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _customScrollView() {
+    final scrollDirection = _enum('scrollDirection') == 'horizontal'
+        ? Axis.horizontal
+        : Axis.vertical;
+    final shrinkWrap = _boolean('shrinkWrap') ?? false;
+
+    Widget buildCustomScrollView() => CustomScrollView(
+      key: ValueKey('canvas-custom-scroll-view-${node.id}'),
+      scrollDirection: scrollDirection,
+      reverse: _boolean('reverse') ?? false,
+      controller: null,
+      primary: _boolean('primary'),
+      physics: _scrollPhysics(),
+      shrinkWrap: shrinkWrap,
+      anchor: _number('anchor') ?? 0.0,
+      scrollCacheExtent: _scrollCacheExtent(),
+      paintOrder: _enum('paintOrder') == 'lastIsTop'
+          ? SliverPaintOrder.lastIsTop
+          : SliverPaintOrder.firstIsTop,
+      slivers: _children('slivers'),
+      semanticChildCount: _integer('semanticChildCount'),
+      dragStartBehavior: _dragStartBehavior(),
+      keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
+      restorationId: _string('restorationId'),
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      hitTestBehavior: _scrollHitTestBehavior(),
+    );
+
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final fallbackWidth =
+            !constraints.hasBoundedWidth &&
+                (scrollDirection == Axis.vertical || !shrinkWrap)
+            ? 240.0
+            : null;
+        final fallbackHeight =
+            !constraints.hasBoundedHeight &&
+                (scrollDirection == Axis.horizontal || !shrinkWrap)
+            ? 120.0
+            : null;
+        if (fallbackWidth != null || fallbackHeight != null) {
+          return SizedBox(
+            width: fallbackWidth,
+            height: fallbackHeight,
+            child: buildCustomScrollView(),
+          );
+        }
+        return buildCustomScrollView();
+      },
+    );
+  }
+
+  Widget _sliverFillViewport() {
+    final sliver = SliverFillViewport(
+      viewportFraction: _number('viewportFraction') ?? 1,
+      padEnds: _boolean('padEnds') ?? true,
+      allowImplicitScrolling: _boolean('allowImplicitScrolling') ?? true,
+      delegate: SliverChildListDelegate(
+        node.type.endsWith('.delegate') ? const [] : _children('children'),
+        addAutomaticKeepAlives: _boolean('addAutomaticKeepAlives') ?? true,
+        addRepaintBoundaries: _boolean('addRepaintBoundaries') ?? true,
+        addSemanticIndexes: _boolean('addSemanticIndexes') ?? true,
+        semanticIndexOffset: _integer('semanticIndexOffset') ?? 0,
+      ),
+    );
+    final message = _viewportSliverPreviewMessage(node);
+    if (message == null) return sliver;
+    return SliverMainAxisGroup(slivers: [
+      SliverToBoxAdapter(child: SizedBox(width: 280, height: 96,
+        child: ColoredBox(color: const Color(0xfffff3cd),
+          child: Padding(padding: const EdgeInsets.all(8),
+            child: Text(message, style: const TextStyle(color: Color(0xff563d00), fontSize: 12)))))),
+      sliver,
+    ]);
+  }
+
+  Widget _dynamicSliver() {
+    final grid = _string('gridDelegate') == 'maxExtent'
+        ? const SliverGridDelegateWithMaxCrossAxisExtent(maxCrossAxisExtent: 200)
+        : const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 2);
+    final count = _integer('itemCount');
+    final keep = _boolean('addAutomaticKeepAlives') ?? true;
+    final repaint = _boolean('addRepaintBoundaries') ?? true;
+    final semantics = _boolean('addSemanticIndexes') ?? true;
+    final offset = _integer('semanticIndexOffset') ?? 0;
+    final customExtent = node.properties['itemExtentBuilder']?.kind == 'dartObjectReferencePresence';
+    final Widget sliver = switch (node.type) {
+      'flutter.widgets.SliverVariedExtentList' => customExtent
+        ? SliverList.list(addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+            addSemanticIndexes: semantics, children: _children('children'))
+        : SliverVariedExtentList.list(itemExtentBuilder: (index, dimensions) =>
+            index >= 0 && index < (node.slots['children']?.children.length ?? 0) ? 48 : null,
+            addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+            addSemanticIndexes: semantics, children: _children('children')),
+      'flutter.widgets.SliverVariedExtentList.builder' => customExtent
+        ? SliverList.builder(itemBuilder: (_, index) => null, itemCount: count,
+            addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint, addSemanticIndexes: semantics)
+        : SliverVariedExtentList.builder(itemExtentBuilder: (index, dimensions) =>
+            index >= 0 && (count == null || index < count) ? 48 : null,
+            itemBuilder: (_, index) => null, itemCount: count,
+            addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint, addSemanticIndexes: semantics),
+      'flutter.widgets.SliverVariedExtentList.delegate' => customExtent
+        ? SliverList(delegate: SliverChildListDelegate(const []))
+        : SliverVariedExtentList(itemExtentBuilder: (index, dimensions) => index >= 0 ? 48 : null,
+            delegate: SliverChildListDelegate(const [])),
+      'flutter.widgets.SliverPrototypeExtentList' => SliverPrototypeExtentList.list(
+        prototypeItem: _prototypeItem(), addAutomaticKeepAlives: keep,
+        addRepaintBoundaries: repaint, addSemanticIndexes: semantics, children: _children('children')),
+      'flutter.widgets.SliverPrototypeExtentList.builder' => SliverPrototypeExtentList.builder(
+        prototypeItem: _prototypeItem(), itemBuilder: (_, index) => null,
+        itemCount: count, addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+        addSemanticIndexes: semantics),
+      'flutter.widgets.SliverPrototypeExtentList.delegate' => SliverPrototypeExtentList(
+        prototypeItem: _prototypeItem(), delegate: SliverChildListDelegate(const [])),
+      'flutter.widgets.SliverFixedExtentList' => SliverFixedExtentList.list(
+        itemExtent: _number('itemExtent')!, addAutomaticKeepAlives: keep,
+        addRepaintBoundaries: repaint, addSemanticIndexes: semantics, children: _children('children')),
+      'flutter.widgets.SliverFixedExtentList.builder' => SliverFixedExtentList.builder(
+        itemExtent: _number('itemExtent')!, itemBuilder: (_, index) => null,
+        itemCount: count, addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+        addSemanticIndexes: semantics, semanticIndexOffset: offset),
+      'flutter.widgets.SliverFixedExtentList.delegate' => SliverFixedExtentList(
+        itemExtent: _number('itemExtent')!, delegate: SliverChildListDelegate(const [])),
+      'flutter.widgets.SliverList.builder' => SliverList.builder(
+        itemBuilder: (_, index) => null, itemCount: count,
+        addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+        addSemanticIndexes: semantics, semanticIndexOffset: offset),
+      'flutter.widgets.SliverList.separated' => SliverList.separated(
+        itemBuilder: (_, index) => null, separatorBuilder: (_, index) => const SizedBox.shrink(),
+        itemCount: count, addAutomaticKeepAlives: keep,
+        addRepaintBoundaries: repaint, addSemanticIndexes: semantics),
+      'flutter.widgets.SliverList.delegate' => SliverList(delegate: SliverChildListDelegate(const [])),
+      'flutter.widgets.SliverGrid.delegate' => SliverGrid(gridDelegate: grid, delegate: SliverChildListDelegate(const [])),
+      'flutter.widgets.SliverGrid.builder' => SliverGrid.builder(
+        gridDelegate: grid, itemBuilder: (_, index) => null, itemCount: count,
+        addAutomaticKeepAlives: keep, addRepaintBoundaries: repaint,
+        addSemanticIndexes: semantics, semanticIndexOffset: offset),
+      'flutter.widgets.SliverGrid.list' => SliverGrid.list(
+        gridDelegate: grid, addAutomaticKeepAlives: keep,
+        addRepaintBoundaries: repaint, addSemanticIndexes: semantics,
+        semanticIndexOffset: offset, children: _children('children')),
+      _ => throw StateError('Unsupported dynamic sliver ${node.type}'),
+    };
+    final message = _dynamicSliverPreviewMessage(node);
+    if (message == null) return sliver;
+    // Project-owned functions/delegates never execute in the isolated process.
+    // The banner is preview-only; no fabricated item is persisted or generated.
+    return SliverMainAxisGroup(slivers: [
+      SliverToBoxAdapter(child: SizedBox(width: 280, height: 96,
+        child: ColoredBox(color: const Color(0xfffff3cd),
+          child: Padding(padding: const EdgeInsets.all(8),
+            child: Text(message, style: const TextStyle(color: Color(0xff563d00), fontSize: 12)))))),
+      sliver,
+    ]);
+  }
+
+  Widget _sliverPadding() {
+    final message = _sliverPaddingPreviewMessage(node);
+    final sliver = SliverPadding(
+      padding: message == null ? _edgeInsetsGeometry('padding')! : EdgeInsets.zero,
+      sliver: _single('sliver'),
+    );
+    if (message == null) return sliver;
+    return SliverMainAxisGroup(slivers: [
+      SliverToBoxAdapter(child: SizedBox(width: 280,
+        child: ColoredBox(color: const Color(0xfffff3cd),
+          child: Padding(padding: const EdgeInsets.all(8),
+            child: Text(message, style: const TextStyle(color: Color(0xff563d00), fontSize: 12)))))),
+      sliver,
+    ]);
+  }
+
+  Widget _sliverToBoxAdapter(BuildContext context) {
+    final child = _single('child');
+    // A sliver is only valid below a viewport. Keep a palette-created sliver
+    // visible and mountable when it is temporarily selected as a root node.
+    if (context.findAncestorWidgetOfExactType<CustomScrollView>() == null) {
+      return SizedBox(width: 240, height: 80, child: child);
+    }
+    return SliverToBoxAdapter(child: child);
+  }
+
   Widget _singleChildScrollView() => SingleChildScrollView(
     scrollDirection: _enum('scrollDirection') == 'horizontal'
         ? Axis.horizontal
@@ -7650,6 +13578,117 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     keyboardDismissBehavior: _scrollKeyboardDismissBehavior(),
     child: _single('child'),
   );
+
+  Widget _pageView() {
+    final scrollDirection = _enum('scrollDirection') == 'vertical'
+        ? Axis.vertical
+        : Axis.horizontal;
+
+    Widget buildPageView() => PageView(
+      key: ValueKey('canvas-page-view-${node.id}'),
+      scrollDirection: scrollDirection,
+      reverse: _boolean('reverse') ?? false,
+      // Project controllers, ScrollBehaviors, and callbacks are deliberately
+      // not executed by the isolated preview. Their persisted values remain
+      // available to Dart generation and are surfaced in the diagnostic.
+      controller: null,
+      physics: _scrollPhysics(),
+      pageSnapping: _boolean('pageSnapping') ?? true,
+      onPageChanged: null,
+      dragStartBehavior: _dragStartBehavior(),
+      allowImplicitScrolling: _boolean('allowImplicitScrolling') ?? false,
+      scrollCacheExtent: _scrollCacheExtent(),
+      restorationId: _string('restorationId'),
+      clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+      hitTestBehavior: _scrollHitTestBehavior(),
+      scrollBehavior: null,
+      padEnds: _boolean('padEnds') ?? true,
+      children: _children('children'),
+    );
+
+    final refs = <String>[
+      if (node.properties['controller']?.kind == 'dartObjectReferencePresence')
+        'controller',
+      if (node.properties['scrollBehavior']?.kind ==
+          'dartObjectReferencePresence')
+        'scrollBehavior',
+      if (node.properties['onPageChanged']?.kind ==
+          'dartObjectReferencePresence')
+        'onPageChanged',
+    ];
+    final message = refs.isEmpty
+        ? ''
+        : 'PageView project ${refs.join(', ')} reference${refs.length == 1 ? '' : 's'} '
+              'are not executed in isolated Canvas; native preview defaults are used. '
+              'Stored values and generated Dart are preserved.';
+    return _TextButtonPreview(
+      message: message,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.hasBoundedWidth ? null : 240.0;
+          final height = constraints.hasBoundedHeight ? null : 120.0;
+          if (width != null || height != null) {
+            return SizedBox(
+              width: width,
+              height: height,
+              child: buildPageView(),
+            );
+          }
+          return buildPageView();
+        },
+      ),
+    );
+  }
+
+  Widget _listWheelScrollView() {
+    final renderOutside = _boolean('renderChildrenOutsideViewport') ?? false;
+    final configuredClip = _clipBehavior() ?? Clip.hardEdge;
+    // The SDK asserts that rendering outside the viewport is paired with
+    // Clip.none. Keep the stored values intact while making the isolated
+    // preview mountable when an older document contains the conflicting pair.
+    final effectiveClip = renderOutside && configuredClip != Clip.none
+        ? Clip.none
+        : configuredClip;
+
+    Widget buildWheel() => ListWheelScrollView(
+      key: ValueKey('canvas-list-wheel-${node.id}'),
+      controller: null,
+      physics: _scrollPhysics(),
+      diameterRatio: _number('diameterRatio') ?? 2.0,
+      perspective: _number('perspective') ?? 0.003,
+      offAxisFraction: _number('offAxisFraction') ?? 0.0,
+      useMagnifier: _boolean('useMagnifier') ?? false,
+      magnification: _number('magnification') ?? 1.0,
+      overAndUnderCenterOpacity: _number('overAndUnderCenterOpacity') ?? 1.0,
+      itemExtent: _number('itemExtent') ?? 50.0,
+      squeeze: _number('squeeze') ?? 1.0,
+      onSelectedItemChanged: null,
+      renderChildrenOutsideViewport: renderOutside,
+      clipBehavior: effectiveClip,
+      hitTestBehavior: _scrollHitTestBehavior(),
+      restorationId: _string('restorationId'),
+      scrollBehavior: null,
+      dragStartBehavior: _dragStartBehavior(),
+      changeReportingBehavior: _enum('changeReportingBehavior') == 'onScrollEnd'
+          ? ChangeReportingBehavior.onScrollEnd
+          : ChangeReportingBehavior.onScrollUpdate,
+      children: _children('children'),
+    );
+
+    return _TextButtonPreview(
+      message: _listWheelPreviewMessage(node) ?? '',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.hasBoundedWidth ? null : 240.0;
+          final height = constraints.hasBoundedHeight ? null : 120.0;
+          if (width != null || height != null) {
+            return SizedBox(width: width, height: height, child: buildWheel());
+          }
+          return buildWheel();
+        },
+      ),
+    );
+  }
 
   ScrollPhysics? _scrollPhysics() => switch (_string('physics')) {
     'alwaysScrollable' => const AlwaysScrollableScrollPhysics(),
@@ -7680,13 +13719,39 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         _ => HitTestBehavior.opaque,
       };
 
-  Widget _stack() => Stack(
+  Widget _stackNative() => Stack(
     alignment: _alignmentGeometry('alignment') ?? AlignmentDirectional.topStart,
     textDirection: _textDirection(),
     fit: _stackFit(),
     clipBehavior: _clipBehavior() ?? Clip.hardEdge,
     children: _children('children'),
   );
+
+  Widget _stack() {
+    final children = node.slots['children']!.children;
+    if (!children.any((child) => isCanvasStackPositionedWidgetType(child.type))) {
+      return _stackNative();
+    }
+    // Positioned-only Stack takes constraints.biggest. Do not feed infinite
+    // extents to RenderStack or invent a document height in the preview.
+    // Eager intrinsic forwarding preserves valid IntrinsicWidth/Height parents.
+    return _RefreshLayoutObserver(builder: (context, constraints) {
+      bool positioned(CanvasNode child) =>
+          isCanvasStackPositionedWidgetType(child.type) &&
+          (child.type == 'flutter.widgets.PositionedTransition' || child.type == 'flutter.widgets.RelativePositionedTransition' || child.type.endsWith('.fromRect') ||
+              ['left', 'top', 'right', 'bottom', 'start', 'end', 'width', 'height']
+                  .any((name) => const {'integer', 'double'}.contains(child.properties[name]?.kind)));
+      if (children.every(positioned) &&
+          (!constraints.hasBoundedWidth || !constraints.hasBoundedHeight)) {
+        return const _TextButtonPreview(
+          message: 'Stack preview unavailable: all children are positioned but parent bounds are unbounded. '
+              'Constrain the Stack width and height (for example with SizedBox). Stored values and generated Dart are unchanged.',
+          child: _PositionedStackFallback(),
+        );
+      }
+      return _stackNative();
+    });
+  }
 
   Widget _indexedStack() {
     final indexValue = node.properties['index'];
@@ -7716,6 +13781,46 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child')!,
   );
 
+  Widget _scrollbar() {
+    final orientation = switch (_enumOrString('scrollbarOrientation')) {
+      'left' => ScrollbarOrientation.left,
+      'right' => ScrollbarOrientation.right,
+      'top' => ScrollbarOrientation.top,
+      'bottom' => ScrollbarOrientation.bottom,
+      _ => null,
+    };
+    final scrollDirection =
+        orientation == ScrollbarOrientation.top ||
+            orientation == ScrollbarOrientation.bottom
+        ? Axis.horizontal
+        : Axis.vertical;
+    return _TextButtonPreview(
+      message: _scrollbarPreviewMessage(node) ?? '',
+      child: Scrollbar(
+        key: ValueKey('canvas-scrollbar-${node.id}'),
+        // Application-owned controllers, predicates and Radius objects are
+        // intentionally not executed by the isolated preview.
+        controller: null,
+        thumbVisibility: _boolean('thumbVisibility'),
+        trackVisibility: _boolean('trackVisibility'),
+        thickness: _number('thickness'),
+        radius: null,
+        notificationPredicate: null,
+        interactive: _boolean('interactive'),
+        scrollbarOrientation: orientation,
+        // Scrollbar reads a ScrollPosition during layout/painting.  The
+        // designer model can contain an arbitrary required child (including
+        // a non-scrollable Text), so provide an isolated SDK scroll position
+        // without changing the persisted child or generated constructor.
+        child: SingleChildScrollView(
+          scrollDirection: scrollDirection,
+          primary: scrollDirection == Axis.vertical,
+          child: _single('child')!,
+        ),
+      ),
+    );
+  }
+
   Widget _directionality() => Directionality(
     textDirection: _textDirection()!,
     child: _single('child')!,
@@ -7726,6 +13831,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   EdgeInsetsGeometry? _edgeInsetsGeometry(String name) {
+    if (node.properties[name]?.kind == 'dartObjectReferencePresence') return null;
     final value = node.properties[name]?.value;
     if (value == null) {
       return null;
@@ -7947,6 +14053,67 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _rawImage(BuildContext context) {
+    final opacity = _number('opacity');
+    return RawImage(
+      // Project handles never cross the Canvas process boundary.
+      image: null,
+      debugImageLabel: _string('debugImageLabel'),
+      width: _number('width'), height: _number('height'),
+      scale: _number('scale') ?? 1,
+      color: _resolvedColor(context, 'color'),
+      opacity: opacity == null ? null : AlwaysStoppedAnimation<double>(opacity),
+      colorBlendMode: _enum('colorBlendMode') == null ? null : _blendMode(_enum('colorBlendMode')!),
+      fit: _enum('fit') == null ? null : _boxFit(_enum('fit')!),
+      alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+      repeat: _imageRepeat(_enum('repeat') ?? 'noRepeat'),
+      centerSlice: null,
+      matchTextDirection: _boolean('matchTextDirection') ?? false,
+      invertColors: _boolean('invertColors') ?? false,
+      filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
+      isAntiAlias: _boolean('isAntiAlias') ?? false,
+    );
+  }
+
+  Widget _fadeInImage(BuildContext context) {
+    ImageProvider<Object> provider(String name) {
+      final value = node.properties[name]?.value;
+      return value is CanvasImageProviderValue
+          ? _imageProvider(value).provider : MemoryImage(_unavailableImageBytes);
+    }
+    Widget error(String name, Object failure, StackTrace? stack) {
+      final value = node.properties[name]?.value;
+      if (value is CanvasImageProviderValue && value.resolution is CanvasResolvedImageValue) {
+        onImageError?.call((value.resolution as CanvasResolvedImageValue).resourceId, failure, stack);
+      }
+      return SizedBox(width: _number('width'), height: _number('height'));
+    }
+    return FadeInImage(
+      placeholder: provider('placeholder'),
+      placeholderErrorBuilder: (context, failure, stack) => error('placeholder', failure, stack),
+      image: provider('image'),
+      imageErrorBuilder: (context, failure, stack) => error('image', failure, stack),
+      excludeFromSemantics: _boolean('excludeFromSemantics') ?? false,
+      imageSemanticLabel: _string('imageSemanticLabel'),
+      fadeOutDuration: Duration(microseconds: _integer('fadeOutDurationUs') ?? 300000),
+      fadeOutCurve: _expansionCurves[_string('fadeOutCurve')] ?? Curves.easeOut,
+      fadeInDuration: Duration(microseconds: _integer('fadeInDurationUs') ?? 700000),
+      fadeInCurve: _expansionCurves[_string('fadeInCurve')] ?? Curves.easeIn,
+      color: _resolvedColor(context, 'color'),
+      colorBlendMode: _enum('colorBlendMode') == null ? null : _blendMode(_enum('colorBlendMode')!),
+      placeholderColor: _resolvedColor(context, 'placeholderColor'),
+      placeholderColorBlendMode: _enum('placeholderColorBlendMode') == null ? null : _blendMode(_enum('placeholderColorBlendMode')!),
+      width: _number('width'), height: _number('height'),
+      fit: _enum('fit') == null ? null : _boxFit(_enum('fit')!),
+      placeholderFit: _enum('placeholderFit') == null ? null : _boxFit(_enum('placeholderFit')!),
+      filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
+      placeholderFilterQuality: _enum('placeholderFilterQuality') == null ? null : _filterQuality(_enum('placeholderFilterQuality')!),
+      alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+      repeat: _imageRepeat(_enum('repeat') ?? 'noRepeat'),
+      matchTextDirection: _boolean('matchTextDirection') ?? false,
+    );
+  }
+
   Widget _imageIcon(BuildContext context) {
     final value = node.properties['image']!.value;
     return ImageIcon(
@@ -7988,6 +14155,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           descendantsAreFocusable: false,
           descendantsAreTraversable: false,
           child: TextField(
+            key: ValueKey('canvas-text-field-${node.id}'),
             keyboardType: _textInputType(),
             textInputAction: _textInputAction(),
             textCapitalization:
@@ -8009,6 +14177,13 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
             expands: expands,
             maxLength: maxLength == -1 ? TextField.noMaxLength : maxLength,
             maxLengthEnforcement: _maxLengthEnforcement(),
+            // Counter omission, explicit null and unknown project presence use
+            // the SDK default. The limitation label never claims the unknown
+            // project callback or its nullable return value was reproduced.
+            contextMenuBuilder:
+                node.properties['contextMenuBuilder']?.kind == 'null'
+                ? null
+                : const TextField().contextMenuBuilder,
             onChanged: _callbackPresent('onChanged') ? (value) {} : null,
             onEditingComplete: _callbackPresent('onEditingComplete')
                 ? () {}
@@ -8066,16 +14241,19 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       ),
     );
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final guardWidth = constraints.maxWidth.isInfinite;
-        final guardHeight = expands && constraints.maxHeight.isInfinite;
-        return SizedBox(
-          width: guardWidth ? 240 : null,
-          height: guardHeight ? 120 : null,
-          child: field,
-        );
-      },
+    return _TextButtonPreview(
+      message: _textFieldBuilderPreviewMessage(node) ?? '',
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final guardWidth = constraints.maxWidth.isInfinite;
+          final guardHeight = expands && constraints.maxHeight.isInfinite;
+          return SizedBox(
+            width: guardWidth ? 240 : null,
+            height: guardHeight ? 120 : null,
+            child: field,
+          );
+        },
+      ),
     );
   }
 
@@ -8122,9 +14300,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   String _imageStatusSemantics() {
     final statuses = <String>[];
     if (node.type == 'flutter.material.CircleAvatar' ||
-        node.type == 'flutter.material.Switch') {
+        node.type == 'flutter.material.Switch' ||
+        node.type == 'flutter.material.SwitchListTile') {
       for (final name
-          in node.type == 'flutter.material.Switch'
+          in node.type != 'flutter.material.CircleAvatar'
               ? const ['activeThumbImage', 'inactiveThumbImage']
               : const ['backgroundImage', 'foregroundImage']) {
         final provider = node.properties[name]?.value;
@@ -8132,6 +14311,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           _appendImageStatus(statuses, provider, propertyName: name);
         }
       }
+    }
+    if (node.type == 'flutter.widgets.FadeInImage') {
+      final placeholder = node.properties['placeholder']?.value;
+      if (placeholder is CanvasImageProviderValue) _appendImageStatus(statuses, placeholder, propertyName: 'placeholder');
     }
     final directProvider = node.properties['image']?.value;
     if (directProvider is CanvasImageProviderValue) {
@@ -8312,6 +14495,18 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     quarterTurns: _integer('quarterTurns')!,
     child: _single('child'),
   );
+
+  Widget _preferredSize() {
+    final preferredSize =
+        node.properties['preferredSize']!.value as CanvasSizeValue;
+    return PreferredSize(
+      preferredSize: Size(preferredSize.width, preferredSize.height),
+      child: _single('child')!,
+    );
+  }
+
+  Widget _builder() =>
+      Builder(builder: (_) => const SizedBox(width: 48, height: 36));
 
   Widget _sizedOverflowBox() {
     final requestedSize = node.properties['size']!.value as CanvasSizeValue;
@@ -9110,6 +15305,51 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _flexibleSpaceBar(BuildContext context) => LayoutBuilder(builder: (context, constraints) {
+    final settings = context.dependOnInheritedWidgetOfExactType<FlexibleSpaceBarSettings>();
+    final scale = _number('expandedTitleScale') ?? 1.5;
+    final failure = settings == null
+        ? 'FlexibleSpaceBar ${node.id} requires inherited FlexibleSpaceBarSettings. Place it in SliverAppBar.flexibleSpace, or in AppBar.flexibleSpace under Scaffold. Stored values and generated Dart are unchanged.'
+        : settings.toolbarOpacity > 1 && node.slot('title')?.child != null
+          ? 'FlexibleSpaceBar ${node.id} preview unavailable: inherited Toolbar opacity exceeds 1. Settings stores this native value, but the title color requires 0..1. Stored values and generated Dart are unchanged.'
+        : !constraints.hasBoundedWidth || !constraints.hasBoundedHeight || !(scale * kToolbarHeight).isFinite
+          ? 'FlexibleSpaceBar ${node.id} preview unavailable: finite app-bar bounds and finite scaled title geometry are required. Stored values and generated Dart are unchanged.'
+          : null;
+    if (failure != null) {
+      return _customClipperPreviewUnavailable(
+        widgetName: 'FlexibleSpaceBar', expectedType: 'FlexibleSpaceBarSettings',
+        previewLabel: 'FlexibleSpaceBar\npreview unavailable', messageOverride: failure,
+        preservedChild: SizedBox(
+          width: constraints.hasBoundedWidth ? constraints.maxWidth : 240,
+          height: constraints.hasBoundedHeight ? constraints.maxHeight : 120,
+          child: Stack(fit: StackFit.expand, children: [
+            if (node.slot('background')?.child != null) _single('background')!,
+            if (node.slot('title')?.child != null) Align(alignment: Alignment.bottomCenter, child: _single('title')!),
+          ]),
+        ),
+      );
+    }
+    final modes = _string('stretchModes') ?? 'zoomBackground';
+    return _TextButtonPreview(
+      message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+      child: FlexibleSpaceBar(
+      title: _single('title'), background: _single('background'),
+      centerTitle: _boolean('centerTitle'), titlePadding: node.properties['titlePadding']?.kind == 'dartObjectReferencePresence' ? null : _edgeInsetsGeometry('titlePadding'),
+      collapseMode: switch (_enum('collapseMode')) {
+        'pin' => CollapseMode.pin, 'none' => CollapseMode.none, _ => CollapseMode.parallax,
+      },
+      stretchModes: modes == 'none' ? const <StretchMode>[] : [
+        for (final mode in modes.split(','))
+          switch (mode) {
+            'blurBackground' => StretchMode.blurBackground,
+            'fadeTitle' => StretchMode.fadeTitle,
+            _ => StretchMode.zoomBackground,
+          },
+      ],
+      expandedTitleScale: scale,
+    ));
+  });
+
   Widget _opacity() => Opacity(
     opacity: _number('opacity')!,
     alwaysIncludeSemantics: _boolean('alwaysIncludeSemantics') ?? false,
@@ -9129,6 +15369,23 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     isAntiAlias: _boolean('isAntiAlias') ?? true,
     child: _single('child'),
   );
+
+  Widget _animatedPhysicalModel(BuildContext context) {
+    final radius=node.properties['borderRadius']?.value;
+    return _AnimatedPhysicalPreview(
+      message:_customClipperPreviewUnavailableMessageForNode(node)??'',
+      target:AnimatedPhysicalModel(
+        shape:_enum('shape')=='circle'?BoxShape.circle:BoxShape.rectangle,
+        clipBehavior:_clipBehavior()??Clip.none,
+        borderRadius:radius is CanvasPhysicalBorderRadiusValue?_borderRadius(radius) as BorderRadius:null,
+        elevation:_number('elevation')??0,
+        color:_resolvedColor(context,'color')??const Color(0xFF2196F3),
+        shadowColor:_resolvedColor(context,'shadowColor')??const Color(0xFF000000),
+        animateColor:_boolean('animateColor')??true, animateShadowColor:_boolean('animateShadowColor')??true,
+        curve:_expansionCurves[_string('curve')]??Curves.linear,
+        duration:Duration(microseconds:_integer('durationUs')??300000),child:_single('child')!,
+      ));
+  }
 
   Widget _physicalModel(BuildContext context) {
     final radius = node.properties['borderRadius']?.value;
@@ -9225,6 +15482,219 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
+  Widget _relativePositionedTransition(Widget child) {
+    final rect = node.properties['rect']?.kind == 'dartObjectReferencePresence' ? const Rect.fromLTWH(0,0,48,48)
+        : _string('rect') == 'null' ? null
+        : Rect.fromLTWH(_number('rectLeft')!, _number('rectTop')!, _number('rectWidth')!, _number('rectHeight')!);
+    final size = node.properties['size']?.kind == 'dartObjectReferencePresence' ? const Size(48,48)
+        : Size(_number('sizeWidth')!, _number('sizeHeight')!);
+    return RelativePositionedTransition(
+      rect: AlwaysStoppedAnimation<Rect?>(rect), size: size,
+      child: _PositionedGeometryObserver(child: _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '', child: child)),
+    );
+  }
+
+  Widget _positionedTransition(Widget child) {
+    final rect = node.properties['rect']?.kind == 'dartObjectReferencePresence' ? RelativeRect.fill
+        : RelativeRect.fromLTRB(_number('rectLeft')!, _number('rectTop')!, _number('rectRight')!, _number('rectBottom')!);
+    return PositionedTransition(
+      rect: AlwaysStoppedAnimation<RelativeRect>(rect),
+      child: _PositionedGeometryObserver(child: _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '', child: child)),
+    );
+  }
+
+  Widget _animatedPositioned(BuildContext context, Widget child) {
+    final duration = Duration(microseconds: _integer('durationUs') ?? 300000);
+    final curve = _expansionCurves[_string('curve')] ?? Curves.linear;
+    final preview = _TextButtonPreview(
+      message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+      child: child,
+    );
+    if (node.type.endsWith('.fromRect')) {
+      final rect = node.properties['rect']?.kind == 'dartObjectReferencePresence'
+          ? const Rect.fromLTWH(0,0,48,48)
+          : Rect.fromLTWH(_number('rectLeft')!, _number('rectTop')!, _number('rectWidth')!, _number('rectHeight')!);
+      return AnimatedPositioned.fromRect(rect: rect, duration: duration, curve: curve, child: _PositionedGeometryObserver(child: preview));
+    }
+    if (node.type.endsWith('Directional')) {
+      return AnimatedPositionedDirectional(start: _number('start'), top: _number('top'), end: _number('end'),
+        bottom: _number('bottom'), width: _number('width'), height: _number('height'),
+        duration: duration, curve: curve, child: _PositionedGeometryObserver(child: preview));
+    }
+    return AnimatedPositioned(left: _number('left'), top: _number('top'), right: _number('right'),
+      bottom: _number('bottom'), width: _number('width'), height: _number('height'),
+      duration: duration, curve: curve, child: _PositionedGeometryObserver(child: preview));
+  }
+
+  Widget _defaultTextStyleTransition(BuildContext context) => _TextButtonPreview(
+    message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+    child: DefaultTextStyleTransition(
+      style: AlwaysStoppedAnimation<TextStyle>(
+          node.properties['style']?.kind == 'dartObjectReferencePresence'
+              ? const TextStyle() : _textStyle(context) ?? const TextStyle()),
+      textAlign: _textAlign(),
+      softWrap: _boolean('softWrap') ?? true,
+      overflow: _textOverflow() ?? TextOverflow.clip,
+      maxLines: _integer('maxLines'),
+      child: _single('child')!,
+    ),
+  );
+
+  Widget _defaultTextStyle(BuildContext context, bool merge) {
+    final style = _string('style') == 'local' ? _textStyle(context) ?? const TextStyle() : null;
+    final height = node.properties.containsKey('textHeightBehavior') ? null : _textHeightBehavior();
+    final child = _single('child')!;
+    return _TextButtonPreview(
+      message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+      child: merge
+          ? DefaultTextStyle.merge(style: style, textAlign: _textAlign(),
+              softWrap: _boolean('softWrap'), overflow: _textOverflow(),
+              maxLines: _integer('maxLines'), textWidthBasis: _textWidthBasis(),
+              textHeightBehavior: height, child: child)
+          : DefaultTextStyle(style: style ?? const TextStyle(), textAlign: _textAlign(),
+              softWrap: _boolean('softWrap') ?? true, overflow: _textOverflow() ?? TextOverflow.clip,
+              maxLines: _integer('maxLines'), textWidthBasis: _textWidthBasis() ?? TextWidthBasis.parent,
+              textHeightBehavior: height, child: child),
+    );
+  }
+
+  Widget _animatedDefaultTextStyle(BuildContext context) => _AnimatedTextStylePreview(
+    message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+    target: AnimatedDefaultTextStyle(
+      style: node.properties['style']?.kind == 'dartObjectReferencePresence'
+          ? const TextStyle() : _textStyle(context) ?? const TextStyle(),
+      textAlign: _textAlign(),
+      softWrap: _boolean('softWrap') ?? true,
+      overflow: _textOverflow() ?? TextOverflow.clip,
+      maxLines: _integer('maxLines'),
+      textWidthBasis: _textWidthBasis() ?? TextWidthBasis.parent,
+      textHeightBehavior: node.properties.containsKey('textHeightBehavior') ? null : _textHeightBehavior(),
+      curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+      duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+      child: _single('child')!,
+    ),
+  );
+
+  ThemeData _materialThemeData() {
+    final preset=_string('data')??'fallback';
+    final material3=!preset.endsWith('M2');
+    return switch(preset.replaceAll('M2','')) {
+      'dark'=>ThemeData.dark(useMaterial3:material3),
+      'light'=>ThemeData.light(useMaterial3:material3),
+      _=>ThemeData.fallback(useMaterial3:material3),
+    };
+  }
+
+  Widget _animatedSwitcher(BuildContext context) {
+    final child = node.slot('child')?.child;
+    return NotificationListener<SizeChangedLayoutNotification>(
+      onNotification: (_) {
+        context.findAncestorStateOfType<_CanvasDocumentViewState>()?._refreshZeroSizedWidgetTargetsAfterFrame();
+        return false;
+      },
+      child: SizeChangedLayoutNotifier(
+        child: _TextButtonPreview(
+          message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+          child: AnimatedSwitcher(
+            duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+            reverseDuration: _integer('reverseDurationUs') == null ? null : Duration(microseconds: _integer('reverseDurationUs')!),
+            switchInCurve: _expansionCurves[_string('switchInCurve')] ?? Curves.linear,
+            switchOutCurve: _expansionCurves[_string('switchOutCurve')] ?? Curves.linear,
+            transitionBuilder: _switcherPreviewTransition,
+            layoutBuilder: _switcherPreviewLayout,
+            child: child == null ? null : _SwitcherEntryView(
+              // The renderer itself has one wrapper type. Match the real unkeyed SDK child's type.
+              key: ValueKey(_switcherRuntimeType(child)),
+              node: child,
+              builder: (keys) => _view(child, keyProvider: keys, allowInlineTextEdit: true),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _animatedCrossFade(BuildContext context) => NotificationListener<SizeChangedLayoutNotification>(
+    onNotification: (_) {
+      context.findAncestorStateOfType<_CanvasDocumentViewState>()?._refreshZeroSizedWidgetTargetsAfterFrame();
+      return false;
+    },
+    child: SizeChangedLayoutNotifier(
+      child: _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedCrossFade(
+          firstChild: _single('firstChild')!,
+          secondChild: _single('secondChild')!,
+          firstCurve: _expansionCurves[_string('firstCurve')] ?? Curves.linear,
+          secondCurve: _expansionCurves[_string('secondCurve')] ?? Curves.linear,
+          sizeCurve: _expansionCurves[_string('sizeCurve')] ?? Curves.linear,
+          alignment: _alignmentGeometry('alignment') ?? Alignment.topCenter,
+          crossFadeState: _enum('crossFadeState') == 'showSecond' ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          reverseDuration: _integer('reverseDurationUs') == null ? null : Duration(microseconds: _integer('reverseDurationUs')!),
+          excludeBottomFocus: _boolean('excludeBottomFocus') ?? true,
+          // SDK default layout preserves both keyed subtrees. Never execute project code.
+          onEnd: null,
+        ),
+      ),
+    ),
+  );
+
+  Widget _animatedSize(BuildContext context) => NotificationListener<SizeChangedLayoutNotification>(
+    onNotification: (_) {
+      // Layout animation continues after the initial model-update frame.
+      // Keep surface selection targets in sync, including crossing zero size.
+      context.findAncestorStateOfType<_CanvasDocumentViewState>()
+          ?._refreshZeroSizedWidgetTargetsAfterFrame();
+      return false;
+    },
+    child: SizeChangedLayoutNotifier(
+      child: _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: AnimatedSize(
+          alignment: _alignmentGeometry('alignment') ?? Alignment.center,
+          curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+          duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+          reverseDuration: _integer('reverseDurationUs') == null ? null
+              : Duration(microseconds: _integer('reverseDurationUs')!),
+          clipBehavior: _clipBehavior() ?? Clip.hardEdge,
+          // Project-owned callbacks never run in Canvas.
+          onEnd: null,
+          child: _single('child'),
+        ),
+      ),
+    ),
+  );
+
+  Widget _animatedContainer(BuildContext context) {
+    final color = _resolvedColor(context, 'color');
+    final decoration = _boxDecoration(context, 'decoration');
+    return _AnimatedMatrixPreview(
+      node: node,
+      message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+      child: AnimatedContainer(
+        alignment: _alignmentGeometry('alignment'),
+        padding: _edgeInsetsGeometry('padding'),
+        color: color,
+        decoration: decoration,
+        foregroundDecoration: _boxDecoration(context, 'foregroundDecoration'),
+        width: _enum('width') == 'infinity' ? double.infinity : _number('width'),
+        height: _enum('height') == 'infinity' ? double.infinity : _number('height'),
+        constraints: _boxConstraints('constraints'),
+        margin: _edgeInsetsGeometry('margin'),
+        transform: _matrix4('transform'),
+        transformAlignment: _alignmentGeometry('transformAlignment'),
+        clipBehavior: color == null && decoration == null ? Clip.none : _clipBehavior() ?? Clip.none,
+        curve: _expansionCurves[_string('curve')] ?? Curves.linear,
+        duration: Duration(microseconds: _integer('durationUs') ?? 300000),
+        onEnd: null,
+        child: _single('child'),
+      ),
+    );
+  }
+
   Widget _container(BuildContext context) => Container(
     alignment: _alignmentGeometry('alignment'),
     padding: _edgeInsetsGeometry('padding'),
@@ -9242,6 +15712,15 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
+  Widget _decoratedBoxTransition(BuildContext context) => _TextButtonPreview(
+    message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+    child: DecoratedBoxTransition(
+      decoration: AlwaysStoppedAnimation<Decoration>(_boxDecoration(context, 'decoration') ?? const BoxDecoration()),
+      position: _enum('position') == 'foreground' ? DecorationPosition.foreground : DecorationPosition.background,
+      child: _single('child')!,
+    ),
+  );
+
   Widget _decoratedBox(BuildContext context) => DecoratedBox(
     decoration: _boxDecoration(context, 'decoration')!,
     position: _enum('position') == 'foreground'
@@ -9254,6 +15733,265 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     blocking: _boolean('blocking') ?? true,
     child: _single('child'),
   );
+
+  Widget _mouseRegion() {
+    final child = _single('child');
+    final configuredCursor = _mouseCursor('cursor') ?? MouseCursor.defer;
+    final cursor = configuredCursor is WidgetStateMouseCursor
+        ? configuredCursor.resolve(const <WidgetState>{})
+        : configuredCursor;
+    return _TextButtonPreview(
+      message: _mouseRegionPreviewMessage(node) ?? '',
+      child: MouseRegion(
+        key: ValueKey('canvas-mouse-region-${node.id}'),
+        onEnter: _gestureCallbackPresent('onEnter') ? (_) {} : null,
+        onExit: _gestureCallbackPresent('onExit') ? (_) {} : null,
+        onHover: _gestureCallbackPresent('onHover') ? (_) {} : null,
+        cursor: cursor,
+        opaque: _boolean('opaque') ?? true,
+        hitTestBehavior: switch (_enum('hitTestBehavior')) {
+          'deferToChild' => HitTestBehavior.deferToChild,
+          'opaque' => HitTestBehavior.opaque,
+          'translucent' => HitTestBehavior.translucent,
+          _ => null,
+        },
+        child: child == null
+            ? null
+            : _CanvasMouseRegionCursorScope(child: child),
+      ),
+    );
+  }
+
+  Widget _listener() => Listener(
+    key: ValueKey('canvas-listener-${node.id}'),
+    // Raw pointer notifications never execute application callbacks or alter
+    // selection. The surrounding Designer gesture handlers remain responsible
+    // for selecting the deepest child; hover, cancel and scroll must not steal it.
+    onPointerDown: _gestureCallbackPresent('onPointerDown') ? (_) {} : null,
+    onPointerMove: _gestureCallbackPresent('onPointerMove') ? (_) {} : null,
+    onPointerUp: _gestureCallbackPresent('onPointerUp') ? (_) {} : null,
+    onPointerHover: _gestureCallbackPresent('onPointerHover') ? (_) {} : null,
+    onPointerCancel: _gestureCallbackPresent('onPointerCancel') ? (_) {} : null,
+    onPointerPanZoomStart: _gestureCallbackPresent('onPointerPanZoomStart')
+        ? (_) {}
+        : null,
+    onPointerPanZoomUpdate: _gestureCallbackPresent('onPointerPanZoomUpdate')
+        ? (_) {}
+        : null,
+    onPointerPanZoomEnd: _gestureCallbackPresent('onPointerPanZoomEnd')
+        ? (_) {}
+        : null,
+    onPointerSignal: _gestureCallbackPresent('onPointerSignal') ? (_) {} : null,
+    behavior: switch (_enum('behavior')) {
+      'opaque' => HitTestBehavior.opaque,
+      'translucent' => HitTestBehavior.translucent,
+      _ => HitTestBehavior.deferToChild,
+    },
+    child: _single('child'),
+  );
+
+  Widget _gestureDetector() => GestureDetector(
+    // The projection contains presence only, never application code. Local
+    // recognizers preserve semantics and select the Designer target; children
+    // retain their own deeper Designer gesture handlers.
+    key: ValueKey('canvas-gesture-detector-${node.id}'),
+    onTapDown: _gestureCallbackPresent('onTapDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTapUp: _gestureCallbackPresent('onTapUp')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTap: _gestureCallbackPresent('onTap') ? () => onSelected(node.id) : null,
+    onTapMove: _gestureCallbackPresent('onTapMove')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTapCancel: _gestureCallbackPresent('onTapCancel') ? () {} : null,
+    onSecondaryTap: _gestureCallbackPresent('onSecondaryTap')
+        ? () => onSelected(node.id)
+        : null,
+    onSecondaryTapDown: _gestureCallbackPresent('onSecondaryTapDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryTapUp: _gestureCallbackPresent('onSecondaryTapUp')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryTapCancel: _gestureCallbackPresent('onSecondaryTapCancel')
+        ? () {}
+        : null,
+    onTertiaryTapDown: _gestureCallbackPresent('onTertiaryTapDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryTapUp: _gestureCallbackPresent('onTertiaryTapUp')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryTapCancel: _gestureCallbackPresent('onTertiaryTapCancel')
+        ? () {}
+        : null,
+    onDoubleTapDown: _gestureCallbackPresent('onDoubleTapDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onDoubleTap: _gestureCallbackPresent('onDoubleTap')
+        ? () => onSelected(node.id)
+        : null,
+    onDoubleTapCancel: _gestureCallbackPresent('onDoubleTapCancel')
+        ? () {}
+        : null,
+    onLongPressDown: _gestureCallbackPresent('onLongPressDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onLongPressCancel: _gestureCallbackPresent('onLongPressCancel')
+        ? () {}
+        : null,
+    onLongPress: _gestureCallbackPresent('onLongPress')
+        ? () => onSelected(node.id)
+        : null,
+    onLongPressStart: _gestureCallbackPresent('onLongPressStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onLongPressMoveUpdate: _gestureCallbackPresent('onLongPressMoveUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onLongPressUp: _gestureCallbackPresent('onLongPressUp')
+        ? () => onSelected(node.id)
+        : null,
+    onLongPressEnd: _gestureCallbackPresent('onLongPressEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryLongPressDown:
+        _gestureCallbackPresent('onSecondaryLongPressDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryLongPressCancel:
+        _gestureCallbackPresent('onSecondaryLongPressCancel') ? () {} : null,
+    onSecondaryLongPress: _gestureCallbackPresent('onSecondaryLongPress')
+        ? () => onSelected(node.id)
+        : null,
+    onSecondaryLongPressStart:
+        _gestureCallbackPresent('onSecondaryLongPressStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryLongPressMoveUpdate:
+        _gestureCallbackPresent('onSecondaryLongPressMoveUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onSecondaryLongPressUp: _gestureCallbackPresent('onSecondaryLongPressUp')
+        ? () => onSelected(node.id)
+        : null,
+    onSecondaryLongPressEnd: _gestureCallbackPresent('onSecondaryLongPressEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryLongPressDown: _gestureCallbackPresent('onTertiaryLongPressDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryLongPressCancel:
+        _gestureCallbackPresent('onTertiaryLongPressCancel') ? () {} : null,
+    onTertiaryLongPress: _gestureCallbackPresent('onTertiaryLongPress')
+        ? () => onSelected(node.id)
+        : null,
+    onTertiaryLongPressStart:
+        _gestureCallbackPresent('onTertiaryLongPressStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryLongPressMoveUpdate:
+        _gestureCallbackPresent('onTertiaryLongPressMoveUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onTertiaryLongPressUp: _gestureCallbackPresent('onTertiaryLongPressUp')
+        ? () => onSelected(node.id)
+        : null,
+    onTertiaryLongPressEnd: _gestureCallbackPresent('onTertiaryLongPressEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onVerticalDragDown: _gestureCallbackPresent('onVerticalDragDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onVerticalDragStart: _gestureCallbackPresent('onVerticalDragStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onVerticalDragUpdate: _gestureCallbackPresent('onVerticalDragUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onVerticalDragEnd: _gestureCallbackPresent('onVerticalDragEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onVerticalDragCancel: _gestureCallbackPresent('onVerticalDragCancel')
+        ? () {}
+        : null,
+    onHorizontalDragDown: _gestureCallbackPresent('onHorizontalDragDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onHorizontalDragStart: _gestureCallbackPresent('onHorizontalDragStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onHorizontalDragUpdate: _gestureCallbackPresent('onHorizontalDragUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onHorizontalDragEnd: _gestureCallbackPresent('onHorizontalDragEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onHorizontalDragCancel: _gestureCallbackPresent('onHorizontalDragCancel')
+        ? () {}
+        : null,
+    onPanDown: _gestureCallbackPresent('onPanDown')
+        ? (_) => onSelected(node.id)
+        : null,
+    onPanStart: _gestureCallbackPresent('onPanStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onPanUpdate: _gestureCallbackPresent('onPanUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onPanEnd: _gestureCallbackPresent('onPanEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onPanCancel: _gestureCallbackPresent('onPanCancel') ? () {} : null,
+    onScaleStart: _gestureCallbackPresent('onScaleStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onScaleUpdate: _gestureCallbackPresent('onScaleUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onScaleEnd: _gestureCallbackPresent('onScaleEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    onForcePressStart: _gestureCallbackPresent('onForcePressStart')
+        ? (_) => onSelected(node.id)
+        : null,
+    onForcePressPeak: _gestureCallbackPresent('onForcePressPeak')
+        ? (_) => onSelected(node.id)
+        : null,
+    onForcePressUpdate: _gestureCallbackPresent('onForcePressUpdate')
+        ? (_) => onSelected(node.id)
+        : null,
+    onForcePressEnd: _gestureCallbackPresent('onForcePressEnd')
+        ? (_) => onSelected(node.id)
+        : null,
+    behavior: switch (_enum('behavior')) {
+      'opaque' => HitTestBehavior.opaque,
+      'translucent' => HitTestBehavior.translucent,
+      'deferToChild' => HitTestBehavior.deferToChild,
+      _ => null,
+    },
+    excludeFromSemantics: _boolean('excludeFromSemantics') ?? false,
+    dragStartBehavior: _enum('dragStartBehavior') == 'down'
+        ? DragStartBehavior.down
+        : DragStartBehavior.start,
+    trackpadScrollCausesScale: _boolean('trackpadScrollCausesScale') ?? false,
+    trackpadScrollToScaleFactor:
+        _offset('trackpadScrollToScaleFactor') ??
+        kDefaultTrackpadScrollToScaleFactor,
+    supportedDevices:
+        node.properties['supportedDevices']?.kind == 'pointerDeviceKindSet'
+        ? (node.properties['supportedDevices']!.value as Set<String>)
+              .map((name) => PointerDeviceKind.values.byName(name))
+              .toSet()
+        : null,
+    child: _single('child'),
+  );
+
+  bool _gestureCallbackPresent(String name) =>
+      node.properties[name]?.kind == 'callbackPresence' ||
+      node.properties[name]?.kind == 'dartObjectReferencePresence';
 
   Widget _absorbPointer() => AbsorbPointer(
     absorbing: _boolean('absorbing') ?? true,
@@ -9477,7 +16215,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   Widget _inlineTextEditor(BuildContext context) => _CanvasInlineTextEditor(
     key: ValueKey('canvas-inline-text-editor-${node.id}'),
     widgetId: node.id,
-    designerFocusParent: designerFocusParent,
+    designerFocusParent: _MenuPanelPreviewScope.active(context)
+        ? null
+        : designerFocusParent,
     initialText: _string('data')!,
     style: _textStyle(context),
     strutStyle: _strutStyle(),
@@ -9652,6 +16392,28 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   bool _hasPropertyPrefix(String prefix) =>
       node.properties.keys.any((name) => name.startsWith(prefix));
 
+  AnimationStyle? _floatingHeaderAnimationStyle() {
+    if (_string('animationStyle') == 'noAnimation') return AnimationStyle.noAnimation;
+    if (!node.properties.keys.any((name) => name.startsWith('animationStyle') && name != 'animationStyle')) return null;
+    Duration? duration(String name) {
+      final value = _integer(name);
+      return value == null ? null : Duration(microseconds: math.max(0, value));
+    }
+    return AnimationStyle(duration: duration('animationStyleDurationUs'),
+      reverseDuration: duration('animationStyleReverseDurationUs'),
+      curve: _expansionCurves[_string('animationStyleCurve')],
+      reverseCurve: _expansionCurves[_string('animationStyleReverseCurve')]);
+  }
+
+  Widget? _headerPrototype(String name) {
+    final prototype = _single(name);
+    return prototype == null ? null : _PrototypeMeasurement(child: prototype);
+  }
+
+  Widget _prototypeItem() => _PrototypeMeasurement(
+    child: _single('prototypeItem') ?? const SizedBox(width: 48, height: 48),
+  );
+
   Widget? _single(String name) {
     final child = node.slot(name)?.child;
     return child == null ? null : _view(child);
@@ -9667,16 +16429,16 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       _view(child),
   ];
 
-  _CanvasNodeView _view(CanvasNode child) => _CanvasNodeView(
+  _CanvasNodeView _view(CanvasNode child, {GlobalKey Function(String)? keyProvider, bool allowInlineTextEdit = false}) => _CanvasNodeView(
     node: child,
     imageResources: imageResources,
     onImageError: onImageError,
     selectedWidgetId: selectedWidgetId,
     onSelected: onSelected,
-    nodeKey: nodeKey,
+    nodeKey: keyProvider ?? nodeKey,
     designerFocusParent: designerFocusParent,
     overlayScale: overlayScale,
-    inlineTextEditEnabled: inlineTextEditEnabled,
+    inlineTextEditEnabled: (keyProvider == null || allowInlineTextEdit) && inlineTextEditEnabled,
     inlineTextEditingWidgetId: inlineTextEditingWidgetId,
     onBeginInlineTextEdit: onBeginInlineTextEdit,
     onCommitInlineTextEdit: onCommitInlineTextEdit,
@@ -10115,6 +16877,15 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     _ => null,
   };
 
+  MaterialType? _materialType() => switch (_enum('materialType')) {
+    'canvas' => MaterialType.canvas,
+    'card' => MaterialType.card,
+    'circle' => MaterialType.circle,
+    'button' => MaterialType.button,
+    'transparency' => MaterialType.transparency,
+    _ => null,
+  };
+
   TextAlign? _textAlign() => switch (_enum('textAlign')) {
     'start' => TextAlign.start,
     'end' => TextAlign.end,
@@ -10258,7 +17029,7 @@ class _CanvasInlineTextEditor extends StatefulWidget {
   });
 
   final String widgetId;
-  final FocusNode designerFocusParent;
+  final FocusNode? designerFocusParent;
   final String initialText;
   final TextStyle? style;
   final StrutStyle? strutStyle;
@@ -10452,7 +17223,7 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       ? '${widgetIds.length} overlapping empty SizedBox widgets. '
             'Activate repeatedly to cycle selection.'
       : '${widgetIds.length} overlapping '
-            '${widgetTypes.contains('flutter.widgets.IgnorePointer') ? 'Designer targets' : 'zero-size widgets'}. '
+            '${(widgetTypes.contains('flutter.widgets.IgnorePointer') || widgetTypes.contains('flutter.widgets.SliverIgnorePointer')) ? 'Designer targets' : 'zero-size widgets'}. '
             'Activate repeatedly to cycle selection.';
 
   String? get _previewUnavailableMessage {
@@ -10554,9 +17325,11 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
       (true, final String warning) => '$_cyclingMessage $warning',
       (true, null) => _cyclingMessage,
       (false, final String warning) => warning,
+      (false, null) when widgetTypes.single == 'flutter.widgets.SliverOffstage' =>
+        'SliverOffstage Designer selection handle. Hidden content stays editable in the widget tree.',
       (false, null) =>
-        widgetTypes.single == 'flutter.widgets.IgnorePointer'
-            ? 'IgnorePointer Designer selection handle. '
+        (widgetTypes.single == 'flutter.widgets.IgnorePointer' || widgetTypes.single == 'flutter.widgets.SliverIgnorePointer')
+            ? '${_displayType(widgetTypes.single)} Designer selection handle. '
                   'The widget body keeps the configured pointer behavior.'
             : null,
     };
@@ -10574,6 +17347,16 @@ class _ZeroSizedWidgetTarget extends StatelessWidget {
     );
   }
 }
+
+// Layout-only prototype descendants must never acquire Canvas hit/drop handles.
+// A render marker preserves native sizing while avoiding invalid paint transforms
+// through Flutter's special unpainted prototype render child.
+class _PrototypeMeasurement extends SingleChildRenderObjectWidget {
+  const _PrototypeMeasurement({required super.child});
+  @override
+  RenderObject createRenderObject(BuildContext context) => _PrototypeMeasurementRenderBox();
+}
+class _PrototypeMeasurementRenderBox extends RenderProxyBox {}
 
 class _CanvasWidgetOutlinePainter extends CustomPainter {
   const _CanvasWidgetOutlinePainter({
@@ -11787,6 +18570,19 @@ class _RefreshLayoutRenderBox extends RenderProxyBox
     runLayoutCallback();
     if (_rebuilt) super.performLayout();
   }
+}
+
+class _PersistentHeaderPreviewDelegate extends SliverPersistentHeaderDelegate {
+  const _PersistentHeaderPreviewDelegate();
+  @override
+  double get minExtent => 56;
+  @override
+  double get maxExtent => 112;
+  @override
+  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) =>
+      const SizedBox.expand();
+  @override
+  bool shouldRebuild(covariant _PersistentHeaderPreviewDelegate oldDelegate) => false;
 }
 
 String _displayType(String type) => type.substring(type.lastIndexOf('.') + 1);

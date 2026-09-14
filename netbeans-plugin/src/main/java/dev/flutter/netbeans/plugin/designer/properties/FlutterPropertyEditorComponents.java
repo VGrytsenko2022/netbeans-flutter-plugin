@@ -99,13 +99,13 @@ final class FlutterPropertyEditorComponents {
     static boolean supportsCustomEditor(
             FlutterTypedPropertyEditors.Binding binding) {
         return switch (binding.editorKind()) {
-            case STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY, NULLABLE_BOOLEAN, NULLABLE_ENUM,
+            case STRING, NULLABLE_STRING, CALLBACK, NEWLINE_STRING_LIST, NULLABLE_INTEGER, NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY, NULLABLE_BOOLEAN, NULLABLE_ENUM,
                     EDGE_INSETS, COLOR,
-                    THEME_COLOR, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
-                    FONT_VARIATION_LIST, ICON_DATA, ALIGNMENT_GEOMETRY,
-                    SIZE, OFFSET, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, NULLABLE_IMAGE_PROVIDER,
-                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE,
-                    SHAPE_BORDER_CLIPPER, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, RADIO_VALUE -> true;
+                    THEME_COLOR, COLOR_ANIMATION, COLOR_REFERENCE, BORDER_RADIUS_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PAINT, SHADOW_LIST, FONT_FEATURE_LIST,
+                    FONT_VARIATION_LIST, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE,
+                    SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER,
+                    BOX_DECORATION, BORDER_RADIUS, DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE,
+                    SHAPE_BORDER_CLIPPER, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE, POINTER_DEVICE_KIND_SET -> true;
             default -> false;
         };
     }
@@ -119,13 +119,16 @@ final class FlutterPropertyEditorComponents {
                 : PropertyEnv.create(new FeatureDescriptor());
         return switch (binding.editorKind()) {
             case STRING -> new StringCustomEditor(editor, binding, environment);
-            case COLOR_REFERENCE, EDGE_INSETS_REFERENCE -> FlutterLocalDartReferenceEditorComponent.customEditor(editor, binding, environment);
+            case NULLABLE_STRING -> FlutterNullableStringEditorComponent.customEditor(editor, binding, environment);
+            case IMAGE_PROVIDER_REFERENCE, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, ALIGNMENT_REFERENCE, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, BORDER_RADIUS_REFERENCE, ICON_WIDGET_REFERENCE -> FlutterLocalDartReferenceEditorComponent.customEditor(editor, binding, environment);
             case COLOR_ANIMATION -> FlutterColorAnimationEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_THEME_COLOR -> FlutterNullableColorEditorComponent.customEditor(editor, binding, environment);
             case PRESET_DART_REFERENCE -> FlutterPresetDartReferenceEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_DART_REFERENCE -> FlutterNullableDartReferenceEditorComponent.customEditor(editor, binding, environment);
+            case DURATION_REFERENCE -> FlutterDurationReferenceEditorComponent.customEditor(editor, binding, environment);
             case OBJECT_TAG -> FlutterObjectTagEditorComponent.customEditor(editor, binding, environment);
             case RADIO_TYPE -> FlutterRadioTypeEditorComponent.customEditor(editor, binding, environment);
+            case NOTIFICATION_TYPE -> FlutterNotificationTypeEditorComponent.customEditor(editor, binding, environment);
             case RADIO_VALUE -> FlutterRadioValueEditorComponent.customEditor(editor, binding, environment);
             case CALLBACK -> new CallbackCustomEditor(editor, binding, environment);
             case NEWLINE_STRING_LIST -> new NewlineListCustomEditor(
@@ -134,6 +137,7 @@ final class FlutterPropertyEditorComponents {
                     editor, binding, environment);
             case NULLABLE_NUMBER, NULLABLE_NUMBER_WITH_INFINITY -> FlutterNullableNumberEditorComponent.customEditor(editor, binding, environment);
             case NULLABLE_BOOLEAN, NULLABLE_ENUM -> FlutterNullableChoiceEditorComponent.customEditor(editor, binding, environment);
+            case POINTER_DEVICE_KIND_SET -> FlutterPointerDeviceKindSetEditorComponent.customEditor(editor, binding, environment);
             case EDGE_INSETS -> new EdgeInsetsCustomEditor(
                     editor, binding, environment);
             case COLOR -> new ColorCustomEditor(editor, binding, environment);

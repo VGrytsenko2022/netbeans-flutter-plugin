@@ -12,7 +12,7 @@ public record ValidationLimits(
 
     public static final int DEFAULT_MAX_DEPTH = 256;
     public static final int DEFAULT_MAX_NODES = 10_000;
-    public static final int DEFAULT_MAX_PROPERTIES_PER_WIDGET = 512;
+    public static final int DEFAULT_MAX_PROPERTIES_PER_WIDGET = 1024;
     public static final int DEFAULT_MAX_SLOTS_PER_WIDGET = WidgetDefinition.MAX_SLOTS;
     public static final int DEFAULT_MAX_ISSUES = 1_000;
 

@@ -101,10 +101,12 @@ class ElevatedButtonWidgetPropertySchemaTest {
             "styleAlignmentKind",
             "styleAlignmentX",
             "styleAlignmentY",
-            "styleSplashFactory");
+            "styleSplashFactory",
+            "styleBackgroundBuilder",
+            "styleForegroundBuilder");
 
     @Test
-    void exposesExactlySevenDirectFiveByFiftyFourStateAndNineCommonLeaves() {
+    void exposesExactlySevenDirectFiveByFiftyFourStateAndElevenCommonLeaves() {
         assertEquals(7, ElevatedButtonWidgetPropertySchema.DIRECT_PROPERTY_COUNT);
         assertEquals(5, ElevatedButtonWidgetPropertySchema.STATE_COUNT);
         assertEquals(26,
@@ -112,9 +114,9 @@ class ElevatedButtonWidgetPropertySchemaTest {
         assertEquals(28,
                 ElevatedButtonWidgetPropertySchema.STATE_TEXT_PROPERTY_COUNT);
         assertEquals(54, ElevatedButtonWidgetPropertySchema.STATE_PROPERTY_COUNT);
-        assertEquals(9,
+        assertEquals(11,
                 ElevatedButtonWidgetPropertySchema.COMMON_STYLE_PROPERTY_COUNT);
-        assertEquals(286,
+        assertEquals(288,
                 ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT);
         assertEquals(1, ElevatedButtonWidgetPropertySchema.SLOT_COUNT);
 
@@ -131,7 +133,7 @@ class ElevatedButtonWidgetPropertySchemaTest {
 
         Map<String, ElevatedButtonWidgetPropertySchema.Definition> definitions =
                 ElevatedButtonWidgetPropertySchema.definitions();
-        assertEquals(286, expected.size());
+        assertEquals(288, expected.size());
         assertEquals(expected, definitions.keySet());
         assertEquals(new ArrayList<>(expected),
                 new ArrayList<>(definitions.keySet()));
@@ -212,7 +214,7 @@ class ElevatedButtonWidgetPropertySchemaTest {
                 ElevatedButtonWidgetPropertySchema.Target.STYLE_TEXT, 110L,
                 ElevatedButtonWidgetPropertySchema.Target.STYLE_TEXT_LOCALE, 15L,
                 ElevatedButtonWidgetPropertySchema.Target.STYLE_TEXT_DECORATION, 15L,
-                ElevatedButtonWidgetPropertySchema.Target.STYLE_COMMON, 9L),
+                ElevatedButtonWidgetPropertySchema.Target.STYLE_COMMON, 11L),
                 definitions.values().stream().collect(java.util.stream.Collectors.groupingBy(
                         ElevatedButtonWidgetPropertySchema.Definition::target,
                         java.util.stream.Collectors.counting())));

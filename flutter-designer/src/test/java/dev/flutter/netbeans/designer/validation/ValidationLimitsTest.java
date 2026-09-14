@@ -16,7 +16,7 @@ class ValidationLimitsTest {
         assertAll(
                 () -> assertEquals(256, limits.maxDepth()),
                 () -> assertEquals(10_000, limits.maxNodes()),
-                () -> assertEquals(512,
+                () -> assertEquals(1024,
                         limits.maxPropertiesPerWidget()),
                 () -> assertEquals(WidgetDefinition.MAX_SLOTS,
                         limits.maxSlotsPerWidget()),

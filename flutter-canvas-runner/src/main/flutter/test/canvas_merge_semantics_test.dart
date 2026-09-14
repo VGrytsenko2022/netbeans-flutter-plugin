@@ -25,12 +25,12 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|$_type\n');
-      final end = contract.indexOf('W|flutter.widgets.Offstage\n', start);
+      final end = contract.indexOf('W|flutter.widgets.ModalBarrier\n', start);
       expect(
         contract.substring(start, end),
         'W|$_type\nS|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(_find(_decode(_model()).root)!.properties, isEmpty);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(canvasWidgetTraitsForType(_type), isEmpty);

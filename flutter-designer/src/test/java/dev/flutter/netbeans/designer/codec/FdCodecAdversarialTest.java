@@ -165,20 +165,25 @@ class FdCodecAdversarialTest {
     }
 
     @Test
-    void defaultPropertyBudgetSupports512AndRejects513WithoutWeakeningExplicitLowerLimits() throws Exception {
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
-        String boundary = document(widgetWithProperties(512), "");
-        String excessive = document(widgetWithProperties(513), "");
+    void defaultPropertyBudgetSupports1024AndRejects1025WithoutWeakeningExplicitLowerLimits() throws Exception {
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        String boundary = document(widgetWithProperties(1024), "");
+        String excessive = document(widgetWithProperties(1025), "");
         var decoded = current(codec.decode(utf8(boundary))).document();
-        assertEquals(512, decoded.root().properties().size());
+        assertEquals(1024, decoded.root().properties().size());
         assertEquals(decoded, current(codec.decode(codec.encode(decoded))).document());
         assertTrue(hasDiagnostic(invalid(codec.decode(utf8(excessive))), FdCodecDiagnosticCode.RESOURCE_LIMIT));
-        var explicitLarger = new FdDocumentCodec(withLimit("maxPropertiesPerWidget", 513));
-        var oversized = current(explicitLarger.decode(utf8(excessive))).document();
+        var properties = new java.util.LinkedHashMap<>(decoded.root().properties());
+        properties.put(new dev.flutter.netbeans.designer.model.PropertyName("extra"), new dev.flutter.netbeans.designer.model.PropertyValue.NullValue());
+        var root = decoded.root();
+        var oversized = new DesignerDocument(decoded.documentId(), decoded.source(),
+                new dev.flutter.netbeans.designer.model.WidgetNode(root.id(), root.type(), properties, root.slots(), root.extensions(), root.stateBinding(), root.propertyBindings()));
         assertEquals(FdCodecDiagnosticCode.RESOURCE_LIMIT,
                 assertThrows(FdEncodeException.class, () -> codec.encode(oversized)).diagnostic().code());
         assertSymmetricLimit("maxPropertiesPerWidget", 256,
                 document(widgetWithProperties(256), ""), document(widgetWithProperties(257), ""));
+        assertEquals(1024, FdCodecLimits.defaults().maxJsonObjectFields());
+        assertEquals(16 * 1024 * 1024, FdCodecLimits.defaults().maxDocumentBytes());
     }
 
     @Test

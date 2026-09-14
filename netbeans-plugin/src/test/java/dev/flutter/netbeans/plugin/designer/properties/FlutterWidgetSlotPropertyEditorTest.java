@@ -65,6 +65,397 @@ class FlutterWidgetSlotPropertyEditorTest {
     private static final SlotName CHILDREN = new SlotName("children");
 
     @Test
+    void floatingHeaderRequiresChildOffersAtomicReplacementAndStableRow() throws Exception {
+        var definition = definition("flutter.widgets.SliverFloatingHeader");
+        var widget = WidgetNodePrototypeFactory.create(definition, StableId.random());
+        var viewport = new WidgetNode(StableId.random(), type("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(new SlotName("slivers"), new WidgetSlot.ListSlot(List.of(widget))));
+        var context = new FlutterWidgetSlotEditorContext(document(viewport), CATALOG,
+                List.of(type("flutter.widgets.SizedBox"), type("flutter.widgets.Text"), type("flutter.widgets.SliverToBoxAdapter")));
+        var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var groups = node.getPropertySets();
+        for (String slot : List.of("child")) {
+            var row = slotProperty(node, slot);
+            assertTrue(row.canWrite()); assertTrue(row.getShortDescription().contains("Required"));
+            var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel=editor.getCustomEditor();
+                var choices=component(panel,FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,JComboBox.class);
+                assertEquals(2,choices.getItemCount(),"Only the offered box types are admitted.");
+                var actions=component(panel,FlutterWidgetSlotPropertyEditor.ACTION_NAME,JComboBox.class);
+                assertFalse(labels(actions).contains("Remove selected widget"));
+                selectLabel(actions,"Replace with new widget");
+                env.setState(PropertyEnv.STATE_VALID);
+                var staged=(FlutterWidgetSlotCellValue)editor.getValue();
+                assertTrue(staged.mutation().isPresent());assertTrue(mutations.isEmpty());
+                row.setValue(staged);assertEquals(slot,mutations.removeFirst().slotName().value());
+                return null;
+            });
+            node.refreshPresentation(widget, definition, ignored -> {}, context, mutations::add, FlutterImageAssetChoices.empty());
+            assertSame(row,slotProperty(node,slot));assertTrue(Arrays.equals(groups,node.getPropertySets()));
+            var reopened=new FlutterWidgetPropertiesNode(Children.LEAF,widget,definition,ignored->{},context,mutations::add);
+            assertTrue(slotProperty(reopened,slot).canWrite());
+        }
+    }
+
+    @Test
+    void pinnedHeaderHasWritableOptionalChildAndStablePropertyRow() throws Exception {
+        var definition = definition("flutter.widgets.PinnedHeaderSliver");
+        var widget = WidgetNodePrototypeFactory.create(definition, StableId.random());
+        var viewport = new WidgetNode(StableId.random(), type("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(new SlotName("slivers"), new WidgetSlot.ListSlot(List.of(widget))));
+        var context = new FlutterWidgetSlotEditorContext(document(viewport), CATALOG,
+                List.of(type("flutter.widgets.SizedBox"), type("flutter.widgets.Text"), type("flutter.widgets.SliverToBoxAdapter")));
+        var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var groups = node.getPropertySets();
+        for (String slot : List.of("child")) {
+            var row = slotProperty(node, slot);
+            assertTrue(row.canWrite()); assertTrue(row.getShortDescription().contains(slot.equals("child") ? "Visible box" : "Measurement-only"));
+            var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel=editor.getCustomEditor();
+                var choices=component(panel,FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,JComboBox.class);
+                assertEquals(2,choices.getItemCount(),"Only the offered box types are admitted.");
+                selectLabel(component(panel,FlutterWidgetSlotPropertyEditor.ACTION_NAME,JComboBox.class),"Add new widget");
+                env.setState(PropertyEnv.STATE_VALID);
+                var staged=(FlutterWidgetSlotCellValue)editor.getValue();
+                assertTrue(staged.mutation().isPresent());assertTrue(mutations.isEmpty());
+                row.setValue(staged);assertEquals(slot,mutations.removeFirst().slotName().value());
+                return null;
+            });
+            node.refreshPresentation(widget, definition, ignored -> {}, context, mutations::add, FlutterImageAssetChoices.empty());
+            assertSame(row,slotProperty(node,slot));assertTrue(Arrays.equals(groups,node.getPropertySets()));
+            var reopened=new FlutterWidgetPropertiesNode(Children.LEAF,widget,definition,ignored->{},context,mutations::add);
+            assertTrue(slotProperty(reopened,slot).canWrite());
+        }
+    }
+
+    @Test
+    void resizingHeaderHasThreeIndependentlyEditableOptionalBoxSlots() throws Exception {
+        var definition = definition("flutter.widgets.SliverResizingHeader");
+        var widget = WidgetNodePrototypeFactory.create(definition, StableId.random());
+        var viewport = new WidgetNode(StableId.random(), type("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(new SlotName("slivers"), new WidgetSlot.ListSlot(List.of(widget))));
+        var context = new FlutterWidgetSlotEditorContext(document(viewport), CATALOG,
+                List.of(type("flutter.widgets.SizedBox"), type("flutter.widgets.Text"), type("flutter.widgets.SliverToBoxAdapter")));
+        var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var groups = node.getPropertySets();
+        for (String slot : dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.SLOTS) {
+            var row = slotProperty(node, slot);
+            assertTrue(row.canWrite()); assertTrue(row.getShortDescription().contains(slot.equals("child") ? "Visible box" : "Measurement-only"));
+            var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel=editor.getCustomEditor();
+                var choices=component(panel,FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME,JComboBox.class);
+                assertEquals(2,choices.getItemCount(),"Only the offered box types are admitted.");
+                selectLabel(component(panel,FlutterWidgetSlotPropertyEditor.ACTION_NAME,JComboBox.class),"Add new widget");
+                env.setState(PropertyEnv.STATE_VALID);
+                var staged=(FlutterWidgetSlotCellValue)editor.getValue();
+                assertTrue(staged.mutation().isPresent());assertTrue(mutations.isEmpty());
+                row.setValue(staged);assertEquals(slot,mutations.removeFirst().slotName().value());
+                return null;
+            });
+            node.refreshPresentation(widget, definition, ignored -> {}, context, mutations::add, FlutterImageAssetChoices.empty());
+            assertSame(row,slotProperty(node,slot));assertTrue(Arrays.equals(groups,node.getPropertySets()));
+            var reopened=new FlutterWidgetPropertiesNode(Children.LEAF,widget,definition,ignored->{},context,mutations::add);
+            assertTrue(slotProperty(reopened,slot).canWrite());
+        }
+    }
+
+    @Test
+    void mainAxisGroupSliverListSupportsTypedChoicesReorderClearAndStableRows() throws Exception {
+        var definition = definition("flutter.widgets.SliverMainAxisGroup");
+        var first = WidgetNodePrototypeFactory.create(definition("flutter.widgets.SliverToBoxAdapter"), StableId.random());
+        var second = WidgetNodePrototypeFactory.create(definition, StableId.random());
+        var slivers = new SlotName("slivers");
+        var widget = new WidgetNode(StableId.random(), definition.typeId(), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(first, second))));
+        var viewport = new WidgetNode(StableId.random(), type("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(widget))));
+        var context = new FlutterWidgetSlotEditorContext(document(viewport), CATALOG,
+                List.of(type("flutter.widgets.Text"), first.type(), second.type()));
+        var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var row = slotProperty(node, "slivers");
+        assertTrue(row.canWrite());
+        assertTrue(row.getShortDescription().contains("not another scroll view"));
+        var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+        var env = PropertyEnv.create(descriptor("slivers")); ((ExPropertyEditor) editor).attachEnv(env);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor();
+            var types = component(panel, FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME, JComboBox.class);
+            assertEquals(2, types.getItemCount(), "Only the offered sliver types may be inserted.");
+            var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+            selectLabel(actions, "Move existing widget here");
+            var source = component(panel, FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME, JComboBox.class);
+            selectContains(source, first.id().toString());
+            var position = component(panel, FlutterWidgetSlotPropertyEditor.POSITION_NAME, JComboBox.class);
+            assertEquals(List.of("Last (index 1)"), labels(position));
+            env.setState(PropertyEnv.STATE_VALID);
+            var move = assertInstanceOf(FlutterWidgetSlotMutation.Move.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue()).mutation().orElseThrow());
+            assertEquals(first.id(), move.sourceId());
+            assertEquals(widget.id(), move.ownerId());
+            assertEquals(slivers, move.slotName());
+            assertEquals(1, move.postRemovalIndex());
+            assertTrue(mutations.isEmpty(), "Validation alone must not publish an edit.");
+            return null;
+        });
+        var propertySets = Arrays.asList(node.getPropertySets());
+        node.refreshPresentation(widget, definition, ignored -> {}, context, mutations::add, FlutterImageAssetChoices.empty());
+        assertEquals(propertySets, Arrays.asList(node.getPropertySets()));
+        assertSame(row, slotProperty(node, "slivers"));
+        var reopened = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var reopenedRow = slotProperty(reopened, "slivers");
+        assertTrue(reopenedRow.canWrite());
+        var clear = reopenedRow.getPropertyEditor(); clear.setValue(reopenedRow.getValue());
+        ((ExPropertyEditor) clear).attachEnv(PropertyEnv.create(descriptor("slivers")));
+        onEdt(() -> {
+            selectLabel(component(clear.getCustomEditor(), FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class),
+                    "Clear all widgets");
+            assertTrue(((FlutterWidgetSlotCellValue) clear.getValue()).mutation().isEmpty(), "Cancel keeps both slivers.");
+            assertTrue(mutations.isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void crossAxisGroupSliverListSupportsTypedChoicesReorderClearAndStableRows() throws Exception {
+        var definition = definition("flutter.widgets.SliverCrossAxisGroup");
+        var first = WidgetNodePrototypeFactory.create(definition("flutter.widgets.SliverToBoxAdapter"), StableId.random());
+        var second = WidgetNodePrototypeFactory.create(definition, StableId.random());
+        var slivers = new SlotName("slivers");
+        var widget = new WidgetNode(StableId.random(), definition.typeId(), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(first, second))));
+        var viewport = new WidgetNode(StableId.random(), type("flutter.widgets.CustomScrollView"), Map.of(),
+                Map.of(slivers, new WidgetSlot.ListSlot(List.of(widget))));
+        var context = new FlutterWidgetSlotEditorContext(document(viewport), CATALOG,
+                List.of(type("flutter.widgets.Text"), first.type(), second.type()));
+        var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var row = slotProperty(node, "slivers");
+        assertTrue(row.canWrite());
+        assertTrue(row.getShortDescription().contains("not another scroll view"));
+        var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+        var env = PropertyEnv.create(descriptor("slivers")); ((ExPropertyEditor) editor).attachEnv(env);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor();
+            var types = component(panel, FlutterWidgetSlotPropertyEditor.ADD_TYPE_NAME, JComboBox.class);
+            assertEquals(2, types.getItemCount(), "Only the offered sliver types may be inserted.");
+            var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+            selectLabel(actions, "Move existing widget here");
+            var source = component(panel, FlutterWidgetSlotPropertyEditor.MOVE_SOURCE_NAME, JComboBox.class);
+            selectContains(source, first.id().toString());
+            var position = component(panel, FlutterWidgetSlotPropertyEditor.POSITION_NAME, JComboBox.class);
+            assertEquals(List.of("Last (index 1)"), labels(position));
+            env.setState(PropertyEnv.STATE_VALID);
+            var move = assertInstanceOf(FlutterWidgetSlotMutation.Move.class,
+                    ((FlutterWidgetSlotCellValue) editor.getValue()).mutation().orElseThrow());
+            assertEquals(first.id(), move.sourceId());
+            assertEquals(widget.id(), move.ownerId());
+            assertEquals(slivers, move.slotName());
+            assertEquals(1, move.postRemovalIndex());
+            assertTrue(mutations.isEmpty(), "Validation alone must not publish an edit.");
+            return null;
+        });
+        var propertySets = Arrays.asList(node.getPropertySets());
+        node.refreshPresentation(widget, definition, ignored -> {}, context, mutations::add, FlutterImageAssetChoices.empty());
+        assertEquals(propertySets, Arrays.asList(node.getPropertySets()));
+        assertSame(row, slotProperty(node, "slivers"));
+        var reopened = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+        var reopenedRow = slotProperty(reopened, "slivers");
+        assertTrue(reopenedRow.canWrite());
+        var clear = reopenedRow.getPropertyEditor(); clear.setValue(reopenedRow.getValue());
+        ((ExPropertyEditor) clear).attachEnv(PropertyEnv.create(descriptor("slivers")));
+        onEdt(() -> {
+            selectLabel(component(clear.getCustomEditor(), FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class),
+                    "Clear all widgets");
+            assertTrue(((FlutterWidgetSlotCellValue) clear.getValue()).mutation().isEmpty(), "Cancel keeps both slivers.");
+            assertTrue(mutations.isEmpty());
+            return null;
+        });
+    }
+
+    @Test
+    void prototypeExtentMeasurementSlotEditorCanClearWithoutMutatingVisibleChildrenOnCancel() throws Exception {
+        for(var kind : dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.Kind.values()) {
+            var definition = CATALOG.find(kind.type()).orElseThrow();
+            var base = WidgetNodePrototypeFactory.create(definition,StableId.random());
+            var slots = new java.util.LinkedHashMap<>(base.slots());
+            slots.put(new SlotName("prototypeItem"),WidgetSlot.SingleSlot.of(text(StableId.random(),"Measure")));
+            if(kind.hasChildren()) slots.put(CHILDREN,new WidgetSlot.ListSlot(List.of(text(StableId.random(),"Visible"))));
+            var widget = new WidgetNode(base.id(),base.type(),base.properties(),slots);
+            var viewport = new WidgetNode(StableId.random(),type("flutter.widgets.CustomScrollView"),Map.of(),
+                    Map.of(new SlotName("slivers"),new WidgetSlot.ListSlot(List.of(widget))));
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+            var context = new FlutterWidgetSlotEditorContext(document(viewport),CATALOG,List.of(type("flutter.widgets.Text")));
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF,widget,definition,ignored->{},context,mutations::add);
+            var row = slotProperty(node,"prototypeItem");
+            assertTrue(row.canWrite());
+            assertTrue(row.getShortDescription().contains("48 x 48"));
+            assertTrue(row.getShortDescription().contains("does not paint"));
+            var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            ((ExPropertyEditor)editor).attachEnv(PropertyEnv.create(descriptor("prototypeItem")));
+            onEdt(()->{
+                var panel=editor.getCustomEditor();
+                var actions=component(panel,FlutterWidgetSlotPropertyEditor.ACTION_NAME,JComboBox.class);
+                assertTrue(labels(actions).contains("Clear single child"));
+                actions.setSelectedIndex(labels(actions).indexOf("Clear single child"));
+                assertTrue(mutations.isEmpty()); assertEquals(slots,widget.slots());
+                assertTrue(((FlutterWidgetSlotCellValue)editor.getValue()).mutation().isEmpty());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void menuItemButtonThreeOptionalChildrenCanBeClearedIndependentlyAndCancelPublishesNothing() throws Exception {
+        var definition = MenuItemButtonPropertyContractTest.DEF; var base = MenuItemButtonPropertyContractTest.prototype();
+        var slots = new java.util.LinkedHashMap<SlotName, WidgetSlot>();
+        for (String name : List.of("child", "leadingIcon", "trailingIcon")) slots.put(new SlotName(name), WidgetSlot.SingleSlot.of(text(StableId.random(), name)));
+        var widget = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+        for (String name : List.of("child", "leadingIcon", "trailingIcon")) {
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>(); var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add); var row = slotProperty(node, name); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(name)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertTrue(labels(actions).contains("Clear single child")); actions.setSelectedIndex(labels(actions).indexOf("Clear single child"));
+                assertTrue(mutations.isEmpty()); assertEquals(slots, widget.slots()); assertEquals(base.properties(), widget.properties());
+                assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(), "Cancel retains all three anchors.");
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void menuAnchorListAndChildEditorsKeepOrderedChildrenAndAllowEmptyListOnlyOnCommit() throws Exception {
+        var definition = MenuAnchorPropertyContractTest.DEF; var base = MenuAnchorPropertyContractTest.prototype();
+        var first = text(StableId.random(), "First menu item"); var second = text(StableId.random(), "Second menu item");
+        var slots = Map.<SlotName, WidgetSlot>of(CHILD, WidgetSlot.SingleSlot.of(text(StableId.random(), "Anchor")),
+                new SlotName("menuChildren"), new WidgetSlot.ListSlot(List.of(first, second)));
+        var widget = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+        for (String name : List.of("child", "menuChildren")) {
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>(); var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add); var row = slotProperty(node, name); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(name)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                String action = name.equals("child") ? "Clear single child" : "Clear all widgets";
+                assertTrue(labels(actions).contains(action)); actions.setSelectedIndex(labels(actions).indexOf(action));
+                assertTrue(mutations.isEmpty()); assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(), "Cancel publishes no removal.");
+                assertEquals(List.of(first, second), ((WidgetSlot.ListSlot) widget.slots().get(new SlotName("menuChildren"))).children()); assertEquals(slots, widget.slots()); return null;
+            });
+        }
+    }
+
+    @Test
+    void submenuRequiredNullableChildAndMenuListCanClearWithoutTouchingOtherSlotsOrPublishingOnCancel() throws Exception {
+        var definition = SubmenuButtonPropertyContractTest.DEF; var base = SubmenuButtonPropertyContractTest.prototype();
+        var first = text(StableId.random(), "First submenu item"); var second = text(StableId.random(), "Second submenu item");
+        var slots = Map.<SlotName, WidgetSlot>of(CHILD, WidgetSlot.SingleSlot.of(text(StableId.random(), "Submenu")),
+                new SlotName("leadingIcon"), WidgetSlot.SingleSlot.of(text(StableId.random(), "Leading")),
+                new SlotName("trailingIcon"), WidgetSlot.SingleSlot.of(text(StableId.random(), "Trailing")),
+                new SlotName("menuChildren"), new WidgetSlot.ListSlot(List.of(first, second)));
+        var widget = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+        for (String name : List.of("child", "leadingIcon", "trailingIcon", "menuChildren")) {
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>(); var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add); var row = slotProperty(node, name); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(name)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                String action = name.equals("menuChildren") ? "Clear all widgets" : "Clear single child";
+                assertTrue(labels(actions).contains(action), name); actions.setSelectedIndex(labels(actions).indexOf(action));
+                assertTrue(mutations.isEmpty()); assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isEmpty(), "Cancel publishes no removal.");
+                assertEquals(List.of(first, second), ((WidgetSlot.ListSlot) widget.slots().get(new SlotName("menuChildren"))).children()); assertEquals(slots, widget.slots());
+                env.setState(PropertyEnv.STATE_VALID); assertTrue(((FlutterWidgetSlotCellValue) editor.getValue()).mutation().isPresent());
+                assertTrue(mutations.isEmpty(), "Outer row publication remains explicit."); assertEquals(slots, widget.slots()); return null;
+            });
+        }
+    }
+
+    @Test
+    void tooltipOptionalAnchorCanBeClearedWithoutChangingContentAndCancelPublishesNothing() throws Exception {
+        var widget = TooltipPropertyContractTest.prototype(); var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+        var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+        var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, TooltipPropertyContractTest.DEF, ignored -> {}, context, mutations::add);
+        var row = slotProperty(node, "child"); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+        var env = PropertyEnv.create(descriptor("child")); ((ExPropertyEditor) editor).attachEnv(env);
+        onEdt(() -> {
+            var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+            assertTrue(labels(actions).contains("Clear single child")); actions.setSelectedIndex(labels(actions).indexOf("Clear single child"));
+            assertTrue(mutations.isEmpty(), "Cancel cannot discard the existing anchor."); assertEquals(new PropertyValue.StringValue("Tooltip"), widget.properties().get(new PropertyName("message"))); return null;
+        });
+    }
+
+    @Test
+    void expansionTileRequiresTitleWhileAllOtherSlotsKeepIndependentUnpublishedDrafts() throws Exception {
+        var widget = ExpansionTilePropertyContractTest.prototype(); var definition = ExpansionTilePropertyContractTest.DEF;
+        for (String slot : List.of("title", "leading", "subtitle", "trailing", "children")) {
+            var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+            var row = slotProperty(node, slot); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                if (!slot.equals("children")) assertEquals(!slot.equals("title"), labels(actions).contains("Clear single child"));
+                assertTrue(mutations.isEmpty(), "Cancel must not alter Title or the expanded Children list."); assertEquals(5, widget.slots().size());
+                assertEquals(List.of("first", "second"), ((WidgetSlot.ListSlot) widget.slots().get(CHILDREN)).children().stream().map(child -> ((PropertyValue.StringValue) child.properties().get(new PropertyName("data"))).value()).toList());
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void radioListTileThreeLineSubtitleCannotBeClearedButOtherChildrenRemainEditable() throws Exception {
+        var definition = definition("flutter.material.RadioListTile");
+        for (boolean threeLine : List.of(false, true)) for (String slot : List.of("title", "subtitle", "secondary")) {
+            var prototype = RadioListTilePropertyContractTest.prototype(); var properties = new java.util.LinkedHashMap<>(prototype.properties());
+            properties.put(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine));
+            var widget = new WidgetNode(prototype.id(), prototype.type(), properties, prototype.slots());
+            var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+            var row = slotProperty(node, slot); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertEquals(!(threeLine && slot.equals("subtitle")), labels(actions).contains("Clear single child"));
+                assertEquals(widget.slots(), prototype.slots()); assertTrue(mutations.isEmpty(), "Cancel must not clear, replace or invent a child.");
+                return null;
+            });
+        }
+    }
+
+    @Test
+    void switchListTileThreeLineSubtitleCannotBeClearedButOtherChildrenRemainEditable() throws Exception {
+        var definition = definition("flutter.material.SwitchListTile");
+        for (boolean threeLine : List.of(false, true)) for (String slot : List.of("title", "subtitle", "secondary")) {
+            var prototype = SwitchListTilePropertyContractTest.prototype(); var properties = new java.util.LinkedHashMap<>(prototype.properties());
+            properties.put(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(threeLine));
+            var widget = new WidgetNode(prototype.id(), prototype.type(), properties, prototype.slots());
+            var context = new FlutterWidgetSlotEditorContext(document(widget), CATALOG, List.of(type("flutter.widgets.Text")));
+            var mutations = new ArrayList<FlutterWidgetSlotMutation>();
+            var node = new FlutterWidgetPropertiesNode(Children.LEAF, widget, definition, ignored -> {}, context, mutations::add);
+            var row = slotProperty(node, slot); var editor = row.getPropertyEditor(); editor.setValue(row.getValue());
+            var env = PropertyEnv.create(descriptor(slot)); ((ExPropertyEditor) editor).attachEnv(env);
+            onEdt(() -> {
+                var panel = editor.getCustomEditor(); var actions = component(panel, FlutterWidgetSlotPropertyEditor.ACTION_NAME, JComboBox.class);
+                assertEquals(!(threeLine && slot.equals("subtitle")), labels(actions).contains("Clear single child"));
+                assertEquals(widget.slots(), prototype.slots()); assertTrue(mutations.isEmpty(), "Cancel must not clear, replace or invent a child.");
+                return null;
+            });
+        }
+    }
+
+    @Test
     void listSlotOffersRadioAsAnImmediateLeafInsertion() throws Exception {
         WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
         WidgetNode column = WidgetNodePrototypeFactory.create(
@@ -2103,6 +2494,128 @@ class FlutterWidgetSlotPropertyEditorTest {
                         new FlutterWidgetSlotMutation.Replace.NewWidget(
                                 type("flutter.widgets.Text"))));
         assertThrows(IllegalArgumentException.class, () -> editor.setValue(stale));
+    }
+
+    @Test
+    void tooltipVisibilityRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition tooltipVisibilityDefinition = definition("flutter.material.TooltipVisibility");
+        WidgetNode current = text(
+                id("90a2eafd-835d-44b5-9cb8-9fb2f3fbff39"), "current");
+        WidgetNode replacement = text(
+                id("04f98964-c16e-4464-b1f1-cee8c9e50b40"), "replacement");
+        WidgetNode tooltipVisibility = new WidgetNode(
+                id("c5c07d66-4711-4511-b6b5-a489abfb65d7"),
+                tooltipVisibilityDefinition.typeId(),
+                Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(true)),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("dd12692f-f736-48aa-a310-a356c58a3913"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(tooltipVisibility, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"), type("flutter.material.TooltipVisibility")));
+
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                tooltipVisibility,
+                tooltipVisibilityDefinition,
+                tooltipVisibilityDefinition.slot(CHILD).orElseThrow(),
+                context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "TooltipVisibility.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                tooltipVisibility.id(), CHILD, current.id()))));
+    }
+
+    @Test
+    void tooltipThemeRequiredChildOffersReplacementOnlyAndNeverAnEmptyMutation()
+            throws Exception {
+        WidgetDefinition columnDefinition = definition("flutter.widgets.Column");
+        WidgetDefinition tooltipThemeDefinition = definition("flutter.material.TooltipTheme");
+        WidgetNode current = text(
+                id("90a2eafd-835d-44b5-9cb8-9fb2f3fbff39"), "current");
+        WidgetNode replacement = text(
+                id("04f98964-c16e-4464-b1f1-cee8c9e50b40"), "replacement");
+        WidgetNode tooltipTheme = new WidgetNode(
+                id("c5c07d66-4711-4511-b6b5-a489abfb65d7"),
+                tooltipThemeDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(current)),
+                Extensions.empty());
+        WidgetNode column = new WidgetNode(
+                id("dd12692f-f736-48aa-a310-a356c58a3913"),
+                columnDefinition.typeId(),
+                Map.of(),
+                Map.of(CHILDREN, new WidgetSlot.ListSlot(List.of(tooltipTheme, replacement))),
+                Extensions.empty());
+        FlutterWidgetSlotEditorContext context = new FlutterWidgetSlotEditorContext(
+                document(column),
+                CATALOG,
+                List.of(type("flutter.widgets.Text"), type("flutter.material.TooltipTheme")));
+
+        FlutterWidgetSlotPropertyEditor editor = new FlutterWidgetSlotPropertyEditor(
+                tooltipTheme,
+                tooltipThemeDefinition,
+                tooltipThemeDefinition.slot(CHILD).orElseThrow(),
+                context);
+        editor.attachEnv(PropertyEnv.create(descriptor("Child")));
+        onEdt(() -> {
+            Component custom = editor.getCustomEditor();
+            JComboBox<?> action = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.ACTION_NAME,
+                    JComboBox.class);
+            JLabel status = component(
+                    custom,
+                    FlutterWidgetSlotPropertyEditor.STATUS_NAME,
+                    JLabel.class);
+            assertEquals(List.of(
+                    "No change",
+                    "Replace with new widget",
+                    "Replace with existing widget"), labels(action));
+            assertFalse(labels(action).contains("Add new widget"));
+            assertFalse(labels(action).contains("Clear single child"));
+            assertFalse(labels(action).contains("Remove selected widget"));
+            assertTrue(status.getText().contains(
+                    "TooltipTheme.child is required and cannot be removed or cleared"));
+            return null;
+        });
+
+        assertThrows(IllegalArgumentException.class, () -> editor.setValue(
+                FlutterWidgetSlotCellValue.staged(
+                        "illegal removal",
+                        new FlutterWidgetSlotMutation.Remove(
+                                tooltipTheme.id(), CHILD, current.id()))));
     }
 
     @Test

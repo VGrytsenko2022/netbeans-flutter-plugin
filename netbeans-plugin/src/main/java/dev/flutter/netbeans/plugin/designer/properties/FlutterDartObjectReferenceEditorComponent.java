@@ -26,6 +26,12 @@ import org.openide.explorer.propertysheet.PropertyEnv;
 final class FlutterDartObjectReferenceEditorComponent {
     static final String RADIO_GROUP_CALLBACK_ATTRIBUTE = "flutter.radioGroup.callback";
     static final String CHECKBOX_TILE_CALLBACK_ATTRIBUTE = "flutter.checkboxListTile.callback";
+    static final String SWITCH_TILE_CALLBACK_ATTRIBUTE = "flutter.switchListTile.callback";
+    static final String RADIO_TILE_CALLBACK_ATTRIBUTE = "flutter.radioListTile.callback";
+    static final String APP_BAR_PREDICATE_ATTRIBUTE = "flutter.appBar.notificationPredicate";
+    static final String ELEVATED_BUTTON_LAYER_ATTRIBUTE = "flutter.elevatedButton.layerBuilder";
+    static final String TEXT_FIELD_BUILDER_ATTRIBUTE = "flutter.textField.builder";
+    static final String LIST_VIEW_EXTENT_BUILDER_ATTRIBUTE = "flutter.listView.itemExtentBuilder";
     static final String PANEL_NAME = "flutter.dartObjectReference.editor";
     static final String DEFAULT_NAME = "flutter.dartObjectReference.default";
     static final String SCOPE_NAME = "flutter.dartObjectReference.scope";
@@ -43,6 +49,59 @@ final class FlutterDartObjectReferenceEditorComponent {
             "Zero-argument constructor, factory, or function";
 
     private FlutterDartObjectReferenceEditorComponent() {
+    }
+
+    static String tooltipReferenceDescription(String name, String expectedType) {
+        if (expectedType.equals("Tween<Object>")) return "Tween<T> must match the selected Value type and nullability. Transfer a fresh exclusive instance, preferably from a zero-argument factory: Flutter mutates it. Tween.end must be non-null even for nullable T. Use a project typedef for SDK/complex types; draft T, Tween and Builder together. Canvas never executes project tweens.";
+        if (expectedType.equals("ValueListenable<Object>") || expectedType.equals("ValueWidgetBuilder<Object>")) return
+                "Value-based builders use the selected Value type T, including nullability: the analyzer verifies Widget Function(BuildContext, T, Widget?) and its paired ValueListenable<T> or Tween<T>. "
+                + "Use a typed reference, getter, member or zero-argument factory. Change T, nullability, source and Builder together in the Value type dialog. "
+                + "Both source and Builder are required. ValueListenableBuilder uses a constant built-in value or nullable null preset; TweenAnimationBuilder creates a fresh default tween with a non-null end, and all project types require a custom tween. "
+                + "Child is optional and must match the box/sliver placement. The application owns notifier/controller disposal; a Tween must be transferred exclusively to Flutter without sharing or later mutation. Canvas never evaluates project sources or callbacks.";
+
+        if (name.equals("shortcut") && expectedType.equals("MenuSerializableShortcut")) return
+                "Choose a strict non-null MenuSerializableShortcut reference/getter/member or zero-argument factory, including a source-owned custom implementation. Explicit null is a separate supported outer mode. "
+                + "This is a menu shortcut hint, not automatic global key registration. Application code owns registration and execution. "
+                + "Setting whole Shortcut, including explicit null, atomically clears eight local activator fields. Local SingleActivator supports all 432 reviewed trigger keys plus modifiers and Num lock; CharacterActivator preserves its exact case-sensitive match string, including Unicode or empty strings, plus Control/Alt/Meta and Include repeats, not Shift or Num lock. "
+                + "Choose a local anchor before modifiers. Resetting that anchor clears the local shortcut; Undo restores all prior fields. Canvas never executes shortcut factories or project code. Cancel preserves child IDs and the stored reference.";
+        if (name.equals("data") && expectedType.equals("TooltipThemeData")) return
+                "The analyzer requires a non-null TooltipThemeData reference, getter/member or zero-argument factory. Explicit null, raw expressions and callbacks are not accepted. "
+                + "Whole Data cannot coexist with any of the 46 local leaves, including explicit null or local State bindings. Reset local values and remove bindings before choosing Data; reset Data before editing local leaves. Nothing is silently cleared. "
+                + "When Data and all local leaves are unset, the generator constructs const TooltipThemeData(). This replaces the nearest theme rather than merging with an outer TooltipTheme. "
+                + "Canvas never executes project theme data and uses an explicitly approximate local preview. Cancel leaves the reference, child and user-owned source unchanged.";
+        if (name.equals("richMessage") && expectedType.equals("InlineSpan")) return
+                "The analyzer requires a non-null InlineSpan reference, getter/member or zero-argument factory. TextSpan, WidgetSpan and custom span trees, recognizers and their lifecycle remain in user-owned Dart; this editor does not accept raw expressions or invent a local span-tree format. "
+                + "Setting Rich message clears non-null Message in the same undoable edit. Clearing the last non-null content is rejected; set Message to switch back. Empty plain text is valid and suppresses the SDK overlay. "
+                + "Canvas never executes project spans or WidgetSpan children and shows an explicitly labelled surrogate. Ignore pointer defaults differ for plain and rich content. Cancel changes neither content nor the anchor child.";
+        if (name.equals("positionDelegate") && expectedType.equals("TooltipPositionDelegate")) return
+                "The analyzer requires a non-null TooltipPositionDelegate: Offset Function(TooltipPositionContext context). The returned Offset must not be null. Context supplies target, targetSize, tooltipSize, overlaySize and the resolved verticalOffset/preferBelow. "
+                + "Choose a reference, getter/member or zero-argument factory returning the function. This is a positioning delegate in Properties, not a native Event or Widget builder. "
+                + "Omission/null restores SDK positioning. Canvas never executes the delegate and explicitly approximates its position; user Dart code and Child stay unchanged.";
+        if (name.equals("onTriggered") && expectedType.equals("TooltipTriggeredCallback")) return
+                "The analyzer requires TooltipTriggeredCallback with exact signature void(). In the pinned SDK it is called for accepted tap/long-press triggers, not mouse hover or ensureTooltipVisible(). "
+                + "Omission, explicit null and No-op are distinct and do not disable tooltip visibility. Use the shared Events workflow to create, navigate to or rename the user-owned handler. "
+                + "Manual trigger mode still permits mouse hover. Canvas never executes project callbacks; Cancel preserves all tooltip content, styles and Child.";
+        return null;
+    }
+
+    static String textFieldBuilderDescription(String name) {
+        String contract = "buildCounter".equals(name)
+                ? "InputCounterWidgetBuilder? accepts a nullable callback. A non-null function has the exact signature Widget? Function(BuildContext, {required int currentLength, required int? maxLength, required bool isFocused}). "
+                        + "The three named parameters are required, including nullable int? maxLength. An omitted/null callback uses SDK counter logic, subject to maxLength and decoration. A callback returning null hides both its counter and generated Semantics; that is not the same as a null callback. "
+                : "EditableTextContextMenuBuilder? accepts a nullable callback. A non-null function has the exact signature Widget Function(BuildContext, EditableTextState). Its returned Widget must not be null. Omission uses the SDK platform default menu; an explicit null or a nullable reference resolving to null disables the context menu. ";
+        return contract + "Use a current-file or package reference, getter/member, or zero-argument factory returning the callback, including a nullable callback. "
+                + "Canvas never executes project builders: it shows an SDK-default approximation for custom references and cannot reproduce the callback result or null. Verify custom visuals in the real application or a Flutter widget test. "
+                + "Cancel leaves both builders, onChanged and user Dart bodies unchanged.";
+    }
+
+    static String listViewExtentBuilderDescription() {
+        return "ItemExtentBuilder? accepts a nullable callback with signature double? Function(int index, SliverLayoutDimensions dimensions). "
+                + "Flutter rendering's SliverLayoutDimensions supplies scrollOffset, precedingScrollExtent, viewportMainAxisExtent and crossAxisExtent. "
+                + "Omission or a null callback uses natural child sizing, or an existing fixed itemExtent. Return a valid extent for every actual child; a null result is only an out-of-range marker, not a default size or a way to truncate existing children. "
+                + "Use a current-file or package reference, getter/member, or zero-argument factory returning the callback, including a nullable callback. "
+                + "Reset fixed itemExtent before setting a reference. To return to fixed sizing, reset itemExtentBuilder or set explicit null first. Even a nullable reference cannot coexist with fixed itemExtent because its runtime result is unknown; no property is silently cleared. "
+                + "Canvas never executes the project builder and shows a natural-size approximation, with an explicit warning. It cannot reproduce per-item extents or the callback's out-of-range result. "
+                + "Children, their stored state and other scroll properties remain unchanged; Cancel publishes nothing.";
     }
 
     static Component customEditor(
@@ -129,6 +188,11 @@ final class FlutterDartObjectReferenceEditorComponent {
         private final String argumentName;
         private final String argumentDisplayName;
         private final boolean shapeBranch;
+        private final boolean bottomSheetScrimBranch;
+        private final boolean appBarPredicateBranch;
+        private final boolean elevatedButtonLayerBranch;
+        private final boolean textFieldBuilderBranch;
+        private final boolean listViewExtentBuilderBranch;
         private final boolean noOpRefreshBranch;
         private final boolean buttonActivationBranch;
         private boolean updating;
@@ -150,17 +214,31 @@ final class FlutterDartObjectReferenceEditorComponent {
                     + argumentName.substring(1);
             shapeBranch = "shape".equals(argumentName)
                     && "ShapeBorder".equals(expectedDartType);
+            bottomSheetScrimBranch = "bottomSheetScrimBuilder".equals(argumentName)
+                    && "Widget? Function(BuildContext, Animation<double>)".equals(expectedDartType);
+            appBarPredicateBranch = "notificationPredicate".equals(argumentName)
+                    && "ScrollNotificationPredicate".equals(expectedDartType)
+                    && environment != null && Boolean.TRUE.equals(
+                            environment.getFeatureDescriptor().getValue(APP_BAR_PREDICATE_ATTRIBUTE));
+            elevatedButtonLayerBranch = ("styleBackgroundBuilder".equals(argumentName) || "styleForegroundBuilder".equals(argumentName))
+                    && "ButtonLayerBuilder".equals(expectedDartType) && environment != null
+                    && Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(ELEVATED_BUTTON_LAYER_ATTRIBUTE));
+            textFieldBuilderBranch = ("buildCounter".equals(argumentName) && "InputCounterWidgetBuilder?".equals(expectedDartType)
+                    || "contextMenuBuilder".equals(argumentName) && "EditableTextContextMenuBuilder?".equals(expectedDartType))
+                    && environment != null && Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(TEXT_FIELD_BUILDER_ATTRIBUTE));
+            listViewExtentBuilderBranch = "itemExtentBuilder".equals(argumentName) && "ItemExtentBuilder?".equals(expectedDartType)
+                    && environment != null && Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(LIST_VIEW_EXTENT_BUILDER_ATTRIBUTE));
             noOpRefreshBranch = "onRefresh".equals(argumentName) && "RefreshCallback".equals(expectedDartType);
             buttonActivationBranch = "onPressed".equals(argumentName) && "VoidCallback".equals(expectedDartType)
                     || "onChanged".equals(argumentName) && ("ValueChanged<bool?>".equals(expectedDartType)
                             || "ValueChanged<bool>".equals(expectedDartType) || "ValueChanged<double>".equals(expectedDartType)
                             || "ValueChanged<RangeValues>".equals(expectedDartType));
-            useDefault = new JCheckBox(noOpRefreshBranch ? "Use generated no-op refresh callback"
+            useDefault = new JCheckBox(elevatedButtonLayerBranch ? "Use theme/framework builder (omit local override)" : noOpRefreshBranch ? "Use generated no-op refresh callback"
                     : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default (omit " + argumentName + ")");
 
             setLayout(new BorderLayout(0, 8));
             setName(PANEL_NAME);
-            setPreferredSize(new Dimension(650, 340));
+            setPreferredSize(textFieldBuilderBranch || listViewExtentBuilderBranch ? new Dimension(780, 470) : elevatedButtonLayerBranch ? new Dimension(800, 580) : bottomSheetScrimBranch ? new Dimension(780, 520) : new Dimension(650, 340));
             getAccessibleContext().setAccessibleName(
                     binding.definition().name().value()
                             + " Dart object reference editor");
@@ -168,9 +246,11 @@ final class FlutterDartObjectReferenceEditorComponent {
 
             useDefault.setName(DEFAULT_NAME);
             useDefault.getAccessibleContext().setAccessibleName(
-                    noOpRefreshBranch ? "Use generated no-op refresh callback" : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default without " + argumentDisplayName);
+                    elevatedButtonLayerBranch ? "Use theme/framework builder without this local override" : bottomSheetScrimBranch ? "Use Flutter default bottom-sheet scrim" : noOpRefreshBranch ? "Use generated no-op refresh callback" : buttonActivationBranch ? "Use Designer activation default" : "Use Flutter default without " + argumentDisplayName);
             useDefault.getAccessibleContext().setAccessibleDescription(
-                    noOpRefreshBranch ? "Removes the project reference and generates the required async no-op callback, not a null callback."
+                    elevatedButtonLayerBranch ? "Omits only this local ButtonStyle builder. The theme may still supply a builder; reset does not force no layer or change the other builder."
+                            : bottomSheetScrimBranch ? "Omits bottomSheetScrimBuilder and restores Flutter's built-in animated scrim; never sets the callback to null."
+                            : noOpRefreshBranch ? "Removes the project reference and generates the required async no-op callback, not a null callback."
                             : buttonActivationBranch ? "Removes the project reference. The active widget contract determines the generated no-op or null callback from Enabled and other activation callbacks. See the property's help for the exact widget policy."
                             : "When selected, removes the optional " + argumentName + " Dart object reference.");
             if (binding.optional()) {
@@ -210,7 +290,7 @@ final class FlutterDartObjectReferenceEditorComponent {
             addRow(form, 6, "Preview:", preview);
             add(form, BorderLayout.CENTER);
 
-            JTextArea note = new JTextArea(description(), 4, 56);
+            JTextArea note = new JTextArea(description(), textFieldBuilderBranch || listViewExtentBuilderBranch ? 8 : elevatedButtonLayerBranch ? 13 : bottomSheetScrimBranch ? 10 : 4, textFieldBuilderBranch || listViewExtentBuilderBranch || elevatedButtonLayerBranch || bottomSheetScrimBranch ? 76 : 56);
             note.setEditable(false);
             note.setFocusable(false);
             note.setOpaque(false);
@@ -351,7 +431,8 @@ final class FlutterDartObjectReferenceEditorComponent {
             if (unset) {
                 rendered = noOpRefreshBranch ? "onRefresh: () async {}"
                         : buttonActivationBranch ? argumentName + ": <generated from Enabled and activation policy>"
-                        : shapeBranch ? argumentName + ": <Flutter default; argument omitted>"
+                        : elevatedButtonLayerBranch ? argumentName + ": <theme/framework fallback; local builder omitted>"
+                        : shapeBranch || bottomSheetScrimBranch ? argumentName + ": <Flutter default; argument omitted>"
                         : argumentName + ": <Flutter default null>";
             } else {
                 String symbol = rootSymbol.getText().strip();
@@ -390,11 +471,39 @@ final class FlutterDartObjectReferenceEditorComponent {
         }
 
         private String description() {
+            if (listViewExtentBuilderBranch) return listViewExtentBuilderDescription();
+            if (textFieldBuilderBranch) return textFieldBuilderDescription(argumentName);
+            if (elevatedButtonLayerBranch) {
+                return "The analyzer requires a non-null ButtonLayerBuilder: Widget Function(BuildContext, Set<WidgetState>, Widget? child). "
+                        + "The child may be null; the returned Widget must not be null. Choose a current-file or package reference, getter/member, or zero-argument factory returning the function. "
+                        + ("styleBackgroundBuilder".equals(argumentName)
+                                ? "The background builder wraps the whole button content, including padding, inside its Material. "
+                                : "The foreground builder wraps the nullable child inside the button's padding and alignment. ")
+                        + "Use theme/framework builder / Restore Default omits only this local override; a theme builder may remain active. "
+                        + "With clipBehavior omitted, either effective local/theme builder makes the SDK use Clip.antiAlias; without either builder it uses Clip.none. An explicit clipBehavior wins. "
+                        + "Canvas never executes your custom builder. Its structural placeholder keeps the editable child and builder-presence clipping, but custom layer geometry and clipping are approximate. "
+                        + "The other builder, style leaves and user Dart body remain unchanged; Cancel publishes nothing.";
+            }
+            if (bottomSheetScrimBranch) {
+                return "The analyzer requires a non-null Widget? Function(BuildContext, Animation<double>) callback. "
+                        + "Choose a current-file or package reference, getter/member, or zero-argument factory returning that function. "
+                        + "The animation is 0.0 at 70% bottom-sheet screen coverage and 1.0 at 100%. "
+                        + "The builder may return null to show no scrim; setting the callback itself to null is invalid. "
+                        + "Use Flutter default / Restore Default omits the argument and restores Flutter's built-in animated scrim. "
+                        + "Canvas previews the SDK default only and never executes your custom builder. Cancel leaves the reference and user code unchanged.";
+            }
             if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(CHECKBOX_TILE_CALLBACK_ATTRIBUTE))
                     && "onChanged".equals(argumentName) && "ValueChanged<bool?>".equals(expectedDartType)) {
                 return "The analyzer verifies the required CheckboxListTile callback as ValueChanged<bool?>. "
                         + "Choose a non-null project reference, explicit No-op preset or explicit null; omission is not accepted. "
                         + "Enabled is independently nullable and never rewrites this callback. Isolated Canvas does not execute project callbacks.";
+            }
+            if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(SWITCH_TILE_CALLBACK_ATTRIBUTE))
+                    && "onChanged".equals(argumentName) && "ValueChanged<bool>".equals(expectedDartType)) {
+                return "The analyzer verifies the required SwitchListTile callback as ValueChanged<bool>. "
+                        + "Choose a non-null reference/getter/member or zero-argument factory returning that function. "
+                        + "No-op enables the tile without automatically changing its controlled Value; explicit null disables it. Omission is invalid. "
+                        + "No Enabled or Tristate property is invented. Isolated Canvas never executes project callbacks.";
             }
             if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(RADIO_GROUP_CALLBACK_ATTRIBUTE))
                     && "onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
@@ -402,9 +511,31 @@ final class FlutterDartObjectReferenceEditorComponent {
                         + "Select the explicit No-op preset or a strict non-null project reference; null and omission are not accepted. "
                         + "Isolated Canvas never executes project callbacks. Stored Group Value and descendant Radio values/types are not changed by a request.";
             }
+            if (Boolean.TRUE.equals(environment.getFeatureDescriptor().getValue(RADIO_TILE_CALLBACK_ATTRIBUTE))
+                    && "onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
+                return "The analyzer checks RadioListTile On changed against ValueChanged<T?> for the selected value type. "
+                        + "Use a typed reference/getter/member or zero-argument factory returning the function; the source method is never rewritten when T changes. "
+                        + "Modern RadioGroup is the preferred group owner. Legacy Group value and On changed remain explicit; omission, null and No-op are distinct. "
+                        + "There is no groupRegistry field on RadioListTile. Canvas never invokes project callbacks.";
+            }
+            if ("controller".equals(argumentName) && "ExpansibleController".equals(expectedDartType)) {
+                return "The analyzer verifies a non-null ExpansibleController reference, getter, member or zero-argument factory. "
+                        + "Its owner creates, retains and disposes the controller; Designer does not synthesize lifecycle code or call expand/collapse. "
+                        + "Initially expanded is only a seed. Control current expansion through the controller in application code, outside build; there is no generated two-way State binding. "
+                        + "Canvas uses an isolated controller and never accesses the project instance. Omission/null permits SDK ownership. Cancel changes nothing.";
+            }
+            if (argumentName.startsWith("expansionAnimationStyle") && java.util.List.of("AnimationStyle", "Curve", "Duration").contains(expectedDartType)) {
+                return "The analyzer verifies a non-null " + expectedDartType + " reference, getter, member or zero-argument factory. "
+                        + "Custom styles, curves and durations are not executed in isolated Canvas. Omission and explicit null preserve SDK/theme fallback. "
+                        + "The pinned ExpansionTile SDK ignores reverseDuration even though it is retained and generated. Whole/local AnimationStyle changes are atomic and preserve other families and all child slots.";
+            }
+            String tooltip = tooltipReferenceDescription(argumentName, expectedDartType);
+            if (tooltip != null) return tooltip;
             String base = "The Dart analyzer validates that the selected Dart "
                     + "symbol is assignable to " + expectedDartType + ". ";
-            if (("value".equals(argumentName) || "groupValue".equals(argumentName)) && "Object?".equals(expectedDartType)) {
+            if ("onNotification".equals(argumentName) && "NotificationListenerCallback<Notification>".equals(expectedDartType)) {
+                base = "The analyzer checks this bool callback against NotificationListenerCallback<T> for the selected notification type. True stops bubbling; false, omission or explicit null continues. Canvas never executes it. ";
+            } else if (("value".equals(argumentName) || "groupValue".equals(argumentName)) && "Object?".equals(expectedDartType)) {
                 base = "The analyzer checks this Radio value against the selected type, including its nullable form where permitted. Dynamic references are rejected. ";
             } else if ("onChanged".equals(argumentName) && "ValueChanged<Object?>".equals(expectedDartType)) {
                 base = "The analyzer checks the Radio callback against ValueChanged<T?> for the selected type. Null and omission are distinct from the explicit No-op preset. Enabled false preserves this callback. ";
@@ -439,6 +570,9 @@ final class FlutterDartObjectReferenceEditorComponent {
                 return base + "Isolated Canvas retains the wrapper and editable child, skips this observer with a diagnostic, and permits the SDK refresh cycle.";
             }
             if ("notificationPredicate".equals(argumentName) && "ScrollNotificationPredicate".equals(expectedDartType)) {
+                if (appBarPredicateBranch) {
+                    return base + "The non-null predicate is bool Function(ScrollNotification). Returning true accepts a notification for AppBar scrolled-under elevation; it does not stop notification propagation. Isolated Canvas never executes the project predicate and previews the SDK default depth-zero filter as an explicit approximation.";
+                }
                 return base + "Isolated Canvas retains the wrapper and editable child, but disables refresh activation and reports the custom predicate; it never substitutes another filter.";
             }
             return base

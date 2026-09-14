@@ -1,5 +1,8 @@
 package dev.flutter.netbeans.designer.validation;
 
+import dev.flutter.netbeans.designer.catalog.AnimatedDefaultTextStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextStyleWidgetPropertySchema;
+
 import dev.flutter.netbeans.designer.catalog.AppBarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
@@ -12,18 +15,28 @@ import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchem
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuItemButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuAnchorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SubmenuButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ParameterStyle;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
@@ -40,6 +53,10 @@ import dev.flutter.netbeans.designer.model.SlotCardinality;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
+import dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog;
+import dev.flutter.netbeans.designer.state.WidgetStatePropertyBindingCatalog;
+import dev.flutter.netbeans.designer.model.StateBinding;
 import dev.flutter.netbeans.designer.model.WidgetSlot;
 import java.math.BigDecimal;
 import java.math.BigInteger;
@@ -83,6 +100,7 @@ public final class WidgetTreeValidator {
     public static final String PROPERTY_LIMIT = "designer.widget.properties.limit";
     public static final String SLOT_LIMIT = "designer.widget.slots.limit";
     public static final String ISSUES_TRUNCATED = "designer.validation.issues.truncated";
+    public static final String STATE_BINDING = "designer.widget.stateBinding";
 
     private static final String ROOT_PATH = "/root";
     private static final Comparator<PropertyName> PROPERTY_NAME_ORDER =
@@ -107,6 +125,7 @@ public final class WidgetTreeValidator {
         IssueCollector issues = new IssueCollector(limits.maxIssues());
         Map<StableId, String> firstIdPaths = new HashMap<>();
         Map<String, String> firstSemanticsIdentifierPaths = new HashMap<>();
+        Map<String, StateMemberUse> firstStateMemberPaths = new HashMap<>();
         Deque<NodeFrame> pending = new ArrayDeque<>();
         TraversalFrontier frontier = new TraversalFrontier(limits.maxNodes());
         pending.push(new NodeFrame(document.root(), ROOT_PATH, 1, null, null));
@@ -171,6 +190,8 @@ public final class WidgetTreeValidator {
                 break;
             }
 
+            validateStateBinding(document, node, definition.orElse(null), frame.path(),
+                    firstStateMemberPaths, issues);
             validateProperties(
                     node,
                     definition.orElse(null),
@@ -201,6 +222,63 @@ public final class WidgetTreeValidator {
         }
 
         return new ValidationResult(issues.snapshot());
+    }
+
+    private static void validateStateBinding(
+            DesignerDocument document, WidgetNode node, WidgetDefinition definition,
+            String nodePath, Map<String, StateMemberUse> firstMemberPaths, IssueCollector issues) {
+        if (node.stateBinding().isEmpty() && node.propertyBindings().isEmpty()) return;
+        String path = nodePath + "/stateBinding";
+        if (document.source().widgetKind() != WidgetClassKind.STATEFUL) {
+            issues.add(issue(STATE_BINDING, path, node.id(),
+                    "A State binding requires a verified StatefulWidget source owner."));
+        }
+        WidgetStateBindingCatalog.validationError(node).ifPresent(message ->
+                issues.add(issue(STATE_BINDING, path, node.id(), message)));
+        WidgetStatePropertyBindingCatalog.validationError(node).ifPresent(message ->
+                issues.add(issue(STATE_BINDING, nodePath + "/propertyBindings", node.id(), message)));
+        for (var entry : node.propertyBindings().entrySet()) {
+            // Retained Focus-only arguments do not use a source member in the external-node constructor.
+            // Keep their closed binding validation above, and recheck member consistency when reactivated.
+            if (!dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema.propertyAvailable(node, entry.getKey())
+                    || !SwitchListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey())
+                    || !RadioListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey())) continue;
+            var consumer = entry.getValue();
+            validateStateMember(consumer.fieldName(), new StateMemberUse(nodePath + "/propertyBindings/"
+                    + pointer(entry.getKey().value()), consumer.type(), consumer.referenceType(), false),
+                    node.id(), firstMemberPaths, issues);
+        }
+        if (node.stateBinding().isEmpty()) return;
+        var binding = node.stateBinding().orElseThrow();
+        validateStateMember(binding.fieldName(), new StateMemberUse(path, binding.type(), binding.referenceType(), false),
+                node.id(), firstMemberPaths, issues);
+        validateStateMember(binding.handlerName(), new StateMemberUse(path, binding.type(), binding.referenceType(), true),
+                node.id(), firstMemberPaths, issues);
+        if (definition != null && binding.previousOnChanged().isPresent()) {
+            PropertyValue previous = binding.previousOnChanged().orElseThrow();
+            PropertyName event = WidgetStateBindingCatalog.find(node).map(WidgetStateBindingCatalog.Descriptor::eventProperty)
+                    .orElse(new PropertyName("onChanged"));
+            boolean accepted = definition.property(event)
+                    .stream().flatMap(property -> property.constraints().stream())
+                    .anyMatch(constraint -> constraint.kind() == previous.kind() && constraint.accepts(previous));
+            if (!accepted) {
+                issues.add(issue(STATE_BINDING, path + "/previousOnChanged", node.id(),
+                        "The retained previous event value is not accepted by this widget's callback contract."));
+            }
+        }
+    }
+
+    private record StateMemberUse(String path, StateBinding.Type type,
+            Optional<PropertyValue.DartObjectReferenceValue> referenceType, boolean handler) {}
+
+    private static void validateStateMember(String name, StateMemberUse current, StableId node,
+            Map<String, StateMemberUse> firstUses, IssueCollector issues) {
+        StateMemberUse first = firstUses.putIfAbsent(name, current);
+        if (first != null && (first.handler() || current.handler() || first.type() != current.type()
+                || !first.referenceType().equals(current.referenceType()))) {
+            issues.add(issue(STATE_BINDING, current.path(), node,
+                    "State member '" + name + "' conflicts with its retained type or handler use at '" + first.path() + "'."));
+        }
     }
 
     private static void validateOptionalPositionalPrefix(
@@ -338,6 +416,24 @@ public final class WidgetTreeValidator {
             Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String type = node.type().value();
+        if (type.equals(dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE.value())) {
+            dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.notificationTypeError(node)
+                    .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/notificationType", node.id(), message)));
+            return;
+        }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema.FOCUS_TYPE.value())) {
+            if (dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema.usesExternalNode(node)
+                    && !(node.properties().get(new PropertyName("focusNode")) instanceof PropertyValue.DartObjectReferenceValue)) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/focusNode", node.id(),
+                        "Focus.withExternalFocusNode requires a non-null project FocusNode reference; the project owns its lifecycle."));
+            }
+            return;
+        }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.GestureDetectorWidgetPropertySchema.GESTURE_DETECTOR_TYPE.value())) {
+            dev.flutter.netbeans.designer.catalog.GestureDetectorWidgetPropertySchema.gestureConflict(node)
+                    .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
+            return;
+        }
         if (type.equals("flutter.widgets.ClipPath")) {
             if (node.properties().containsKey(new PropertyName("clipper"))
                     && node.properties().containsKey(new PropertyName("shape"))) {
@@ -370,9 +466,35 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.conflict(node).ifPresent(message ->
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/findItemIndexCallback", node.id(), message)));
+
         if (type.equals(ListViewWidgetPropertySchema.LIST_VIEW_TYPE.value())) {
             validateStaticScrollViewSemanticChildCount(
                     node, propertiesPath, "ListView", issues);
+            if (node.properties().containsKey(new PropertyName("itemExtent"))
+                    && node.properties().get(new PropertyName("itemExtentBuilder")) instanceof PropertyValue.DartObjectReferenceValue) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/itemExtentBuilder", node.id(),
+                        "ListView cannot combine itemExtent with an itemExtentBuilder reference, even if the callback may evaluate to null. "
+                        + "Reset itemExtent to use the builder, or reset itemExtentBuilder/set it to explicit null to use the fixed extent. No value was cleared."));
+            }
+            return;
+        }
+
+        if (type.equals("flutter.widgets.SliverVisibility")) {
+            for (var dependency : List.of(
+                    List.of("maintainAnimation", "maintainState"),
+                    List.of("maintainSize", "maintainAnimation"),
+                    List.of("maintainSemantics", "maintainSize"),
+                    List.of("maintainInteractivity", "maintainSize"))) {
+                if (Boolean.TRUE.equals(booleanValue(node, dependency.getFirst()))
+                        && !Boolean.TRUE.equals(booleanValue(node, dependency.getLast()))) {
+                    issues.add(issue(PROPERTY_DEPENDENCY,
+                            propertiesPath + '/' + dependency.getFirst(), node.id(),
+                            "SliverVisibility " + dependency.getFirst() + "=true requires "
+                            + dependency.getLast() + "=true, even when visible=true. Omitted maintenance flags default to false."));
+                }
+            }
             return;
         }
 
@@ -398,6 +520,12 @@ public final class WidgetTreeValidator {
         if (type.equals(GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.value())) {
             validateStaticScrollViewSemanticChildCount(
                     node, propertiesPath, "GridView.count", issues);
+            return;
+        }
+
+        if (type.equals(GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value())) {
+            validateStaticScrollViewSemanticChildCount(
+                    node, propertiesPath, "GridView.extent", issues);
             return;
         }
 
@@ -429,6 +557,35 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(node.type())) {
+            dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.conflict(node).ifPresent(message ->
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
+            return;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(node.type())) {
+            dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.conflict(node).ifPresent(message ->
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
+            return;
+        }
+        if (type.equals("flutter.widgets.AnimatedContainer")) {
+            PropertyValue color = node.properties().get(new PropertyName("color"));
+            PropertyValue decoration = node.properties().get(new PropertyName("decoration"));
+            boolean hasColor = color != null && !(color instanceof PropertyValue.NullValue);
+            boolean hasDecoration = decoration != null && !(decoration instanceof PropertyValue.NullValue);
+            if (hasColor && hasDecoration) issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/decoration", node.id(),
+                    "AnimatedContainer background: non-null color and decoration are mutually exclusive."));
+            PropertyValue clip = node.properties().get(new PropertyName("clipBehavior"));
+            if (clip instanceof PropertyValue.EnumValue value && !value.value().equals("none") && !hasColor && !hasDecoration)
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/clipBehavior", node.id(),
+                        "AnimatedContainer clipping requires non-null background color or decoration."));
+            return;
+        }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.TYPE.value())) {
+            if (dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.conflictingAlignment(node))
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/alignment", node.id(),
+                    "SizeTransition Alignment and deprecated Axis alignment cannot both be non-null. Reset one or use explicit null; source references are treated as potentially non-null."));
+            return;
+        }
         if (type.equals(ContainerWidgetPropertySchema.CONTAINER_TYPE.value())) {
             validateMutuallyExclusiveProperties(
                     node, propertiesPath, issues,
@@ -448,8 +605,37 @@ public final class WidgetTreeValidator {
             return;
         }
 
+        if (node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)) {
+            if (node.properties().containsKey(new PropertyName("style"))) {
+                for (String name : MenuAnchorWidgetPropertySchema.localStyleProperties()) {
+                    if (node.properties().containsKey(new PropertyName(name))) issues.add(issue(PROPERTY_CONFLICT,
+                            propertiesPath + '/' + name, node.id(),
+                            "MenuAnchor whole MenuStyle (including null) is exclusive with every local style leaf. Reset one branch first."));
+                }
+            }
+            validateElevatedButtonEffectiveDimensions(node, propertiesPath, issues);
+            validateElevatedButtonEffectiveShapes(node, propertiesPath, issues);
+            validateElevatedButtonAlignment(node, propertiesPath, issues);
+            return;
+        }
+        if (node.type().equals(MenuBarWidgetPropertySchema.MENU_BAR_TYPE)) {
+            if (node.properties().containsKey(new PropertyName("style"))) {
+                for (String name : MenuBarWidgetPropertySchema.localStyleProperties()) {
+                    if (node.properties().containsKey(new PropertyName(name))) issues.add(issue(PROPERTY_CONFLICT,
+                            propertiesPath + '/' + name, node.id(),
+                            "MenuBar whole MenuStyle (including null) is exclusive with every local style leaf. Reset one branch first."));
+                }
+            }
+            validateElevatedButtonEffectiveDimensions(node, propertiesPath, issues);
+            validateElevatedButtonEffectiveShapes(node, propertiesPath, issues);
+            validateElevatedButtonAlignment(node, propertiesPath, issues);
+            return;
+        }
         if (type.equals(ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.value())
                 || OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
+            if (node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE)) {
+                validateSubmenuButtonBranches(node, propertiesPath, issues);
+            }
             if (OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) {
                 validateTextButtonBranches(node, propertiesPath, issues);
             }
@@ -505,8 +691,102 @@ public final class WidgetTreeValidator {
             validateSwitch(node, propertiesPath, issues);
             return;
         }
+        if (type.equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE.value())) {
+            validateSwitch(node, propertiesPath, issues);
+            validateCardShape(node, propertiesPath, issues, "shape", "SwitchListTile shape");
+            if (SwitchListTileWidgetPropertySchema.requiresSubtitle(node)
+                    && (!(node.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty())) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/isThreeLine", node.id(),
+                        "SwitchListTile explicit Three line true requires a nonempty Subtitle slot. No child is fabricated."));
+            }
+            validateListTileWholeLocal(node, propertiesPath, issues, "visualDensity", List.of("visualDensityHorizontal", "visualDensityVertical"));
+            List<String> cursors = SwitchListTileWidgetPropertySchema.mouseCursorStateProperties();
+            validateListTileWholeLocal(node, propertiesPath, issues, "mouseCursor", cursors);
+            if (cursors.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))
+                    && !node.properties().containsKey(new PropertyName("mouseCursorDefault"))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/mouseCursorDefault", node.id(),
+                        "SwitchListTile local cursor map requires an explicit non-null Default; no cursor is invented."));
+            }
+            return;
+        }
         if (type.equals(RadioWidgetPropertySchema.RADIO_TYPE.value())) {
             validateRadio(node, propertiesPath, issues);
+            return;
+        }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE.value())) {
+            for (String name : dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.LOCAL_STYLE)
+                validateMutuallyExclusiveProperties(node, propertiesPath, issues, "animationStyle", name, "SliverFloatingHeader animation style");
+            return;
+        }
+        if (type.equals(ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE.value())) {
+            for (String family : ExpansionTileWidgetPropertySchema.shapeFamilies()) validateCardShape(node, propertiesPath, issues, family, "ExpansionTile " + family);
+            for (String name : List.of("visualDensityHorizontal", "visualDensityVertical")) validateMutuallyExclusiveProperties(node, propertiesPath, issues, "visualDensity", name, "ExpansionTile density");
+            for (String name : ExpansionTileWidgetPropertySchema.animationStyleLocalProperties()) validateMutuallyExclusiveProperties(node, propertiesPath, issues, "expansionAnimationStyle", name, "ExpansionTile animation style");
+            return;
+        }
+        if (type.equals(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE.value())) {
+            if (node.properties().containsKey(new PropertyName("data"))) {
+                for (String name : TooltipThemeWidgetPropertySchema.localProperties()) {
+                    PropertyName key = new PropertyName(name);
+                    if (node.properties().containsKey(key) || node.propertyBindings().containsKey(key)) {
+                        String conflictPath = node.propertyBindings().containsKey(key)
+                                ? propertiesPath.substring(0, propertiesPath.length() - "/properties".length()) + "/propertyBindings/" + name
+                                : propertiesPath + "/" + name;
+                        issues.add(issue(PROPERTY_CONFLICT, conflictPath, node.id(),
+                                "TooltipTheme whole Data and local '" + name + "' are mutually exclusive, including explicit null and State bindings. Reset Data to use local fields, or explicitly remove all local fields before setting Data; no values are silently cleared."));
+                    }
+                }
+            }
+            if (TooltipWidgetPropertySchema.isNonNull(node, "height") && TooltipWidgetPropertySchema.isNonNull(node, "constraints")) issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/constraints", node.id(),
+                    "TooltipThemeData Height and Constraints cannot both be non-null. Reset one field or set it to explicit null."));
+            for (String name : TooltipThemeWidgetPropertySchema.textStyleProperties()) validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyle", name, "TooltipThemeData textStyle");
+            validateFontPackageDependency(node, propertiesPath, issues, "textStylePackage", "textStyleFontFamily", "textStyleFontFamilyFallback", "TooltipThemeData textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleColor", "textStyleForeground", "TooltipThemeData textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleBackgroundColor", "textStyleBackground", "TooltipThemeData textStyle");
+            return;
+        }
+        if (type.equals(TooltipWidgetPropertySchema.TOOLTIP_TYPE.value())) {
+            boolean message = TooltipWidgetPropertySchema.isNonNull(node, "message");
+            boolean rich = TooltipWidgetPropertySchema.isNonNull(node, "richMessage");
+            if (message == rich) issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/richMessage", node.id(),
+                    "Tooltip requires exactly one non-null Message or Rich message. Change both content fields atomically; clearing the last content or supplying both is not allowed."));
+            if (TooltipWidgetPropertySchema.isNonNull(node, "height") && TooltipWidgetPropertySchema.isNonNull(node, "constraints")) issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/constraints", node.id(),
+                    "Tooltip Height and Constraints cannot both be non-null. Reset one field or set it to explicit null."));
+            for (String name : TooltipWidgetPropertySchema.textStyleProperties()) validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyle", name, "Tooltip textStyle");
+            validateFontPackageDependency(node, propertiesPath, issues, "textStylePackage", "textStyleFontFamily", "textStyleFontFamilyFallback", "Tooltip textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleColor", "textStyleForeground", "Tooltip textStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleBackgroundColor", "textStyleBackground", "Tooltip textStyle");
+            return;
+        }
+        if (type.equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.value())) {
+            RadioListTileWidgetPropertySchema.valueTypeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/valueType", node.id(), message)));
+            validateCardShape(node, propertiesPath, issues, "shape", "RadioListTile shape");
+            if (RadioListTileWidgetPropertySchema.requiresSubtitle(node)
+                    && (!(node.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty())) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/isThreeLine", node.id(), "RadioListTile explicit Three line true requires a nonempty Subtitle slot."));
+            }
+            for (String family : RadioListTileWidgetPropertySchema.colorFamilies()) validateListTileWholeLocal(node, propertiesPath, issues, family, RadioListTileWidgetPropertySchema.colorStateProperties(family));
+            validateListTileWholeLocal(node, propertiesPath, issues, "radioInnerRadius", RadioListTileWidgetPropertySchema.innerRadiusStateProperties());
+            validateListTileWholeLocal(node, propertiesPath, issues, "radioSide", RadioListTileWidgetPropertySchema.sideLocalProperties());
+            validateListTileWholeLocal(node, propertiesPath, issues, "visualDensity", List.of("visualDensityHorizontal", "visualDensityVertical"));
+            List<String> cursors = RadioListTileWidgetPropertySchema.mouseCursorStateProperties();
+            validateListTileWholeLocal(node, propertiesPath, issues, "mouseCursor", cursors);
+            if (cursors.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))
+                    && !node.properties().containsKey(new PropertyName("mouseCursorDefault"))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/mouseCursorDefault", node.id(), "RadioListTile local cursor map requires an explicit non-null Default."));
+            }
+            validateStatefulRadioOrCheckboxSide(node, propertiesPath, issues, "RadioListTile", "radioSide");
+            return;
+        }
+        if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())) {
+            dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.valueTypeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/valueType", node.id(), message)));
+            return;
+        }
+        if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())) {
+            dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.valueTypeError(node).ifPresent(message ->
+                    issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/valueType", node.id(), message)));
             return;
         }
         if (type.equals(RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.value())) {
@@ -639,7 +919,36 @@ public final class WidgetTreeValidator {
             validateMutuallyExclusiveProperties(node, propertiesPath, issues, "textStyleBackgroundColor", "textStyleBackground", "Badge textStyle");
             return;
         }
-        if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())) {
+        if (dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarSettingsWidgetPropertySchema.TYPE.equals(node.type())) {
+            BigDecimal min = numericValue(node, "minExtent"), max = numericValue(node, "maxExtent"), current = numericValue(node, "currentExtent");
+            if (min != null && max != null && min.compareTo(max) > 0)
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/minExtent", node.id(), "FlexibleSpaceBarSettings Min extent must not exceed Max extent."));
+            if (min != null && current != null && current.compareTo(min) < 0)
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/currentExtent", node.id(), "FlexibleSpaceBarSettings Current extent must be at least Min extent."));
+            if (max != null && current != null && current.compareTo(max) > 0)
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/currentExtent", node.id(), "FlexibleSpaceBarSettings Current extent must not exceed Max extent."));
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(node.type())) {
+            if (Boolean.TRUE.equals(booleanValue(node, "snap")) && !Boolean.TRUE.equals(booleanValue(node, "floating"))) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/snap", node.id(), "SliverAppBar snap requires floating."));
+            }
+            BigDecimal toolbar = numericValue(node, "toolbarHeight");
+            if (toolbar == null) toolbar = BigDecimal.valueOf(dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.toolbarDefault(node.type()));
+            BigDecimal collapsed = numericValue(node, "collapsedHeight");
+            if (collapsed != null && collapsed.compareTo(toolbar) < 0) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/collapsedHeight", node.id(), "SliverAppBar collapsedHeight must be at least toolbarHeight (" + toolbar + ")."));
+            }
+            for (String whole : dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.WHOLE_TYPES.keySet()) {
+                if (node.properties().containsKey(new PropertyName(whole))) {
+                    for (String local : dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.localFamily(whole)) {
+                        if (node.properties().containsKey(new PropertyName(local))) issues.add(issue(PROPERTY_CONFLICT,
+                                propertiesPath + "/" + local, node.id(), "SliverAppBar whole " + whole + " and local fields are mutually exclusive."));
+                    }
+                }
+            }
+        }
+        if (type.equals(AppBarWidgetPropertySchema.APP_BAR_TYPE.value())
+                || dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(node.type())) {
             validateFontPackageDependency(
                     node, propertiesPath, issues,
                     "toolbarTextStylePackage", "toolbarTextStyleFontFamily",
@@ -668,7 +977,15 @@ public final class WidgetTreeValidator {
             return;
         }
 
-        if (!type.equals("flutter.widgets.Text")) {
+        if (DefaultTextStyleWidgetPropertySchema.sharesTextProjection(node.type())) {
+            boolean reference = !(node.properties().get(new PropertyName("style")) instanceof PropertyValue.StringValue);
+            if (reference && node.properties().keySet().stream().anyMatch(AnimatedDefaultTextStyleWidgetPropertySchema::styleLeaf))
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/style", node.id(), "Whole TextStyle reference/null/omission and local style fields are mutually exclusive."));
+            if (node.properties().containsKey(new PropertyName("textHeightBehavior")) &&
+                    node.properties().keySet().stream().anyMatch(AnimatedDefaultTextStyleWidgetPropertySchema::heightLeaf))
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/textHeightBehavior", node.id(), "Whole TextHeightBehavior/null and local height fields are mutually exclusive."));
+        }
+        if (!type.equals("flutter.widgets.Text") && !DefaultTextStyleWidgetPropertySchema.sharesTextProjection(node.type())) {
             return;
         }
         validateFontPackageDependency(
@@ -1075,7 +1392,45 @@ public final class WidgetTreeValidator {
         }
     }
 
+    private static void validateSubmenuButtonBranches(WidgetNode node, String path, IssueCollector issues) {
+        for (String family : List.of("menuStyle", "submenuIcon")) {
+            if (!node.properties().containsKey(new PropertyName(family))) continue;
+            List<String> locals = family.equals("menuStyle") ? SubmenuButtonWidgetPropertySchema.menuStyleProperties()
+                    : SubmenuButtonWidgetPropertySchema.submenuIconLocalProperties();
+            for (String name : locals) if (node.properties().containsKey(new PropertyName(name))) {
+                issues.add(issue(PROPERTY_CONFLICT, path + '/' + name, node.id(),
+                        "SubmenuButton whole " + family + " (including null) is exclusive with its own local fields. Reset one branch first; the other style family is independent."));
+            }
+        }
+        WidgetNode projection = SubmenuButtonWidgetPropertySchema.menuStyleProjection(node);
+        IssueCollector projected = new IssueCollector(issues.maximum);
+        validateElevatedButtonEffectiveDimensions(projection, path, projected);
+        validateElevatedButtonEffectiveShapes(projection, path, projected);
+        validateElevatedButtonAlignment(projection, path, projected);
+        for (ValidationIssue issue : projected.snapshot()) issues.add(new ValidationIssue(issue.code(), issue.severity(),
+                issue.path().replace(path + "/style", path + "/menuStyle"), issue.widgetId(),
+                issue.message().replace("MenuAnchor", "SubmenuButton menuStyle").replace("style", "menuStyle")));
+    }
+
     private static void validateTextButtonBranches(WidgetNode node, String path, IssueCollector issues) {
+        if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)) {
+            List<String> locals = MenuItemButtonWidgetPropertySchema.shortcutLocalProperties().stream()
+                    .filter(name -> node.properties().containsKey(new PropertyName(name))).toList();
+            if (!locals.isEmpty()) {
+                if (node.properties().containsKey(new PropertyName("shortcut"))) {
+                    issues.add(issue(PROPERTY_CONFLICT, path + "/shortcut", node.id(),
+                            "MenuItemButton whole shortcut (including null) is exclusive with all local activator fields. Reset one branch first."));
+                }
+                boolean trigger = node.properties().containsKey(new PropertyName("shortcutTrigger"));
+                boolean character = node.properties().containsKey(new PropertyName("shortcutCharacter"));
+                if (trigger == character) issues.add(issue(PROPERTY_DEPENDENCY, path + "/shortcutTrigger", node.id(),
+                        "Local shortcut requires exactly one Trigger or Character anchor. Add one anchor or reset all local shortcut fields."));
+                if (character) for (String name : List.of("shortcutShift", "shortcutNumLock")) {
+                    if (node.properties().containsKey(new PropertyName(name))) issues.add(issue(PROPERTY_CONFLICT, path + '/' + name, node.id(),
+                            "CharacterActivator does not accept " + name + "; reset it or use SingleActivator."));
+                }
+            }
+        }
         boolean icon = OutlinedButtonWidgetPropertySchema.isIconVariant(node);
         if (FilledButtonWidgetPropertySchema.requiresChild(node)
                 && (!(node.slots().get(new SlotName("child")) instanceof WidgetSlot.SingleSlot child)
@@ -1107,18 +1462,23 @@ public final class WidgetTreeValidator {
 
     private static List<String> buttonStatePrefixes(WidgetNode node) {
         return OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)
+                || node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
                 ? TextButtonWidgetPropertySchema.statePrefixes()
                 : List.of("style", "styleDisabled", "stylePressed", "styleHovered", "styleFocused");
     }
 
     private static List<String> enabledButtonStatePriority(WidgetNode node) {
         return OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)
+                || node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
                 ? List.of("Error", "Dragged", "Pressed", "Selected", "ScrolledUnder", "Hovered", "Focused")
                 : List.of("Pressed", "Hovered", "Focused");
     }
 
     private static String buttonName(WidgetNode node) {
-        return node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE) ? "IconButton"
+        return node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE) ? "MenuAnchor"
+                : node.type().equals(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE) ? "SubmenuButton"
+                : node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE) ? "MenuItemButton"
+                : node.type().equals(IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE) ? "IconButton"
                 : node.type().equals(FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE) ? "FilledButton"
                 : node.type().equals(OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE) ? "OutlinedButton"
                 : node.type().equals(TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE) ? "TextButton" : "ElevatedButton";
@@ -1229,7 +1589,8 @@ public final class WidgetTreeValidator {
     private static EffectiveNumber elevatedFrameworkMinimum(WidgetNode node, String suffix) {
         // Full-style button families preserve context-dependent theme sizing; only two explicit
         // local bounds may conflict. Generation resolves and normalizes inherited bounds.
-        if (OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)) return null;
+        if (OutlinedButtonWidgetPropertySchema.usesFullStyleProjection(node)
+                || node.type().equals(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)) return null;
         // Validation has no BuildContext, so the deterministic floor is the
         // pinned generated-project Material 3 default. A runtime-supplied
         // ElevatedButtonTheme may replace this value; Dart generation still
@@ -1517,7 +1878,8 @@ public final class WidgetTreeValidator {
     }
 
     private static void validateSwitch(WidgetNode node, String path, IssueCollector issues) {
-        if (node.properties().containsKey(new PropertyName("applyCupertinoTheme"))
+        boolean tile = node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE);
+        if (!tile && node.properties().containsKey(new PropertyName("applyCupertinoTheme"))
                 && !new PropertyValue.StringValue("adaptive").equals(node.properties().get(new PropertyName("variant")))) {
             issues.add(issue(PROPERTY_CONFLICT, path + "/applyCupertinoTheme", node.id(),
                     "Switch standard has no Apply Cupertino theme argument; choose Adaptive or reset this field."));
@@ -1526,13 +1888,14 @@ public final class WidgetTreeValidator {
             String image = Character.toLowerCase(state.charAt(0)) + state.substring(1) + "ThumbImage";
             String callback = "on" + state + "ThumbImageError";
             if (node.properties().containsKey(new PropertyName(callback))
+                    && !(tile && node.properties().get(new PropertyName(callback)) instanceof PropertyValue.NullValue)
                     && !node.properties().containsKey(new PropertyName(image))) {
                 issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + callback, node.id(),
-                        "Switch " + callback + " requires " + image + ". Set the image first."));
+                        (tile ? "SwitchListTile " : "Switch ") + callback + " requires " + image + ". Set the image first."));
             }
         }
         List<String> families = new ArrayList<>(SwitchWidgetPropertySchema.colorFamilies());
-        families.add("trackOutlineWidth");
+        if (!tile) families.add("trackOutlineWidth");
         families.add("thumbIcon");
         for (String family : families) {
             if (!node.properties().containsKey(new PropertyName(family))) {
@@ -1612,11 +1975,15 @@ public final class WidgetTreeValidator {
     }
 
     private static void validateStatefulRadioOrCheckboxSide(WidgetNode node, String path, IssueCollector issues, String family) {
-        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName("sideStateful")));
+        validateStatefulRadioOrCheckboxSide(node, path, issues, family, "side");
+    }
+
+    private static void validateStatefulRadioOrCheckboxSide(WidgetNode node, String path, IssueCollector issues, String family, String prefix) {
+        boolean stateful = new PropertyValue.BooleanValue(true).equals(node.properties().get(new PropertyName(prefix + "Stateful")));
         for (String state : CheckboxWidgetPropertySchema.sideStates()) {
-            List<String> bucket = CheckboxWidgetPropertySchema.sideBucketProperties(state);
+            List<String> bucket = CheckboxWidgetPropertySchema.sideBucketProperties(state).stream().map(name -> prefix + name.substring(4)).toList();
             if (!stateful && bucket.stream().anyMatch(name -> node.properties().containsKey(new PropertyName(name)))) {
-                issues.add(issue(PROPERTY_DEPENDENCY, path + "/side" + state + "Mode", node.id(),
+                issues.add(issue(PROPERTY_DEPENDENCY, path + "/" + prefix + state + "Mode", node.id(),
                         family + " state-specific side fields require Side Stateful true."));
             }
             if (new PropertyValue.StringValue("inherit").equals(node.properties().get(new PropertyName(bucket.getFirst())))) {

@@ -281,7 +281,7 @@ void main() {
       expect(block, contains('P|strokeWidth|double,integer,null|'));
       expect(block, isNot(contains('S|')));
       expect(block, isNot(contains('C|')));
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(_node(_decode(_model())).properties, isEmpty);
       expect(_leaf(_model())['slots'], isEmpty);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);

@@ -552,7 +552,7 @@ void _additionalTests() {
     () {
       String section(String text) => text.substring(
         text.indexOf('W|flutter.material.Radio\n'),
-        text.indexOf('W|flutter.material.RangeSlider\n'),
+        text.indexOf('W|', text.indexOf('W|flutter.material.Radio\n') + 2),
       );
       final actual = section(canvasRuntimeWidgetSchemaContractForTesting());
       expect(actual, section(canvasReviewedWidgetSchemaContract));

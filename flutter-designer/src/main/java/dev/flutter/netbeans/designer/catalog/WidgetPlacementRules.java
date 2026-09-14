@@ -16,6 +16,7 @@ public final class WidgetPlacementRules {
     public static final String EXPANDED_TYPE = "flutter.widgets.Expanded";
     public static final String FLEXIBLE_TYPE = "flutter.widgets.Flexible";
     public static final String SPACER_TYPE = "flutter.widgets.Spacer";
+    public static final String SLIVER_CROSS_AXIS_EXPANDED_TYPE = "flutter.widgets.SliverCrossAxisExpanded";
 
     private static final String COLUMN_TYPE = "flutter.widgets.Column";
     private static final String ROW_TYPE = "flutter.widgets.Row";
@@ -59,6 +60,17 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
+        if (isStackPositionedWidget(child)) return rejected(RejectionKind.ROOT_PLACEMENT,
+                child.typeId().value() + " requires a direct Stack.children parent, not the root.");
+        if (SLIVER_CROSS_AXIS_EXPANDED_TYPE.equals(child.typeId().value())) {
+            return rejected(RejectionKind.ROOT_PLACEMENT,
+                    "SliverCrossAxisExpanded requires a direct SliverCrossAxisGroup.slivers parent, not the root.");
+        }
+        if (isSliverWidget(child)) {
+            return rejected(RejectionKind.ROOT_PLACEMENT,
+                    "Widget type '" + child.typeId().value()
+                    + "' cannot be the Designer root; slivers require CustomScrollView.slivers.");
+        }
         if (!isFlexRestrictedWidget(child)) {
             return ACCEPTED;
         }
@@ -89,6 +101,24 @@ public final class WidgetPlacementRules {
                     "Catalog slot '" + destination + "' rejects widget type '"
                     + child.typeId().value() + "'.");
         }
+        if (isSliverWidget(child)
+                && !(slot.acceptance() instanceof SlotAcceptance.HasTrait trait
+                && trait.trait().equals(BuiltInWidgetCatalog.SLIVER_WIDGET_TRAIT))) {
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT,
+                    "Widget type '" + child.typeId().value() + "' cannot be placed in '"
+                    + destination + "'; slivers require a sliver slot.");
+        }
+        if (SLIVER_CROSS_AXIS_EXPANDED_TYPE.equals(child.typeId().value())
+                && !(SliverCrossAxisGroupWidgetPropertySchema.TYPE.equals(parent.typeId())
+                    && "slivers".equals(slot.name().value()))) {
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT,
+                    "SliverCrossAxisExpanded cannot be placed in '" + destination
+                    + "'; it requires a direct SliverCrossAxisGroup.slivers parent.");
+        }
+        if (isStackPositionedWidget(child)
+                && !(parent.typeId().value().equals("flutter.widgets.Stack") && CHILDREN_SLOT.equals(slot.name().value())))
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT, child.typeId().value()
+                    + " cannot be placed in '" + destination + "'; it requires direct Stack.children. IndexedStack inserts intervening render wrappers.");
         if (isFlexRestrictedWidget(child)
                 && !isFlexParentDataDestination(parent, slot)) {
             return rejected(
@@ -112,7 +142,7 @@ public final class WidgetPlacementRules {
     /** Returns the reviewed Palette creation behavior of one widget. */
     public static PaletteCreationMode creationMode(WidgetDefinition definition) {
         Objects.requireNonNull(definition, "definition");
-        return requiredAnyWidgetWrapperSlot(definition).isPresent()
+        return requiredWrapperSlot(definition).isPresent()
                 ? PaletteCreationMode.WRAP_EXISTING_CHILD
                 : PaletteCreationMode.INSERT_PROTOTYPE;
     }
@@ -130,16 +160,40 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(definition, "definition");
         ArrayList<String> lines = new ArrayList<>(3);
         String type = definition.typeId().value();
+        if (isStackPositionedWidget(definition))
+            lines.add("R|" + type + "|directParentSlot|flutter.widgets.Stack|children");
         if (isFlexRestrictedWidget(definition)) {
             lines.add("R|" + type
                     + "|directParentSlot|flutter.widgets.Column|children");
             lines.add("R|" + type
                     + "|directParentSlot|flutter.widgets.Row|children");
         }
-        requiredAnyWidgetWrapperSlot(definition).ifPresent(slot -> lines.add(
+        if (isSliverWidget(definition)) {
+            lines.add("R|" + type + "|requiresSlotTrait|flutter.widgets.Sliver");
+        }
+        if (SLIVER_CROSS_AXIS_EXPANDED_TYPE.equals(type)) {
+            lines.add("R|" + type + "|directParentSlot|flutter.widgets.SliverCrossAxisGroup|slivers");
+        }
+        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            lines.add("C|" + type + "|paletteCreate|seedBoxChild|child|48");
+        }
+        if (AnimatedCrossFadeWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            lines.add("C|" + type + "|paletteCreate|seedBoxChildren|firstChild|48|48|secondChild|48|80");
+        }
+        requiredWrapperSlot(definition).ifPresent(slot -> lines.add(
                 "C|" + type + "|paletteCreate|wrapExistingChild|"
                 + slot.name().value()));
         return List.copyOf(lines);
+    }
+
+    public static boolean isStackPositionedWidget(WidgetDefinition definition) {
+        return AnimatedPositionedWidgetPropertySchema.supports(definition.typeId())
+                || PositionedTransitionWidgetPropertySchema.TYPE.equals(definition.typeId())
+                || RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(definition.typeId());
+    }
+
+    public static boolean isSliverWidget(WidgetDefinition definition) {
+        return definition.traits().contains(BuiltInWidgetCatalog.SLIVER_WIDGET_TRAIT);
     }
 
     private static boolean isFlexRestrictedWidget(WidgetDefinition definition) {
@@ -150,13 +204,21 @@ public final class WidgetPlacementRules {
     }
 
     /**
-     * Detects the reusable atomic-wrapper shape from catalog semantics rather
-     * than from a widget allow-list. A directly inserted detached prototype
-     * would violate its required slot, so Palette creation must wrap one
-     * existing widget in a single atomic command.
+     * Compatibility query restricted to AnyWidget wrappers. Use
+     * {@link #requiredWrapperSlot} when sliver-trait wrappers are also supported.
      */
     public static Optional<SlotDefinition> requiredAnyWidgetWrapperSlot(
             WidgetDefinition definition) {
+        return requiredWrapperSlot(definition).filter(slot -> slot.acceptance() instanceof SlotAcceptance.AnyWidget);
+    }
+
+    /**
+     * Detects one required single-child slot from catalog semantics, with
+     * AnyWidget or Sliver trait acceptance. A detached prototype is incomplete:
+     * Palette creation must wrap an existing compatible child atomically.
+     */
+    public static Optional<SlotDefinition> requiredWrapperSlot(WidgetDefinition definition) {
+        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (definition.properties().stream().anyMatch(property ->
                 property.parameter().required()
                 && property.creationDefault().isEmpty())) {
@@ -169,7 +231,9 @@ public final class WidgetPlacementRules {
                 || slot.cardinality() != dev.flutter.netbeans.designer.model.SlotCardinality.SINGLE
                 || slot.minChildren() != 1
                 || slot.maxChildren() != 1
-                || !(slot.acceptance() instanceof SlotAcceptance.AnyWidget)) {
+                || !(slot.acceptance() instanceof SlotAcceptance.AnyWidget
+                    || slot.acceptance() instanceof SlotAcceptance.HasTrait trait
+                        && BuiltInWidgetCatalog.SLIVER_WIDGET_TRAIT.equals(trait.trait()))) {
             return Optional.empty();
         }
         // Optional secondary slots may remain empty in the detached wrapper.

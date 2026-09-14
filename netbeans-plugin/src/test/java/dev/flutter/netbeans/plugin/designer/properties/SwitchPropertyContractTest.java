@@ -18,7 +18,14 @@ public class SwitchPropertyContractTest {
     @Test void all201CellsKeepStableIdentityAndSparseEditResetCommandsPreservePeers() throws Exception {
         var prototype = WidgetNodePrototypeFactory.create(DEF, ID); var commands = new ArrayList<DesignerCommand>();
         var node = node(prototype, commands); var sets = node.getPropertySets();
-        assertEquals(201, DEF.properties().size()); assertEquals(11, sets.length); assertTrue(DEF.slots().isEmpty());
+        assertEquals(201, DEF.properties().size()); assertEquals(12, sets.length); assertTrue(DEF.slots().isEmpty());
+        var expectedGroups = new LinkedHashSet<String>(); expectedGroups.add(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME);
+        Arrays.stream(SwitchWidgetPropertySchema.Group.values()).map(SwitchWidgetPropertySchema.Group::setName).forEach(expectedGroups::add);
+        expectedGroups.add(FlutterWidgetPropertiesNode.EVENTS_SET_NAME);
+        assertEquals(expectedGroups, Arrays.stream(sets).map(Node.PropertySet::getName).collect(java.util.stream.Collectors.toSet()));
+        var eventRows = Arrays.stream(sets).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
+        assertEquals(Set.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError"),
+                Arrays.stream(eventRows.getProperties()).map(Node.Property::getName).collect(java.util.stream.Collectors.toSet()));
         for (var field : DEF.properties()) {
             var values = new LinkedHashMap<>(prototype.properties()); values.putAll(sparsePrerequisites(field.name().value()));
             var before = new WidgetNode(ID, DEF.typeId(), values, Map.of()); assertValid(before);

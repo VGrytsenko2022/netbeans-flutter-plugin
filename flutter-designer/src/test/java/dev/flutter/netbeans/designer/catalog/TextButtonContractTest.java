@@ -43,9 +43,9 @@ class TextButtonContractTest {
         assertEquals(1, definition.slots().getFirst().minChildren());
         assertEquals(DartParameter.named(512, false), definition.slots().getLast().parameter());
         assertEquals(0, definition.slots().getLast().minChildren());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test
@@ -166,7 +166,7 @@ class TextButtonContractTest {
         covered.add(p("style"));
         assertEquals(511, covered.size());
         assertEquals(491, largest);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 
     @Test
@@ -258,7 +258,7 @@ class TextButtonContractTest {
         assertFalse(valid(new WidgetNode(base.id(), base.type(), base.properties(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))));
         for (var source : CATALOG.definitions()) {
-            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(source.typeId().value());
+            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
             for (var slot : definition().slots()) assertEquals(allowed, WidgetPlacementRules.accepts(definition(), slot, source));
         }
         for (String name : List.of("label", "tooltip", "key", "controller", "foregroundColor", "mouseCursor")) {

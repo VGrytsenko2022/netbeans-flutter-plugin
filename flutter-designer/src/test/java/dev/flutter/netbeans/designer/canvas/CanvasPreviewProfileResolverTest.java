@@ -80,6 +80,49 @@ class CanvasPreviewProfileResolverTest {
     }
 
     @Test
+    void appliesTransientOrientationToMobileAndTabletWithoutPersistedPreferences() {
+        CanvasPreferences mobilePreferences = new CanvasPreferences(
+                Optional.of("phone"),
+                Optional.of(BigDecimal.valueOf(390)),
+                Optional.of(BigDecimal.valueOf(844)),
+                Optional.empty(),
+                Optional.of(CanvasOrientation.PORTRAIT),
+                Optional.empty(),
+                Optional.empty(),
+                Optional.empty());
+
+        CanvasRenderProfile mobile = CanvasPreviewProfileResolver.resolve(
+                CanvasPreviewMode.MOBILE,
+                CanvasTargetPlatform.ANDROID,
+                Optional.of(mobilePreferences),
+                ENGINE,
+                CanvasPreviewProfileResolver.legacyTheme(CanvasThemeBrightness.LIGHT),
+                Optional.of(CanvasOrientation.LANDSCAPE));
+        assertEquals(844, mobile.viewport().logicalWidth());
+        assertEquals(390, mobile.viewport().logicalHeight());
+
+        CanvasRenderProfile tablet = CanvasPreviewProfileResolver.resolve(
+                CanvasPreviewMode.TABLET,
+                CanvasTargetPlatform.ANDROID,
+                Optional.of(mobilePreferences),
+                ENGINE,
+                CanvasPreviewProfileResolver.legacyTheme(CanvasThemeBrightness.LIGHT),
+                Optional.of(CanvasOrientation.LANDSCAPE));
+        assertEquals(1280, tablet.viewport().logicalWidth());
+        assertEquals(800, tablet.viewport().logicalHeight());
+
+        CanvasRenderProfile desktop = CanvasPreviewProfileResolver.resolve(
+                CanvasPreviewMode.DESKTOP,
+                CanvasTargetPlatform.WINDOWS,
+                Optional.empty(),
+                ENGINE,
+                CanvasPreviewProfileResolver.legacyTheme(CanvasThemeBrightness.LIGHT),
+                Optional.of(CanvasOrientation.LANDSCAPE));
+        assertEquals(1280, desktop.viewport().logicalWidth());
+        assertEquals(800, desktop.viewport().logicalHeight());
+    }
+
+    @Test
     void rejectsModeAndTargetPairsThatWouldMisrepresentTheRuntimeFamily() {
         assertThrows(IllegalArgumentException.class,
                 () -> CanvasPreviewProfileResolver.resolve(

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.catalog;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.WidgetTypeId;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -22,6 +23,7 @@ public final class AppBarWidgetPropertySchema {
             new WidgetTypeId("flutter.material.AppBar");
     public static final int CONSTRUCTOR_PROPERTY_COUNT = 28;
     public static final int SLOT_COUNT = 5;
+    public static final String NOTIFICATION_PREDICATE_TYPE = "ScrollNotificationPredicate";
 
     public enum Group {
         BEHAVIOR("appBarBehavior", "Behavior",
@@ -117,6 +119,10 @@ public final class AppBarWidgetPropertySchema {
     private AppBarWidgetPropertySchema() {
     }
 
+    public static List<String> notificationPredicatePresets() {
+        return List.of("default", "depthZero", "all");
+    }
+
     public static Optional<Definition> find(PropertyName name) {
         Objects.requireNonNull(name, "name");
         return Optional.ofNullable(DEFINITIONS.get(name.value()));
@@ -146,7 +152,9 @@ public final class AppBarWidgetPropertySchema {
         direct(values, "scrolledUnderElevation", Group.COLORS_AND_ELEVATION,
                 "Scrolled-under elevation", "Non-negative elevation while content scrolls underneath.");
         add(values, "notificationPredicate", Group.BEHAVIOR,
-                "Scroll notifications", "Closed preset used to accept scroll notifications.",
+                "Scroll notifications", "A default/depthZero/all preset or non-null ScrollNotificationPredicate project reference. "
+                        + "The callback returns bool for a ScrollNotification; omission preserves Flutter's depth-zero default. "
+                        + "References, getters/members and zero-argument factories require strict analyzer proof. Project code never runs in Canvas.",
                 Target.NOTIFICATION_PREDICATE, "notificationPredicate", 0, Encoding.SCALAR);
         direct(values, "shadowColor", Group.COLORS_AND_ELEVATION,
                 "Shadow color", "Literal or semantic theme shadow color.");

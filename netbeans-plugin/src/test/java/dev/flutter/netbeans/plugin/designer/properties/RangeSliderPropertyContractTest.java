@@ -19,7 +19,7 @@ public class RangeSliderPropertyContractTest {
     @Test void all37CellsRetainStableSetsAndIndependentTypedEditsResets() throws Exception {
         var prototype = WidgetNodePrototypeFactory.create(DEF, ID); var commands = new ArrayList<DesignerCommand>();
         var node = node(prototype, commands); var sets = node.getPropertySets();
-        assertEquals(37, DEF.properties().size()); assertEquals(9, sets.length); assertTrue(DEF.slots().isEmpty()); assertFalse(DEF.constConstructor());
+        assertEquals(37, DEF.properties().size()); assertEquals(10, sets.length); assertTrue(DEF.slots().isEmpty()); assertFalse(DEF.constConstructor());
         assertEquals(Map.of(p("valuesStart"), new PropertyValue.IntegerValue(BigInteger.ZERO), p("valuesEnd"), new PropertyValue.IntegerValue(BigInteger.ONE), p("enabled"), new PropertyValue.BooleanValue(true)), prototype.properties());
         for (var field : DEF.properties()) {
             var values = new LinkedHashMap<>(prototype.properties()); values.putAll(sparsePrerequisites(field.name().value()));

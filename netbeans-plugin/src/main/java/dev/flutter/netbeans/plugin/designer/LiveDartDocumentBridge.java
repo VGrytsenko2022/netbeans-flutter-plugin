@@ -1,13 +1,19 @@
 package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.generation.GeneratedDartRegions;
+import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
+import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlan;
 import dev.flutter.netbeans.plugin.designer.guard.DartGuardedSectionsProvider;
 import java.awt.EventQueue;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicReference;
 import javax.swing.text.StyledDocument;
+import javax.swing.text.BadLocationException;
 import org.netbeans.api.editor.document.AtomicLockDocument;
 import org.netbeans.api.editor.document.LineDocumentUtils;
 
@@ -55,6 +61,18 @@ final class LiveDartDocumentBridge {
             GeneratedDartRegions generated,
             byte[] expectedCandidateBytes,
             AppliedSnapshotFinalizer finalizer) throws IOException {
+        return applyManagedRegions(provider, expected, generated,
+                expectedCandidateBytes, null, finalizer);
+    }
+
+    /** Applies a proved user-member edit and generated regions under one native atomic edit. */
+    static LiveDartDocumentSnapshot applyManagedRegions(
+            DartGuardedSectionsProvider provider,
+            LiveDartDocumentSnapshot expected,
+            GeneratedDartRegions generated,
+            byte[] expectedCandidateBytes,
+            DartSourceTransitionPlan transition,
+            AppliedSnapshotFinalizer finalizer) throws IOException {
         Objects.requireNonNull(provider, "provider");
         Objects.requireNonNull(expected, "expected");
         Objects.requireNonNull(generated, "generated");
@@ -80,7 +98,34 @@ final class LiveDartDocumentBridge {
                             "The live Dart document identity, revision or guards changed before apply");
                 }
 
+                List<UserEdit> userEdits = List.of();
+                byte[] projected = expected.markerBearingUtf8();
+                if (transition != null) {
+                    if (!transition.liveSource().original().orElseThrow()
+                                .contentEquals(expected.markerBearingUtf8())
+                            || transition.generation().generated().orElseThrow() != generated
+                            || !Arrays.equals(transition.candidateBytes(), candidate)) {
+                        throw new IOException("The event source proof does not describe this exact live candidate.");
+                    }
+                    projected = transition.userSourceBytes();
+                    var integrity = new DartSourceIntegrityScanner().scan(
+                            projected, transition.baselineDescriptor());
+                    if (!integrity.onDiskDeclaredMatch()) {
+                        throw new IOException("The proved event source lost its managed-region integrity.");
+                    }
+                    var imports = integrity.region("imports").orElseThrow();
+                    var build = integrity.region("build").orElseThrow();
+                    userEdits = userEdits(expected, projected,
+                            utf16Offset(projected, imports.payloadStartByte()),
+                            utf16Offset(projected, imports.payloadEndByte()),
+                            utf16Offset(projected, build.payloadStartByte()),
+                            utf16Offset(projected, build.payloadEndByte()));
+                }
                 mutationStarted = true;
+                applyUserEdits(document, userEdits);
+                if (!Arrays.equals(projected, snapshot(document, provider).markerBearingUtf8())) {
+                    throw new IOException("The applied event member differs from its exact source proof.");
+                }
                 applySection(
                         expected.build(),
                         generated.build().payload());
@@ -175,6 +220,11 @@ final class LiveDartDocumentBridge {
                 }
                 restoreSection(restore.imports());
                 restoreSection(restore.build());
+                LiveDartDocumentSnapshot managedRestored = snapshot(document, provider);
+                applyUserEdits(document, userEdits(managedRestored,
+                        restore.markerBearingUtf8(),
+                        restore.imports().payloadStartChar(), restore.imports().payloadEndChar(),
+                        restore.build().payloadStartChar(), restore.build().payloadEndChar()));
                 LiveDartDocumentSnapshot result = snapshot(document, provider);
                 if (result.documentVersion() <= expectedApplied.documentVersion()) {
                     throw new IOException(
@@ -351,6 +401,64 @@ final class LiveDartDocumentBridge {
             throw new IOException("The committed live Dart snapshot is unavailable");
         }
         return result;
+    }
+
+    private record UserEdit(int start, int end, String replacement) { }
+
+    private static int utf16Offset(byte[] utf8, int byteOffset) {
+        return new String(utf8, 0, byteOffset, StandardCharsets.UTF_8).length();
+    }
+
+    /** The three spans exclude managed payloads; exact unchanged markers are trimmed from edits. */
+    private static List<UserEdit> userEdits(LiveDartDocumentSnapshot before,
+            byte[] targetBytes, int importsStart, int importsEnd, int buildStart, int buildEnd)
+            throws IOException {
+        String source = new String(before.markerBearingUtf8(), StandardCharsets.UTF_8);
+        String target = new String(LiveDartDocumentSnapshot.strictWritableUtf8(targetBytes), StandardCharsets.UTF_8);
+        int[] from = {0, before.imports().payloadStartChar(),
+            before.imports().payloadEndChar(), before.build().payloadStartChar(),
+            before.build().payloadEndChar(), source.length()};
+        int[] to = {0, importsStart, importsEnd, buildStart, buildEnd, target.length()};
+        if (!source.substring(from[1], from[2]).equals(target.substring(to[1], to[2]))
+                || !source.substring(from[3], from[4]).equals(target.substring(to[3], to[4]))) {
+            throw new IOException("A user-source projection may not change managed payloads.");
+        }
+        List<UserEdit> edits = new ArrayList<>();
+        for (int span = 0; span < 6; span += 2) {
+            String old = source.substring(from[span], from[span + 1]);
+            String next = target.substring(to[span], to[span + 1]);
+            if (old.equals(next)) continue;
+            int prefix = 0;
+            while (prefix < old.length() && prefix < next.length()
+                    && old.charAt(prefix) == next.charAt(prefix)) prefix++;
+            if (prefix > 0 && Character.isHighSurrogate(old.charAt(prefix - 1))) prefix--;
+            int suffix = 0;
+            while (suffix < old.length() - prefix && suffix < next.length() - prefix
+                    && old.charAt(old.length() - suffix - 1) == next.charAt(next.length() - suffix - 1)) suffix++;
+            if (suffix > 0 && Character.isLowSurrogate(old.charAt(old.length() - suffix))) suffix--;
+            int start = from[span] + prefix;
+            int end = from[span + 1] - suffix;
+            for (var guard : List.of(before.imports(), before.build())) {
+                if (start < guard.sectionEndChar() && end > guard.sectionStartChar()
+                        || start == end && start >= guard.sectionStartChar() && start < guard.sectionEndChar()) {
+                    throw new IOException("An event member edit intersects the " + guard.id() + " guard.");
+                }
+            }
+            edits.add(new UserEdit(start, end, next.substring(prefix, next.length() - suffix)));
+        }
+        return List.copyOf(edits);
+    }
+
+    private static void applyUserEdits(StyledDocument document, List<UserEdit> edits) throws IOException {
+        try {
+            for (int index = edits.size() - 1; index >= 0; index--) {
+                UserEdit edit = edits.get(index);
+                document.remove(edit.start(), edit.end() - edit.start());
+                document.insertString(edit.start(), edit.replacement(), null);
+            }
+        } catch (BadLocationException failure) {
+            throw new IOException("Cannot apply the proved user-owned event member edit.", failure);
+        }
     }
 
     private static void applySection(

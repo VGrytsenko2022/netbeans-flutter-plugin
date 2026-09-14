@@ -37,6 +37,7 @@ import dev.flutter.netbeans.designer.model.ManagedRegion;
 import dev.flutter.netbeans.designer.model.ManagedRegions;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
+import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
 import dev.flutter.netbeans.designer.model.ThemeToken;
@@ -59,6 +60,48 @@ import java.util.regex.Pattern;
 import org.junit.jupiter.api.Test;
 
 class CanvasModelPayloadCodecTest {
+    @Test void fadeInImageProvidersResolveIndependentlyAndSourceIdentitiesStayPrivate() throws Exception {
+        var codec=new CanvasModelPayloadCodec();
+        var one=CanvasImageResource.create(CanvasImageFormat.PNG,8,8,new byte[]{1,2,3});
+        var two=CanvasImageResource.create(CanvasImageFormat.PNG,4,4,new byte[]{4,5,6});
+        var a=CanvasImageAssetId.application("assets/placeholder.png");
+        var b=CanvasImageAssetId.application("assets/target.png");
+        var bundle=new CanvasImageResourceBundle(List.of(
+            new CanvasImageAsset(a,one.resourceId(),List.of(new CanvasImageVariant(BigDecimal.ONE,one.resourceId()))),
+            new CanvasImageAsset(b,two.resourceId(),List.of(new CanvasImageVariant(BigDecimal.ONE,two.resourceId())))),List.of(one,two));
+        var definition=BuiltInWidgetCatalog.getDefault().find(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE).orElseThrow();
+        var prototype=dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition,StableId.random());
+        var properties=new LinkedHashMap<PropertyName,PropertyValue>();
+        properties.put(new PropertyName("placeholder"),PropertyValue.ImageProviderValue.asset("assets/placeholder.png"));
+        properties.put(new PropertyName("image"),PropertyValue.ImageProviderValue.exactAsset("assets/target.png",BigDecimal.valueOf(2)));
+        var node=new WidgetNode(prototype.id(),prototype.type(),properties,Map.of());
+        String json=new String(codec.encode(request(PROFILE,new DesignerDocument(DOCUMENT_ID,source(),node),bundle)),StandardCharsets.UTF_8);
+        assertTrue(json.contains(one.resourceId()));assertTrue(json.contains(two.resourceId()));
+        for(String name:List.of("placeholder","image")){
+            properties.put(new PropertyName(name),new PropertyValue.DartObjectReferenceValue(Optional.of("package:secret/assets.dart"),"privateImages",Optional.of("image"),PropertyValue.DartObjectReferenceValue.Access.REFERENCE,Optional.empty()));
+        }
+        node=new WidgetNode(prototype.id(),prototype.type(),properties,Map.of());
+        json=new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID,source(),node))),StandardCharsets.UTF_8);
+        assertFalse(json.contains("secret"));assertFalse(json.contains("privateImages"));
+        assertTrue(json.contains("\"placeholder\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertTrue(json.contains("\"image\":{\"kind\":\"dartObjectReferencePresence\"}"));
+    }
+
+    @org.junit.jupiter.api.Test
+    void rawImageOpaqueHandlesAndAnimationSourcesNeverLeakIntoCanvasPayload() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var properties = new LinkedHashMap<PropertyName,PropertyValue>();
+        for (String name : List.of("image", "opacity", "centerSlice", "width", "height", "scale", "color", "alignment"))
+            properties.put(new PropertyName(name), new PropertyValue.DartObjectReferenceValue(
+                    Optional.of("package:private_app/images.dart"), "PrivateImages", Optional.of("decoded"),
+                    PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()));
+        var node = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.RawImage"), properties, Map.of());
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID,source(),node))), StandardCharsets.UTF_8);
+        assertFalse(json.contains("private_app")); assertFalse(json.contains("PrivateImages")); assertFalse(json.contains("decoded"));
+        for (String name : List.of("image", "opacity", "centerSlice"))
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+    }
+
     private static final StableId DOCUMENT_ID = id(
             "4efb0eb1-b0f9-4809-bd3e-73f2486dd7bd");
     private static final CanvasRenderProfile PROFILE = new CanvasRenderProfile(
@@ -102,6 +145,25 @@ class CanvasModelPayloadCodecTest {
             "flutter.widgets.RadioGroup",
             "flutter.material.ListTile",
             "flutter.material.CheckboxListTile",
+            "flutter.material.SwitchListTile",
+            "flutter.material.RadioListTile",
+            "flutter.material.ExpansionTile",
+            "flutter.material.Tooltip",
+            "flutter.material.TooltipVisibility",
+            "flutter.material.TooltipTheme",
+                "flutter.material.MenuItemButton",
+                "flutter.material.MenuAnchor",
+                "flutter.material.SubmenuButton",
+                "flutter.material.MenuBar",
+                "flutter.material.NavigationBar",
+                "flutter.material.NavigationRail",
+                "flutter.material.NavigationDrawer",
+                "flutter.material.Drawer",
+                "flutter.material.BottomAppBar",
+                "flutter.material.BottomNavigationBar",
+                "flutter.material.Material",
+                "flutter.material.Scrollbar",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -130,20 +192,40 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.SizedOverflowBox",
                 "flutter.widgets.Transform",
                 "flutter.widgets.RotatedBox",
+                "flutter.widgets.PreferredSize",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
-                "flutter.widgets.SafeArea",
+                "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
+                "flutter.widgets.GridView.extent",
                 "flutter.widgets.SingleChildScrollView",
+                "flutter.widgets.PageView",
+                "flutter.widgets.ListWheelScrollView",
+                "flutter.widgets.CustomScrollView",
+                "flutter.widgets.SliverToBoxAdapter",
+            "flutter.widgets.SliverList",
+            "flutter.widgets.SliverGrid",
+            "flutter.widgets.SliverGrid.extent",
+                "flutter.widgets.SliverList.builder",
+                "flutter.widgets.SliverList.separated",
+                "flutter.widgets.SliverList.delegate",
+                "flutter.widgets.SliverGrid.builder",
+                "flutter.widgets.SliverGrid.list",
+                "flutter.widgets.SliverGrid.delegate",
+                "flutter.widgets.SliverPadding",
+                "flutter.widgets.SliverFillRemaining",
+                "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate",
+                "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity", "flutter.widgets.SliverLayoutBuilder", "flutter.widgets.SliverPersistentHeader", "flutter.widgets.SliverResizingHeader", "flutter.widgets.PinnedHeaderSliver", "flutter.widgets.SliverFloatingHeader", "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.SliverFadeTransition",
                 "flutter.widgets.Text",
                 "flutter.widgets.Icon",
                 "flutter.widgets.Image",
                 "flutter.widgets.ColoredBox",
-                "flutter.widgets.Placeholder",
-                "flutter.widgets.Directionality",
-                "flutter.widgets.DecoratedBox",
-                "flutter.widgets.ClipRect",
+                 "flutter.widgets.Placeholder",
+                 "flutter.widgets.Directionality",
+                 "flutter.widgets.DecoratedBox",
+                 "flutter.widgets.Builder",
+                 "flutter.widgets.ClipRect",
                 "flutter.widgets.ClipOval",
                 "flutter.widgets.ClipRRect",
                 "flutter.widgets.ClipPath",
@@ -159,12 +241,19 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.DefaultSelectionStyle",
                 "flutter.widgets.IconTheme",
                 "flutter.widgets.ImageIcon",
+                "flutter.widgets.DefaultTextStyle",
+                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
                 "flutter.widgets.IndexedSemantics",
                 "flutter.widgets.ExcludeFocus",
-                "flutter.widgets.ExcludeFocusTraversal"),
+                "flutter.widgets.ExcludeFocusTraversal",
+                "flutter.widgets.GestureDetector",
+                "flutter.widgets.Listener",
+                "flutter.widgets.MouseRegion",
+                "flutter.widgets.Focus",
+                "flutter.widgets.NotificationListener"),
                 BuiltInWidgetCatalog.getDefault().paletteDefinitions().stream()
                         .filter(CanvasModelPayloadCodec::supports)
                         .map(definition -> definition.typeId().value())
@@ -180,7 +269,7 @@ class CanvasModelPayloadCodecTest {
                             "circle", "antiAliasWithSaveLayer", themed), true);
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), physical))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.PhysicalModel\""), json);
             assertTrue(json.contains("\"shape\":{\"kind\":\"enum\",\"type\":\"BoxShape\",\"value\":\"circle\"}"), json);
             assertTrue(json.contains("\"geometry\":{\"kind\":\"physical\""), json);
@@ -203,7 +292,7 @@ class CanvasModelPayloadCodecTest {
             var node = dev.flutter.netbeans.designer.catalog.PhysicalShapeTestSupport.physicalShape(values, true);
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"kind\":\"shapeBorderClipper\",\"shape\":\"" + shape.wireName() + "\""), json);
             assertTrue(json.contains("\"topLeft\":{\"x\":1.5,\"y\":2.5}"), json);
             assertTrue(json.contains("Preserved child"), json);
@@ -255,7 +344,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), coloredBox))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.ColoredBox\""), json);
         assertTrue(json.contains("\"color\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
@@ -298,7 +387,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), explicit))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(omittedJson.contains("\"protocolVersion\":18"), omittedJson);
+        assertTrue(omittedJson.contains("\"protocolVersion\":19"), omittedJson);
         assertTrue(omittedJson.contains(
                 "\"type\":\"flutter.widgets.Placeholder\""), omittedJson);
         assertTrue(omittedJson.contains(
@@ -309,7 +398,7 @@ class CanvasModelPayloadCodecTest {
         assertFalse(omittedJson.contains("\"fallbackWidth\":"), omittedJson);
         assertFalse(omittedJson.contains("\"fallbackHeight\":"), omittedJson);
 
-        assertTrue(explicitJson.contains("\"protocolVersion\":18"), explicitJson);
+        assertTrue(explicitJson.contains("\"protocolVersion\":19"), explicitJson);
         assertTrue(explicitJson.contains(
                 "\"type\":\"flutter.widgets.Placeholder\""), explicitJson);
         assertTrue(explicitJson.contains("\"color\":{\"kind\":\"themeToken\","
@@ -348,7 +437,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), safeArea))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.SafeArea\""), json);
         assertTrue(json.contains("\"minimum\":{\"kind\":\"edgeInsets\","
                 + "\"left\":-12.5,\"top\":2.25,"
@@ -399,7 +488,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), directionality))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Directionality\""), json);
         assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
@@ -455,7 +544,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), decoratedBox))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.DecoratedBox\""), json);
         assertTrue(json.contains(
@@ -516,7 +605,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), physical))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(physicalJson.contains("\"protocolVersion\":18"), physicalJson);
+        assertTrue(physicalJson.contains("\"protocolVersion\":19"), physicalJson);
         assertTrue(physicalJson.contains(
                 "\"type\":\"flutter.widgets.ClipRRect\""), physicalJson);
         assertTrue(physicalJson.contains(
@@ -577,7 +666,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), clipRRect))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"),
                 json);
@@ -617,7 +706,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), physical))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(physicalJson.contains("\"protocolVersion\":18"), physicalJson);
+        assertTrue(physicalJson.contains("\"protocolVersion\":19"), physicalJson);
         assertTrue(physicalJson.contains(
                 "\"type\":\"flutter.widgets.ClipRSuperellipse\""), physicalJson);
         assertTrue(physicalJson.contains(
@@ -678,7 +767,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), clipRSuperellipse))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"clipper\":{\"kind\":\"dartObjectReferencePresence\"}"),
                 json);
@@ -709,7 +798,7 @@ class CanvasModelPayloadCodecTest {
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), clipPath))),
                     StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"" + property
                     + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
             assertTrue(json.contains("\"child\":null"), json);
@@ -734,7 +823,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), omitted))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(omittedJson.contains("\"protocolVersion\":18"), omittedJson);
+        assertTrue(omittedJson.contains("\"protocolVersion\":19"), omittedJson);
         assertTrue(omittedJson.contains(
                 "\"type\":\"flutter.widgets.ExcludeSemantics\""), omittedJson);
         assertFalse(omittedJson.contains("\"excluding\""), omittedJson);
@@ -772,7 +861,7 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"format\":\"netbeans-flutter-canvas-model\""));
         assertTrue(json.contains("\"previewMode\":\"mobile\""));
         assertTrue(json.contains("\"targetPlatform\":\"android\""));
-        assertTrue(json.contains("\"protocolVersion\":18"));
+        assertTrue(json.contains("\"protocolVersion\":19"));
         assertTrue(json.contains("\"theme\":{\"definitionId\":\"light\","));
         assertTrue(json.contains("\"seedArgb\":\"0xFF6750A4\""));
         assertTrue(json.contains("\"brightness\":\"light\""));
@@ -870,7 +959,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), constrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.ConstrainedBox\""), json);
         assertTrue(json.contains(
@@ -908,7 +997,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), unconstrained))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.UnconstrainedBox\""), json);
         assertTrue(json.contains("\"textDirection\":{\"kind\":\"enum\","
@@ -944,7 +1033,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), limited))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.LimitedBox\""), json);
         assertTrue(json.contains(
@@ -990,7 +1079,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), overflow))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.OverflowBox\""), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","
@@ -1033,7 +1122,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Flexible\""), json);
         assertTrue(json.contains(
@@ -1063,7 +1152,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), row))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Spacer\""), json);
         assertTrue(json.contains(
@@ -1089,7 +1178,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), baseline))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.Baseline\""), json);
         assertTrue(json.contains(
@@ -1114,7 +1203,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicHeight))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicHeight\""), json);
         assertTrue(json.contains("\"properties\":{}"), json);
@@ -1131,7 +1220,7 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new SlotName("child"), new WidgetSlot.SingleSlot(child)));
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), boundary))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.RepaintBoundary\""), json);
             assertTrue(json.contains("\"properties\":{}"), json);
             assertTrue(json.contains(child.isEmpty() ? "\"child\":null" : "Boundary child"), json);
@@ -1159,7 +1248,7 @@ class CanvasModelPayloadCodecTest {
                                     "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb", "IgnorePointer child")) : WidgetSlot.SingleSlot.empty()));
                     String json = new String(new CanvasModelPayloadCodec().encode(request(
                             new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-                    assertTrue(json.contains("\"protocolVersion\":18"), json);
+                    assertTrue(json.contains("\"protocolVersion\":19"), json);
                     assertTrue(json.contains("\"type\":\"flutter.widgets.IgnorePointer\""), json);
                     assertEquals(ignoring.isPresent(), json.contains("\"ignoring\":"), json);
                     assertEquals(semantics.isPresent(), json.contains("\"ignoringSemantics\":"), json);
@@ -1200,7 +1289,7 @@ class CanvasModelPayloadCodecTest {
                                     "2d797cbd-2ddc-4532-84e6-7c735cb0e9cb", "AbsorbPointer child")) : WidgetSlot.SingleSlot.empty()));
                     String json = new String(new CanvasModelPayloadCodec().encode(request(
                             new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-                    assertTrue(json.contains("\"protocolVersion\":18"), json);
+                    assertTrue(json.contains("\"protocolVersion\":19"), json);
                     assertTrue(json.contains("\"type\":\"flutter.widgets.AbsorbPointer\""), json);
                     assertEquals(absorbing.isPresent(), json.contains("\"absorbing\":"), json);
                     assertEquals(semantics.isPresent(), json.contains("\"ignoringSemantics\":"), json);
@@ -1238,7 +1327,7 @@ class CanvasModelPayloadCodecTest {
                                 "a763c527-e067-45f4-b348-06e8b70249ce", "BlockSemantics child")) : WidgetSlot.SingleSlot.empty()));
                 String json = new String(new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
                 assertTrue(json.contains("\"type\":\"flutter.widgets.BlockSemantics\""), json);
                 assertEquals(blocking.isPresent(), json.contains("\"blocking\":"), json);
                 blocking.ifPresent(value -> assertTrue(json.contains(
@@ -1276,7 +1365,7 @@ class CanvasModelPayloadCodecTest {
             var node = new WidgetNode(StableId.random(), type("flutter.widgets.MergeSemantics"), Map.of(), slots);
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.MergeSemantics\""), json);
             assertTrue(json.contains("\"properties\":{}"), json);
             assertEquals(slots.containsKey(new SlotName("child")), json.contains("\"child\":"), json);
@@ -1314,7 +1403,7 @@ class CanvasModelPayloadCodecTest {
                         Map.of(new PropertyName("index"), new PropertyValue.IntegerValue(index)), slots);
                 String json = new String(new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
                 assertTrue(json.contains("\"type\":\"flutter.widgets.IndexedSemantics\""), json);
                 assertTrue(json.contains("\"index\":{\"kind\":\"integer\",\"value\":" + index + "}"), json);
                 assertEquals(slots.containsKey(new SlotName("child")), json.contains("\"child\":"), json);
@@ -1351,7 +1440,7 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.ExcludeFocus\""), json);
             assertTrue(json.contains("ExcludeFocus child"), json);
             assertEquals(excluding.isPresent(), json.contains("\"excluding\":"), json);
@@ -1412,7 +1501,7 @@ class CanvasModelPayloadCodecTest {
                 byte[] bytes = codec.encode(request);
                 assertArrayEquals(bytes, codec.encode(request));
                 String json = new String(bytes, StandardCharsets.UTF_8);
-                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
                 assertTrue(json.contains("\"type\":\"flutter.widgets.IconTheme\""), json);
                 assertTrue(json.contains("Icon theme child"), json);
                 assertTrue(json.contains("\"merge\":{\"kind\":\"boolean\",\"value\":" + merge + "}"), json);
@@ -1492,7 +1581,7 @@ class CanvasModelPayloadCodecTest {
             byte[] bytes = codec.encode(request);
             assertArrayEquals(bytes, codec.encode(request));
             String json = new String(bytes, StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.DefaultSelectionStyle\""), json);
             assertTrue(json.contains("Default selection child"), json);
             assertTrue(json.contains("\"merge\":"), json);
@@ -1560,7 +1649,7 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.DefaultTextHeightBehavior\""), json);
             assertTrue(json.contains("Default height child"), json);
             assertEquals(first.isPresent(), json.contains("\"textHeightApplyFirstAscent\":"), json);
@@ -1612,7 +1701,7 @@ class CanvasModelPayloadCodecTest {
                         Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
                 String json = new String(new CanvasModelPayloadCodec().encode(request(
                         new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-                assertTrue(json.contains("\"protocolVersion\":18"), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
                 assertTrue(json.contains("\"type\":\"flutter.widgets.TickerMode\""), json);
                 assertTrue(json.contains("TickerMode child"), json);
                 assertTrue(json.contains("\"enabled\":{\"kind\":\"boolean\",\"value\":" + enabled + "}"), json);
@@ -1667,7 +1756,7 @@ class CanvasModelPayloadCodecTest {
                             new SlotName("replacement"), WidgetSlot.SingleSlot.of(replacement)));
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.Visibility\""), json);
             assertTrue(json.contains("Visibility child"), json);
             assertTrue(json.contains("Visibility replacement"), json);
@@ -1711,7 +1800,7 @@ class CanvasModelPayloadCodecTest {
                     Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
             String json = new String(new CanvasModelPayloadCodec().encode(request(
                     new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"protocolVersion\":18"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
             assertTrue(json.contains("\"type\":\"flutter.widgets.ExcludeFocusTraversal\""), json);
             assertTrue(json.contains("ExcludeFocusTraversal child"), json);
             assertEquals(excluding.isPresent(), json.contains("\"excluding\":"), json);
@@ -1763,7 +1852,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), intrinsicWidth))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.IntrinsicWidth\""), json);
         assertTrue(json.contains(
@@ -1790,7 +1879,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), offstage))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.Offstage\""), json);
         assertTrue(json.contains(
                 "\"offstage\":{\"kind\":\"boolean\",\"value\":false}"), json);
@@ -1819,7 +1908,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), box))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.SizedOverflowBox\""), json);
         assertTrue(json.contains(
@@ -1865,7 +1954,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), transform))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.Transform\""), json);
         assertTrue(json.contains(
                 "\"transform\":{\"kind\":\"matrix4\",\"storage\":["
@@ -1900,7 +1989,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), rotated))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains(
                 "\"type\":\"flutter.widgets.RotatedBox\""), json);
         assertTrue(json.contains(
@@ -1928,7 +2017,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), listBody))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.ListBody\""), json);
         assertTrue(json.contains(
                 "\"mainAxis\":{\"kind\":\"enum\","
@@ -1969,7 +2058,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), indexedStack))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.IndexedStack\""), json);
         assertTrue(json.contains("\"index\":{\"kind\":\"null\"}"), json);
         assertFalse(json.contains("\"index\":{\"kind\":\"null\",\"value\""), json);
@@ -2020,7 +2109,7 @@ class CanvasModelPayloadCodecTest {
                 new DesignerDocument(DOCUMENT_ID, source(), overflowBar))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"type\":\"flutter.widgets.OverflowBar\""), json);
         assertTrue(json.contains(
                 "\"spacing\":{\"kind\":\"double\",\"value\":-3.5}"), json);
@@ -2049,6 +2138,51 @@ class CanvasModelPayloadCodecTest {
         byte[] second = new CanvasModelPayloadCodec().encode(request(document(true)));
 
         assertArrayEquals(first, second);
+    }
+
+    @Test
+    void elevatedButtonLayerPayloadStripsAllReferenceFormsAndKeepsOmissionAndNullChild() throws Exception {
+        var refs = List.of(
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "privateLayer", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_layers/style.dart"),
+                        "privateOwner", Optional.of("privateGetter"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_layers/style.dart"),
+                        "privateOwner", Optional.of("privateFactory"),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+        for (var reference : refs) {
+            for (int mask = 0; mask < 4; mask++) {
+                var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                if ((mask & 1) != 0) properties.put(new PropertyName("styleBackgroundBuilder"), reference);
+                if ((mask & 2) != 0) properties.put(new PropertyName("styleForegroundBuilder"), reference);
+                var button = new WidgetNode(DOCUMENT_ID, type("flutter.material.ElevatedButton"), properties,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), button))), StandardCharsets.UTF_8);
+                assertEquals((mask & 1) != 0, json.contains("\"styleBackgroundBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                assertEquals((mask & 2) != 0, json.contains("\"styleForegroundBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                assertTrue(json.contains("\"child\":{\"kind\":\"single\",\"child\":null}"), json);
+                assertFalse(json.contains("\"clipBehavior\":"), json);
+                for (String forbidden : List.of("privateLayer", "privateOwner", "privateGetter", "privateFactory",
+                        "private_layers", "rootSymbol", "zeroArgumentInvocation", "ButtonLayerBuilder")) {
+                    assertFalse(json.contains(forbidden), json);
+                }
+            }
+        }
+    }
+
+    @Test
+    void elevatedButtonLayerPayloadRejectsNullCallbackAndExecutableSourceKinds() {
+        for (String name : List.of("styleBackgroundBuilder", "styleForegroundBuilder")) {
+            for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.CallbackValue("buildLayer"),
+                    new PropertyValue.StringValue("layer"), new PropertyValue.DartExpressionValue("(_, _, child) => child!"))) {
+                var button = new WidgetNode(DOCUMENT_ID, type("flutter.material.ElevatedButton"),
+                        Map.of(new PropertyName(name), value), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), button))), name + ": " + value);
+            }
+        }
     }
 
     @Test
@@ -2115,7 +2249,7 @@ class CanvasModelPayloadCodecTest {
                 new CanvasModelPayloadCodec().encode(request(document)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"selectionColor\":{\"kind\":\"themeToken\","
                 + "\"token\":\"material.colorScheme.primary\"}"), json);
         assertTrue(json.contains("\"styleThemeTextStyle\":{\"kind\":\"themeToken\","
@@ -2293,7 +2427,7 @@ class CanvasModelPayloadCodecTest {
                 request(new DesignerDocument(DOCUMENT_ID, source(), container))),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"alignment\":{\"kind\":\"alignmentGeometry\","), json);
         assertTrue(json.contains("\"basis\":\"directional\",\"horizontal\":0.25,"), json);
         assertTrue(json.contains("\"constraints\":{\"kind\":\"boxConstraints\","), json);
@@ -2380,7 +2514,7 @@ class CanvasModelPayloadCodecTest {
                         PROFILE, document, bundle)),
                 StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"protocolVersion\":18"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
         assertTrue(json.contains("\"image\":{\"image\":{"), json);
         assertTrue(json.contains("\"kind\":\"asset\""), json);
         assertTrue(json.contains("\"assetName\":\"assets/background.png\""), json);
@@ -2643,6 +2777,102 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
+    void listViewExtentPayloadPreservesOmissionNullFixedExtentAndAnonymousReferenceForms() throws Exception {
+        for (PropertyValue value : java.util.Arrays.asList(null, new PropertyValue.NullValue(),
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "privateExtent", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_list/extents.dart"), "privateOwner",
+                        Optional.of("nullableGetter"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_list/extents.dart"), "privateOwner",
+                        Optional.of("nullableFactory"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)))) {
+            for (boolean fixed : List.of(false, true)) {
+                if (fixed && value instanceof PropertyValue.DartObjectReferenceValue) continue;
+                var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                if (value != null) properties.put(new PropertyName("itemExtentBuilder"), value);
+                if (fixed) properties.put(new PropertyName("itemExtent"), new PropertyValue.IntegerValue(BigInteger.valueOf(48)));
+                var list = new WidgetNode(DOCUMENT_ID, type("flutter.widgets.ListView"), properties,
+                        Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of())));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), list))), StandardCharsets.UTF_8);
+                assertEquals(value != null, json.contains("\"itemExtentBuilder\":"), json);
+                assertEquals(value instanceof PropertyValue.NullValue, json.contains("\"itemExtentBuilder\":{\"kind\":\"null\"}"), json);
+                assertEquals(value instanceof PropertyValue.DartObjectReferenceValue,
+                        json.contains("\"itemExtentBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                assertEquals(fixed, json.contains("\"itemExtent\":{\"kind\":\"integer\",\"value\":48}"), json);
+                for (String forbidden : List.of("privateExtent", "privateOwner", "nullableGetter", "nullableFactory",
+                        "private_list", "rootSymbol", "zeroArgumentInvocation", "ItemExtentBuilder")) {
+                    assertFalse(json.contains(forbidden), json);
+                }
+            }
+        }
+    }
+
+    @Test
+    void listViewExtentPayloadRejectsFixedReferenceConflictAndUnreviewedKinds() {
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "maybeExtents", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        var invalid = new java.util.ArrayList<Map<PropertyName, PropertyValue>>();
+        for (PropertyValue value : List.of(new PropertyValue.CallbackValue("extents"), new PropertyValue.StringValue("extents"),
+                new PropertyValue.DartExpressionValue("(i, dimensions) => 40.0"))) {
+            invalid.add(Map.of(new PropertyName("itemExtentBuilder"), value));
+        }
+        for (int extent : List.of(0, 48)) invalid.add(Map.of(new PropertyName("itemExtentBuilder"), reference,
+                new PropertyName("itemExtent"), new PropertyValue.IntegerValue(BigInteger.valueOf(extent))));
+        for (var properties : invalid) {
+            var list = new WidgetNode(DOCUMENT_ID, type("flutter.widgets.ListView"), properties, Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), list))), properties.toString());
+        }
+    }
+
+    @Test
+    void textFieldBuilderPayloadPreservesOmissionNullAndAnonymousNullableReferenceForms() throws Exception {
+        for (var reference : List.of(
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "privateBuilder", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_fields/builders.dart"), "privateOwner",
+                        Optional.of("nullableGetter"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_fields/builders.dart"), "privateOwner",
+                        Optional.of("nullableFactory"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)))) {
+            for (PropertyValue counter : java.util.Arrays.asList(null, new PropertyValue.NullValue(), reference)) {
+                for (PropertyValue menu : java.util.Arrays.asList(null, new PropertyValue.NullValue(), reference)) {
+                    var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                    if (counter != null) properties.put(new PropertyName("buildCounter"), counter);
+                    if (menu != null) properties.put(new PropertyName("contextMenuBuilder"), menu);
+                    var field = new WidgetNode(DOCUMENT_ID, type("flutter.material.TextField"), properties, Map.of());
+                    String json = new String(new CanvasModelPayloadCodec().encode(request(
+                            new DesignerDocument(DOCUMENT_ID, source(), field))), StandardCharsets.UTF_8);
+                    for (String name : List.of("buildCounter", "contextMenuBuilder")) {
+                        PropertyValue value = properties.get(new PropertyName(name));
+                        assertEquals(value != null, json.contains("\"" + name + "\":"), json);
+                        assertEquals(value instanceof PropertyValue.NullValue, json.contains("\"" + name + "\":{\"kind\":\"null\"}"), json);
+                        assertEquals(value instanceof PropertyValue.DartObjectReferenceValue,
+                                json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+                    }
+                    for (String forbidden : List.of("privateBuilder", "privateOwner", "nullableGetter", "nullableFactory",
+                            "private_fields", "rootSymbol", "zeroArgumentInvocation", "InputCounterWidgetBuilder", "EditableTextContextMenuBuilder")) {
+                        assertFalse(json.contains(forbidden), json);
+                    }
+                }
+            }
+        }
+    }
+
+    @Test
+    void textFieldBuilderPayloadRejectsUnreviewedCallbackAndExecutableSourceKinds() {
+        for (String name : List.of("buildCounter", "contextMenuBuilder")) {
+            for (PropertyValue value : List.of(new PropertyValue.CallbackValue("buildField"),
+                    new PropertyValue.StringValue("builder"), new PropertyValue.BooleanValue(false),
+                    new PropertyValue.DartExpressionValue("(_, _) => const SizedBox()"))) {
+                var field = new WidgetNode(DOCUMENT_ID, type("flutter.material.TextField"),
+                        Map.of(new PropertyName(name), value), Map.of());
+                assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), field))), name + ": " + value);
+            }
+        }
+    }
+
+    @Test
     void projectsTextFieldScalarCompoundsAndCallbackPresenceWithoutHandlerCode()
             throws Exception {
         WidgetNode field = new WidgetNode(
@@ -2834,6 +3064,446 @@ class CanvasModelPayloadCodecTest {
         }
         var node = new WidgetNode(StableId.random(), type("flutter.material.Badge"), Map.of(names[0], dev.flutter.netbeans.designer.catalog.BadgeTestValues.i(0)), Map.of(new SlotName("label"), WidgetSlot.SingleSlot.of(text("fac77c2c-1233-4dff-946f-a3023df9b6ce", "Keep this label"))));
         assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+    }
+
+    @Test
+    void stateBindingMetadataIsExcludedAndLiteralPreviewWireBytesRemainIdentical() throws Exception {
+        var node = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                BuiltInWidgetCatalog.getDefault().find(type("flutter.material.Checkbox")).orElseThrow(),
+                id("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"));
+        var binding = new dev.flutter.netbeans.designer.model.StateBinding(
+                "_secretSelectedValue", "_secretSelectionHandler",
+                dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL);
+        var consumer = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_secretSelectedValue",
+                dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL, Optional.empty(),
+                dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.NOT);
+        var bound = new WidgetNode(node.id(), node.type(), node.properties(), node.slots(), node.extensions(), Optional.of(binding),
+                Map.of(new PropertyName("autofocus"), consumer));
+        var before = source();
+        var source = new DartSourceDescriptor(before.dartFile(), before.className(), WidgetClassKind.STATEFUL,
+                before.generatorVersion(), before.managedRegions());
+        var codec = new CanvasModelPayloadCodec();
+        byte[] literalBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, node)));
+        byte[] boundBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, bound)));
+        assertArrayEquals(literalBytes, boundBytes);
+        String json = new String(boundBytes, StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"protocolVersion\":19"));
+        assertTrue(json.contains("\"value\":{\"kind\":\"boolean\",\"value\":false}"), json);
+        assertFalse(json.contains("secret"));
+        assertFalse(json.contains("stateBinding"));
+        assertFalse(json.contains("propertyBindings"));
+    }
+
+    @Test
+    void gestureDetectorBooleanStateConsumersNeverChangeLiteralCanvasBytes() throws Exception {
+        var properties = Map.<PropertyName, PropertyValue>of(
+                new PropertyName("excludeFromSemantics"), new PropertyValue.BooleanValue(false),
+                new PropertyName("trackpadScrollCausesScale"), new PropertyValue.BooleanValue(true));
+        var node = new WidgetNode(id("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                type("flutter.widgets.GestureDetector"), properties, Map.of());
+        var before = source();
+        var source = new DartSourceDescriptor(before.dartFile(), before.className(), WidgetClassKind.STATEFUL,
+                before.generatorVersion(), before.managedRegions());
+        var codec = new CanvasModelPayloadCodec();
+        byte[] literalBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, node)));
+        for (var transform : List.of(dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.DIRECT,
+                dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.NOT)) {
+            var binding = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_secretGestureState",
+                    dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL, Optional.empty(), transform);
+            var bound = new WidgetNode(node.id(), node.type(), node.properties(), node.slots(),
+                    node.extensions(), Optional.empty(), Map.of(
+                            new PropertyName("excludeFromSemantics"), binding,
+                            new PropertyName("trackpadScrollCausesScale"), binding));
+            byte[] boundBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, bound)));
+            assertArrayEquals(literalBytes, boundBytes);
+            String json = new String(boundBytes, StandardCharsets.UTF_8);
+            assertFalse(json.contains("secretGestureState"), json);
+            assertFalse(json.contains("stateBinding"), json);
+            assertFalse(json.contains("propertyBindings"), json);
+            assertFalse(json.contains("transform"), json);
+        }
+    }
+
+    @Test
+    void gestureDetectorProjectsAll58CallbacksWithoutLeakingCodeIdentity() throws Exception {
+        var callbacks = dev.flutter.netbeans.designer.catalog.GestureDetectorWidgetPropertySchema.callbackDefinitions();
+        assertEquals(58, callbacks.size());
+        for (String name : callbacks.keySet()) {
+            for (PropertyValue value : List.of(new PropertyValue.CallbackValue("privateGestureHandler"),
+                    new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/secret.dart"),
+                            "privateGestureCallback", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                    new PropertyValue.NullValue())) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.GestureDetector"),
+                        Map.of(new PropertyName(name), value),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                String expectedKind = value instanceof PropertyValue.CallbackValue ? "callbackPresence"
+                        : value instanceof PropertyValue.DartObjectReferenceValue ? "dartObjectReferencePresence" : "null";
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"" + expectedKind + "\"}"), json);
+                assertFalse(json.contains("privateGesture"), json);
+                assertFalse(json.contains("private_app"), json);
+                assertFalse(json.contains("secret.dart"), json);
+            }
+        }
+    }
+
+    @Test
+    void listenerProjectsAllNineCallbacksWithoutApplicationCodeAndKeepsBehaviorExact() throws Exception {
+        var callbacks = dev.flutter.netbeans.designer.catalog.ListenerWidgetPropertySchema.callbackDefinitions();
+        assertEquals(9, callbacks.size());
+        for (String name : callbacks.keySet()) {
+            for (PropertyValue value : List.of(new PropertyValue.CallbackValue("privatePointerHandler"),
+                    new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/pointer.dart"),
+                            "privatePointerCallback", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                    new PropertyValue.NullValue())) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.Listener"),
+                        Map.of(new PropertyName(name), value), Map.of());
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                String expectedKind = value instanceof PropertyValue.CallbackValue ? "callbackPresence"
+                        : value instanceof PropertyValue.DartObjectReferenceValue ? "dartObjectReferencePresence" : "null";
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"" + expectedKind + "\"}"), json);
+                assertFalse(json.contains("privatePointer"), json);
+                assertFalse(json.contains("private_app"), json);
+                assertFalse(json.contains("pointer.dart"), json);
+                assertFalse(json.contains("\"behavior\":"), json);
+            }
+        }
+        for (String behavior : List.of("deferToChild", "opaque", "translucent")) {
+            var value = new PropertyValue.EnumValue("HitTestBehavior", behavior);
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.Listener"),
+                    Map.of(new PropertyName("behavior"), value),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"behavior\":{\"kind\":\"enum\",\"type\":\"HitTestBehavior\",\"value\":\"" + behavior + "\"}"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
+        }
+        var invalid = new WidgetNode(StableId.random(), type("flutter.widgets.Listener"),
+                Map.of(new PropertyName("behavior"), new PropertyValue.NullValue()), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), invalid))));
+    }
+
+    @Test
+    void gestureDetectorProjectsAll64DeviceSubsetsCanonicallyAndKeepsNullDistinct() throws Exception {
+        var kinds = PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.values();
+        for (int bits = 0; bits < 64; bits++) {
+            var devices = new java.util.ArrayList<PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind>();
+            for (int index = 5; index >= 0; index--) {
+                if ((bits & (1 << index)) != 0) devices.add(kinds[index]);
+            }
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.GestureDetector"),
+                    Map.of(new PropertyName("supportedDevices"), new PropertyValue.PointerDeviceKindSetValue(devices)),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            String values = devices.stream().sorted().map(device -> "\"" + device.wireName() + "\"")
+                    .collect(java.util.stream.Collectors.joining(","));
+            assertTrue(json.contains("\"supportedDevices\":{\"kind\":\"pointerDeviceKindSet\",\"values\":[" + values + "]}"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
+        }
+        for (boolean explicitNull : List.of(false, true)) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.GestureDetector"),
+                    explicitNull ? Map.of(new PropertyName("supportedDevices"), new PropertyValue.NullValue()) : Map.of(),
+                    Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertEquals(explicitNull, json.contains("\"supportedDevices\":{\"kind\":\"null\"}"), json);
+        }
+    }
+
+    @Test
+    void scaffoldBottomSheetScrimBuilderProjectsOnlyPresenceAndPreservesOmission() throws Exception {
+        var refs = new java.util.ArrayList<PropertyValue>();
+        refs.add(null);
+        for (Optional<String> library : List.of(Optional.<String>empty(), Optional.of("package:private_app/scrim.dart"))) {
+            for (Optional<String> member : List.of(Optional.<String>empty(), Optional.of("privateScrimMember"))) {
+                for (var access : PropertyValue.DartObjectReferenceValue.Access.values()) {
+                    refs.add(new PropertyValue.DartObjectReferenceValue(library, "PrivateScrimBuilder", member, access,
+                            access == PropertyValue.DartObjectReferenceValue.Access.REFERENCE ? Optional.empty() : Optional.of(false)));
+                }
+            }
+        }
+        for (var reference : refs) {
+            var child = text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Scaffold child");
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Scaffold"),
+                    reference == null ? Map.of() : Map.of(new PropertyName("bottomSheetScrimBuilder"), reference),
+                    Map.of(new SlotName("body"), WidgetSlot.SingleSlot.of(child)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertEquals(reference != null, json.contains("\"bottomSheetScrimBuilder\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains(child.id().toString()), json);
+            assertFalse(json.contains("PrivateScrimBuilder"), json);
+            assertFalse(json.contains("privateScrimMember"), json);
+            assertFalse(json.contains("private_app"), json);
+            assertFalse(json.contains("scrim.dart"), json);
+            assertTrue(json.contains("\"protocolVersion\":19"), json);
+        }
+    }
+
+    @Test
+    void scaffoldBottomSheetScrimBuilderRejectsNullAndUnreviewedCallbackKindsBeforeProjection() {
+        for (PropertyValue invalid : List.of(new PropertyValue.NullValue(),
+                new PropertyValue.CallbackValue("privateScrimHandler"),
+                new PropertyValue.StringValue("privateScrimHandler"),
+                new PropertyValue.BooleanValue(false))) {
+            var node = new WidgetNode(StableId.random(), type("flutter.material.Scaffold"),
+                    Map.of(new PropertyName("bottomSheetScrimBuilder"), invalid),
+                    Map.of(new SlotName("body"), WidgetSlot.SingleSlot.of(text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Scaffold child"))));
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+    }
+
+    @Test
+    void notificationListenerProjectsAll14TypesAndNullableCallbacksWithoutApplicationIdentity() throws Exception {
+        var callbackValues = new java.util.ArrayList<PropertyValue>();
+        callbackValues.add(null);
+        callbackValues.add(new PropertyValue.NullValue());
+        callbackValues.add(new PropertyValue.CallbackValue("privateNotificationHandler"));
+        for (var access : PropertyValue.DartObjectReferenceValue.Access.values()) {
+            callbackValues.add(new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/notifications.dart"),
+                    "PrivateNotificationOwner", Optional.of("privateNotificationHandler"), access,
+                    access == PropertyValue.DartObjectReferenceValue.Access.REFERENCE ? Optional.empty() : Optional.of(false)));
+        }
+        var types = dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.typePresets();
+        assertEquals(14, types.size());
+        for (String selectedType : types) {
+            for (var callback : callbackValues) {
+                var fields = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+                fields.put(new PropertyName("notificationType"), new PropertyValue.StringValue(selectedType));
+                if (callback != null) fields.put(new PropertyName("onNotification"), callback);
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.NotificationListener"), fields,
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Notification child"))));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"notificationType\":{\"kind\":\"string\",\"value\":\"" + selectedType + "\"}"), json);
+                if (callback == null) {
+                    assertFalse(json.contains("\"onNotification\""), json);
+                } else {
+                    String kind = callback instanceof PropertyValue.CallbackValue ? "callbackPresence"
+                            : callback instanceof PropertyValue.DartObjectReferenceValue ? "dartObjectReferencePresence" : "null";
+                    assertTrue(json.contains("\"onNotification\":{\"kind\":\"" + kind + "\"}"), json);
+                }
+                assertFalse(json.contains("privateNotification"), json);
+                assertFalse(json.contains("PrivateNotificationOwner"), json);
+                assertFalse(json.contains("private_app"), json);
+                assertFalse(json.contains("notifications.dart"), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
+            }
+        }
+    }
+
+    @Test
+    void notificationListenerCustomSubtypeBecomesAnonymousPresenceAndPreservesChild() throws Exception {
+        for (Optional<String> library : List.of(Optional.<String>empty(), Optional.of("package:private_app/notifications.dart"))) {
+            var child = text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Notification child");
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.NotificationListener"),
+                    Map.of(new PropertyName("notificationType"), new PropertyValue.DartObjectReferenceValue(library,
+                            "PrivateNotificationSubtype", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"notificationType\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertTrue(json.contains(child.id().toString()), json);
+            assertFalse(json.contains("PrivateNotificationSubtype"), json);
+            assertFalse(json.contains("private_app"), json);
+            assertFalse(json.contains("notifications.dart"), json);
+        }
+    }
+
+    @Test
+    void focusProjectsAllCallbacksAndNullableNodesAsPresenceWithoutApplicationIdentity() throws Exception {
+        for (String name : List.of("onFocusChange", "onKeyEvent", "onKey", "focusNode", "parentNode")) {
+            var values = new java.util.ArrayList<PropertyValue>();
+            values.add(new PropertyValue.NullValue());
+            if (name.startsWith("on")) values.add(new PropertyValue.CallbackValue("privateFocusHandler"));
+            for (var access : PropertyValue.DartObjectReferenceValue.Access.values()) {
+                values.add(new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/focus.dart"),
+                        "PrivateFocusOwner", Optional.of("privateFocusMember"), access,
+                        access == PropertyValue.DartObjectReferenceValue.Access.REFERENCE ? Optional.empty() : Optional.of(false)));
+            }
+            for (var value : values) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.Focus"),
+                        Map.of(new PropertyName(name), value),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Focus child"))));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                String expected = value instanceof PropertyValue.CallbackValue ? "callbackPresence"
+                        : value instanceof PropertyValue.DartObjectReferenceValue ? "dartObjectReferencePresence" : "null";
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"" + expected + "\"}"), json);
+                assertFalse(json.contains("privateFocus"), json);
+                assertFalse(json.contains("PrivateFocusOwner"), json);
+                assertFalse(json.contains("private_app"), json);
+                assertFalse(json.contains("focus.dart"), json);
+            }
+        }
+    }
+
+    @Test
+    void focusExternalProjectionPreservesInactiveValuesButNeverTheirCodeIdentity() throws Exception {
+        var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+        properties.put(new PropertyName("variant"), new PropertyValue.StringValue("withExternalFocusNode"));
+        properties.put(new PropertyName("focusNode"), new PropertyValue.DartObjectReferenceValue(Optional.empty(),
+                "privateFocusNode", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()));
+        properties.put(new PropertyName("onKey"), new PropertyValue.CallbackValue("privateFocusKey"));
+        properties.put(new PropertyName("onKeyEvent"), new PropertyValue.CallbackValue("privateFocusEvent"));
+        properties.put(new PropertyName("debugLabel"), new PropertyValue.StringValue("Stored inactive label"));
+        for (String name : List.of("canRequestFocus", "skipTraversal", "descendantsAreFocusable", "descendantsAreTraversable")) {
+            properties.put(new PropertyName(name), new PropertyValue.BooleanValue(false));
+        }
+        var node = new WidgetNode(StableId.random(), type("flutter.widgets.Focus"), properties,
+                Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Focus child"))));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(
+                new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        assertFalse(json.contains("privateFocus"), json);
+        assertTrue(json.contains("\"onKey\":{\"kind\":\"callbackPresence\"}"), json);
+        assertTrue(json.contains("\"onKeyEvent\":{\"kind\":\"callbackPresence\"}"), json);
+        assertTrue(json.contains("Stored inactive label"), json);
+        assertTrue(json.contains("withExternalFocusNode"), json);
+        assertTrue(json.contains("\"protocolVersion\":19"), json);
+    }
+
+    @Test
+    void focusStateConsumersKeepLiteralCanvasBytesAndHideStateNames() throws Exception {
+        var previous = source();
+        var stateful = new DartSourceDescriptor(previous.dartFile(), previous.className(), WidgetClassKind.STATEFUL,
+                previous.generatorVersion(), previous.managedRegions());
+        var codec = new CanvasModelPayloadCodec();
+        for (String name : List.of("autofocus", "includeSemantics", "canRequestFocus", "skipTraversal", "descendantsAreFocusable", "descendantsAreTraversable")) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.Focus"),
+                    Map.of(new PropertyName(name), new PropertyValue.BooleanValue(false)),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(text("dc7d6474-55c1-49c4-9bdb-9e1777d358b9", "Focus child"))));
+            byte[] literal = codec.encode(request(new DesignerDocument(DOCUMENT_ID, stateful, node)));
+            for (var transform : List.of(dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.DIRECT,
+                    dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.NOT)) {
+                var binding = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_privateFocusState",
+                        dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL, Optional.empty(), transform);
+                var bound = new WidgetNode(node.id(), node.type(), node.properties(), node.slots(), node.extensions(),
+                        Optional.empty(), Map.of(new PropertyName(name), binding));
+                byte[] projected = codec.encode(request(new DesignerDocument(DOCUMENT_ID, stateful, bound)));
+                assertArrayEquals(literal, projected);
+                assertFalse(new String(projected, StandardCharsets.UTF_8).contains("privateFocusState"));
+            }
+        }
+    }
+
+    @Test
+    void mouseRegionProjectsAllThreeCallbacksWithoutApplicationCodeIdentity() throws Exception {
+        var callbacks = dev.flutter.netbeans.designer.catalog.MouseRegionWidgetPropertySchema.callbackDefinitions();
+        assertEquals(3, callbacks.size());
+        for (String name : callbacks.keySet()) {
+            for (PropertyValue value : List.of(new PropertyValue.CallbackValue("privateMouseHandler"),
+                    new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/mouse.dart"),
+                            "privateMouseCallback", Optional.empty(),
+                            PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                    new PropertyValue.NullValue())) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.MouseRegion"),
+                        Map.of(new PropertyName(name), value), Map.of());
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                String expectedKind = value instanceof PropertyValue.CallbackValue ? "callbackPresence"
+                        : value instanceof PropertyValue.DartObjectReferenceValue ? "dartObjectReferencePresence" : "null";
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"" + expectedKind + "\"}"), json);
+                assertFalse(json.contains("privateMouse"), json);
+                assertFalse(json.contains("private_app"), json);
+                assertFalse(json.contains("mouse.dart"), json);
+                assertFalse(json.contains("\"cursor\":"), json);
+                assertFalse(json.contains("\"opaque\":"), json);
+                assertFalse(json.contains("\"hitTestBehavior\":"), json);
+            }
+        }
+    }
+
+    @Test
+    void mouseRegionProjectsAll41CursorPresetsAndOpaqueCustomReferenceWithoutExecutingIt() throws Exception {
+        var cursors = List.of(
+            "none", "basic", "click", "forbidden", "wait", "progress", "contextMenu", "help", "text", "verticalText", "cell", "precise", "move", "grab", "grabbing", "noDrop", "alias", "copy", "disappearing", "allScroll", "resizeLeftRight", "resizeUpDown", "resizeUpLeftDownRight", "resizeUpRightDownLeft", "resizeUp", "resizeDown", "resizeLeft", "resizeRight", "resizeUpLeft", "resizeUpRight", "resizeDownLeft", "resizeDownRight", "resizeColumn", "resizeRow", "zoomIn", "zoomOut", "defer", "uncontrolled", "clickable", "adaptiveClickable", "textable");
+        assertEquals(41, cursors.size());
+        for (String cursor : cursors) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.MouseRegion"),
+                    Map.of(new PropertyName("cursor"), new PropertyValue.StringValue(cursor)), Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"cursor\":{\"kind\":\"string\",\"value\":\"" + cursor + "\"}"), json);
+        }
+        for (var access : PropertyValue.DartObjectReferenceValue.Access.values()) {
+            var value = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/cursor.dart"),
+                    "PrivateMouseCursor", Optional.of("custom"), access,
+                    access == PropertyValue.DartObjectReferenceValue.Access.REFERENCE ? Optional.empty() : Optional.of(false));
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.MouseRegion"),
+                    Map.of(new PropertyName("cursor"), value), Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"cursor\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            assertFalse(json.contains("PrivateMouseCursor"), json);
+            assertFalse(json.contains("private_app"), json);
+            assertFalse(json.contains("custom"), json);
+            assertFalse(json.contains("cursor.dart"), json);
+        }
+        for (PropertyValue invalid : List.of(new PropertyValue.NullValue(),
+                new PropertyValue.StringValue("SystemMouseCursors.click"),
+                new PropertyValue.StringValue("executePrivateCode()"))) {
+            var node = new WidgetNode(StableId.random(), type("flutter.widgets.MouseRegion"),
+                    Map.of(new PropertyName("cursor"), invalid), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+    }
+
+    @Test
+    void mouseRegionPreservesNullableHitTestBehaviorAndBothOpaqueLiterals() throws Exception {
+        for (boolean opaque : List.of(false, true)) {
+            for (PropertyValue behavior : List.of(new PropertyValue.NullValue(),
+                    new PropertyValue.EnumValue("HitTestBehavior", "deferToChild"),
+                    new PropertyValue.EnumValue("HitTestBehavior", "opaque"),
+                    new PropertyValue.EnumValue("HitTestBehavior", "translucent"))) {
+                var node = new WidgetNode(StableId.random(), type("flutter.widgets.MouseRegion"),
+                        Map.of(new PropertyName("opaque"), new PropertyValue.BooleanValue(opaque),
+                                new PropertyName("hitTestBehavior"), behavior),
+                        Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+                String json = new String(new CanvasModelPayloadCodec().encode(request(
+                        new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"opaque\":{\"kind\":\"boolean\",\"value\":" + opaque + "}"), json);
+                String expected = behavior instanceof PropertyValue.EnumValue enumeration
+                        ? "{\"kind\":\"enum\",\"type\":\"HitTestBehavior\",\"value\":\"" + enumeration.value() + "\"}"
+                        : "{\"kind\":\"null\"}";
+                assertTrue(json.contains("\"hitTestBehavior\":" + expected), json);
+                assertTrue(json.contains("\"protocolVersion\":19"), json);
+            }
+        }
+    }
+
+    @Test
+    void mouseRegionOpaqueStateConsumerNeverChangesLiteralCanvasBytes() throws Exception {
+        var before = source();
+        var source = new DartSourceDescriptor(before.dartFile(), before.className(), WidgetClassKind.STATEFUL,
+                before.generatorVersion(), before.managedRegions());
+        var codec = new CanvasModelPayloadCodec();
+        for (boolean opaque : List.of(false, true)) {
+            var node = new WidgetNode(id("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),
+                    type("flutter.widgets.MouseRegion"),
+                    Map.of(new PropertyName("opaque"), new PropertyValue.BooleanValue(opaque)), Map.of());
+            byte[] literalBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, node)));
+            for (var transform : List.of(dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.DIRECT,
+                    dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.NOT)) {
+                var binding = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_secretMouseState",
+                        dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL, Optional.empty(), transform);
+                var bound = new WidgetNode(node.id(), node.type(), node.properties(), node.slots(),
+                        node.extensions(), Optional.empty(), Map.of(new PropertyName("opaque"), binding));
+                byte[] boundBytes = codec.encode(request(new DesignerDocument(DOCUMENT_ID, source, bound)));
+                assertArrayEquals(literalBytes, boundBytes);
+                String json = new String(boundBytes, StandardCharsets.UTF_8);
+                assertFalse(json.contains("secretMouseState"), json);
+                assertFalse(json.contains("stateBinding"), json);
+                assertFalse(json.contains("propertyBindings"), json);
+                assertFalse(json.contains("transform"), json);
+            }
+        }
     }
 
     private static CanvasRenderRequest request(DesignerDocument document) {
@@ -3415,6 +4085,50 @@ class CanvasModelPayloadCodecTest {
     }
 
     @Test
+    void appBarPredicatePayloadPreservesPresetsAndStripsAllProjectReferenceIdentity() throws Exception {
+        for (PropertyValue value : java.util.Arrays.asList(null,
+                new PropertyValue.StringValue("default"), new PropertyValue.StringValue("depthZero"),
+                new PropertyValue.StringValue("all"),
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), "privatePredicate", Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app_bar/predicates.dart"),
+                        "privateOwner", Optional.of("privateGetter"),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app_bar/predicates.dart"),
+                        "privateOwner", Optional.of("privateFactory"),
+                        PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)))) {
+            var properties = value == null ? Map.<PropertyName, PropertyValue>of()
+                    : Map.of(new PropertyName("notificationPredicate"), value);
+            var node = new WidgetNode(DOCUMENT_ID, type("flutter.material.AppBar"), properties, Map.of());
+            String json = new String(new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            assertEquals(value != null, json.contains("\"notificationPredicate\":"), json);
+            assertEquals(value instanceof PropertyValue.DartObjectReferenceValue,
+                    json.contains("\"notificationPredicate\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
+            if (value instanceof PropertyValue.StringValue preset) {
+                assertTrue(json.contains("\"notificationPredicate\":{\"kind\":\"string\",\"value\":\""
+                        + preset.value() + "\"}"), json);
+            }
+            for (String forbidden : List.of("privatePredicate", "privateOwner", "privateGetter", "privateFactory",
+                    "private_app_bar", "rootSymbol", "member", "zeroArgumentInvocation", "ScrollNotificationPredicate")) {
+                assertFalse(json.contains(forbidden), json);
+            }
+        }
+    }
+
+    @Test
+    void appBarPredicatePayloadRejectsNullCallbacksRawSourceAndUnreviewedPresets() {
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.CallbackValue("acceptScroll"),
+                new PropertyValue.DartExpressionValue("(_) => true"), new PropertyValue.BooleanValue(true),
+                new PropertyValue.StringValue("projectPredicate"))) {
+            var node = new WidgetNode(DOCUMENT_ID, type("flutter.material.AppBar"),
+                    Map.of(new PropertyName("notificationPredicate"), value), Map.of());
+            assertThrows(IllegalArgumentException.class, () -> new CanvasModelPayloadCodec().encode(request(
+                    new DesignerDocument(DOCUMENT_ID, source(), node))), value.toString());
+        }
+    }
+
+    @Test
     void refreshIndicatorPayloadRetainsAllThreeVariantsRequiredChildAndPrivateReferencePresence() throws Exception {
         var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_refresh/callbacks.dart"),
                 "privateRefresh", Optional.of("privateMember"), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
@@ -3708,7 +4422,7 @@ class CanvasModelPayloadCodecTest {
             for (var name : fields.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
             for (String name : List.of("onChanged", "groupRegistry", "focusNode", "mouseCursor")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
             for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "resources")) assertFalse(json.contains(absent), absent);
-            assertTrue(json.contains("\"protocolVersion\":18"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
         }
         var fields = new LinkedHashMap<PropertyName, PropertyValue>();
         for (String name : List.of("valueType", "value", "groupValue", "fillColor", "overlayColor", "backgroundColor", "innerRadius", "side", "visualDensity")) fields.put(new PropertyName(name),
@@ -3733,7 +4447,7 @@ class CanvasModelPayloadCodecTest {
         assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
         for (String name : List.of("valueType", "groupValue", "onChanged")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
         assertTrue(json.contains("RadioGroup child retained"));
-        assertTrue(json.contains("\"protocolVersion\":18"));
+        assertTrue(json.contains("\"protocolVersion\":19"));
         for (String hidden : List.of("ProjectChoice", "radio_types", "libraryUri", "resources")) assertFalse(json.contains(hidden), hidden);
     }
 
@@ -3829,7 +4543,7 @@ class CanvasModelPayloadCodecTest {
             assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), name);
         }
         for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "imageProvider", "resources")) assertFalse(json.contains(absent), absent);
-        assertTrue(json.contains("\"protocolVersion\":18"));
+        assertTrue(json.contains("\"protocolVersion\":19"));
         for (String family : List.of("labels", "overlayColor", "mouseCursor", "mouseCursorPressed")) {
             var whole = dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.node(Map.of(new PropertyName(family),
                     dev.flutter.netbeans.designer.catalog.RangeSliderTestValues.reference("projectValue")));
@@ -3885,7 +4599,7 @@ class CanvasModelPayloadCodecTest {
                 assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"), name);
             }
             for (String absent : List.of("buttonValues", "package:buttons", "libraryUri", "imageProvider", "resources")) assertFalse(json.contains(absent), absent);
-            assertTrue(json.contains("\"protocolVersion\":18"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
             assertEquals(variant.equals("standard"), json.contains("\"padding\":"));
         }
     }
@@ -3939,7 +4653,7 @@ class CanvasModelPayloadCodecTest {
             assertTrue(json.contains("\"thumbIconDefaultData\""));
             assertTrue(json.contains("\"activeThumbImage\""));
             assertTrue(json.contains("\"inactiveThumbImage\""));
-            assertTrue(json.contains("\"protocolVersion\":18"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
         }
     }
 
@@ -3993,7 +4707,7 @@ class CanvasModelPayloadCodecTest {
                 for (String forbidden : List.of("buttonValues", "package:buttons", "imageProvider", "MaterialIcons", "libraryUri")) {
                     assertFalse(json.contains(forbidden), forbidden);
                 }
-                assertTrue(json.contains("\"protocolVersion\":18"));
+                assertTrue(json.contains("\"protocolVersion\":19"));
             }
         }
     }
@@ -4064,7 +4778,7 @@ class CanvasModelPayloadCodecTest {
                 new PropertyName("style"), dev.flutter.netbeans.designer.catalog.IconButtonTestValues.reference("wholeStyle")));
         String json = new String(new CanvasModelPayloadCodec().encode(request(
                 new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
-        assertTrue(json.contains("\"protocolVersion\":18"));
+        assertTrue(json.contains("\"protocolVersion\":19"));
         assertTrue(json.contains("\"isSelected\":{\"kind\":\"null\"}"));
         assertTrue(json.contains("\"iconSize\":{\"kind\":\"enum\",\"type\":\"double\",\"value\":\"infinity\"}"));
         assertTrue(json.contains("\"style\":{\"kind\":\"dartObjectReferencePresence\"}"));
@@ -4103,7 +4817,7 @@ class CanvasModelPayloadCodecTest {
             for (String name : List.of("leading", "title", "subtitle", "trailing")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"single\""));
             for (String name : List.of("onTap", "onLongPress", "onFocusChange", "focusNode", "statesController")) assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
             for (String hidden : List.of("package:buttons", "buttonValues", "libraryUri", "resources")) assertFalse(json.contains(hidden), hidden);
-            assertTrue(json.contains("\"protocolVersion\":18"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
         }
         var properties = new LinkedHashMap<PropertyName, PropertyValue>();
         for (String name : List.of("shape", "visualDensity", "titleTextStyle", "subtitleTextStyle", "leadingAndTrailingTextStyle", "contentPadding", "iconColor", "textColor", "selectedColor", "mouseCursor")) {
@@ -4142,6 +4856,664 @@ class CanvasModelPayloadCodecTest {
                 Map.of(new PropertyName("shape"), dev.flutter.netbeans.designer.catalog.ListTileTestValues.reference("shape"), new PropertyName("shapeKind"), new PropertyValue.StringValue("circle")));
         for (var fields : invalid) {
             var root = dev.flutter.netbeans.designer.catalog.ListTileTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void switchListTileAllFieldsThreeSlotsBothConstructorsAndShapesRemainExactAndAnonymous() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        var resource = CanvasImageResource.create(CanvasImageFormat.PNG, 40, 30, new byte[]{4, 3, 2, 1});
+        var assetId = CanvasImageAssetId.application("assets/switch.png");
+        var bundle = new CanvasImageResourceBundle(List.of(new CanvasImageAsset(assetId, resource.resourceId(),
+                List.of(new CanvasImageVariant(BigDecimal.ONE, resource.resourceId())))), List.of(resource));
+        for (String variant : List.of("standard", "adaptive")) {
+            for (String shape : dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema.shapeKinds()) {
+                var root = dev.flutter.netbeans.designer.catalog.SwitchListTileTestValues.fullNode(variant, shape);
+                var document = new DesignerDocument(DOCUMENT_ID, source(), root);
+                assertThrows(CanvasModelPayloadException.class, () -> codec.encode(request(document)));
+                var candidate = request(PROFILE, document, bundle);
+                byte[] encoded = codec.encode(candidate);
+                assertArrayEquals(encoded, codec.encode(candidate));
+                String json = new String(encoded, StandardCharsets.UTF_8);
+                for (var name : root.properties().keySet()) {
+                    seen.add(name);
+                    assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+                }
+                for (String slot : List.of("title", "subtitle", "secondary")) assertTrue(json.contains("\"" + slot + "\":{\"kind\":\"single\""));
+                assertTrue(json.contains("\"applyCupertinoTheme\":"), "Inactive Standard intent remains in model payload");
+                assertFalse(json.contains("buttonValues"));
+                assertFalse(json.contains("libraryUri"));
+                assertTrue(json.contains("\"protocolVersion\":19"));
+                assertTrue(json.contains(resource.resourceId()));
+            }
+        }
+        var refs = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("shape", "visualDensity", "mouseCursor", "thumbColor", "trackColor", "trackOutlineColor", "overlayColor", "thumbIcon")) {
+            refs.put(new PropertyName(name), dev.flutter.netbeans.designer.catalog.ListTileTestValues.reference(name));
+        }
+        var root = dev.flutter.netbeans.designer.catalog.SwitchListTileTestValues.node(refs);
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+        for (var name : root.properties().keySet()) seen.add(name);
+        for (var name : refs.keySet()) assertTrue(json.contains("\"" + name.value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertEquals(dev.flutter.netbeans.designer.catalog.SwitchListTileTestValues.definition().properties().stream()
+                .map(dev.flutter.netbeans.designer.catalog.PropertyDefinition::name).collect(java.util.stream.Collectors.toSet()), seen);
+        assertFalse(json.contains("buttonValues"));
+    }
+
+    @Test
+    void switchListTileNullableCallbacksAndImageGuardsRejectOnlyInvalidCombinations() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var nulls = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError")) nulls.put(new PropertyName(name), new PropertyValue.NullValue());
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(),
+                dev.flutter.netbeans.designer.catalog.SwitchListTileTestValues.node(nulls)))), StandardCharsets.UTF_8);
+        for (var name : nulls.keySet()) assertTrue(json.contains("\"" + name.value() + "\":{\"kind\":\"null\"}"));
+        for (var fields : List.of(
+                Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(true)),
+                Map.of(new PropertyName("onActiveThumbImageError"), new PropertyValue.StringValue("noop")),
+                Map.of(new PropertyName("onInactiveThumbImageError"), dev.flutter.netbeans.designer.catalog.ListTileTestValues.reference("error")),
+                Map.of(new PropertyName("mouseCursorHovered"), new PropertyValue.StringValue("click")),
+                Map.of(new PropertyName("onChanged"), new PropertyValue.DartExpressionValue("runProject()")))) {
+            var root = dev.flutter.netbeans.designer.catalog.SwitchListTileTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void radioListTileEveryLeafBothConstructorsThreeSlotsAndShapesHaveAnonymousExactPayloads() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (String variant : List.of("standard", "adaptive")) for (String shape : dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema.shapeKinds()) {
+            var root = dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.fullNode(variant, shape);
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            String json = new String(codec.encode(candidate), StandardCharsets.UTF_8);
+            assertArrayEquals(codec.encode(candidate), codec.encode(candidate));
+            for (var name : root.properties().keySet()) { seen.add(name); assertTrue(json.contains("\"" + name.value() + "\":")); }
+            for (String slot : List.of("title", "subtitle", "secondary")) assertTrue(json.contains("\"" + slot + "\":{\"kind\":\"single\""));
+            assertTrue(json.contains("\"useCupertinoCheckmarkStyle\":"));
+            assertFalse(json.contains("buttonValues")); assertFalse(json.contains("libraryUri"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
+        }
+        var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String name : List.of("fillColor", "overlayColor", "radioBackgroundColor", "radioInnerRadius", "radioSide", "visualDensity", "shape", "mouseCursor")) {
+            fields.put(new PropertyName(name), dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.reference(name));
+        }
+        var root = dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.node(fields);
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+        for (var name : root.properties().keySet()) seen.add(name);
+        for (var name : fields.keySet()) assertTrue(json.contains("\"" + name.value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        assertEquals(dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.definition().properties().stream()
+                .map(dev.flutter.netbeans.designer.catalog.PropertyDefinition::name).collect(java.util.stream.Collectors.toSet()), seen);
+    }
+
+    @Test
+    void radioListTileOptionalCallbackResetNullAndScalarGenericGuardsRemainExact() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        for (var callback : List.<PropertyValue>of(new PropertyValue.NullValue(), new PropertyValue.StringValue("noop"),
+                dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.reference("callback"))) {
+            var root = dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.node(Map.of(new PropertyName("onChanged"), callback));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"onChanged\":{\"kind\":\"" + (callback.kind() == dev.flutter.netbeans.designer.model.PropertyValueKind.DART_OBJECT_REFERENCE ? "dartObjectReferencePresence" : callback.kind().wireName()) + "\""));
+        }
+        var reset = dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.without(dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.node(Map.of()), "onChanged");
+        String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), reset))), StandardCharsets.UTF_8);
+        assertFalse(json.contains("\"onChanged\":"));
+        for (var fields : List.of(Map.of(new PropertyName("value"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("valueType"), new PropertyValue.StringValue("int")),
+                Map.of(new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(true)),
+                Map.of(new PropertyName("groupRegistry"), dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.reference("registry")),
+                Map.of(new PropertyName("radioSidePressedWidth"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("mouseCursorHovered"), new PropertyValue.StringValue("click")))) {
+            var root = dev.flutter.netbeans.designer.catalog.RadioListTileTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void expansionTileAll76LeavesBothShapeFamiliesAndFiveSlotsHaveExactAnonymousPayloads() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (String shape : dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.shapeKinds()) {
+            for (String collapsed : dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.shapeKinds()) {
+                var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.fullNode(shape, collapsed);
+                var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+                byte[] encoded = codec.encode(candidate);
+                assertArrayEquals(encoded, codec.encode(candidate));
+                String json = new String(encoded, StandardCharsets.UTF_8);
+                for (var name : root.properties().keySet()) {
+                    seen.add(name);
+                    assertTrue(json.contains("\"" + name.value() + "\":"), name.toString());
+                }
+                for (String slot : List.of("title", "leading", "subtitle", "trailing")) {
+                    assertTrue(json.contains("\"" + slot + "\":{\"kind\":\"single\""));
+                }
+                assertTrue(json.contains("\"children\":{\"kind\":\"list\""));
+                assertTrue(json.contains("First")); assertTrue(json.contains("Second"));
+                assertTrue(json.contains("\"protocolVersion\":19"));
+                assertFalse(json.contains("buttonValues")); assertFalse(json.contains("libraryUri"));
+            }
+        }
+        for (var property : dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.definition().properties()) {
+            if (!property.acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.DART_OBJECT_REFERENCE)) continue;
+            var name = property.name();
+            var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(Map.of(name,
+                    dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.reference("privateProjectValue")));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            seen.add(name);
+            assertTrue(json.contains("\"" + name.value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            for (String forbidden : List.of("privateProjectValue", "buttonValues", "libraryUri", "package:buttons")) assertFalse(json.contains(forbidden));
+        }
+        assertEquals(76, seen.size());
+        assertEquals(dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.definition().properties().stream()
+                .map(dev.flutter.netbeans.designer.catalog.PropertyDefinition::name).collect(java.util.stream.Collectors.toSet()), seen);
+    }
+
+    @Test
+    void expansionTileNullableArgumentsSignedMicrosecondsAndAllCurvesRemainDistinctFromOmission() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var empty = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(Map.of());
+        String omitted = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertFalse(omitted.contains("\"initiallyExpanded\":")); assertFalse(omitted.contains("\"onExpansionChanged\":"));
+        for (var property : dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.definition().properties()) {
+            if (!property.acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL)) continue;
+            // Shape detail nulls still require their explicitly selected local family.
+            if (dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.isShapeDetailProperty(property.name().value())) continue;
+            var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(Map.of(property.name(), new PropertyValue.NullValue()));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"null\"}"));
+        }
+        for (String name : dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.animationDurationProperties()) {
+            var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(Map.of(new PropertyName(name), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(-123456))));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"integer\",\"value\":-123456}"));
+        }
+        for (String name : dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.animationCurveProperties()) {
+            for (String curve : dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.curvePresets()) {
+                var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(Map.of(new PropertyName(name), new PropertyValue.StringValue(curve)));
+                String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"string\",\"value\":\"" + curve + "\"}"));
+            }
+        }
+    }
+
+    @Test
+    void expansionTileRequiredTitleAndUnsafeTypedDomainOrCompoundConflictsRejectBeforeEncoding() {
+        var codec = new CanvasModelPayloadCodec();
+        var prototype = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.definition(), StableId.random());
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), prototype))));
+        for (var fields : List.of(
+                Map.of(new PropertyName("initiallyExpanded"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("expandedCrossAxisAlignment"), new PropertyValue.EnumValue("CrossAxisAlignment", "baseline")),
+                Map.of(new PropertyName("onExpansionChanged"), new PropertyValue.CallbackValue("legacy")),
+                Map.of(new PropertyName("controller"), new PropertyValue.DartExpressionValue("executeProject()")),
+                Map.of(new PropertyName("shape"), new PropertyValue.NullValue(), new PropertyName("shapeKind"), new PropertyValue.StringValue("circle")),
+                Map.of(new PropertyName("visualDensity"), new PropertyValue.NullValue(), new PropertyName("visualDensityHorizontal"), new PropertyValue.DoubleValue(BigDecimal.ZERO)),
+                Map.of(new PropertyName("expansionAnimationStyle"), new PropertyValue.NullValue(), new PropertyName("expansionAnimationStyleCurve"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("expansionAnimationStyleDurationUs"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("expansionAnimationStyleCurve"), new PropertyValue.StringValue("projectCurve")))) {
+            var root = dev.flutter.netbeans.designer.catalog.ExpansionTileTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void tooltipAll53LeavesPlainAndRichContentAndOptionalChildHaveExactAnonymousPayloads() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (boolean rich : List.of(false, true)) for (boolean paints : List.of(false, true)) {
+            var base = dev.flutter.netbeans.designer.catalog.TooltipTestValues.node(dev.flutter.netbeans.designer.catalog.TooltipTestValues.full(rich, paints));
+            var root = new WidgetNode(base.id(), base.type(), base.properties(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(
+                    dev.flutter.netbeans.designer.catalog.ListTileTestValues.text("Actual anchor"))));
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            byte[] encoded = codec.encode(candidate);
+            assertArrayEquals(encoded, codec.encode(candidate));
+            String json = new String(encoded, StandardCharsets.UTF_8);
+            for (var name : root.properties().keySet()) { seen.add(name); assertTrue(json.contains("\"" + name.value() + "\":")); }
+            assertTrue(json.contains("Actual anchor")); assertTrue(json.contains("\"protocolVersion\":19"));
+            for (String forbidden : List.of("libraryUri", "buttonValues", "package:buttons")) assertFalse(json.contains(forbidden));
+        }
+        for (var property : dev.flutter.netbeans.designer.catalog.TooltipTestValues.definition().properties()) {
+            PropertyValue value = property.acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.DART_OBJECT_REFERENCE)
+                    ? dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("privateProjectValue")
+                    : property.name().value().equals("height") ? dev.flutter.netbeans.designer.catalog.TooltipTestValues.d("24") : null;
+            if (value == null) continue;
+            var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+            if (!property.name().value().equals("richMessage")) fields.put(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"));
+            fields.put(property.name(), value);
+            var root = dev.flutter.netbeans.designer.catalog.TooltipTestValues.node(fields);
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            seen.add(property.name());
+            assertFalse(json.contains("privateProjectValue")); assertFalse(json.contains("libraryUri"));
+            if (value instanceof PropertyValue.DartObjectReferenceValue) assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        }
+        assertEquals(53, seen.size());
+        assertEquals(dev.flutter.netbeans.designer.catalog.TooltipTestValues.definition().properties().stream().map(dev.flutter.netbeans.designer.catalog.PropertyDefinition::name).collect(java.util.stream.Collectors.toSet()), seen);
+    }
+
+    @Test
+    void tooltipNullsSignedDurationsAndMessageSwitchRemainDistinctWithoutFabricatedChild() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        for (var property : dev.flutter.netbeans.designer.catalog.TooltipTestValues.definition().properties()) {
+            if (!property.acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL)) continue;
+            var fields = new LinkedHashMap<PropertyName, PropertyValue>();
+            fields.put(new PropertyName(property.name().value().equals("message") ? "richMessage" : "message"),
+                    property.name().value().equals("message") ? dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("rich") : new PropertyValue.StringValue(""));
+            fields.put(property.name(), new PropertyValue.NullValue());
+            var root = dev.flutter.netbeans.designer.catalog.TooltipTestValues.node(fields);
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"null\"}"));
+            assertTrue(json.contains("\"child\":{\"kind\":\"single\",\"child\":null}"));
+        }
+        for (String name : dev.flutter.netbeans.designer.catalog.TooltipWidgetPropertySchema.durationProperties()) {
+            var root = dev.flutter.netbeans.designer.catalog.TooltipTestValues.with(Map.of(new PropertyName(name), dev.flutter.netbeans.designer.catalog.TooltipTestValues.i(-123456)));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"integer\",\"value\":-123456}"));
+        }
+    }
+
+    @Test
+    void tooltipInvalidContentCompoundAndUnsafeReferenceFormsRejectBeforePayloadAdmission() {
+        var codec = new CanvasModelPayloadCodec();
+        for (var fields : List.of(
+                Map.<PropertyName, PropertyValue>of(),
+                Map.of(new PropertyName("message"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue(""), new PropertyName("richMessage"), dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("rich")),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("enableTapToDismiss"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("height"), dev.flutter.netbeans.designer.catalog.TooltipTestValues.i(24), new PropertyName("constraints"), dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("constraints")),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("textStyle"), new PropertyValue.NullValue(), new PropertyName("textStyleInherit"), new PropertyValue.BooleanValue(true)),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("waitDurationUs"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("positionDelegate"), new PropertyValue.CallbackValue("position")),
+                Map.of(new PropertyName("message"), new PropertyValue.StringValue("Tooltip"), new PropertyName("onTriggered"), new PropertyValue.DartExpressionValue("executeProject()")))) {
+            var root = dev.flutter.netbeans.designer.catalog.TooltipTestValues.node(new LinkedHashMap<>(fields));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void tooltipVisibilityBothBooleanValuesPreserveRequiredChildIdentityAndExactWire() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var child = dev.flutter.netbeans.designer.catalog.ListTileTestValues.text("Visible anchor semantics");
+        var nodeId = id("793560e4-67ae-4e99-907b-000000000801");
+        for (boolean visible : List.of(true, false)) {
+            var node = new WidgetNode(nodeId, type("flutter.material.TooltipVisibility"),
+                    Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(visible)),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), node));
+            byte[] bytes = codec.encode(candidate);
+            assertArrayEquals(bytes, codec.encode(candidate));
+            String json = new String(bytes, StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"visible\":{\"kind\":\"boolean\",\"value\":" + visible + "}"));
+            assertTrue(json.contains(nodeId.toString()));
+            assertTrue(json.contains(child.id().toString()));
+            assertTrue(json.contains("Visible anchor semantics"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
+            assertEquals(Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(visible)), node.properties());
+            assertEquals(child, ((WidgetSlot.SingleSlot) node.slots().get(new SlotName("child"))).child().orElseThrow());
+        }
+    }
+
+    @Test
+    void tooltipVisibilityRejectsAbsentNullOrNonBooleanVisibleAndAbsentOrEmptyRequiredChild() {
+        var codec = new CanvasModelPayloadCodec();
+        var child = dev.flutter.netbeans.designer.catalog.ListTileTestValues.text("Actual child");
+        var nodeId = id("793560e4-67ae-4e99-907b-000000000802");
+        for (var properties : List.of(
+                Map.<PropertyName, PropertyValue>of(),
+                Map.of(new PropertyName("visible"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("visible"), new PropertyValue.StringValue("false")),
+                Map.of(new PropertyName("visible"), new PropertyValue.IntegerValue(BigInteger.ONE)),
+                Map.of(new PropertyName("visible"), new PropertyValue.CallbackValue("callback")),
+                Map.of(new PropertyName("visible"), dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("projectVisible")))) {
+            var node = new WidgetNode(nodeId, type("flutter.material.TooltipVisibility"), new LinkedHashMap<>(properties),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child)));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+        for (var slots : List.of(Map.<SlotName, WidgetSlot>of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))) {
+            var node = new WidgetNode(nodeId, type("flutter.material.TooltipVisibility"),
+                    Map.of(new PropertyName("visible"), new PropertyValue.BooleanValue(true)), new LinkedHashMap<>(slots));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))));
+        }
+    }
+
+    @Test
+    void tooltipThemeAll47FieldsHaveExactAnonymousPayloadAndRequiredChildIdentity() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (boolean paints : List.of(false, true)) {
+            var root = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(
+                    dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.full(paints));
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            byte[] bytes = codec.encode(candidate);
+            assertArrayEquals(bytes, codec.encode(candidate));
+            String json = new String(bytes, StandardCharsets.UTF_8);
+            for (var name : root.properties().keySet()) {
+                seen.add(name); assertTrue(json.contains("\"" + name.value() + "\":"));
+            }
+            assertTrue(json.contains(root.id().toString()));
+            assertTrue(json.contains("Theme anchor"));
+            assertTrue(json.contains("\"protocolVersion\":19"));
+        }
+        for (var property : dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.definition().properties()) {
+            PropertyValue value = property.acceptedKinds().contains(PropertyValueKind.DART_OBJECT_REFERENCE)
+                    ? dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("privateThemeFactory")
+                    : property.name().value().equals("height") ? dev.flutter.netbeans.designer.catalog.TooltipTestValues.d("27") : null;
+            if (value == null) continue;
+            var root = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(Map.of(property.name(), value));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            seen.add(property.name());
+            assertFalse(json.contains("privateThemeFactory")); assertFalse(json.contains("libraryUri"));
+            if (value instanceof PropertyValue.DartObjectReferenceValue)
+                assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        }
+        assertEquals(47, seen.size());
+    }
+
+    @Test
+    void tooltipThemeEmptyAndNullableDataFieldsRemainDistinctAndCompoundConflictsFailClosed() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var empty = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(Map.of());
+        String emptyJson = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), empty))), StandardCharsets.UTF_8);
+        assertFalse(emptyJson.contains("\"data\":{\"kind\":\"dartObjectReferencePresence\"}"));
+        for (String name : dev.flutter.netbeans.designer.catalog.TooltipThemeWidgetPropertySchema.localProperties()) {
+            var definition = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.definition().properties().stream()
+                    .filter(property -> property.name().value().equals(name)).findFirst().orElseThrow();
+            if (definition.acceptedKinds().contains(PropertyValueKind.NULL)) {
+                var root = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(Map.of(new PropertyName(name), new PropertyValue.NullValue()));
+                String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+            }
+            var conflict = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(Map.of(
+                    new PropertyName("data"), dev.flutter.netbeans.designer.catalog.TooltipTestValues.reference("themeData"),
+                    new PropertyName(name), dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.value(name)));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), conflict))));
+        }
+        for (PropertyValue value : List.of(new PropertyValue.NullValue(), new PropertyValue.StringValue("themeData"),
+                new PropertyValue.CallbackValue("themeData"), new PropertyValue.DartExpressionValue("createTheme()"))) {
+            var root = dev.flutter.netbeans.designer.catalog.TooltipThemeTestValues.node(Map.of(new PropertyName("data"), value));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+        for (var slots : List.of(Map.<SlotName, WidgetSlot>of(), Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))) {
+            var root = new WidgetNode(empty.id(), empty.type(), Map.of(), new LinkedHashMap<>(slots));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void menuItemButtonAll520FieldsAndAllThreeActualChildrenHaveExactAnonymousPayload() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (boolean paints : List.of(false, true)) for (boolean circles : List.of(false, true)) {
+            var base = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(
+                    dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.full(paints, circles));
+            var slots = new LinkedHashMap<SlotName, WidgetSlot>();
+            for (String name : List.of("child", "leadingIcon", "trailingIcon")) slots.put(new SlotName(name),
+                    WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.text("Actual " + name)));
+            var root = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            byte[] bytes = codec.encode(candidate);
+            assertArrayEquals(bytes, codec.encode(candidate));
+            String json = new String(bytes, StandardCharsets.UTF_8);
+            seen.addAll(root.properties().keySet());
+            for (var name : root.properties().keySet()) assertTrue(json.contains("\"" + name.value() + "\":"));
+            for (String name : List.of("child", "leadingIcon", "trailingIcon")) assertTrue(json.contains("Actual " + name));
+            assertTrue(json.contains(root.id().toString()));
+            assertFalse(json.contains("package:buttons/styles.dart")); assertFalse(json.contains("buttonValues"));
+            assertFalse(json.contains("libraryUri")); assertTrue(json.contains("\"protocolVersion\":19"));
+        }
+        var definition = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.definition();
+        for (var property : definition.properties()) {
+            if (seen.contains(property.name())) continue;
+            String name = property.name().value();
+            PropertyValue value;
+            if (property.acceptedKinds().contains(PropertyValueKind.DART_OBJECT_REFERENCE)) {
+                value = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.reference("privateMenuFactory");
+            } else if (property.acceptedKinds().contains(PropertyValueKind.BOOLEAN)) {
+                value = new PropertyValue.BooleanValue(true);
+            } else if (name.equals("semanticsLabel") || name.equals("shortcutCharacter")) {
+                value = new PropertyValue.StringValue("A");
+            } else {
+                var constraint = property.constraints().stream().filter(c -> c instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues)
+                        .map(c -> (dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues) c).findFirst().orElseThrow();
+                value = new PropertyValue.EnumValue(constraint.dartType().name(), constraint.values().getLast());
+            }
+            var values = new LinkedHashMap<PropertyName, PropertyValue>(); values.put(property.name(), value);
+            if (name.startsWith("shortcut") && !name.equals("shortcut") && !name.equals("shortcutCharacter") && !name.equals("shortcutTrigger"))
+                values.put(new PropertyName("shortcutTrigger"), new PropertyValue.EnumValue("LogicalKeyboardKey", "keyA"));
+            var root = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(values);
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + name + "\":")); assertFalse(json.contains("privateMenuFactory"));
+            if (value instanceof PropertyValue.DartObjectReferenceValue)
+                assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            seen.add(property.name());
+        }
+        assertEquals(520, seen.size());
+    }
+
+    @Test
+    void menuItemButton432KeysUnicodeCharactersExplicitNullsAndOptionalSlotsRemainExact() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        for (String key : dev.flutter.netbeans.designer.catalog.MenuShortcutKeyCatalog.names()) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(Map.of(
+                    new PropertyName("shortcutTrigger"), new PropertyValue.EnumValue("LogicalKeyboardKey", key)));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"type\":\"LogicalKeyboardKey\",\"value\":\"" + key + "\""));
+        }
+        for (String character : List.of("", "?", "Ж", "ab", "🙂")) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(Map.of(new PropertyName("shortcutCharacter"), new PropertyValue.StringValue(character)));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            boolean found = false;
+            try (var parser = new com.fasterxml.jackson.core.JsonFactory().createParser(json)) {
+                while (parser.nextToken() != null) {
+                    if (parser.currentToken() == com.fasterxml.jackson.core.JsonToken.FIELD_NAME && "shortcutCharacter".equals(parser.currentName())) {
+                        assertEquals(com.fasterxml.jackson.core.JsonToken.START_OBJECT, parser.nextToken());
+                        assertEquals("kind", parser.nextFieldName()); assertEquals("string", parser.nextTextValue());
+                        assertEquals("value", parser.nextFieldName()); assertEquals(character, parser.nextTextValue());
+                        found = true; break;
+                    }
+                }
+            }
+            assertTrue(found);
+        }
+        for (String name : List.of("onHover", "onFocusChange", "focusNode", "statesController", "style", "shortcut", "semanticsLabel")) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(Map.of(new PropertyName(name), new PropertyValue.NullValue()));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+        }
+        for (int mask = 0; mask < 8; mask++) for (boolean explicitEmpty : List.of(false, true)) {
+            var base = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(Map.of());
+            var slots = new LinkedHashMap<SlotName, WidgetSlot>();
+            var names = List.of("child", "leadingIcon", "trailingIcon");
+            for (int bit = 0; bit < 3; bit++) {
+                if ((mask & (1 << bit)) != 0)
+                    slots.put(new SlotName(names.get(bit)), WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.text(names.get(bit))));
+                else if (explicitEmpty) slots.put(new SlotName(names.get(bit)), WidgetSlot.SingleSlot.empty());
+            }
+            var root = new WidgetNode(base.id(), base.type(), base.properties(), slots);
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            for (int bit = 0; bit < 3; bit++) {
+                assertEquals(explicitEmpty || (mask & (1 << bit)) != 0,
+                        json.contains("\"" + names.get(bit) + "\":{\"kind\":\"single\""), "slot presence: " + names.get(bit));
+                assertEquals(explicitEmpty && (mask & (1 << bit)) == 0,
+                        json.contains("\"" + names.get(bit) + "\":{\"kind\":\"single\",\"child\":null}"), "empty slot: " + names.get(bit));
+            }
+        }
+    }
+
+    @Test
+    void menuItemButtonInvalidShortcutCompoundsKindsAndRequiredActivationFailClosed() {
+        var codec = new CanvasModelPayloadCodec();
+        var key = new PropertyValue.EnumValue("LogicalKeyboardKey", "keyA");
+        for (var values : List.of(
+                Map.of(new PropertyName("shortcutTrigger"), key, new PropertyName("shortcutCharacter"), new PropertyValue.StringValue("A")),
+                Map.of(new PropertyName("shortcutShift"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("shortcutCharacter"), new PropertyValue.StringValue("A"), new PropertyName("shortcutShift"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("shortcutCharacter"), new PropertyValue.StringValue("A"), new PropertyName("shortcutNumLock"), new PropertyValue.EnumValue("LockState", "ignored")),
+                Map.of(new PropertyName("shortcut"), new PropertyValue.NullValue(), new PropertyName("shortcutTrigger"), key),
+                Map.of(new PropertyName("style"), new PropertyValue.NullValue(), new PropertyName("styleEnableFeedback"), new PropertyValue.BooleanValue(false)),
+                Map.of(new PropertyName("shortcutTrigger"), new PropertyValue.EnumValue("LogicalKeyboardKey", "control")),
+                Map.of(new PropertyName("enabled"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onPressed"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onPressed"), new PropertyValue.CallbackValue("pressed")),
+                Map.of(new PropertyName("shortcut"), new PropertyValue.DartExpressionValue("createShortcut()")))) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuItemButtonTestValues.node(new LinkedHashMap<>(values));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+    }
+
+    @Test
+    void menuAnchorAll219PropertiesBothSlotsAndAnonymousProjectReferencesRoundTripExactly() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (boolean circles : List.of(false, true)) {
+            var props = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.full(circles);
+            var base = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.node(props);
+            var root = new WidgetNode(base.id(), base.type(), base.properties(), Map.of(
+                    new SlotName("child"), WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.text("Anchor child")),
+                    new SlotName("menuChildren"), new WidgetSlot.ListSlot(List.of(dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.text("Actual menu child")))));
+            var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+            byte[] encoded = codec.encode(candidate);
+            assertArrayEquals(encoded, codec.encode(candidate));
+            String json = new String(encoded, StandardCharsets.UTF_8);
+            for (var name : props.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"));
+            assertTrue(json.contains("Anchor child")); assertTrue(json.contains("Actual menu child"));
+            seen.addAll(props.keySet());
+        }
+        for (var property : dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.definition().properties()) {
+            if (seen.contains(property.name())) continue;
+            PropertyValue value = property.acceptedKinds().contains(PropertyValueKind.DART_OBJECT_REFERENCE)
+                    ? dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.reference("privateMenuAnchorFactory")
+                    : property.acceptedKinds().contains(PropertyValueKind.BOOLEAN) ? new PropertyValue.BooleanValue(true)
+                    : new PropertyValue.EnumValue("Clip", "hardEdge");
+            var root = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.node(Map.of(property.name(), value));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + property.name().value() + "\":"));
+            assertFalse(json.contains("privateMenuAnchorFactory")); assertFalse(json.contains("libraryUri"));
+            if (value instanceof PropertyValue.DartObjectReferenceValue)
+                assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            seen.add(property.name());
+        }
+        assertEquals(219, seen.size());
+    }
+
+    @Test
+    void menuAnchorNullsRequiredEmptyListAndOptionalChildStayDistinct() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        for (String name : List.of("controller", "childFocusNode", "style", "alignmentOffset", "reservedPadding", "layerLink", "onOpen", "onClose", "onAnimationStatusChanged", "builder")) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.node(Map.of(new PropertyName(name), new PropertyValue.NullValue()));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + name + "\":{\"kind\":\"null\"}"));
+            assertTrue(json.contains("\"menuChildren\":{\"kind\":\"list\",\"children\":[]}"));
+            assertFalse(json.contains("\"child\":{\"kind\":\"single\""));
+        }
+    }
+
+    @Test
+    void menuAnchorInvalidWholeLocalStyleRawCallbacksAndRequiredSlotsFailClosed() {
+        var codec = new CanvasModelPayloadCodec();
+        for (var values : List.of(
+                Map.of(new PropertyName("style"), new PropertyValue.NullValue(), new PropertyName("styleElevation"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("animated"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("onOpen"), new PropertyValue.CallbackValue("openMenu")),
+                Map.of(new PropertyName("builder"), new PropertyValue.DartExpressionValue("openMenu()")),
+                Map.of(new PropertyName("styleAlignmentX"), new PropertyValue.DoubleValue(BigDecimal.ZERO)))) {
+            var root = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.node(new LinkedHashMap<>(values));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+        var base = dev.flutter.netbeans.designer.catalog.MenuAnchorTestValues.node(Map.of());
+        var missing = new WidgetNode(base.id(), base.type(), base.properties(), Map.of());
+        assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), missing))));
+    }
+
+    @Test
+    void submenuButtonAll721FieldsDenseDualStylesFourSlotsAndAnonymousReferencesRemainExact() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var seen = new java.util.HashSet<PropertyName>();
+        for (boolean circles : List.of(false, true)) {
+            for (boolean paints : List.of(false, true)) {
+                var props = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.full(circles);
+                if (paints) {
+                    for (String prefix : dev.flutter.netbeans.designer.catalog.SubmenuButtonWidgetPropertySchema.statePrefixes()) {
+                        props.remove(new PropertyName(prefix + "TextBackgroundColor"));
+                        props.put(new PropertyName(prefix + "TextBackground"), dev.flutter.netbeans.designer.catalog.TextButtonTestValues.value(prefix + "TextBackground"));
+                    }
+                }
+                assertTrue(props.size() > 512, "legal combined style node exceeds the obsolete property cap");
+                var base = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(props);
+                var root = new WidgetNode(base.id(), base.type(), props, Map.of(
+                        new SlotName("child"), WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.text("Actual submenu label")),
+                        new SlotName("leadingIcon"), WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.text("Actual leading")),
+                        new SlotName("trailingIcon"), WidgetSlot.SingleSlot.of(dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.text("Actual trailing")),
+                        new SlotName("menuChildren"), new WidgetSlot.ListSlot(List.of(dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.text("Actual menu child")))));
+                var candidate = request(new DesignerDocument(DOCUMENT_ID, source(), root));
+                byte[] encoded = codec.encode(candidate);
+                assertArrayEquals(encoded, codec.encode(candidate));
+                String json = new String(encoded, StandardCharsets.UTF_8);
+                for (var name : props.keySet()) assertTrue(json.contains("\"" + name.value() + "\":"));
+                for (String text : List.of("Actual submenu label", "Actual leading", "Actual trailing", "Actual menu child")) assertTrue(json.contains(text));
+                assertFalse(json.contains("libraryUri"));
+                seen.addAll(props.keySet());
+            }
+        }
+        assertEquals(701, seen.size());
+        for (var property : dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.definition().properties()) {
+            if (seen.contains(property.name())) continue;
+            PropertyValue value = property.acceptedKinds().contains(PropertyValueKind.DART_OBJECT_REFERENCE)
+                    ? dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.reference("privateSubmenuFactory")
+                    : property.acceptedKinds().contains(PropertyValueKind.BOOLEAN) ? new PropertyValue.BooleanValue(true)
+                    : new PropertyValue.EnumValue("Clip", "hardEdge");
+            var root = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(Map.of(property.name(), value));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + property.name().value() + "\":"));
+            assertFalse(json.contains("privateSubmenuFactory")); assertFalse(json.contains("libraryUri"));
+            if (value instanceof PropertyValue.DartObjectReferenceValue)
+                assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            seen.add(property.name());
+        }
+        assertEquals(721, seen.size());
+    }
+
+    @Test
+    void submenuButtonNullableArgumentsAndRequiredEmptySlotsRemainDistinct() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        for (var property : dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.definition().properties()) {
+            if (!property.acceptedKinds().contains(PropertyValueKind.NULL)) continue;
+            var root = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(Map.of(property.name(), new PropertyValue.NullValue()));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"" + property.name().value() + "\":{\"kind\":\"null\"}"));
+            assertTrue(json.contains("\"child\":{\"kind\":\"single\",\"child\":null}"));
+            assertTrue(json.contains("\"menuChildren\":{\"kind\":\"list\",\"children\":[]}"));
+            assertFalse(json.contains("\"leadingIcon\"")); assertFalse(json.contains("\"trailingIcon\""));
+        }
+        for (long delay : List.of(-9_007_199_254_740_991L, -1L, 0L, 9_007_199_254_740_991L)) {
+            var root = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(Map.of(new PropertyName("hoverOpenDelayUs"), new PropertyValue.IntegerValue(BigInteger.valueOf(delay))));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))), StandardCharsets.UTF_8);
+            assertTrue(json.contains("\"hoverOpenDelayUs\":{\"kind\":\"integer\",\"value\":" + delay + "}"));
+        }
+    }
+
+    @Test
+    void submenuButtonInvalidStyleFamiliesRawEventsIconConflictsAndRequiredSlotsFailClosed() {
+        var codec = new CanvasModelPayloadCodec();
+        for (var props : List.of(
+                Map.of(new PropertyName("style"), new PropertyValue.NullValue(), new PropertyName("styleElevation"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("menuStyle"), new PropertyValue.NullValue(), new PropertyName("menuStyleElevation"), new PropertyValue.DoubleValue(BigDecimal.ONE)),
+                Map.of(new PropertyName("submenuIcon"), new PropertyValue.NullValue(), new PropertyName("submenuIconDefault"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("hoverOpenDelayUs"), new PropertyValue.NullValue()),
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true)),
+                Map.of(new PropertyName("onOpen"), new PropertyValue.CallbackValue("openSubmenu")),
+                Map.of(new PropertyName("menuStyleAlignmentX"), new PropertyValue.DoubleValue(BigDecimal.ZERO)))) {
+            var root = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(new LinkedHashMap<>(props));
+            assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
+        }
+        var base = dev.flutter.netbeans.designer.catalog.SubmenuButtonTestValues.node(Map.of());
+        for (String missing : List.of("child", "menuChildren")) {
+            var slots = new LinkedHashMap<>(base.slots()); slots.remove(new SlotName(missing));
+            var root = new WidgetNode(base.id(), base.type(), base.properties(), slots);
             assertThrows(IllegalArgumentException.class, () -> codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), root))));
         }
     }

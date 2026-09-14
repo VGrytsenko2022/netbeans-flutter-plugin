@@ -74,12 +74,30 @@ public final class DartSourceIntegrityScanner {
 
         DiagnosticCollector diagnostics = new DiagnosticCollector(limits.maxDiagnostics());
         Structure structure = scanStructure(
-                decoded.text(), descriptor.className(), limits.maxMarkers(), diagnostics);
+                decoded.text(), descriptor.className(), limits.maxMarkers(), diagnostics,
+                descriptor.widgetKind() == WidgetClassKind.STATEFUL);
+        ClassSummary memberClass = structure.classSummary();
+        String memberClassName = descriptor.className();
+        if (descriptor.widgetKind() == WidgetClassKind.STATEFUL) {
+            Optional<String> stateOwner = verifiedStateOwner(structure, descriptor.className());
+            if (stateOwner.isEmpty()) {
+                memberClass = null;
+                diagnostics.add(DartSourceIntegrityDiagnostic.source(
+                        DartSourceIntegrityDiagnosticCode.STATEFUL_SOURCE_BINDING_UNSUPPORTED,
+                        "/source/widgetKind", "Stateful source requires one unambiguous top-level State<"
+                        + descriptor.className() + "> owner returned directly by its zero-argument createState method."));
+            } else {
+                memberClassName = stateOwner.orElseThrow();
+                memberClass = scanStructure(decoded.text(), memberClassName, limits.maxMarkers(),
+                        diagnostics, false).classSummary();
+            }
+        }
         List<DartManagedRegionSnapshot> regions = verifyRegions(
                 decoded,
                 descriptor,
                 structure.markers(),
                 structure.classSummary(),
+                memberClass,
                 diagnostics);
         verifyClass(descriptor, structure.classSummary(), diagnostics);
         List<DartSourceIntegrityDiagnostic> finalDiagnostics = diagnostics.snapshot();
@@ -87,30 +105,37 @@ public final class DartSourceIntegrityScanner {
                 verifiedSuperclassOccurrence(
                         original,
                         decoded,
-                        descriptor,
+                        descriptor.className(),
+                        descriptor.widgetKind() == WidgetClassKind.STATEFUL ? "StatefulWidget" : "StatelessWidget",
                         structure.classSummary(),
                         finalDiagnostics);
+        Optional<DartDesignerSuperclassOccurrence> stateSuperclass = descriptor.widgetKind() == WidgetClassKind.STATEFUL
+                && memberClass != null ? verifiedSuperclassOccurrence(original, decoded, memberClassName,
+                        "State", memberClass, finalDiagnostics) : Optional.empty();
+        Optional<String> verifiedOwner = finalDiagnostics.isEmpty() && superclassOccurrence.isPresent()
+                && (descriptor.widgetKind() == WidgetClassKind.STATELESS || stateSuperclass.isPresent())
+                ? Optional.of(memberClassName) : Optional.empty();
         return new DartSourceIntegrityResult(
                 Optional.of(original), regions, finalDiagnostics,
-                superclassOccurrence);
+                superclassOccurrence, stateSuperclass, verifiedOwner);
     }
 
     private static Optional<DartDesignerSuperclassOccurrence>
             verifiedSuperclassOccurrence(
                     OriginalDartBytes original,
                     DecodedSource source,
-                    DartSourceDescriptor descriptor,
+                    String className,
+                    String symbolName,
                     ClassSummary summary,
                     List<DartSourceIntegrityDiagnostic> diagnostics) {
         if (!diagnostics.isEmpty()
-                || descriptor.widgetKind() != WidgetClassKind.STATELESS
                 || summary.matches() != 1
                 || summary.declarationBraceDepth() != 0
                 || summary.firstBaseQualified()
-                || !DartDesignerSuperclassOccurrence.SYMBOL_NAME.equals(
+                || !symbolName.equals(
                         summary.firstBaseClass())
                 || summary.topLevelTypeNames().contains(
-                        DartDesignerSuperclassOccurrence.SYMBOL_NAME)
+                        symbolName)
                 || summary.firstBaseStartUtf16() < 0
                 || summary.firstBaseEndUtf16()
                         <= summary.firstBaseStartUtf16()) {
@@ -120,12 +145,13 @@ public final class DartSourceIntegrityScanner {
         int endUtf16 = summary.firstBaseEndUtf16();
         if (endUtf16 > source.text().length()
                 || !source.text().substring(startUtf16, endUtf16)
-                        .equals(DartDesignerSuperclassOccurrence.SYMBOL_NAME)) {
+                        .equals(symbolName)) {
             return Optional.empty();
         }
         return Optional.of(new DartDesignerSuperclassOccurrence(
                 original,
-                descriptor.className(),
+                className,
+                symbolName,
                 startUtf16,
                 endUtf16,
                 source.byteOffsets()[startUtf16],
@@ -137,6 +163,7 @@ public final class DartSourceIntegrityScanner {
             DartSourceDescriptor descriptor,
             List<MarkerEvent> markers,
             ClassSummary classSummary,
+            ClassSummary memberClass,
             DiagnosticCollector diagnostics) {
         List<FoundRegion> found = new ArrayList<>();
         Set<String> openedIds = new HashSet<>();
@@ -249,7 +276,7 @@ public final class DartSourceIntegrityScanner {
                     "Schema version 1 requires managed regions in order: imports, build."));
         }
 
-        verifyRegionScopes(descriptor, classSummary, byId, diagnostics);
+        verifyRegionScopes(descriptor, classSummary, memberClass, byId, diagnostics);
 
         List<DartManagedRegionSnapshot> snapshots = new ArrayList<>(found.size());
         for (FoundRegion region : found) {
@@ -287,6 +314,7 @@ public final class DartSourceIntegrityScanner {
     private static void verifyRegionScopes(
             DartSourceDescriptor descriptor,
             ClassSummary classSummary,
+            ClassSummary memberClass,
             Map<String, List<FoundRegion>> byId,
             DiagnosticCollector diagnostics) {
         if (classSummary.matches() != 1) {
@@ -309,31 +337,25 @@ public final class DartSourceIntegrityScanner {
             }
         }
 
-        if (descriptor.widgetKind() == WidgetClassKind.STATEFUL) {
-            diagnostics.add(DartSourceIntegrityDiagnostic.source(
-                    DartSourceIntegrityDiagnosticCode.STATEFUL_SOURCE_BINDING_UNSUPPORTED,
-                    "/source/widgetKind",
-                    "Stateful designer source binding requires a verified "
-                    + "State<" + descriptor.className()
-                    + "> class and createState method; that write-safety gate "
-                    + "is not enabled yet."));
+        if (memberClass == null) {
             return;
         }
 
         List<FoundRegion> builds = byId.getOrDefault(BUILD_REGION, List.of());
         if (builds.size() == 1) {
             FoundRegion region = builds.getFirst();
-            if (classSummary.bodyDepth() < 0
-                    || classSummary.bodyEnd() < 0
-                    || !region.openScope().directClassMember(classSummary.bodyDepth())
-                    || !region.closeScope().directClassMember(classSummary.bodyDepth())
-                    || region.openMarkerStart() < classSummary.bodyStart()
-                    || region.closeMarkerStart() > classSummary.bodyEnd()) {
+            if (memberClass.bodyDepth() < 0
+                    || memberClass.bodyEnd() < 0
+                    || !region.openScope().directClassMember(memberClass.bodyDepth())
+                    || !region.closeScope().directClassMember(memberClass.bodyDepth())
+                    || region.openMarkerStart() < memberClass.bodyStart()
+                    || region.closeMarkerStart() > memberClass.bodyEnd()) {
                 diagnostics.add(DartSourceIntegrityDiagnostic.region(
                         DartSourceIntegrityDiagnosticCode.REGION_SCOPE_MISMATCH,
                         regionPath(BUILD_REGION),
                         BUILD_REGION,
-                        "Managed region 'build' must wrap a direct member of Dart class '"
+                        "Managed region 'build' must wrap a direct member of the verified "
+                        + (descriptor.widgetKind() == WidgetClassKind.STATEFUL ? "State owner for '" : "Dart class '")
                         + descriptor.className() + "'."));
             }
         }
@@ -409,12 +431,20 @@ public final class DartSourceIntegrityScanner {
             String source,
             String className,
             int maximumMarkers,
-            DiagnosticCollector diagnostics) {
+            DiagnosticCollector diagnostics,
+            boolean retainTokens) {
         List<MarkerEvent> markers = new ArrayList<>();
+        List<SourceToken> tokens = new ArrayList<>();
         ClassTracker classes = new ClassTracker(className);
         DelimiterTracker delimiters = new DelimiterTracker();
         int index = 0;
         while (index < source.length()) {
+            if (retainTokens && tokens.size() >= 500_000) {
+                diagnostics.add(DartSourceIntegrityDiagnostic.source(
+                        DartSourceIntegrityDiagnosticCode.STATEFUL_SOURCE_BINDING_UNSUPPORTED,
+                        "/source/widgetKind", "Stateful source exceeds the bounded lexical token limit."));
+                break;
+            }
             if (index == 0 && source.startsWith("#!")) {
                 index = lineContentEnd(source, index);
                 continue;
@@ -455,6 +485,7 @@ public final class DartSourceIntegrityScanner {
                 }
             }
             if (current == '\'' || current == '"') {
+                if (retainTokens) tokens.add(new SourceToken("<string>", index, delimiters.scope()));
                 SkipResult skipped = skipString(source, index, 0);
                 if (!skipped.terminated()) {
                     DartSourceIntegrityDiagnosticCode code = skipped.nestingTooDeep()
@@ -479,15 +510,111 @@ public final class DartSourceIntegrityScanner {
                 }
                 classes.identifier(
                         source.substring(index, end), index, delimiters.braceDepth());
+                if (retainTokens) tokens.add(new SourceToken(source.substring(index, end), index, delimiters.scope()));
                 index = end;
                 continue;
             }
             classes.symbol(current, index, delimiters.braceDepth());
+            if (retainTokens && !Character.isWhitespace(current)) {
+                tokens.add(new SourceToken(String.valueOf(current), index, delimiters.scope()));
+            }
             delimiters.symbol(current, diagnostics);
             index++;
         }
         delimiters.finish(diagnostics);
-        return new Structure(List.copyOf(markers), classes.summary());
+        return new Structure(List.copyOf(markers), classes.summary(), List.copyOf(tokens));
+    }
+
+    /** Resolves only direct, synchronous constructor-return createState shapes. */
+    private static Optional<String> verifiedStateOwner(Structure structure, String owner) {
+        List<SourceToken> tokens = structure.tokens();
+        if (structure.classSummary().matches() != 1
+                || structure.classSummary().topLevelTypeNames().contains("State")) {
+            return Optional.empty();
+        }
+        List<SourceClass> classes = new ArrayList<>();
+        for (int i = 0; i < tokens.size(); i++) {
+            if (!value(tokens, i).equals("class") || !tokens.get(i).scope().libraryLevel()) continue;
+            int open = i + 2;
+            while (open < tokens.size() && !value(tokens, open).equals("{")
+                    && !value(tokens, open).equals(";")) open++;
+            if (!value(tokens, open).equals("{") || !tokens.get(open).scope().libraryLevel()) continue;
+            int close = open + 1;
+            while (close < tokens.size() && !(value(tokens, close).equals("}")
+                    && tokens.get(close).scope().braceDepth() == 1
+                    && tokens.get(close).scope().parenthesisDepth() == 0
+                    && tokens.get(close).scope().bracketDepth() == 0)) close++;
+            if (close == tokens.size()) return Optional.empty();
+            classes.add(new SourceClass(value(tokens, i + 1), i, open, close));
+        }
+        List<SourceClass> roots = classes.stream().filter(type -> type.name().equals(owner)).toList();
+        if (roots.size() != 1) return Optional.empty();
+        SourceClass root = roots.getFirst();
+        if (!values(tokens, root.start(), root.open()).equals(List.of("class", owner, "extends", "StatefulWidget"))) {
+            return Optional.empty();
+        }
+        List<SourceClass> states = classes.stream().filter(type -> {
+            List<String> header = values(tokens, type.start(), type.open());
+            return header.equals(List.of("class", type.name(), "extends", "State", "<", owner, ">"));
+        }).toList();
+        if (states.size() != 1) return Optional.empty();
+        SourceClass state = states.getFirst();
+        if (classes.stream().filter(type -> type.name().equals(state.name())).count() != 1) return Optional.empty();
+
+        List<Integer> declarations = new ArrayList<>();
+        for (int i = root.open() + 1; i < root.close(); i++) {
+            if (value(tokens, i).equals("createState") && tokens.get(i).scope().directClassMember(1)) {
+                declarations.add(i);
+            }
+        }
+        if (declarations.size() != 1) return Optional.empty();
+        int method = declarations.getFirst();
+        int returnStart;
+        if (method >= 4 && values(tokens, method - 4, method).equals(List.of("State", "<", owner, ">"))) {
+            returnStart = method - 4;
+        } else if (value(tokens, method - 1).equals(state.name())) {
+            returnStart = method - 1;
+        } else {
+            return Optional.empty();
+        }
+        int prefix = returnStart;
+        if (value(tokens, prefix - 2).equals("@") && value(tokens, prefix - 1).equals("override")) prefix -= 2;
+        int previous = prefix - 1;
+        boolean memberBoundary = previous == root.open()
+                || previous >= 0 && value(tokens, previous).equals(";")
+                        && tokens.get(previous).scope().directClassMember(1)
+                || previous >= 0 && value(tokens, previous).equals("}")
+                        && tokens.get(previous).scope().braceDepth() == 2
+                        && tokens.get(previous).scope().parenthesisDepth() == 0
+                        && tokens.get(previous).scope().bracketDepth() == 0;
+        if (!memberBoundary || !values(tokens, method + 1, Math.min(method + 3, tokens.size())).equals(List.of("(", ")"))) {
+            return Optional.empty();
+        }
+        int body = method + 3;
+        List<String> arrow = List.of("=", ">", state.name(), "(", ")", ";");
+        List<String> block = List.of("{", "return", state.name(), "(", ")", ";", "}");
+        if (!(matches(tokens, body, arrow) || matches(tokens, body, block))) return Optional.empty();
+        for (int i = root.open() + 1; i < root.close(); i++) {
+            if (value(tokens, i).equals(state.name()) && i != body + 2 && i != returnStart) {
+                // An identically named field/helper can turn the apparent constructor
+                // invocation into an instance call. A resolver is required for that shape.
+                return Optional.empty();
+            }
+        }
+        return Optional.of(state.name());
+    }
+
+    private static String value(List<SourceToken> tokens, int index) {
+        return index < 0 || index >= tokens.size() ? "" : tokens.get(index).value();
+    }
+
+    private static List<String> values(List<SourceToken> tokens, int start, int end) {
+        if (start < 0 || end > tokens.size() || end < start) return List.of();
+        return tokens.subList(start, end).stream().map(SourceToken::value).toList();
+    }
+
+    private static boolean matches(List<SourceToken> tokens, int start, List<String> expected) {
+        return values(tokens, start, start + expected.size()).equals(expected);
     }
 
     private static MarkerEvent marker(
@@ -1036,8 +1163,12 @@ public final class DartSourceIntegrityScanner {
     private record DecodedSource(String text, int[] byteOffsets) {
     }
 
-    private record Structure(List<MarkerEvent> markers, ClassSummary classSummary) {
+    private record Structure(List<MarkerEvent> markers, ClassSummary classSummary, List<SourceToken> tokens) {
     }
+
+    private record SourceToken(String value, int offset, DelimiterScope scope) { }
+
+    private record SourceClass(String name, int start, int open, int close) { }
 
     private record MarkerEvent(
             MarkerKind kind,

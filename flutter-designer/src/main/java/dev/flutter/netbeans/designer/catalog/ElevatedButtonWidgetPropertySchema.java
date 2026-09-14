@@ -17,9 +17,9 @@ import java.util.Optional;
  * to the enabled/default, disabled, pressed, hovered, or focused bucket, and an
  * unset leaf therefore preserves Flutter's local style to
  * {@code ElevatedButtonTheme} to framework-default fallback. Text foreground
- * is represented by {@code ButtonStyle.foregroundColor}; executable builders,
- * arbitrary Dart expressions, focus nodes, and state controllers are outside
- * this closed contract.</p>
+ * is represented by {@code ButtonStyle.foregroundColor}; the two layer builders
+ * use strict typed project references. Raw executable expressions, focus nodes,
+ * whole-style references and state controllers are outside this closed contract.</p>
  */
 public final class ElevatedButtonWidgetPropertySchema {
     public static final WidgetTypeId ELEVATED_BUTTON_TYPE =
@@ -30,7 +30,12 @@ public final class ElevatedButtonWidgetPropertySchema {
     public static final int STATE_TEXT_PROPERTY_COUNT = 28;
     public static final int STATE_PROPERTY_COUNT =
             STATE_NON_TEXT_PROPERTY_COUNT + STATE_TEXT_PROPERTY_COUNT;
-    public static final int COMMON_STYLE_PROPERTY_COUNT = 9;
+    public static final int COMMON_STYLE_PROPERTY_COUNT = 11;
+    public static final String BUTTON_LAYER_BUILDER_TYPE = "ButtonLayerBuilder";
+
+    public static List<String> layerBuilderProperties() {
+        return List.of("styleBackgroundBuilder", "styleForegroundBuilder");
+    }
     public static final int FLATTENED_PROPERTY_COUNT =
             DIRECT_PROPERTY_COUNT
             + STATE_COUNT * STATE_PROPERTY_COUNT
@@ -53,7 +58,7 @@ public final class ElevatedButtonWidgetPropertySchema {
         FOCUSED_STYLE("elevatedButtonFocusedStyle", "Style — focused",
                 "Sparse ButtonStyle values while the button has focus."),
         COMMON_STYLE("elevatedButtonCommonStyle", "Style — layout & feedback",
-                "Non-state ButtonStyle layout, animation, feedback, and splash values.");
+                "Non-state ButtonStyle layout, animation, feedback, splash and layer builders.");
 
         private final String setName;
         private final String displayName;
@@ -216,7 +221,7 @@ public final class ElevatedButtonWidgetPropertySchema {
                 "Request focus when no other node in the focus scope is already focused.",
                 Target.DIRECT, 5);
         direct(values, "clipBehavior", Group.BEHAVIOR, "Clip behavior",
-                "How content is clipped to the resolved button shape.",
+                "How content is clipped to the resolved button shape. Omission uses Clip.antiAlias when either effective local/theme layer builder exists, otherwise Clip.none. An explicit Clip value wins.",
                 Target.DIRECT, 6);
 
         for (StateProjection state : STATES) {
@@ -247,6 +252,12 @@ public final class ElevatedButtonWidgetPropertySchema {
                 "alignment.y", 7);
         common(values, "styleSplashFactory", "Splash factory",
                 "Closed Material ink-feature factory preset.", "splashFactory", 8);
+        common(values, "styleBackgroundBuilder", "Background builder",
+                "Strict non-null ButtonLayerBuilder project reference for the background layer. Reset omits this nullable SDK style field and preserves theme inheritance; it does not clear the foreground builder. Canvas cannot execute project builders.",
+                "backgroundBuilder", 9);
+        common(values, "styleForegroundBuilder", "Foreground builder",
+                "Strict non-null ButtonLayerBuilder project reference for the foreground layer. Reset omits this nullable SDK style field and preserves theme inheritance; it does not clear the background builder. Canvas cannot execute project builders.",
+                "foregroundBuilder", 10);
 
         if (values.size() != FLATTENED_PROPERTY_COUNT) {
             throw new IllegalStateException(

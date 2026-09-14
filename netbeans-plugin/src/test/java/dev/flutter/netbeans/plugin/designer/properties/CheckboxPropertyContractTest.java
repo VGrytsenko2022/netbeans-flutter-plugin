@@ -18,7 +18,7 @@ public class CheckboxPropertyContractTest {
     @Test void all106CellsStayStableAndEverySparseEditResetHasAValidTypedCommand() throws Exception {
         var initial = WidgetNodePrototypeFactory.create(DEF, ID); var commands = new ArrayList<DesignerCommand>();
         var node = node(initial, commands); var sets = node.getPropertySets();
-        assertEquals(106, DEF.properties().size()); assertEquals(9, sets.length); assertTrue(DEF.slots().isEmpty());
+        assertEquals(106, DEF.properties().size()); assertEquals(10, sets.length); assertTrue(DEF.slots().isEmpty());
         assertEquals(22, Arrays.stream(sets).filter(set -> set.getName().equals("checkboxShape")).findFirst().orElseThrow().getProperties().length);
         for (var field : DEF.properties()) {
             var cell = cell(node, field.name().value()); var editor = cell.getPropertyEditor(); var value = value(field.name().value());

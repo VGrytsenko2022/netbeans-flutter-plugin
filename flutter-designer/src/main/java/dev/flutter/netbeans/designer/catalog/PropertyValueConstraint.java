@@ -9,6 +9,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.regex.Pattern;
 import java.util.regex.PatternSyntaxException;
 
@@ -24,6 +25,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.ShadowListValues,
         PropertyValueConstraint.FontVariationListValues,
         PropertyValueConstraint.AlignmentGeometryValues,
+        PropertyValueConstraint.AlignmentValues,
         PropertyValueConstraint.OffsetValues,
         PropertyValueConstraint.SizeValues,
         PropertyValueConstraint.BoxConstraintsValues,
@@ -211,6 +213,17 @@ public sealed interface PropertyValueConstraint permits
         }
     }
 
+    /** Accepts only physical Alignment, not the broader AlignmentGeometry domain. */
+    record AlignmentValues() implements PropertyValueConstraint {
+        @Override public PropertyValueKind kind() { return PropertyValueKind.ALIGNMENT_GEOMETRY; }
+        @Override public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.AlignmentGeometryValue alignment
+                    && alignment.basis() == PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL
+                    && new AlignmentGeometryValues().accepts(value);
+        }
+        @Override public String description() { return "finite physical Alignment (not AlignmentDirectional)"; }
+    }
+
     /** Accepts finite signed Offset coordinates exactly representable as Dart doubles. */
     record OffsetValues() implements PropertyValueConstraint {
         @Override
@@ -387,12 +400,16 @@ public sealed interface PropertyValueConstraint permits
     record DartObjectReferenceValues(String expectedDartType)
             implements PropertyValueConstraint {
         private static final Pattern EXPECTED_TYPE = Pattern.compile(
-                "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|Object\\?)");
+                "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|(?:Object|FocusNode|AnimationStyle|Duration|Curve|ShapeBorder|IconThemeData|TextStyle|TextHeightBehavior|BorderRadius|SystemUiOverlayStyle|AlignmentGeometry|Color|Decoration|BoxConstraints|Matrix4|int|double|EdgeInsetsGeometry)\\?)");
 
         public DartObjectReferenceValues {
             Objects.requireNonNull(expectedDartType, "expectedDartType");
             if (expectedDartType.length() > 128
-                    || !EXPECTED_TYPE.matcher(expectedDartType).matches()) {
+                    || !EXPECTED_TYPE.matcher(expectedDartType).matches()
+                    && !ScaffoldWidgetPropertySchema.BOTTOM_SHEET_SCRIM_BUILDER_TYPE.equals(expectedDartType)
+                    && !Set.of(TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE,
+                            TextFieldWidgetPropertySchema.CONTEXT_MENU_BUILDER_TYPE,
+                            ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "Animation<double>?").contains(expectedDartType)) {
                 throw new IllegalArgumentException(
                         "Expected Dart type must use the closed simple/generic form");
             }

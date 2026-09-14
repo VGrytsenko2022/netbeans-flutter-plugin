@@ -16,6 +16,7 @@ import java.util.Set;
 /** The intentionally small, reviewed widget set for the first usable designer slice. */
 public final class BuiltInWidgetCatalog {
     public static final String PREFERRED_SIZE_WIDGET_TRAIT = "flutter.widgets.PreferredSizeWidget";
+    public static final String SLIVER_WIDGET_TRAIT = "flutter.widgets.Sliver";
 
     private static final String MATERIAL_IMPORT = "package:flutter/material.dart";
     private static final String GESTURES_IMPORT = "package:flutter/gestures.dart";
@@ -27,6 +28,9 @@ public final class BuiltInWidgetCatalog {
     private static final WidgetCatalog INSTANCE = WidgetCatalog.strict(List.of(
             scaffold(),
             appBar(),
+            sliverAppBar(""), sliverAppBar("medium"), sliverAppBar("large"),
+            flexibleSpaceBar(),
+                flexibleSpaceBarSettings(),
             column(),
             row(),
             wrap(),
@@ -57,12 +61,93 @@ public final class BuiltInWidgetCatalog {
             sizedOverflowBox(),
             transform(),
             rotatedBox(),
+            preferredSize(),
             listBody(),
             overflowBar(),
             safeArea(),
             listView(),
             gridViewCount(),
+            gridViewExtent(),
             singleChildScrollView(),
+            pageView(),
+            listWheelScrollView(),
+            customScrollView(),
+            sliverToBoxAdapter(),
+            sliverChildren(SliverChildrenWidgetPropertySchema.LIST, "SliverList", "list", 80),
+            sliverChildren(SliverChildrenWidgetPropertySchema.GRID_COUNT, "SliverGrid", "count", 90),
+            sliverChildren(SliverChildrenWidgetPropertySchema.GRID_EXTENT, "SliverGrid", "extent", 100),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.LIST_BUILDER),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.LIST_SEPARATED),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.LIST_DELEGATE),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.GRID_BUILDER),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.GRID_LIST),
+            sliverDynamic(SliverDynamicWidgetPropertySchema.Kind.GRID_DELEGATE),
+            sliverPadding(),
+            sliverFillRemaining(),
+            sliverFillViewport(false),
+            sliverFillViewport(true),
+            sliverFixedExtentList(SliverFixedExtentListWidgetPropertySchema.Kind.LIST),
+            sliverFixedExtentList(SliverFixedExtentListWidgetPropertySchema.Kind.BUILDER),
+            sliverFixedExtentList(SliverFixedExtentListWidgetPropertySchema.Kind.DELEGATE),
+            sliverPrototypeExtentList(SliverPrototypeExtentListWidgetPropertySchema.Kind.LIST),
+            sliverPrototypeExtentList(SliverPrototypeExtentListWidgetPropertySchema.Kind.BUILDER),
+            sliverPrototypeExtentList(SliverPrototypeExtentListWidgetPropertySchema.Kind.DELEGATE),
+            sliverVariedExtentList(SliverVariedExtentListWidgetPropertySchema.Kind.LIST),
+            sliverVariedExtentList(SliverVariedExtentListWidgetPropertySchema.Kind.BUILDER),
+            sliverVariedExtentList(SliverVariedExtentListWidgetPropertySchema.Kind.DELEGATE),
+            sliverMainAxisGroup(),
+            sliverCrossAxisGroup(),
+            sliverCrossAxisExpanded(),
+            sliverConstrainedCrossAxis(),
+            sliverOpacity(),
+            sliverIgnorePointer(),
+            sliverOffstage(),
+            sliverVisibility(false),
+            sliverVisibility(true),
+            sliverSafeArea(),
+            sliverAnimatedOpacity(),
+            animatedOpacity(),
+            animatedAlign(),
+            animatedPadding(),
+            animatedSlide(),
+            animatedScale(),
+            animatedRotation(),
+            animatedContainer(),
+            animatedSize(),
+            animatedDefaultTextStyle(),
+            defaultTextStyle(false),
+            defaultTextStyle(true),
+            defaultTextStyleTransition(),
+            fadeTransition(false),
+            slideTransition(),
+            scaleTransition(),
+            rotationTransition(),
+            sizeTransition(),
+            positionedTransition(),
+            relativePositionedTransition(),
+            decoratedBoxTransition(),
+            alignTransition(),
+            matrixTransition(),
+            modalBarrier(),
+            animatedModalBarrier(),
+            animatedIcon(),
+            fadeInImage(),
+            rawImage(),
+            fadeTransition(true),
+            animatedPhysicalModel(),
+            animatedFractionallySizedBox(),
+            animatedCrossFade(),
+            animatedSwitcher(),
+            animatedTheme(),
+            theme(),
+            animatedPositioned(AnimatedPositionedWidgetPropertySchema.TYPE, 400),
+            animatedPositioned(AnimatedPositionedWidgetPropertySchema.RECT_TYPE, 410),
+            animatedPositioned(AnimatedPositionedWidgetPropertySchema.DIRECTIONAL_TYPE, 420),
+            sliverLayoutBuilder(),
+            sliverPersistentHeader(),
+            sliverResizingHeader(),
+            pinnedHeaderSliver(),
+            sliverFloatingHeader(),
             image(),
             coloredBox(),
             placeholder(),
@@ -78,12 +163,30 @@ public final class BuiltInWidgetCatalog {
             repaintBoundary(),
             ignorePointer(),
             absorbPointer(),
+            gestureDetector(),
+            listener(),
+            mouseRegion(),
+            focus(),
+            notificationListener(),
             visibility(),
             tickerMode(),
             defaultTextHeightBehavior(),
             defaultSelectionStyle(),
             iconTheme(),
             imageIcon(),
+            builder(),
+            layoutBuilder(),
+            orientationBuilder(),
+            deviceOrientationBuilder(false),
+            deviceOrientationBuilder(true),
+            listenableBuilder(false),
+            listenableBuilder(true),
+            animatedBuilder(false),
+            animatedBuilder(true),
+            valueListenableBuilder(false),
+            valueListenableBuilder(true),
+            tweenAnimationBuilder(false),
+            tweenAnimationBuilder(true),
             excludeSemantics(),
             blockSemantics(),
             mergeSemantics(),
@@ -110,6 +213,24 @@ public final class BuiltInWidgetCatalog {
             radioGroup(),
             listTile(),
             checkboxListTile(),
+                switchListTile(),
+                radioListTile(),
+            expansionTile(),
+            tooltip(),
+            tooltipVisibility(),
+            tooltipTheme(),
+            menuItemButton(),
+            menuAnchor(),
+            submenuButton(),
+            menuBar(),
+            navigationBar(),
+            navigationRail(),
+            navigationDrawer(),
+            drawer(),
+            bottomAppBar(),
+            bottomNavigationBar(),
+            material(),
+            scrollbar(),
             switchWidget(),
             slider(),
             rangeSlider(),
@@ -162,6 +283,8 @@ public final class BuiltInWidgetCatalog {
                 any(PropertyValueKind.BOOLEAN)));
         properties.add(namedProperty("restorationId", order++, false,
                 stringLength(1, 256)));
+        properties.add(namedProperty("bottomSheetScrimBuilder", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues(ScaffoldWidgetPropertySchema.BOTTOM_SHEET_SCRIM_BUILDER_TYPE))));
         if (properties.size() != ScaffoldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "Scaffold catalog/property schema count mismatch");
@@ -182,7 +305,7 @@ public final class BuiltInWidgetCatalog {
                         singleSlot("floatingActionButton", 2, false, 0, ANY_WIDGET)));
     }
 
-    private static WidgetDefinition appBar() {
+    static List<PropertyDefinition> appBarProperties() {
         List<PropertyDefinition> properties = new ArrayList<>();
         properties.add(namedProperty("backgroundColor", 3, false, colorOrTheme()));
         properties.add(namedProperty("centerTitle", 4, false, any(PropertyValueKind.BOOLEAN)));
@@ -195,9 +318,12 @@ public final class BuiltInWidgetCatalog {
                 any(PropertyValueKind.BOOLEAN)));
         properties.add(namedProperty("scrolledUnderElevation", order++, false,
                 nonNegativeNumbers()));
-        properties.add(namedProperty("notificationPredicate", order++, false,
+        List<PropertyValueConstraint> notificationPredicate = new ArrayList<>(
                 stringPattern("(?:default|depthZero|all)",
-                        "AppBar scroll-notification preset: default, depthZero, or all")));
+                        "AppBar scroll-notification preset: default, depthZero, or all"));
+        notificationPredicate.add(new PropertyValueConstraint.DartObjectReferenceValues(
+                AppBarWidgetPropertySchema.NOTIFICATION_PREDICATE_TYPE));
+        properties.add(namedProperty("notificationPredicate", order++, false, notificationPredicate));
         properties.add(namedProperty("shadowColor", order++, false, colorOrTheme()));
         properties.add(namedProperty("surfaceTintColor", order++, false, colorOrTheme()));
         properties.add(namedProperty("foregroundColor", order++, false, colorOrTheme()));
@@ -264,6 +390,12 @@ public final class BuiltInWidgetCatalog {
         properties.add(namedProperty("systemOverlayStyleSystemStatusBarContrastEnforced",
                 order++, false, any(PropertyValueKind.BOOLEAN)));
 
+        return List.copyOf(properties);
+    }
+
+    private static WidgetDefinition appBar() {
+        var properties = appBarProperties();
+        int order = properties.stream().mapToInt(p -> p.parameter().order()).max().orElseThrow() + 1;
         return widget(
                 "flutter.material.AppBar",
                 "AppBar",
@@ -469,7 +601,7 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
-    private static WidgetDefinition text() {
+    static WidgetDefinition text() {
         return widget(
                 "flutter.widgets.Text",
                 "Text",
@@ -777,6 +909,221 @@ public final class BuiltInWidgetCatalog {
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 80, "Badge"), properties,
                 List.of(singleSlot("label", 8, false, 0, ANY_WIDGET), singleSlot("child", 9, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition tooltipVisibility() {
+        return widget(TooltipVisibilityWidgetPropertySchema.TOOLTIP_VISIBILITY_TYPE.value(),
+                "TooltipVisibility", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 310, "TooltipVisibility"),
+                List.of(namedProperty("visible", 0, true, any(PropertyValueKind.BOOLEAN),
+                        new PropertyValue.BooleanValue(true))),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition tooltipTheme() {
+        WidgetDefinition tooltip = tooltip();
+        var properties = new ArrayList<PropertyDefinition>();
+        for (var entry : TooltipThemeWidgetPropertySchema.definitions().entrySet()) {
+            List<PropertyValueConstraint> constraints = entry.getKey().equals("data")
+                    ? List.of(new PropertyValueConstraint.DartObjectReferenceValues("TooltipThemeData"))
+                    : tooltip.property(new PropertyName(entry.getKey())).orElseThrow().constraints();
+            properties.add(namedProperty(entry.getKey(), entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE.value(), "TooltipTheme", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 320, "TooltipTheme"), properties,
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition tooltip() {
+        var properties = new ArrayList<PropertyDefinition>();
+        WidgetDefinition badge = badge();
+        for (var entry : TooltipWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (TooltipWidgetPropertySchema.isTextStyleProperty(new PropertyName(name))) {
+                constraints = badge.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (name.equals("enableTapToDismiss")) {
+                constraints = any(PropertyValueKind.BOOLEAN);
+            } else {
+                constraints = new ArrayList<>(switch (name) {
+                    case "message" -> any(PropertyValueKind.STRING);
+                    case "richMessage" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("InlineSpan"));
+                    case "height", "verticalOffset" -> {
+                        var values = new ArrayList<>(cardNumbers(null, null));
+                        values.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity", "negativeInfinity", "nan")));
+                        yield values;
+                    }
+                    case "constraints" -> List.of(new PropertyValueConstraint.BoxConstraintsValues(), new PropertyValueConstraint.DartObjectReferenceValues("BoxConstraints"));
+                    case "padding", "margin" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(false), new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"));
+                    case "preferBelow", "excludeFromSemantics", "enableFeedback", "ignorePointer" -> any(PropertyValueKind.BOOLEAN);
+                    case "decoration" -> List.of(new PropertyValueConstraint.BoxDecorationValues(MaterialThemeTokenCatalog.colorRoles().keySet().stream().sorted().toList()), new PropertyValueConstraint.DartObjectReferenceValues("Decoration"));
+                    case "textStyle" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("TextStyle"));
+                    case "textAlign" -> enumValues("TextAlign", "start", "end", "left", "right", "center", "justify");
+                    case "waitDurationUs", "showDurationUs", "exitDurationUs" -> {
+                        var values = new ArrayList<>(portableIntegers());
+                        values.add(new PropertyValueConstraint.DartObjectReferenceValues("Duration"));
+                        yield values;
+                    }
+                    case "triggerMode" -> enumValues("TooltipTriggerMode", "manual", "longPress", "tap");
+                    case "onTriggered" -> List.of(new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"), new PropertyValueConstraint.DartObjectReferenceValues("TooltipTriggeredCallback"));
+                    case "mouseCursor" -> List.of(new PropertyValueConstraint.StringPattern(DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset"), new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"));
+                    case "positionDelegate" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("TooltipPositionDelegate"));
+                    default -> throw new IllegalArgumentException("Unreviewed Tooltip property: " + name);
+                });
+                if (constraints.stream().noneMatch(value -> value.kind() == PropertyValueKind.NULL)) constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            }
+            properties.add(name.equals("message")
+                    ? new PropertyDefinition(new PropertyName(name), DartParameter.named(entry.getValue().dartOrder(), false), constraints, Optional.of(new PropertyValue.StringValue("Tooltip")))
+                    : namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(TooltipWidgetPropertySchema.TOOLTIP_TYPE.value(), "Tooltip", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 300, "Tooltip"), properties,
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition expansionTile() {
+        var properties = new ArrayList<PropertyDefinition>();
+        WidgetDefinition tile = listTile();
+        WidgetDefinition shape = card();
+        for (var entry : ExpansionTileWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            var shapeName = ExpansionTileWidgetPropertySchema.shapeSourceName(name);
+            if (shapeName.isPresent()) {
+                constraints = shape.property(new PropertyName(shapeName.orElseThrow())).orElseThrow().constraints();
+            } else if (ExpansionTileWidgetPropertySchema.nonNullableBooleanProperties().contains(name)) {
+                constraints = any(PropertyValueKind.BOOLEAN);
+            } else if (ExpansionTileWidgetPropertySchema.animationDurationProperties().contains(name)) {
+                constraints = new ArrayList<>(portableIntegers());
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Duration"));
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (ExpansionTileWidgetPropertySchema.animationCurveProperties().contains(name)) {
+                constraints = new ArrayList<>(stringPattern("(?:" + String.join("|", ExpansionTileWidgetPropertySchema.curvePresets()) + ")", "reviewed Curves preset"));
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Curve"));
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else if (List.of("visualDensityHorizontal", "visualDensityVertical").contains(name)) {
+                constraints = minusFourToFourDoubles();
+            } else {
+                constraints = new ArrayList<>(ExpansionTileWidgetPropertySchema.colorProperties().contains(name) ? colorOrTheme() : switch (name) {
+                    case "onExpansionChanged" -> List.of(new PropertyValueConstraint.StringPattern("noop", "Explicit controlled no-op callback"), new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool>"));
+                    case "tilePadding", "childrenPadding" -> List.of(new PropertyValueConstraint.EdgeInsetsValues(false), new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"));
+                    case "expandedAlignment" -> List.of(new PropertyValueConstraint.AlignmentGeometryValues(), new PropertyValueConstraint.DartObjectReferenceValues("AlignmentGeometry"));
+                    case "expandedCrossAxisAlignment" -> enumValues("CrossAxisAlignment", "start", "end", "center", "stretch");
+                    case "controlAffinity" -> materialEnumValues("ListTileControlAffinity", "leading", "trailing", "platform");
+                    case "clipBehavior" -> enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                    case "shape", "collapsedShape" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"));
+                    case "controller" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("ExpansibleController"));
+                    case "statesController" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("WidgetStatesController"));
+                    case "visualDensity" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VisualDensity"));
+                    case "expansionAnimationStyle" -> List.of(new PropertyValueConstraint.StringPattern("noAnimation", "reviewed AnimationStyle preset"), new PropertyValueConstraint.DartObjectReferenceValues("AnimationStyle"));
+                    case "minTileHeight" -> tile.property(new PropertyName(name)).orElseThrow().constraints().stream().filter(value -> value.kind() != PropertyValueKind.NULL).toList();
+                    case "dense", "enableFeedback" -> any(PropertyValueKind.BOOLEAN);
+                    default -> throw new IllegalArgumentException("Unreviewed ExpansionTile property " + name);
+                });
+                if (ExpansionTileWidgetPropertySchema.colorProperties().contains(name)) constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            }
+            properties.add(namedProperty(name, entry.getValue().dartOrder(), false, constraints));
+        }
+        return widget(ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE.value(), "ExpansionTile", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 290, "ExpansionTile"), properties,
+                List.of(singleSlot("title", 0, true, 1, ANY_WIDGET), singleSlot("leading", 1, false, 0, ANY_WIDGET),
+                        singleSlot("subtitle", 2, false, 0, ANY_WIDGET), singleSlot("trailing", 3, false, 0, ANY_WIDGET),
+                        listSlot("children", 4, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition radioListTile() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition control = radio();
+        WidgetDefinition tile = listTile();
+        WidgetDefinition shape = card();
+        for (var entry : RadioListTileWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (RadioListTileWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                constraints = shape.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (RadioListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+            } else if (RadioListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                constraints = control.property(new PropertyName("mouseCursor")).orElseThrow().constraints();
+            } else if (List.of("splashRadius", "radioScaleFactor").contains(name)) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity", "negativeInfinity", "nan")));
+                if (name.equals("splashRadius")) constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (name) {
+                    case "onFocusChange" -> List.of(new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL), new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<bool>"));
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "RadioListTile constructor");
+                    case "controlAffinity" -> materialEnumValues("ListTileControlAffinity", "leading", "trailing", "platform");
+                    default -> control.property(new PropertyName(RadioListTileWidgetPropertySchema.radioSourceName(name)))
+                            .or(() -> tile.property(new PropertyName(name))).orElseThrow().constraints();
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.StringValue("option");
+                case "valueType" -> new PropertyValue.StringValue("String");
+                case "variant" -> new PropertyValue.StringValue("standard");
+                case "onChanged" -> new PropertyValue.StringValue("noop");
+                default -> null;
+            };
+            boolean required = List.of("value", "valueType", "variant").contains(name);
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), required, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), required, constraints, creation));
+        }
+        return widget(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.value(), "RadioListTile", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 280, "RadioListTile"), properties,
+                List.of(singleSlot("title", 0, false, 0, ANY_WIDGET), singleSlot("subtitle", 1, false, 0, ANY_WIDGET), singleSlot("secondary", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition switchListTile() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        WidgetDefinition control = switchWidget();
+        WidgetDefinition tile = listTile();
+        WidgetDefinition shape = card();
+        for (var entry : SwitchListTileWidgetPropertySchema.definitions().entrySet()) {
+            String name = entry.getKey();
+            List<PropertyValueConstraint> constraints;
+            if (SwitchListTileWidgetPropertySchema.builtInShapePropertyNames().contains(name)) {
+                constraints = shape.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (SwitchListTileWidgetPropertySchema.colorProperties().contains(name)) {
+                constraints = new ArrayList<>(colorOrTheme());
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+            } else if (SwitchListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)) {
+                constraints = control.property(new PropertyName("mouseCursor")).orElseThrow().constraints();
+            } else if (name.equals("splashRadius")) {
+                constraints = new ArrayList<>(cardNumbers(null, null));
+                constraints.add(new PropertyValueConstraint.EnumValues(new DartSymbolReference("dart:core", "double"), List.of("infinity", "negativeInfinity", "nan")));
+                constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (name) {
+                    case "onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError" -> List.of(
+                            new PropertyValueConstraint.StringPattern("noop", "Explicit controlled no-op callback"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL),
+                            new PropertyValueConstraint.DartObjectReferenceValues(name.endsWith("ImageError") ? "ImageErrorListener" : "ValueChanged<bool>"));
+                    case "variant" -> stringPattern("(?:standard|adaptive)", "SwitchListTile constructor");
+                    case "controlAffinity" -> materialEnumValues("ListTileControlAffinity", "leading", "trailing", "platform");
+                    default -> control.property(new PropertyName(name)).or(() -> tile.property(new PropertyName(name))).orElseThrow().constraints();
+                };
+            }
+            PropertyValue creation = switch (name) {
+                case "value" -> new PropertyValue.BooleanValue(false);
+                case "onChanged" -> new PropertyValue.StringValue("noop");
+                case "variant" -> new PropertyValue.StringValue("standard");
+                default -> null;
+            };
+            properties.add(creation == null ? namedProperty(name, entry.getValue().dartOrder(), false, constraints)
+                    : namedProperty(name, entry.getValue().dartOrder(), true, constraints, creation));
+        }
+        return widget(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE.value(), "SwitchListTile", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, GESTURES_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 270, "SwitchListTile"), properties,
+                List.of(singleSlot("title", 0, false, 0, ANY_WIDGET), singleSlot("subtitle", 1, false, 0, ANY_WIDGET), singleSlot("secondary", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition checkboxListTile() {
@@ -1367,6 +1714,24 @@ public final class BuiltInWidgetCatalog {
                         namedProperty("size", 0, false, nonNegativeNumbers()),
                         namedProperty("color", 1, false, colorOrTheme()),
                         namedProperty("semanticLabel", 2, false, any(PropertyValueKind.STRING))),
+                List.of());
+    }
+
+    private static WidgetDefinition builder() {
+        return widget(
+                BuilderWidgetPropertySchema.BUILDER_TYPE.value(),
+                "Builder",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(),
+                palette("flutter.basic", 300, 75, "Builder"),
+                List.of(namedProperty(
+                        "builder",
+                        0,
+                        true,
+                        List.of(new PropertyValueConstraint.CallbackReference()),
+                        new PropertyValue.CallbackValue("noop"))),
                 List.of());
     }
 
@@ -1970,6 +2335,26 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 1, false, 0, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition preferredSize() {
+        return widget(
+                PreferredSizeWidgetPropertySchema.PREFERRED_SIZE_TYPE.value(),
+                "PreferredSize",
+                true,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT),
+                Set.of(PREFERRED_SIZE_WIDGET_TRAIT),
+                palette("flutter.layout", 200, 215, "PreferredSize"),
+                List.of(namedProperty(
+                        "preferredSize",
+                        0,
+                        true,
+                        List.of(new PropertyValueConstraint.SizeValues()),
+                        new PropertyValue.SizeValue(
+                                BigDecimal.valueOf(100),
+                                BigDecimal.valueOf(56)))),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition listBody() {
         return widget(
                 "flutter.widgets.ListBody",
@@ -2319,7 +2704,10 @@ public final class BuiltInWidgetCatalog {
                                 "antiAliasWithSaveLayer")),
                 namedProperty("hitTestBehavior", 17, false,
                         renderingEnumValues(
-                                "HitTestBehavior", "deferToChild", "opaque", "translucent")));
+                                "HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                namedProperty("itemExtentBuilder", 18, false,
+                        List.of(new PropertyValueConstraint.DartObjectReferenceValues(ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE),
+                                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
         if (properties.size() != ListViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "ListView catalog/property schema count mismatch");
@@ -2402,6 +2790,72 @@ public final class BuiltInWidgetCatalog {
                 List.of(listSlot("children", 15, false, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition gridViewExtent() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("primary", 2, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("physics", 3, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("shrinkWrap", 4, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("padding", 5, false,
+                        List.of(new PropertyValueConstraint.EdgeInsetsValues(true))),
+                namedProperty("maxCrossAxisExtent", 6, true,
+                        positiveDoubles(),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(200.0))),
+                namedProperty("mainAxisSpacing", 7, false,
+                        nonNegativeDoubles()),
+                namedProperty("crossAxisSpacing", 8, false,
+                        nonNegativeDoubles()),
+                namedProperty("childAspectRatio", 9, false,
+                        positiveDoubles()),
+                namedProperty("mainAxisExtent", 10, false,
+                        nonNegativeDoubles()),
+                namedProperty("addAutomaticKeepAlives", 11, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addRepaintBoundaries", 12, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addSemanticIndexes", 13, false,
+                        any(PropertyValueKind.BOOLEAN)),
+                namedProperty("scrollCacheExtent", 14, false,
+                        nonNegativeNumbers()),
+                namedProperty("semanticChildCount", 16, false,
+                        nonNegativeIntegers()),
+                namedProperty("dragStartBehavior", 17, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("keyboardDismissBehavior", 18, false,
+                        enumValues("ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                namedProperty("restorationId", 19, false,
+                        stringLength(1, 256)),
+                namedProperty("clipBehavior", 20, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias",
+                                "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 21, false,
+                        renderingEnumValues(
+                                "HitTestBehavior", "deferToChild", "opaque", "translucent")));
+        if (properties.size()
+                != GridViewExtentWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError(
+                    "GridView.extent catalog/property schema count mismatch");
+        }
+        return namedWidget(
+                GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.value(),
+                "GridView",
+                "extent",
+                false,
+                WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT),
+                Set.of(),
+                palette("flutter.scrolling", 250, 25, "GridView.extent"),
+                properties,
+                List.of(listSlot("children", 15, false, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition singleChildScrollView() {
         List<PropertyDefinition> properties = List.of(
                 namedProperty("scrollDirection", 0, false,
@@ -2443,6 +2897,789 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.scrolling", 250, 30, "SingleChildScrollView"),
                 properties,
                 List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition pageView() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("controller", 2, false, List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("PageController"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("physics", 3, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("pageSnapping", 4, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("onPageChanged", 5, false, List.of(
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("dragStartBehavior", 7, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("allowImplicitScrolling", 8, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("scrollCacheExtent", 9, false, nullableNonNegativeNumbers()),
+                namedProperty("restorationId", 10, false, stringLength(1, 256)),
+                namedProperty("clipBehavior", 11, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 12, false,
+                        renderingEnumValues("HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                namedProperty("scrollBehavior", 13, false, List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ScrollBehavior"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("padEnds", 14, false, any(PropertyValueKind.BOOLEAN)));
+        if (properties.size() != PageViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("PageView catalog/property schema count mismatch");
+        }
+        return widget(PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.value(), "PageView", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT), Set.of(),
+                palette("flutter.scrolling", 250, 40, "PageView"), properties,
+                List.of(listSlot("children", 6, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition listWheelScrollView() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("controller", 0, false, List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ScrollController"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("physics", 1, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("diameterRatio", 2, false, positiveDoubles()),
+                namedProperty("perspective", 3, false, List.of(
+                        new PropertyValueConstraint.DoubleRange(
+                                BigDecimal.ZERO, false, BigDecimal.valueOf(0.01), true))),
+                namedProperty("offAxisFraction", 4, false, unboundedDoubles()),
+                namedProperty("useMagnifier", 5, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("magnification", 6, false, positiveDoubles()),
+                namedProperty("overAndUnderCenterOpacity", 7, false, zeroToOneDoubles()),
+                namedProperty("itemExtent", 8, true, positiveNumbers(),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(50))),
+                namedProperty("squeeze", 9, false, positiveDoubles()),
+                namedProperty("onSelectedItemChanged", 10, false, List.of(
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("renderChildrenOutsideViewport", 11, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("clipBehavior", 12, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 13, false,
+                        renderingEnumValues("HitTestBehavior", "deferToChild", "opaque", "translucent")),
+                namedProperty("restorationId", 14, false, stringLength(1, 256)),
+                namedProperty("scrollBehavior", 15, false, List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ScrollBehavior"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("dragStartBehavior", 16, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("changeReportingBehavior", 17, false,
+                        enumValues("ChangeReportingBehavior", "onScrollEnd", "onScrollUpdate")));
+        if (properties.size() != ListWheelScrollViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("ListWheelScrollView catalog/property schema count mismatch");
+        }
+        return widget(ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE.value(),
+                "ListWheelScrollView", false, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT), Set.of(),
+                palette("flutter.scrolling", 250, 50, "ListWheelScrollView"), properties,
+                List.of(listSlot("children", 18, false, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition customScrollView() {
+        List<PropertyDefinition> properties = List.of(
+                namedProperty("scrollDirection", 0, false,
+                        enumValues("Axis", "horizontal", "vertical")),
+                namedProperty("reverse", 1, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("controller", 2, false, List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ScrollController"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))),
+                namedProperty("primary", 3, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("physics", 4, false, stringPattern(
+                        "(?:alwaysScrollable|bouncing|clamping|neverScrollable|page|rangeMaintaining)",
+                        "reviewed ScrollPhysics preset")),
+                namedProperty("shrinkWrap", 6, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("anchor", 8, false, zeroToOneDoubles()),
+                namedProperty("scrollCacheExtent", 10, false, nonNegativeNumbers()),
+                namedProperty("paintOrder", 11, false,
+                        enumValues("SliverPaintOrder", "firstIsTop", "lastIsTop")),
+                namedProperty("semanticChildCount", 13, false, nonNegativeIntegers()),
+                namedProperty("dragStartBehavior", 14, false,
+                        gesturesEnumValues("DragStartBehavior", "down", "start")),
+                namedProperty("keyboardDismissBehavior", 15, false,
+                        enumValues("ScrollViewKeyboardDismissBehavior", "manual", "onDrag")),
+                namedProperty("restorationId", 16, false, stringLength(1, 256)),
+                namedProperty("clipBehavior", 17, false,
+                        enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer")),
+                namedProperty("hitTestBehavior", 18, false,
+                        renderingEnumValues("HitTestBehavior", "deferToChild", "opaque", "translucent")));
+        if (properties.size() != CustomScrollViewWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("CustomScrollView catalog/property schema count mismatch");
+        }
+        return widget(CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE.value(),
+                "CustomScrollView", false, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT), Set.of(),
+                palette("flutter.scrolling", 250, 60, "CustomScrollView"), properties,
+                List.of(listSlot("slivers", 12, false,
+                        new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverDynamic(SliverDynamicWidgetPropertySchema.Kind kind) {
+        var properties = new java.util.ArrayList<PropertyDefinition>();
+        int order = 0;
+        for (var field : SliverDynamicWidgetPropertySchema.fields(kind)) {
+            var constraints = new java.util.ArrayList<PropertyValueConstraint>();
+            if (field.type().equals("bool")) constraints.addAll(any(PropertyValueKind.BOOLEAN));
+            else if (field.type().startsWith("int")) {
+                constraints.add(new PropertyValueConstraint.IntegerRange(BigInteger.ZERO,
+                        new BigInteger(kind == SliverDynamicWidgetPropertySchema.Kind.LIST_SEPARATED
+                                && field.name().equals("itemCount") ? "4503599627370496" : "9007199254740991")));
+                if (field.type().endsWith("?")) constraints.addAll(any(PropertyValueKind.NULL));
+            } else {
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues(field.type()));
+                if (field.required()) constraints.add(new PropertyValueConstraint.StringPattern(
+                        String.join("|", field.presets()), "Reviewed empty/default sliver preset"));
+                else constraints.addAll(any(PropertyValueKind.NULL));
+            }
+            properties.add(field.required()
+                    ? namedProperty(field.name(), order++, true, constraints, new PropertyValue.StringValue(field.preset()))
+                    : namedProperty(field.name(), order++, false, constraints));
+        }
+        var slots = kind.hasChildren() ? List.of(listSlot("children", order, true, ANY_WIDGET)) : List.<SlotDefinition>of();
+        return new WidgetDefinition(kind.type(), kind.className(), kind.constructor(),
+                kind.constructor().isEmpty(), WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, kind.order(), kind.displayName()), properties, slots);
+    }
+
+    private static WidgetDefinition sliverChildren(
+            WidgetTypeId type, String className, String constructor, int order) {
+        boolean list = type.equals(SliverChildrenWidgetPropertySchema.LIST);
+        boolean extent = type.equals(SliverChildrenWidgetPropertySchema.GRID_EXTENT);
+        List<PropertyDefinition> properties = list ? List.of(
+                namedProperty("addAutomaticKeepAlives", 1, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addRepaintBoundaries", 2, false, any(PropertyValueKind.BOOLEAN)),
+                namedProperty("addSemanticIndexes", 3, false, any(PropertyValueKind.BOOLEAN))) : List.of(
+                extent ? namedProperty("maxCrossAxisExtent", 0, true, positiveDoubles(),
+                        new PropertyValue.DoubleValue(BigDecimal.valueOf(200)))
+                       : namedProperty("crossAxisCount", 0, true, positiveIntegers(),
+                        new PropertyValue.IntegerValue(BigInteger.valueOf(2))),
+                namedProperty("mainAxisSpacing", 1, false, nonNegativeDoubles()),
+                namedProperty("crossAxisSpacing", 2, false, nonNegativeDoubles()),
+                namedProperty("childAspectRatio", 3, false, positiveDoubles()));
+        return namedWidget(type.value(), className, constructor, false, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, order, className + "." + constructor),
+                // Named arguments are order-independent; keep children last for Flutter's lint.
+                properties, List.of(listSlot("children", 4, list, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverVisibility(boolean maintain) {
+        String type = (maintain ? SliverVisibilityWidgetPropertySchema.MAINTAIN_TYPE : SliverVisibilityWidgetPropertySchema.TYPE).value();
+        var palette = palette("flutter.scrolling", 250, maintain ? 380 : 370, maintain ? "SliverVisibility.maintain" : "SliverVisibility");
+        var properties = SliverVisibilityWidgetPropertySchema.properties(maintain);
+        var slots = List.of(singleSlot("sliver", 0, true, 1, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT)),
+                singleSlot("replacementSliver", 1, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT)));
+        return maintain
+                ? namedWidget(type, "SliverVisibility", "maintain", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT),
+                        Set.of(SLIVER_WIDGET_TRAIT), palette, properties, slots)
+                : widget(type, "SliverVisibility", true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT),
+                        Set.of(SLIVER_WIDGET_TRAIT), palette, properties, slots);
+    }
+
+    private static WidgetDefinition sliverSafeArea() {
+        return widget(SliverSafeAreaWidgetPropertySchema.TYPE.value(), "SliverSafeArea", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 390, "SliverSafeArea"),
+                SliverSafeAreaWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 5, true, 1, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverOffstage() {
+        return widget(SliverOffstageWidgetPropertySchema.TYPE.value(), "SliverOffstage", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 360, "SliverOffstage"),
+                SliverOffstageWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 1, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverIgnorePointer() {
+        return widget(SliverIgnorePointerWidgetPropertySchema.TYPE.value(), "SliverIgnorePointer", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 350, "SliverIgnorePointer"),
+                SliverIgnorePointerWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 2, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition layoutBuilder() {
+        return widget(LayoutBuilderWidgetPropertySchema.TYPE.value(), "LayoutBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 250, "LayoutBuilder"),
+                LayoutBuilderWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition listenableBuilder(boolean sliver) {
+        return widget((sliver ? ListenableBuilderWidgetPropertySchema.SLIVER_TYPE
+                        : ListenableBuilderWidgetPropertySchema.TYPE).value(), "ListenableBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                sliver ? palette("flutter.scrolling", 250, 480, "ListenableBuilder (sliver)")
+                        : palette("flutter.layout", 200, 280, "ListenableBuilder"),
+                ListenableBuilderWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, false, 0, sliver ? new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT) : ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedBuilder(boolean sliver) {
+        return widget((sliver ? AnimatedBuilderWidgetPropertySchema.SLIVER_TYPE
+                        : AnimatedBuilderWidgetPropertySchema.TYPE).value(), "AnimatedBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                sliver ? palette("flutter.scrolling", 250, 490, "AnimatedBuilder (sliver)")
+                        : palette("flutter.layout", 200, 290, "AnimatedBuilder"),
+                AnimatedBuilderWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, false, 0, sliver ? new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT) : ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition valueListenableBuilder(boolean sliver) {
+        return widget((sliver ? ValueListenableBuilderWidgetPropertySchema.SLIVER_TYPE
+                        : ValueListenableBuilderWidgetPropertySchema.TYPE).value(), "ValueListenableBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                sliver ? palette("flutter.scrolling", 250, 500, "ValueListenableBuilder (sliver)")
+                        : palette("flutter.layout", 200, 300, "ValueListenableBuilder"),
+                ValueListenableBuilderWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, false, 0, sliver ? new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT) : ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition tweenAnimationBuilder(boolean sliver) {
+        return widget((sliver ? TweenAnimationBuilderWidgetPropertySchema.SLIVER_TYPE
+                        : TweenAnimationBuilderWidgetPropertySchema.TYPE).value(), "TweenAnimationBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                sliver ? palette("flutter.scrolling", 250, 510, "TweenAnimationBuilder (sliver)")
+                        : palette("flutter.layout", 200, 310, "TweenAnimationBuilder"),
+                TweenAnimationBuilderWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 5, false, 0, sliver ? new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT) : ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition deviceOrientationBuilder(boolean sliver) {
+        return widget((sliver ? DeviceOrientationBuilderWidgetPropertySchema.SLIVER_TYPE
+                        : DeviceOrientationBuilderWidgetPropertySchema.TYPE).value(), "DeviceOrientationBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT),
+                sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                sliver ? palette("flutter.scrolling", 250, 470, "DeviceOrientationBuilder (sliver)")
+                        : palette("flutter.layout", 200, 270, "DeviceOrientationBuilder"),
+                DeviceOrientationBuilderWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition orientationBuilder() {
+        return widget(OrientationBuilderWidgetPropertySchema.TYPE.value(), "OrientationBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 260, "OrientationBuilder"),
+                OrientationBuilderWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition flexibleSpaceBarSettings() {
+        return widget(FlexibleSpaceBarSettingsWidgetPropertySchema.TYPE.value(), "FlexibleSpaceBarSettings", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 520, "FlexibleSpaceBarSettings"), FlexibleSpaceBarSettingsWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition flexibleSpaceBar() {
+        return widget(FlexibleSpaceBarWidgetPropertySchema.TYPE.value(), "FlexibleSpaceBar", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 510, "FlexibleSpaceBar"), FlexibleSpaceBarWidgetPropertySchema.properties(),
+                List.of(singleSlot("title", 5, false, 0, ANY_WIDGET), singleSlot("background", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverAppBar(String variant) {
+        String suffix = variant.isEmpty() ? "" : "." + variant;
+        var properties = SliverAppBarWidgetPropertySchema.properties();
+        int order = properties.size();
+        var slots = List.of(singleSlot("leading", order, false, 0, ANY_WIDGET),
+                singleSlot("title", order + 1, false, 0, ANY_WIDGET), listSlot("actions", order + 2, false, ANY_WIDGET),
+                singleSlot("flexibleSpace", order + 3, false, 0, ANY_WIDGET),
+                singleSlot("bottom", order + 4, false, 0, new SlotAcceptance.HasTrait(PREFERRED_SIZE_WIDGET_TRAIT)));
+        var entry = palette("flutter.material", 100, 500 + SliverAppBarWidgetPropertySchema.TYPES.indexOf("flutter.material.SliverAppBar" + suffix),
+                "SliverAppBar" + suffix);
+        return variant.isEmpty() ? widget("flutter.material.SliverAppBar", "SliverAppBar", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT), entry, properties, slots)
+                : namedWidget("flutter.material.SliverAppBar" + suffix, "SliverAppBar", variant, true, MATERIAL_IMPORT,
+                        List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT), entry, properties, slots);
+    }
+
+    private static WidgetDefinition sliverFloatingHeader() {
+        return widget(SliverFloatingHeaderWidgetPropertySchema.TYPE.value(), "SliverFloatingHeader", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 450, "SliverFloatingHeader"),
+                SliverFloatingHeaderWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition pinnedHeaderSliver() {
+        return widget(PinnedHeaderSliverWidgetSchema.TYPE.value(), "PinnedHeaderSliver", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 440, "PinnedHeaderSliver"), List.of(),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverResizingHeader() {
+        return widget(SliverResizingHeaderWidgetSchema.TYPE.value(), "SliverResizingHeader", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 430, "SliverResizingHeader"), List.of(),
+                List.of(singleSlot("minExtentPrototype", 0, false, 0, ANY_WIDGET),
+                        singleSlot("maxExtentPrototype", 1, false, 0, ANY_WIDGET),
+                        singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverPersistentHeader() {
+        return widget(SliverPersistentHeaderWidgetPropertySchema.TYPE.value(), "SliverPersistentHeader", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 420, "SliverPersistentHeader"),
+                SliverPersistentHeaderWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition sliverLayoutBuilder() {
+        return widget(SliverLayoutBuilderWidgetPropertySchema.TYPE.value(), "SliverLayoutBuilder", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 410, "SliverLayoutBuilder"),
+                SliverLayoutBuilderWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition animatedSlide() {
+        return widget(AnimatedSlideWidgetPropertySchema.TYPE.value(), "AnimatedSlide", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 350, "AnimatedSlide"),
+                AnimatedSlideWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 4, false, 0, ANY_WIDGET)));
+    }
+    private static WidgetDefinition animatedScale() {
+        return widget(AnimatedScaleWidgetPropertySchema.TYPE.value(), "AnimatedScale", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 360, "AnimatedScale"),
+                AnimatedScaleWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+    private static WidgetDefinition animatedPositioned(WidgetTypeId type, int order) {
+        var properties = AnimatedPositionedWidgetPropertySchema.properties(type);
+        boolean rect = AnimatedPositionedWidgetPropertySchema.RECT_TYPE.equals(type);
+        String name = AnimatedPositionedWidgetPropertySchema.directional(type) ? "AnimatedPositionedDirectional" : "AnimatedPositioned";
+        return new WidgetDefinition(type, name, rect ? Optional.of("fromRect") : Optional.empty(), !rect,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, order, name + (rect ? ".fromRect" : "")),
+                properties, List.of(singleSlot("child", properties.size(), true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedPhysicalModel() {
+        var properties=AnimatedPhysicalModelWidgetPropertySchema.properties();
+        return widget(AnimatedPhysicalModelWidgetPropertySchema.TYPE.value(),"AnimatedPhysicalModel",true,
+                WIDGETS_IMPORT,List.of(WIDGETS_IMPORT,MATERIAL_IMPORT),Set.of(),
+                palette("flutter.layout",200,440,"AnimatedPhysicalModel"),properties,
+                List.of(singleSlot("child",properties.size(),true,1,ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition scaleTransition() {
+        return widget(ScaleTransitionWidgetPropertySchema.TYPE.value(), "ScaleTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 510, "ScaleTransition"),
+                ScaleTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition positionedTransition() {
+        return widget(PositionedTransitionWidgetPropertySchema.TYPE.value(), "PositionedTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 540, "PositionedTransition"),
+                PositionedTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 5, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition rawImage() {
+        return widget(RawImageWidgetPropertySchema.TYPE.value(), "RawImage", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 300, "RawImage"), RawImageWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition fadeInImage() {
+        return widget(FadeInImageWidgetPropertySchema.TYPE.value(),"FadeInImage",true,
+                WIDGETS_IMPORT,List.of(WIDGETS_IMPORT,MATERIAL_IMPORT),Set.of(),
+                palette("flutter.basic",300,290,"FadeInImage"),FadeInImageWidgetPropertySchema.properties(),List.of());
+    }
+
+    private static WidgetDefinition animatedIcon() {
+        return widget(AnimatedIconWidgetPropertySchema.TYPE.value(),"AnimatedIcon",true,
+                MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT),Set.of(),
+                palette("flutter.material",100,550,"AnimatedIcon"),AnimatedIconWidgetPropertySchema.properties(),List.of());
+    }
+
+    private static WidgetDefinition animatedModalBarrier() {
+        return widget(AnimatedModalBarrierWidgetPropertySchema.TYPE.value(), "AnimatedModalBarrier", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 280, "AnimatedModalBarrier"),
+                AnimatedModalBarrierWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition modalBarrier() {
+        return widget(ModalBarrierWidgetPropertySchema.TYPE.value(), "ModalBarrier", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 270, "ModalBarrier"),
+                ModalBarrierWidgetPropertySchema.properties(), List.of());
+    }
+
+    private static WidgetDefinition matrixTransition() {
+        return widget(MatrixTransitionWidgetPropertySchema.TYPE.value(), "MatrixTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 580, "MatrixTransition"),
+                MatrixTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 4, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition alignTransition() {
+        return widget(AlignTransitionWidgetPropertySchema.TYPE.value(), "AlignTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 570, "AlignTransition"),
+                AlignTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition decoratedBoxTransition() {
+        return widget(DecoratedBoxTransitionWidgetPropertySchema.TYPE.value(), "DecoratedBoxTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, RENDERING_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 560, "DecoratedBoxTransition"),
+                DecoratedBoxTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition relativePositionedTransition() {
+        return widget(RelativePositionedTransitionWidgetPropertySchema.TYPE.value(), "RelativePositionedTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 550, "RelativePositionedTransition"),
+                RelativePositionedTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 8, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sizeTransition() {
+        return widget(SizeTransitionWidgetPropertySchema.TYPE.value(), "SizeTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 530, "SizeTransition"),
+                SizeTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition rotationTransition() {
+        return widget(RotationTransitionWidgetPropertySchema.TYPE.value(), "RotationTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 520, "RotationTransition"),
+                RotationTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition slideTransition() {
+        return widget(SlideTransitionWidgetPropertySchema.TYPE.value(), "SlideTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 500, "SlideTransition"),
+                SlideTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 3, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition fadeTransition(boolean sliver) {
+        var type = sliver ? FadeTransitionWidgetPropertySchema.SLIVER_TYPE : FadeTransitionWidgetPropertySchema.TYPE;
+        return widget(type.value(), sliver ? "SliverFadeTransition" : "FadeTransition", true,
+                WIDGETS_IMPORT, sliver ? List.of(WIDGETS_IMPORT) : List.of(WIDGETS_IMPORT, MATERIAL_IMPORT),
+                sliver ? Set.of(SLIVER_WIDGET_TRAIT) : Set.of(),
+                palette(sliver ? "flutter.scrolling" : "flutter.layout", sliver ? 250 : 200, sliver ? 520 : 490,
+                        sliver ? "SliverFadeTransition" : "FadeTransition"),
+                FadeTransitionWidgetPropertySchema.properties(),
+                List.of(singleSlot(sliver ? "sliver" : "child", 2, false, 0,
+                        sliver ? new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT) : ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition defaultTextStyleTransition() {
+        var properties = DefaultTextStyleTransitionWidgetPropertySchema.properties();
+        return widget(DefaultTextStyleTransitionWidgetPropertySchema.TYPE.value(), "DefaultTextStyleTransition", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 480, "DefaultTextStyleTransition"), properties,
+                List.of(singleSlot("child", properties.size(), true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition defaultTextStyle(boolean merge) {
+        var type = merge ? DefaultTextStyleWidgetPropertySchema.MERGE_TYPE : DefaultTextStyleWidgetPropertySchema.TYPE;
+        var properties = DefaultTextStyleWidgetPropertySchema.properties(type);
+        return widget(type.value(), "DefaultTextStyle", !merge,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.basic", 300, merge ? 250 : 240, merge ? "DefaultTextStyle.merge" : "DefaultTextStyle"), properties,
+                List.of(singleSlot("child", properties.size(), true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedDefaultTextStyle() {
+        var properties = AnimatedDefaultTextStyleWidgetPropertySchema.properties();
+        return widget(AnimatedDefaultTextStyleWidgetPropertySchema.TYPE.value(), "AnimatedDefaultTextStyle", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 430, "AnimatedDefaultTextStyle"), properties,
+                List.of(singleSlot("child", properties.size(), true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedSize() {
+        return widget(AnimatedSizeWidgetPropertySchema.TYPE.value(), "AnimatedSize", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 390, "AnimatedSize"),
+                AnimatedSizeWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedContainer() {
+        return widget(AnimatedContainerWidgetPropertySchema.TYPE.value(), "AnimatedContainer", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.layout", 200, 380, "AnimatedContainer"),
+                AnimatedContainerWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 15, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedRotation() {
+        return widget(AnimatedRotationWidgetPropertySchema.TYPE.value(), "AnimatedRotation", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 370, "AnimatedRotation"),
+                AnimatedRotationWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedPadding() {
+        return widget(AnimatedPaddingWidgetPropertySchema.TYPE.value(), "AnimatedPadding", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 340, "AnimatedPadding"),
+                AnimatedPaddingWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 4, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedAlign() {
+        return widget(AnimatedAlignWidgetPropertySchema.TYPE.value(), "AnimatedAlign", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 330, "AnimatedAlign"),
+                AnimatedAlignWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedFractionallySizedBox() {
+        return widget(AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE.value(), "AnimatedFractionallySizedBox", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 450, "AnimatedFractionallySizedBox"),
+                AnimatedFractionallySizedBoxWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition theme() {
+        return widget(ThemeWidgetPropertySchema.TYPE.value(), "Theme", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 540, "Theme"),
+                ThemeWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedTheme() {
+        return widget(AnimatedThemeWidgetPropertySchema.TYPE.value(), "AnimatedTheme", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT), Set.of(),
+                palette("flutter.material", 100, 530, "AnimatedTheme"),
+                AnimatedThemeWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 4, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedSwitcher() {
+        return widget(AnimatedSwitcherWidgetPropertySchema.TYPE.value(), "AnimatedSwitcher", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 470, "AnimatedSwitcher"),
+                AnimatedSwitcherWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedCrossFade() {
+        return widget(AnimatedCrossFadeWidgetPropertySchema.TYPE.value(), "AnimatedCrossFade", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 460, "AnimatedCrossFade"),
+                AnimatedCrossFadeWidgetPropertySchema.properties(),
+                List.of(singleSlot("firstChild", 10, true, 1, ANY_WIDGET), singleSlot("secondChild", 11, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition animatedOpacity() {
+        return widget(AnimatedOpacityWidgetPropertySchema.TYPE.value(), "AnimatedOpacity", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.layout", 200, 320, "AnimatedOpacity"),
+                AnimatedOpacityWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 5, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverAnimatedOpacity() {
+        return widget(SliverAnimatedOpacityWidgetPropertySchema.TYPE.value(), "SliverAnimatedOpacity", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 400, "SliverAnimatedOpacity"),
+                SliverAnimatedOpacityWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 5, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverOpacity() {
+        return widget(SliverOpacityWidgetPropertySchema.TYPE.value(), "SliverOpacity", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 340, "SliverOpacity"),
+                SliverOpacityWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 2, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverPadding() {
+        return widget(SliverPaddingWidgetPropertySchema.TYPE.value(), "SliverPadding", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 170, "SliverPadding"),
+                List.of(SliverPaddingWidgetPropertySchema.padding()),
+                List.of(singleSlot("sliver", 1, false, 0, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverPrototypeExtentList(SliverPrototypeExtentListWidgetPropertySchema.Kind kind) {
+        var properties = new ArrayList<PropertyDefinition>();
+        int order = 0;
+        for (var field : SliverPrototypeExtentListWidgetPropertySchema.fields(kind)) {
+            var constraints = new ArrayList<PropertyValueConstraint>();
+            if (field.type().equals("double")) constraints.addAll(nonNegativeDoubles());
+            else if (field.type().equals("bool")) constraints.addAll(any(PropertyValueKind.BOOLEAN));
+            else if (field.type().startsWith("int")) {
+                constraints.addAll(nonNegativeIntegers());
+                if (field.type().endsWith("?")) constraints.addAll(any(PropertyValueKind.NULL));
+            } else {
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues(field.type()));
+                if (field.required()) constraints.add(new PropertyValueConstraint.StringPattern("empty", "Reviewed empty sliver preset"));
+                else constraints.addAll(any(PropertyValueKind.NULL));
+            }
+            properties.add(field.required()
+                    ? namedProperty(field.name(), order++, true, constraints, field.type().equals("double")
+                            ? new PropertyValue.DoubleValue(new BigDecimal(field.preset()))
+                            : new PropertyValue.StringValue(field.preset()))
+                    : namedProperty(field.name(), order++, false, constraints));
+        }
+        return new WidgetDefinition(kind.type(), "SliverPrototypeExtentList", kind.constructor(),
+                kind == SliverPrototypeExtentListWidgetPropertySchema.Kind.DELEGATE,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, kind.order(), kind.displayName()),
+                properties, kind.hasChildren()
+                        ? List.of(singleSlot("prototypeItem", order++, true, 0, ANY_WIDGET),
+                                listSlot("children", order, true, ANY_WIDGET))
+                        : List.of(singleSlot("prototypeItem", order, true, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverFixedExtentList(SliverFixedExtentListWidgetPropertySchema.Kind kind) {
+        var properties = new ArrayList<PropertyDefinition>();
+        int order = 0;
+        for (var field : SliverFixedExtentListWidgetPropertySchema.fields(kind)) {
+            var constraints = new ArrayList<PropertyValueConstraint>();
+            if (field.type().equals("double")) constraints.addAll(nonNegativeDoubles());
+            else if (field.type().equals("bool")) constraints.addAll(any(PropertyValueKind.BOOLEAN));
+            else if (field.type().startsWith("int")) {
+                constraints.addAll(nonNegativeIntegers());
+                if (field.type().endsWith("?")) constraints.addAll(any(PropertyValueKind.NULL));
+            } else {
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues(field.type()));
+                if (field.required()) constraints.add(new PropertyValueConstraint.StringPattern("empty", "Reviewed empty sliver preset"));
+                else constraints.addAll(any(PropertyValueKind.NULL));
+            }
+            properties.add(field.required()
+                    ? namedProperty(field.name(), order++, true, constraints, field.type().equals("double")
+                            ? new PropertyValue.DoubleValue(new BigDecimal(field.preset()))
+                            : new PropertyValue.StringValue(field.preset()))
+                    : namedProperty(field.name(), order++, false, constraints));
+        }
+        return new WidgetDefinition(kind.type(), "SliverFixedExtentList", kind.constructor(),
+                kind == SliverFixedExtentListWidgetPropertySchema.Kind.DELEGATE,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, kind.order(), kind.displayName()),
+                properties, kind.hasChildren() ? List.of(listSlot("children", order, true, ANY_WIDGET)) : List.of());
+    }
+
+    private static WidgetDefinition sliverVariedExtentList(SliverVariedExtentListWidgetPropertySchema.Kind kind) {
+        var properties = new ArrayList<PropertyDefinition>();
+        int order = 0;
+        for (var field : SliverVariedExtentListWidgetPropertySchema.fields(kind)) {
+            var constraints = new ArrayList<PropertyValueConstraint>();
+            if (field.type().equals("double")) constraints.addAll(nonNegativeDoubles());
+            else if (field.type().equals("bool")) constraints.addAll(any(PropertyValueKind.BOOLEAN));
+            else if (field.type().startsWith("int")) {
+                constraints.addAll(nonNegativeIntegers());
+                if (field.type().endsWith("?")) constraints.addAll(any(PropertyValueKind.NULL));
+            } else {
+                constraints.add(new PropertyValueConstraint.DartObjectReferenceValues(field.type()));
+                if (field.required()) constraints.add(new PropertyValueConstraint.StringPattern(String.join("|", field.presets()), "Reviewed sliver preset"));
+                else constraints.addAll(any(PropertyValueKind.NULL));
+            }
+            properties.add(field.required()
+                    ? namedProperty(field.name(), order++, true, constraints, field.type().equals("double")
+                            ? new PropertyValue.DoubleValue(new BigDecimal(field.preset()))
+                            : new PropertyValue.StringValue(field.preset()))
+                    : namedProperty(field.name(), order++, false, constraints));
+        }
+        return new WidgetDefinition(kind.type(), "SliverVariedExtentList", kind.constructor(),
+                kind == SliverVariedExtentListWidgetPropertySchema.Kind.DELEGATE,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, kind.order(), kind.displayName()),
+                properties, kind.hasChildren() ? List.of(listSlot("children", order, true, ANY_WIDGET)) : List.of());
+    }
+
+    private static WidgetDefinition sliverFillViewport(boolean delegate) {
+        var type = delegate ? SliverFillViewportWidgetPropertySchema.DELEGATE : SliverFillViewportWidgetPropertySchema.CHILDREN;
+        var properties = new java.util.ArrayList<PropertyDefinition>();
+        int order = 0;
+        for (var field : SliverFillViewportWidgetPropertySchema.fields(type)) {
+            String name = field.name();
+            if (name.equals("delegate")) properties.add(namedProperty(name, order++, true,
+                    List.of(new PropertyValueConstraint.DartObjectReferenceValues("SliverChildDelegate"),
+                            new PropertyValueConstraint.StringPattern("empty", "Empty child delegate")),
+                    new PropertyValue.StringValue("empty")));
+            else properties.add(namedProperty(name, order++, false, switch (name) {
+                case "viewportFraction" -> positiveDoubles();
+                case "semanticIndexOffset" -> nonNegativeIntegers();
+                case "semanticIndexCallback" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("SemanticIndexCallback"));
+                default -> any(PropertyValueKind.BOOLEAN);
+            }));
+        }
+        return widget(type.value(), "SliverFillViewport", delegate, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT),
+                Set.of(SLIVER_WIDGET_TRAIT), palette("flutter.scrolling", 250, delegate ? 200 : 190,
+                        delegate ? "SliverFillViewport.delegate" : "SliverFillViewport"),
+                properties, delegate ? List.of() : List.of(listSlot("children", order, true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverFillRemaining() {
+        return widget(SliverFillRemainingWidgetPropertySchema.TYPE.value(), "SliverFillRemaining", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 180, "SliverFillRemaining"),
+                SliverFillRemainingWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition sliverMainAxisGroup() {
+        return widget(SliverMainAxisGroupWidgetPropertySchema.TYPE.value(), "SliverMainAxisGroup", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 300, "SliverMainAxisGroup"), List.of(),
+                List.of(listSlot("slivers", 0, true, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverConstrainedCrossAxis() {
+        return widget(SliverConstrainedCrossAxisWidgetPropertySchema.TYPE.value(), "SliverConstrainedCrossAxis", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, "dart:core"), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 330, "SliverConstrainedCrossAxis"),
+                SliverConstrainedCrossAxisWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 1, true, 1, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverCrossAxisExpanded() {
+        return widget(SliverCrossAxisExpandedWidgetPropertySchema.TYPE.value(), "SliverCrossAxisExpanded", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 320, "SliverCrossAxisExpanded"),
+                SliverCrossAxisExpandedWidgetPropertySchema.properties(),
+                List.of(singleSlot("sliver", 1, true, 1, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverCrossAxisGroup() {
+        return widget(SliverCrossAxisGroupWidgetPropertySchema.TYPE.value(), "SliverCrossAxisGroup", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 310, "SliverCrossAxisGroup"), List.of(),
+                List.of(listSlot("slivers", 0, true, new SlotAcceptance.HasTrait(SLIVER_WIDGET_TRAIT))));
+    }
+
+    private static WidgetDefinition sliverToBoxAdapter() {
+        return widget(SliverToBoxAdapterWidgetPropertySchema.SLIVER_TO_BOX_ADAPTER_TYPE.value(),
+                "SliverToBoxAdapter", true, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT), Set.of(SLIVER_WIDGET_TRAIT),
+                palette("flutter.scrolling", 250, 70, "SliverToBoxAdapter"), List.of(),
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition image() {
@@ -2776,6 +4013,129 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition gestureDetector() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (GestureDetectorWidgetPropertySchema.Definition definition
+                : GestureDetectorWidgetPropertySchema.definitions().values()) {
+            List<PropertyValueConstraint> constraints;
+            if (definition.callbackType().isPresent()) {
+                constraints = List.of(new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues(definition.callbackType().orElseThrow()),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (definition.dartName()) {
+                    case "behavior" -> List.of(new PropertyValueConstraint.EnumValues(
+                            new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
+                            List.of("deferToChild", "opaque", "translucent")),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "excludeFromSemantics", "trackpadScrollCausesScale" -> any(PropertyValueKind.BOOLEAN);
+                    case "dragStartBehavior" -> gesturesEnumValues("DragStartBehavior", "down", "start");
+                    case "trackpadScrollToScaleFactor" -> List.of(new PropertyValueConstraint.OffsetValues());
+                    case "supportedDevices" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.POINTER_DEVICE_KIND_SET),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    default -> throw new IllegalStateException("Unknown GestureDetector configuration: " + definition.dartName());
+                };
+            }
+            properties.add(namedProperty(definition.dartName(), definition.dartOrder(), false, constraints));
+        }
+        return widget(GestureDetectorWidgetPropertySchema.GESTURE_DETECTOR_TYPE.value(),
+                "GestureDetector", false, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT, DART_UI_IMPORT), Set.of(),
+                palette("flutter.interaction", 500, 10, "GestureDetector"), properties,
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition listener() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (ListenerWidgetPropertySchema.Definition definition
+                : ListenerWidgetPropertySchema.definitions().values()) {
+            List<PropertyValueConstraint> constraints = definition.callbackType().isPresent()
+                    ? List.of(new PropertyValueConstraint.CallbackReference(),
+                            new PropertyValueConstraint.DartObjectReferenceValues(definition.callbackType().orElseThrow()),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))
+                    : List.of(new PropertyValueConstraint.EnumValues(
+                            new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
+                            List.of("deferToChild", "opaque", "translucent")));
+            properties.add(namedProperty(definition.dartName(), definition.dartOrder(), false, constraints));
+        }
+        return widget(ListenerWidgetPropertySchema.LISTENER_TYPE.value(), "Listener", true, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT, SERVICES_IMPORT), Set.of(),
+                palette("flutter.interaction", 500, 20, "Listener"), properties,
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition mouseRegion() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (MouseRegionWidgetPropertySchema.Definition definition
+                : MouseRegionWidgetPropertySchema.definitions().values()) {
+            List<PropertyValueConstraint> constraints;
+            if (definition.callbackType().isPresent()) {
+                constraints = List.of(new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues(definition.callbackType().orElseThrow()),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (definition.dartName()) {
+                    case "cursor" -> List.of(new PropertyValueConstraint.StringPattern(
+                            DefaultSelectionStyleWidgetPropertySchema.mouseCursorPattern(), "reviewed MouseCursor preset"),
+                            new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"));
+                    case "opaque" -> any(PropertyValueKind.BOOLEAN);
+                    case "hitTestBehavior" -> List.of(new PropertyValueConstraint.EnumValues(
+                            new DartSymbolReference(RENDERING_IMPORT, "HitTestBehavior"),
+                            List.of("deferToChild", "opaque", "translucent")),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    default -> throw new IllegalStateException("Unknown MouseRegion configuration: " + definition.dartName());
+                };
+            }
+            properties.add(namedProperty(definition.dartName(), definition.dartOrder(), false, constraints));
+        }
+        return widget(MouseRegionWidgetPropertySchema.MOUSE_REGION_TYPE.value(), "MouseRegion", true, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, GESTURES_IMPORT, RENDERING_IMPORT, SERVICES_IMPORT), Set.of(),
+                palette("flutter.interaction", 500, 30, "MouseRegion"), properties,
+                List.of(singleSlot("child", 0, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition focus() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (var definition : FocusWidgetPropertySchema.definitions().values()) {
+            List<PropertyValueConstraint> constraints;
+            if (definition.callbackType().isPresent()) {
+                constraints = List.of(new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues(definition.callbackType().orElseThrow()),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+            } else {
+                constraints = switch (definition.dartName()) {
+                    case "focusNode", "parentNode" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("FocusNode?"),
+                            new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "autofocus", "includeSemantics" -> any(PropertyValueKind.BOOLEAN);
+                    case "canRequestFocus", "skipTraversal", "descendantsAreFocusable", "descendantsAreTraversable" ->
+                            List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.BOOLEAN), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "debugLabel" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.STRING), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "variant" -> stringPattern("(?:standard|withExternalFocusNode)", "Focus constructor");
+                    default -> throw new IllegalStateException("Unknown Focus property: " + definition.dartName());
+                };
+            }
+            properties.add(definition.dartName().equals("variant")
+                    ? namedProperty("variant", definition.dartOrder(), false, constraints, new PropertyValue.StringValue("standard"))
+                    : namedProperty(definition.dartName(), definition.dartOrder(), false, constraints));
+        }
+        return widget(FocusWidgetPropertySchema.FOCUS_TYPE.value(), "Focus", true, WIDGETS_IMPORT,
+                List.of(WIDGETS_IMPORT, SERVICES_IMPORT), Set.of(),
+                palette("flutter.interaction", 500, 40, "Focus"), properties,
+                List.of(singleSlot("child", 0, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition notificationListener() {
+        return widget(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE.value(), "NotificationListener", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT), Set.of(), palette("flutter.interaction", 500, 50, "NotificationListener"),
+                List.of(namedProperty("notificationType", 1, true,
+                        List.of(new PropertyValueConstraint.StringPattern("(?:" + String.join("|", NotificationListenerWidgetPropertySchema.typePresets()) + ")", "Notification subtype preset"),
+                                new PropertyValueConstraint.DartObjectReferenceValues("Type")), new PropertyValue.StringValue("Notification")),
+                        namedProperty("onNotification", 2, false, List.of(new PropertyValueConstraint.CallbackReference(),
+                                new PropertyValueConstraint.DartObjectReferenceValues(NotificationListenerWidgetPropertySchema.CALLBACK_TYPE),
+                                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL)))),
+                List.of(singleSlot("child", 0, true, 1, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition textField() {
         List<PropertyDefinition> properties = new ArrayList<>();
         int order = 0;
@@ -2889,6 +4249,12 @@ public final class BuiltInWidgetCatalog {
                 any(PropertyValueKind.BOOLEAN)));
         properties.add(namedProperty("canRequestFocus", order++, false,
                 any(PropertyValueKind.BOOLEAN)));
+        properties.add(namedProperty("buildCounter", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues(TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        properties.add(namedProperty("contextMenuBuilder", order++, false,
+                List.of(new PropertyValueConstraint.DartObjectReferenceValues(TextFieldWidgetPropertySchema.CONTEXT_MENU_BUILDER_TYPE),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
 
         List<String> names = properties.stream()
                 .map(property -> property.name().value())
@@ -2914,6 +4280,561 @@ public final class BuiltInWidgetCatalog {
 
     private static WidgetDefinition textButton() {
         return fullStyleButton("TextButton");
+    }
+
+    private static WidgetDefinition submenuButton() {
+        WidgetDefinition button = textButton();
+        WidgetDefinition menu = menuAnchor();
+        WidgetDefinition tooltip = tooltip();
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : SubmenuButtonWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            if (SubmenuButtonWidgetPropertySchema.localStyleProperties().contains(name)) {
+                constraints = button.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (SubmenuButtonWidgetPropertySchema.menuStyleProperties().contains(name)) {
+                constraints = menu.property(new PropertyName(SubmenuButtonWidgetPropertySchema.menuStyleSourceName(name))).orElseThrow().constraints();
+            } else if (SubmenuButtonWidgetPropertySchema.submenuIconLocalProperties().contains(name)) {
+                var values = new ArrayList<PropertyValueConstraint>(List.of(new PropertyValueConstraint.MaterialIconValues()));
+                values.add(new PropertyValueConstraint.DartObjectReferenceValues("Widget"));
+                values.addAll(any(PropertyValueKind.NULL)); constraints = List.copyOf(values);
+            } else if (name.equals("hoverOpenDelayUs")) {
+                constraints = tooltip.property(new PropertyName("waitDurationUs")).orElseThrow().constraints().stream()
+                        .filter(value -> value.kind() != PropertyValueKind.NULL).toList();
+            } else if (name.equals("useRootOverlay") || name.equals("animated")) constraints = any(PropertyValueKind.BOOLEAN);
+            else if (name.equals("clipBehavior")) constraints = enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+            else {
+                String type = switch (name) {
+                    case "onHover", "onFocusChange" -> "ValueChanged<bool>";
+                    case "onOpen", "onClose" -> "VoidCallback";
+                    case "controller" -> "MenuController"; case "style" -> "ButtonStyle"; case "menuStyle" -> "MenuStyle";
+                    case "alignmentOffset" -> "Offset"; case "focusNode" -> "FocusNode"; case "statesController" -> "WidgetStatesController";
+                    case "submenuIcon" -> "WidgetStateProperty<Widget?>";
+                    case "onAnimationStatusChanged" -> "ValueChanged<AnimationStatus>";
+                    default -> throw new IllegalStateException(name);
+                };
+                var values = new ArrayList<PropertyValueConstraint>();
+                if (name.equals("alignmentOffset")) values.add(new PropertyValueConstraint.OffsetValues());
+                values.add(new PropertyValueConstraint.DartObjectReferenceValues(type)); values.addAll(any(PropertyValueKind.NULL)); constraints = List.copyOf(values);
+            }
+            properties.add(namedProperty(name, properties.size(), false, constraints));
+        }
+        return widget(SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.value(), "SubmenuButton", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 350, "SubmenuButton"), properties,
+                List.of(singleSlot("child", 721, true, 0, ANY_WIDGET), singleSlot("leadingIcon", 722, false, 0, ANY_WIDGET),
+                        singleSlot("trailingIcon", 723, false, 0, ANY_WIDGET), listSlot("menuChildren", 724, true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition menuBar() {
+        WidgetDefinition menu = menuAnchor();
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : MenuBarWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            if (MenuBarWidgetPropertySchema.localStyleProperties().contains(name)) {
+                constraints = menu.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (name.equals("clipBehavior")) {
+                constraints = enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+            } else if (name.equals("controller")) {
+                var values = new ArrayList<PropertyValueConstraint>();
+                values.add(new PropertyValueConstraint.DartObjectReferenceValues("MenuController"));
+                values.addAll(any(PropertyValueKind.NULL));
+                constraints = List.copyOf(values);
+            } else if (name.equals("style")) {
+                var values = new ArrayList<PropertyValueConstraint>();
+                values.add(new PropertyValueConstraint.DartObjectReferenceValues("MenuStyle"));
+                values.addAll(any(PropertyValueKind.NULL));
+                constraints = List.copyOf(values);
+            } else {
+                throw new IllegalStateException("Unexpected MenuBar property: " + name);
+            }
+            properties.add(namedProperty(name, properties.size(), false, constraints));
+        }
+        return widget(MenuBarWidgetPropertySchema.MENU_BAR_TYPE.value(), "MenuBar", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 360, "MenuBar"), properties,
+                List.of(listSlot("children", MenuBarWidgetPropertySchema.FLATTENED_PROPERTY_COUNT,
+                        true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition navigationBar() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : NavigationBarWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "animationDurationUs" -> {
+                    constraints = new ArrayList<>(portableIntegers());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Duration"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "selectedIndex" -> constraints = cardNumbers(BigDecimal.ZERO, null).stream()
+                        .filter(value -> value.kind() == PropertyValueKind.INTEGER).toList();
+                case "onDestinationSelected" -> constraints = List.of(
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "backgroundColor", "shadowColor", "surfaceTintColor", "indicatorColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "elevation", "height" -> {
+                    constraints = new ArrayList<>(cardNumbers(null, null));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "indicatorShape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "labelBehavior" -> {
+                    constraints = new ArrayList<>(materialEnumValues(
+                        "NavigationDestinationLabelBehavior", "alwaysShow", "onlyShowSelected", "alwaysHide"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "overlayColor" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<Color?>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "labelTextStyle" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("WidgetStateProperty<TextStyle?>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "labelPadding" -> constraints = List.of(
+                        new PropertyValueConstraint.EdgeInsetsValues(true),
+                        new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "maintainBottomViewPadding" -> constraints = any(PropertyValueKind.BOOLEAN);
+                default -> throw new IllegalStateException("Unexpected NavigationBar property: " + name);
+            }
+            PropertyValue creation = name.equals("selectedIndex")
+                    ? new PropertyValue.IntegerValue(BigInteger.ZERO) : null;
+            properties.add(creation == null
+                    ? namedProperty(name, properties.size(), name.equals("selectedIndex"), constraints)
+                    : namedProperty(name, properties.size(), true, constraints, creation));
+        }
+        return widget(NavigationBarWidgetPropertySchema.NAVIGATION_BAR_TYPE.value(), "NavigationBar", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 370, "NavigationBar"), properties,
+                List.of(listSlot("destinations", NavigationBarWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT,
+                        true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition navigationRail() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : NavigationRailWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "backgroundColor", "indicatorColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "extended", "leadingAtTop", "trailingAtBottom", "scrollable" ->
+                        constraints = any(PropertyValueKind.BOOLEAN);
+                case "selectedIndex" -> {
+                    constraints = new ArrayList<>(nonNegativeIntegers());
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "onDestinationSelected" -> constraints = List.of(
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "elevation", "minWidth", "minExtendedWidth" -> {
+                    constraints = new ArrayList<>(positiveIntegers());
+                    constraints.addAll(positiveDoubles());
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "groupAlignment" -> {
+                    constraints = new ArrayList<>(cardNumbers(BigDecimal.ONE.negate(), BigDecimal.ONE));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "labelType" -> {
+                    constraints = new ArrayList<>(materialEnumValues(
+                            "NavigationRailLabelType", "none", "selected", "all"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "unselectedLabelTextStyle", "selectedLabelTextStyle" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("TextStyle"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "unselectedIconTheme", "selectedIconTheme" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("IconThemeData"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "useIndicator" -> {
+                    constraints = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "indicatorShape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "mainAxisAlignment" -> {
+                    constraints = new ArrayList<>(enumValues("MainAxisAlignment", "start", "end", "center",
+                            "spaceBetween", "spaceAround", "spaceEvenly"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                default -> throw new IllegalStateException("Unexpected NavigationRail property: " + name);
+            }
+            PropertyValue creation = name.equals("selectedIndex")
+                    ? new PropertyValue.IntegerValue(BigInteger.ZERO) : null;
+            properties.add(creation == null
+                    ? namedProperty(name,
+                            NavigationRailWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false,
+                            constraints)
+                    : namedProperty(name,
+                            NavigationRailWidgetPropertySchema.find(name).orElseThrow().dartOrder(), true,
+                            constraints, creation));
+        }
+        return widget(NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE.value(), "NavigationRail", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 380, "NavigationRail"), properties,
+                List.of(singleSlot("leading", 2, false, 0, ANY_WIDGET),
+                        singleSlot("trailing", 3, false, 0, ANY_WIDGET),
+                        listSlot("destinations", 4, true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition navigationDrawer() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : NavigationDrawerWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "backgroundColor", "shadowColor", "surfaceTintColor", "indicatorColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "elevation" -> {
+                    constraints = new ArrayList<>(cardNumbers(null, null));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "indicatorShape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "onDestinationSelected" -> constraints = List.of(
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "selectedIndex" -> {
+                    constraints = new ArrayList<>(nonNegativeIntegers());
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "tilePadding" -> constraints = List.of(
+                        new PropertyValueConstraint.EdgeInsetsValues(true),
+                        new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                default -> throw new IllegalStateException("Unexpected NavigationDrawer property: " + name);
+            }
+            PropertyValue creation = name.equals("selectedIndex")
+                    ? new PropertyValue.IntegerValue(BigInteger.ZERO) : null;
+            properties.add(creation == null
+                    ? namedProperty(name,
+                            NavigationDrawerWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false,
+                            constraints)
+                    : namedProperty(name,
+                            NavigationDrawerWidgetPropertySchema.find(name).orElseThrow().dartOrder(), true,
+                            constraints, creation));
+        }
+        return widget(NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE.value(), "NavigationDrawer", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 390, "NavigationDrawer"), properties,
+                List.of(singleSlot("header", 1, false, 0, ANY_WIDGET),
+                        singleSlot("footer", 2, false, 0, ANY_WIDGET),
+                        listSlot("children", 0, true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition drawer() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : DrawerWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "backgroundColor", "shadowColor", "surfaceTintColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "elevation", "width" -> {
+                    constraints = new ArrayList<>(cardNumbers(BigDecimal.ZERO, null));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "shape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "semanticLabel" -> {
+                    constraints = new ArrayList<>(any(PropertyValueKind.STRING));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "clipBehavior" -> {
+                    constraints = new ArrayList<>(enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                default -> throw new IllegalStateException("Unexpected Drawer property: " + name);
+            }
+            properties.add(namedProperty(name,
+                    DrawerWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false,
+                    constraints));
+        }
+        if (properties.size() != DrawerWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("Drawer catalog/property schema count mismatch");
+        }
+        return widget(DrawerWidgetPropertySchema.DRAWER_TYPE.value(), "Drawer", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 400, "Drawer"), properties,
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition bottomAppBar() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : BottomAppBarWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "color", "shadowColor", "surfaceTintColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "elevation", "height", "notchMargin" -> {
+                    constraints = new ArrayList<>(cardNumbers(BigDecimal.ZERO, null));
+                    if (name.equals("elevation") || name.equals("height")) {
+                        constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    }
+                }
+                case "shape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("NotchedShape"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "clipBehavior" -> constraints = enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                case "padding" -> constraints = List.of(
+                        new PropertyValueConstraint.EdgeInsetsValues(false),
+                        new PropertyValueConstraint.DartObjectReferenceValues("EdgeInsetsGeometry"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                default -> throw new IllegalStateException("Unexpected BottomAppBar property: " + name);
+            }
+            properties.add(namedProperty(name,
+                    BottomAppBarWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false,
+                    constraints));
+        }
+        if (properties.size() != BottomAppBarWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("BottomAppBar catalog/property schema count mismatch");
+        }
+        return widget(BottomAppBarWidgetPropertySchema.BOTTOM_APP_BAR_TYPE.value(), "BottomAppBar", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 410, "BottomAppBar"), properties,
+                List.of(singleSlot("child", 6, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition bottomNavigationBar() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : BottomNavigationBarWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "onTap" -> constraints = List.of(
+                        new PropertyValueConstraint.StringPattern("noop", "Explicit no-op callback"),
+                        new PropertyValueConstraint.CallbackReference(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("ValueChanged<int>"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "currentIndex" -> constraints = nonNegativeIntegers();
+                case "elevation", "iconSize", "selectedFontSize", "unselectedFontSize" -> {
+                    constraints = new ArrayList<>(cardNumbers(BigDecimal.ZERO, null));
+                    if (!name.equals("iconSize") && !name.equals("selectedFontSize") && !name.equals("unselectedFontSize")) {
+                        constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    }
+                }
+                case "barType" -> {
+                    constraints = new ArrayList<>(materialEnumValues(
+                            "BottomNavigationBarType", "fixed", "shifting"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "backgroundColor", "selectedItemColor", "unselectedItemColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "selectedIconTheme", "unselectedIconTheme" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("IconThemeData"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "selectedLabelStyle", "unselectedLabelStyle" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("TextStyle"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "showSelectedLabels", "showUnselectedLabels", "enableFeedback" -> {
+                    constraints = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "mouseCursor" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("MouseCursor"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "landscapeLayout" -> {
+                    constraints = new ArrayList<>(materialEnumValues(
+                            "BottomNavigationBarLandscapeLayout", "spread", "centered", "linear"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "useLegacyColorScheme" -> constraints = any(PropertyValueKind.BOOLEAN);
+                default -> throw new IllegalStateException("Unexpected BottomNavigationBar property: " + name);
+            }
+            PropertyValue creation = name.equals("currentIndex")
+                    ? new PropertyValue.IntegerValue(BigInteger.ZERO) : null;
+            properties.add(creation == null
+                    ? namedProperty(name, BottomNavigationBarWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false, constraints)
+                    : namedProperty(name, BottomNavigationBarWidgetPropertySchema.find(name).orElseThrow().dartOrder(), true, constraints, creation));
+        }
+        if (properties.size() != BottomNavigationBarWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("BottomNavigationBar catalog/property schema count mismatch");
+        }
+        return widget(BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE.value(), "BottomNavigationBar", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 420, "BottomNavigationBar"), properties,
+                List.of(listSlot("items", BottomNavigationBarWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT, true, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition material() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : MaterialWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            switch (name) {
+                case "materialType" -> constraints = materialEnumValues(
+                        "MaterialType", "canvas", "card", "circle", "button", "transparency");
+                case "elevation" -> constraints = nonNegativeNumbers();
+                case "color", "shadowColor", "surfaceTintColor" -> {
+                    constraints = new ArrayList<>(colorOrTheme());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Color"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                case "textStyle" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("TextStyle"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "borderRadius" -> constraints = List.of(
+                        new PropertyValueConstraint.BorderRadiusValues(),
+                        new PropertyValueConstraint.DartObjectReferenceValues("BorderRadiusGeometry"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "shape" -> constraints = List.of(
+                        new PropertyValueConstraint.DartObjectReferenceValues("ShapeBorder"),
+                        new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                case "borderOnForeground", "animateColor" -> constraints = any(PropertyValueKind.BOOLEAN);
+                case "clipBehavior" -> constraints = enumValues(
+                        "Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                case "animationDurationUs" -> {
+                    constraints = new ArrayList<>(portableIntegers());
+                    constraints.add(new PropertyValueConstraint.DartObjectReferenceValues("Duration"));
+                    constraints.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                }
+                default -> throw new IllegalStateException("Unexpected Material property: " + name);
+            }
+            properties.add(namedProperty(name,
+                    MaterialWidgetPropertySchema.find(name).orElseThrow().dartOrder(), false,
+                    constraints));
+        }
+        if (properties.size() != MaterialWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("Material catalog/property schema count mismatch");
+        }
+        return widget(MaterialWidgetPropertySchema.MATERIAL_TYPE.value(), "Material", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 430, "Material"), properties,
+                List.of(singleSlot("child", 11, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition scrollbar() {
+        List<PropertyDefinition> properties = new ArrayList<>();
+        properties.add(namedProperty("controller", 1, false, List.of(
+                new PropertyValueConstraint.DartObjectReferenceValues("ScrollController"),
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        properties.add(namedProperty("thumbVisibility", 2, false, nullableBoolean()));
+        properties.add(namedProperty("trackVisibility", 3, false, nullableBoolean()));
+        properties.add(namedProperty("thickness", 4, false, nullableNonNegativeNumbers()));
+        properties.add(namedProperty("radius", 5, false, List.of(
+                new PropertyValueConstraint.DartObjectReferenceValues("Radius"),
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        properties.add(namedProperty("notificationPredicate", 6, false, List.of(
+                new PropertyValueConstraint.DartObjectReferenceValues("ScrollNotificationPredicate"),
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        properties.add(namedProperty("interactive", 7, false, nullableBoolean()));
+        properties.add(namedProperty("scrollbarOrientation", 8, false, List.of(
+                new PropertyValueConstraint.EnumValues(
+                        new DartSymbolReference(WIDGETS_IMPORT, "ScrollbarOrientation"),
+                        List.of("left", "right", "top", "bottom")),
+                new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL))));
+        if (properties.size() != ScrollbarWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT) {
+            throw new ExceptionInInitializerError("Scrollbar catalog/property schema count mismatch");
+        }
+        return widget(ScrollbarWidgetPropertySchema.SCROLLBAR_TYPE.value(), "Scrollbar", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 440, "Scrollbar"), properties,
+                List.of(singleSlot("child", 0, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition menuAnchor() {
+        WidgetDefinition shared = textButton();
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : MenuAnchorWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            if (MenuAnchorWidgetPropertySchema.localStyleProperties().contains(name)) {
+                constraints = shared.property(new PropertyName(name)).orElseThrow().constraints();
+            } else if (List.of("anchorTapClosesMenu", "consumeOutsideTap", "crossAxisUnconstrained", "useRootOverlay", "animated").contains(name)) {
+                constraints = any(PropertyValueKind.BOOLEAN);
+            } else if (name.equals("clipBehavior")) {
+                constraints = enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+            } else {
+                String type = switch (name) {
+                    case "controller" -> "MenuController"; case "childFocusNode" -> "FocusNode";
+                    case "style" -> "MenuStyle"; case "alignmentOffset" -> "Offset";
+                    case "reservedPadding" -> "EdgeInsetsGeometry"; case "layerLink" -> "LayerLink";
+                    case "onOpen", "onClose" -> "VoidCallback";
+                    case "onAnimationStatusChanged" -> "ValueChanged<AnimationStatus>";
+                    case "builder" -> "MenuAnchorChildBuilder";
+                    default -> throw new IllegalStateException(name);
+                };
+                List<PropertyValueConstraint> values = new ArrayList<>();
+                if (name.equals("alignmentOffset")) values.add(new PropertyValueConstraint.OffsetValues());
+                if (name.equals("reservedPadding")) values.add(new PropertyValueConstraint.EdgeInsetsValues(false));
+                values.add(new PropertyValueConstraint.DartObjectReferenceValues(type));
+                values.addAll(any(PropertyValueKind.NULL)); constraints = List.copyOf(values);
+            }
+            properties.add(namedProperty(name, properties.size(), false, constraints));
+        }
+        return widget(MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.value(), "MenuAnchor", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
+                palette("flutter.material", 100, 340, "MenuAnchor"), properties,
+                List.of(listSlot("menuChildren", 219, true, ANY_WIDGET), singleSlot("child", 220, false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition menuItemButton() {
+        WidgetDefinition shared = textButton();
+        List<PropertyDefinition> properties = new ArrayList<>();
+        for (String name : MenuItemButtonWidgetPropertySchema.definitions().keySet()) {
+            List<PropertyValueConstraint> constraints;
+            if (MenuItemButtonWidgetPropertySchema.localStyleProperties().contains(name)) {
+                constraints = shared.property(new PropertyName(name)).orElseThrow().constraints();
+            } else {
+                constraints = switch (name) {
+                    case "enabled", "autofocus", "requestFocusOnHover", "closeOnActivate",
+                            "shortcutControl", "shortcutShift", "shortcutAlt", "shortcutMeta", "shortcutIncludeRepeats" -> any(PropertyValueKind.BOOLEAN);
+                    case "onPressed" -> List.of(new PropertyValueConstraint.DartObjectReferenceValues("VoidCallback"));
+                    case "onHover", "onFocusChange", "focusNode", "statesController", "style", "shortcut" -> {
+                        String type = switch (name) {
+                            case "onHover", "onFocusChange" -> "ValueChanged<bool>";
+                            case "focusNode" -> "FocusNode";
+                            case "statesController" -> "WidgetStatesController";
+                            case "style" -> "ButtonStyle";
+                            default -> "MenuSerializableShortcut";
+                        };
+                        List<PropertyValueConstraint> nullable = new ArrayList<>(List.of(new PropertyValueConstraint.DartObjectReferenceValues(type)));
+                        nullable.addAll(any(PropertyValueKind.NULL));
+                        yield List.copyOf(nullable);
+                    }
+                    case "semanticsLabel" -> List.of(new PropertyValueConstraint.AnyValue(PropertyValueKind.STRING), new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+                    case "shortcutCharacter" -> any(PropertyValueKind.STRING);
+                    case "shortcutTrigger" -> List.of(new PropertyValueConstraint.EnumValues(
+                            new DartSymbolReference(SERVICES_IMPORT, "LogicalKeyboardKey"), MenuShortcutKeyCatalog.names()));
+                    case "shortcutNumLock" -> enumValues("LockState", "ignored", "locked", "unlocked");
+                    case "clipBehavior" -> enumValues("Clip", "none", "hardEdge", "antiAlias", "antiAliasWithSaveLayer");
+                    case "overflowAxis" -> enumValues("Axis", "horizontal", "vertical");
+                    default -> throw new IllegalStateException("Unknown MenuItemButton property " + name);
+                };
+            }
+            properties.add(name.equals("enabled")
+                    ? namedProperty(name, properties.size(), true, constraints, new PropertyValue.BooleanValue(true))
+                    : namedProperty(name, properties.size(), false, constraints));
+        }
+        return widget(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.value(), "MenuItemButton", true,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, SERVICES_IMPORT), Set.of(),
+                palette("flutter.material", 100, 330, "MenuItemButton"), properties,
+                List.of(singleSlot("child", 520, false, 0, ANY_WIDGET),
+                        singleSlot("leadingIcon", 521, false, 0, ANY_WIDGET),
+                        singleSlot("trailingIcon", 522, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition fullStyleButton(String familyName) {
@@ -2956,7 +4877,8 @@ public final class BuiltInWidgetCatalog {
         WidgetDefinition shared = elevatedButton();
         for (PropertyDefinition property : shared.properties()) {
             if (ElevatedButtonWidgetPropertySchema.find(property.name()).orElseThrow().group()
-                    == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE) {
+                    == ElevatedButtonWidgetPropertySchema.Group.COMMON_STYLE
+                    && !ElevatedButtonWidgetPropertySchema.layerBuilderProperties().contains(property.name().value())) {
                 properties.add(namedProperty(property.name().value(), order++, false, property.constraints()));
             }
         }
@@ -3026,9 +4948,15 @@ public final class BuiltInWidgetCatalog {
                 stringPattern("(?:inkRipple|inkSplash|inkSparkle|noSplash)",
                         "ButtonStyle splash factory preset")));
 
-        if (properties.size() != 286) {
+        for (String name : ElevatedButtonWidgetPropertySchema.layerBuilderProperties()) {
+            properties.add(namedProperty(name, order++, false,
+                    List.of(new PropertyValueConstraint.DartObjectReferenceValues(
+                            ElevatedButtonWidgetPropertySchema.BUTTON_LAYER_BUILDER_TYPE))));
+        }
+
+        if (properties.size() != ElevatedButtonWidgetPropertySchema.FLATTENED_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
-                    "ElevatedButton schema must expose exactly 286 properties; actual="
+                    "ElevatedButton schema must expose exactly 288 properties; actual="
                     + properties.size());
         }
         return widget(
@@ -3324,6 +5252,29 @@ public final class BuiltInWidgetCatalog {
                 new PropertyValueConstraint.IntegerRange(
                         BigInteger.ZERO, DartNumericLiterals.MAX_PORTABLE_INTEGER),
                 new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, true, null, true));
+    }
+
+    private static List<PropertyValueConstraint> positiveNumbers() {
+        return List.of(
+                new PropertyValueConstraint.IntegerRange(
+                        BigInteger.ONE, DartNumericLiterals.MAX_PORTABLE_INTEGER),
+                new PropertyValueConstraint.DoubleRange(BigDecimal.ZERO, false, null, true));
+    }
+
+    private static List<PropertyValueConstraint> unboundedDoubles() {
+        return List.of(new PropertyValueConstraint.DoubleRange(null, true, null, true));
+    }
+
+    private static List<PropertyValueConstraint> nullableBoolean() {
+        List<PropertyValueConstraint> values = new ArrayList<>(any(PropertyValueKind.BOOLEAN));
+        values.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        return List.copyOf(values);
+    }
+
+    private static List<PropertyValueConstraint> nullableNonNegativeNumbers() {
+        List<PropertyValueConstraint> values = new ArrayList<>(nonNegativeNumbers());
+        values.add(new PropertyValueConstraint.AnyValue(PropertyValueKind.NULL));
+        return List.copyOf(values);
     }
 
     private static List<PropertyValueConstraint> nonNegativeIntegers() {

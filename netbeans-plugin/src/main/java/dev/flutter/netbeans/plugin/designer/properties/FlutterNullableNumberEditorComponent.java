@@ -49,7 +49,8 @@ final class FlutterNullableNumberEditorComponent {
 
         NullableNumberPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment); numberBinding = binding;
-            supportsInfinity = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NULLABLE_NUMBER_WITH_INFINITY;
+            supportsInfinity = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NULLABLE_NUMBER_WITH_INFINITY
+                    || binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NUMBER_WITH_INFINITY;
             secondaryTrack = binding.definition().name().value().equals("secondaryTrackValue");
             negativeInfinity = supportsInfinity && binding.definition().constraints().stream().anyMatch(constraint -> constraint instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues values && values.values().contains("negativeInfinity"));
             supportsNaN = supportsInfinity && binding.definition().constraints().stream().anyMatch(constraint -> constraint instanceof dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.EnumValues values && values.values().contains("nan"));
@@ -62,7 +63,18 @@ final class FlutterNullableNumberEditorComponent {
             getAccessibleContext().setAccessibleDescription(stateEntry
                     ? "Choose an omitted state entry, explicit inherited null, or a finite number" + (supportsInfinity ? " or positive Infinity" : "") + ". Explicit null stops lower-priority local states. Drafts remain local until OK."
                     : "Choose constructor omission, explicit inherited null, or a finite number. Drafts remain local until OK; Cancel preserves the original typed state.");
-            mode = new JComboBox<>(binding.optional() ? new String[]{omitLabel, nullLabel, NUMBER} : new String[]{nullLabel, NUMBER});
+            boolean nullable = binding.definition().acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL);
+            var modes = new java.util.ArrayList<String>();
+            if (binding.optional()) modes.add(omitLabel);
+            if (nullable) modes.add(nullLabel);
+            modes.add(NUMBER);
+            mode = new JComboBox<>(modes.toArray(String[]::new));
+            if (!nullable) {
+                getAccessibleContext().setAccessibleName(binding.definition().name().value() + (supportsInfinity ? " number or Infinity editor" : " finite number editor"));
+                getAccessibleContext().setAccessibleDescription(supportsInfinity
+                        ? "Edit an exact number or schema-approved Infinity. Numeric bounds still apply. Null and Dart expressions are not accepted in local mode; drafts stay local until OK."
+                        : "Edit an exact finite signed number. Null, Infinity, NaN and Dart expressions are not accepted; drafts stay local until OK.");
+            }
             if (secondaryTrack) getAccessibleContext().setAccessibleDescription("Choose omitted Secondary track value, explicit null with no secondary track, or an exact number including signed Infinity. Values must remain in range; drafts stay local until OK.");
             if (supportsNaN) getAccessibleContext().setAccessibleDescription("Choose omitted ListTile geometry, explicit inherited null, or an exact signed number including Infinity, -Infinity and NaN. Unsafe mounted geometry is reported by Canvas; drafts stay local until OK.");
             mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Numeric value source");
@@ -88,7 +100,7 @@ final class FlutterNullableNumberEditorComponent {
             number.setText(initial instanceof PropertyValue.IntegerValue integer ? integer.value().toString()
                     : initial instanceof PropertyValue.DoubleValue decimal ? decimal.value().toPlainString()
                     : supportsInfinity && initial instanceof PropertyValue.EnumValue enumValue ? enumValue.value().equals("nan") ? "NaN" : enumValue.value().equals("negativeInfinity") ? "-Infinity" : "Infinity" : "0");
-            mode.setSelectedItem(initial == null ? binding.optional() ? omitLabel : nullLabel : initial instanceof PropertyValue.NullValue ? nullLabel : NUMBER);
+            mode.setSelectedItem(initial == null ? binding.optional() ? omitLabel : nullable ? nullLabel : NUMBER : initial instanceof PropertyValue.NullValue ? nullLabel : NUMBER);
             mode.addActionListener(ignored -> refresh(true));
             number.getDocument().addDocumentListener(new DocumentListener() {
                 @Override public void insertUpdate(DocumentEvent event) { refresh(true); }

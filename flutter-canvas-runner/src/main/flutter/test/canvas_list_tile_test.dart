@@ -804,7 +804,7 @@ void main() {
     () {
       String block(String source) => source.substring(
         source.indexOf('W|$_type\n'),
-        source.indexOf('W|flutter.material.OutlinedButton\n'),
+        source.indexOf('W|flutter.material.Material\n'),
       );
       final actual = block(canvasRuntimeWidgetSchemaContractForTesting());
       expect(actual, block(canvasReviewedWidgetSchemaContract));

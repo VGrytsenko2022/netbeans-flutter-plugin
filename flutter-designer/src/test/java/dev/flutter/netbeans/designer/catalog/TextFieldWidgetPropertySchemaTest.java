@@ -27,14 +27,14 @@ class TextFieldWidgetPropertySchemaTest {
             "selectAllOnFocus", "onTap", "onTapAlwaysCalled", "onTapOutside",
             "onTapUpOutside", "mouseCursor", "clipBehavior", "restorationId",
             "stylusHandwritingEnabled", "enableIMEPersonalizedLearning",
-            "enableInlinePrediction", "canRequestFocus");
+            "enableInlinePrediction", "canRequestFocus", "buildCounter", "contextMenuBuilder");
 
     @Test
-    void exposesExactlyFiftyFourReviewedLeavesInPinnedConstructorOrder() {
-        assertEquals(54, TextFieldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT);
+    void exposesExactlyFiftySixReviewedLeavesRetainingTheOriginalConstructorOrder() {
+        assertEquals(56, TextFieldWidgetPropertySchema.CONSTRUCTOR_PROPERTY_COUNT);
         assertEquals(PROPERTY_NAMES,
                 List.copyOf(TextFieldWidgetPropertySchema.definitions().keySet()));
-        assertEquals(java.util.stream.IntStream.range(0, 54).boxed().toList(),
+        assertEquals(java.util.stream.IntStream.range(0, 56).boxed().toList(),
                 TextFieldWidgetPropertySchema.definitions().values().stream()
                         .map(TextFieldWidgetPropertySchema.Definition::dartOrder)
                         .toList());

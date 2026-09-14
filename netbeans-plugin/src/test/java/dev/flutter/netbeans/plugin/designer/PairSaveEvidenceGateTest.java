@@ -79,6 +79,22 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PairSaveEvidenceGateTest {
+    @Test void fadeInImageBothDurationsNeedExactTrustedCoreEvidence() throws Exception {
+        var fixture=fixture(Optional.empty(),true,List.of(),"flutter.widgets.FadeInImage","",
+            Map.of(new PropertyName("placeholder"),PropertyValue.ImageProviderValue.asset("assets/a.png"),
+                   new PropertyName("image"),PropertyValue.ImageProviderValue.asset("assets/b.png"),
+                   new PropertyName("fadeOutDurationUs"),new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(1000)),
+                   new PropertyName("fadeInDurationUs"),new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(2000))));
+        var sdk=fixture.flutterLib().getParent().getParent().getParent();
+        var core=sdk.resolve("bin/cache/dart-sdk/lib/core/duration.dart");Files.createDirectories(core.getParent());Files.writeString(core,"class Duration {}\n");
+        var model=new RadioFixture(fixture,sdk,core);var ticket=radioTicket(model);
+        var evidence=radioEvidence(model,ticket);
+        assertEquals(2,ticket.request().symbolProbes().stream().filter(p->p.expectedSymbolName().equals("Duration")).count());
+        assertTrue(ticket.accept(analysis(ticket,evidence)).ready());
+        var fresh=radioTicket(model);var bad=radioEvidence(model,fresh).stream().map(e->e.probe().expectedSymbolName().equals("Duration")?accepted(e.probe(),fixture.frameworkFile()):e).toList();
+        assertFalse(fresh.accept(analysis(fresh,bad)).ready());
+    }
+
     private static final ObjectMapper JSON = new ObjectMapper();
     private static final StableId DOCUMENT_ID = StableId.parse(
             "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa");
@@ -163,6 +179,34 @@ class PairSaveEvidenceGateTest {
         escaped[0] ^= 1;
         assertArrayEquals(fixture.prepared().prospectiveDartBytes(),
                 evidence.candidateDartBytes());
+    }
+
+    @Test
+    void statefulEvidenceRequiresBothExactScannerOwnedFlutterBaseClasses() throws Exception {
+        Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.ClipRRect",
+                "clipper", Map.of(), WidgetClassKind.STATEFUL);
+        List<DartSymbolEvidence> exact = fixture.acceptedEvidence();
+        assertEquals(List.of("StatefulWidget", "State", "Widget", "BuildContext", "Text"),
+                exact.stream().map(value -> value.probe().expectedSymbolName()).toList());
+        assertEquals("_HomePageState", fixture.prepared().dartTransition().candidateIntegrity()
+                .verifiedMemberClassName().orElseThrow());
+        assertTrue(analyze(fixture, fixture.current(), exact).ready());
+        assertAnalyzedRejected(analyze(fixture, fixture.current(), exact.stream()
+                .filter(value -> !value.probe().id().equals(GeneratedDartSymbolProbePlanner.STATE_SUPERCLASS_PROBE_ID))
+                .toList()), PairSaveEvidenceDiagnostic.Code.REQUIRED_STATE_PROBE_MISSING);
+        assertAnalyzedRejected(analyze(fixture, fixture.current(), exact.stream()
+                .filter(value -> !value.probe().id().equals(GeneratedDartSymbolProbePlanner.DESIGNER_SUPERCLASS_PROBE_ID))
+                .toList()), PairSaveEvidenceDiagnostic.Code.REQUIRED_STATEFUL_WIDGET_PROBE_MISSING);
+        ArrayList<DartSymbolEvidence> swapped = new ArrayList<>(exact);
+        java.util.Collections.swap(swapped, 0, 1);
+        assertAnalyzedRejected(analyze(fixture, fixture.current(), swapped),
+                PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        Path localShadow = fixture.projectRoot().resolve("lib/fake_state.dart");
+        Files.writeString(localShadow, "class State<T> {}\n");
+        ArrayList<DartSymbolEvidence> shadowed = new ArrayList<>(exact);
+        shadowed.set(1, accepted(exact.get(1).probe(), localShadow));
+        assertAnalyzedRejected(analyze(fixture, fixture.current(), shadowed),
+                PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
     }
 
     @Test
@@ -842,6 +886,552 @@ class PairSaveEvidenceGateTest {
                 == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
     }
 
+    @Test
+    void floatingHeaderDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : List.of("animationStyleDurationUs", "animationStyleReverseDurationUs")) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = floatingHeaderDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":sliver-floating-header-core-duration:" + property));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void floatingHeaderDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = floatingHeaderDurationFixture("animationStyleDurationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("sliver-floating-header-core-duration", "radio-core-duration");
+                case "leaf" -> original.id().replace("animationStyleDurationUs", "animationStyleReverseDurationUs");
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void floatingHeaderDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = floatingHeaderDurationFixture("animationStyleReverseDurationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void floatingHeaderDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = floatingHeaderDurationFixture("animationStyleDurationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture floatingHeaderDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.SliverFloatingHeader", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
+    @Test
+    void expansionDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : List.of("expansionAnimationStyleDurationUs", "expansionAnimationStyleReverseDurationUs")) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = expansionDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":expansion-tile-core-duration:" + property));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void expansionDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = expansionDurationFixture("expansionAnimationStyleDurationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("expansion-tile-core-duration", "radio-core-duration");
+                case "leaf" -> original.id().replace("expansionAnimationStyleDurationUs", "expansionAnimationStyleReverseDurationUs");
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void expansionDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = expansionDurationFixture("expansionAnimationStyleReverseDurationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void expansionDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = expansionDurationFixture("expansionAnimationStyleDurationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture expansionDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.ExpansionTile", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
+    @Test
+    void sliverAnimatedOpacityDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : List.of("durationUs")) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = sliverAnimatedOpacityDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":sliver-animated-opacity-duration"));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void sliverAnimatedOpacityDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = sliverAnimatedOpacityDurationFixture("durationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("sliver-animated-opacity-duration", "radio-core-duration");
+                case "leaf" -> original.id() + ":durationUs";
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void sliverAnimatedOpacityDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = sliverAnimatedOpacityDurationFixture("durationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void sliverAnimatedOpacityDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = sliverAnimatedOpacityDurationFixture("durationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture sliverAnimatedOpacityDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.SliverAnimatedOpacity", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
+    @Test
+    void tooltipDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : List.of("waitDurationUs", "showDurationUs", "exitDurationUs")) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = tooltipDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":tooltip-core-duration:" + property));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void tooltipDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = tooltipDurationFixture("waitDurationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("tooltip-core-duration", "radio-core-duration");
+                case "leaf" -> original.id().replace("waitDurationUs", "showDurationUs");
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void tooltipDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = tooltipDurationFixture("showDurationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void tooltipDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = tooltipDurationFixture("waitDurationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture tooltipDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.Tooltip", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
+    @Test
+    void tooltipThemeDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : List.of("waitDurationUs", "showDurationUs", "exitDurationUs")) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = tooltipThemeDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":tooltip-theme-core-duration:" + property));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void tooltipThemeDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = tooltipThemeDurationFixture("waitDurationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("tooltip-theme-core-duration", "radio-core-duration");
+                case "leaf" -> original.id().replace("waitDurationUs", "showDurationUs");
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void tooltipThemeDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = tooltipThemeDurationFixture("showDurationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void tooltipThemeDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = tooltipThemeDurationFixture("waitDurationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture tooltipThemeDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.TooltipTheme", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
+
+    @Test
+    void valueListenableCoreTypeOccurrencesRequireExactProofAndTrustedClassFile() throws Exception {
+        for (String type : List.of("String", "int", "double", "num", "bool", "Object")) {
+            var fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.ValueListenableBuilder", "",
+                    Map.of(new PropertyName("valueType"), new PropertyValue.StringValue(type),
+                        new PropertyName("valueListenable"), new PropertyValue.StringValue("constant"),
+                        new PropertyName("builder"), new PropertyValue.StringValue("child")));
+            var sdk = fixture.flutterLib().getParent().getParent().getParent();
+            var core = sdk.resolve("bin/cache/dart-sdk/lib/core/" + type.toLowerCase(java.util.Locale.ROOT) + ".dart");
+            Files.createDirectories(core.getParent());Files.writeString(core,"class " + type + " {}\n");
+            var model = new RadioFixture(fixture,sdk,core); var ticket = radioTicket(model);
+            assertEquals(2,ticket.request().symbolProbes().stream().filter(probe->probe.expectedLibraryUri().equals("dart:core")).count());
+            assertTrue(ticket.accept(analysis(ticket,radioEvidence(model,ticket))).ready());
+            for (var original : ticket.request().symbolProbes().stream().filter(probe->probe.expectedLibraryUri().equals("dart:core")).toList()) {
+                var forged = new DartSymbolProbe(original.id(),original.offset(),original.length(),original.expectedSymbolName(),
+                        original.expectedLibraryUri(),original.expectedTargetRoot(),original.expectedTargetKind(),Optional.empty());
+                var fresh=radioTicket(model);
+                var bad=radioEvidence(model,fresh).stream().map(value->value.probe().equals(original)?accepted(forged,core):value).toList();
+                assertAnalyzedRejected(fresh.accept(analysis(fresh,bad)),PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            }
+            var fresh=radioTicket(model);
+            var wrong=radioEvidence(model,fresh).stream().map(value->value.probe().expectedLibraryUri().equals("dart:core")
+                    ?accepted(value.probe(),fixture.frameworkFile()):value).toList();
+            assertFalse(fresh.accept(analysis(fresh,wrong)).ready());
+        }
+    }
+
+    @Test
+    void tweenAnimationCoreTypeOccurrencesRequireExactProofAndTrustedClassFile() throws Exception {
+        for (String type : List.of("String", "int", "double", "num", "bool", "Object")) {
+            var fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.TweenAnimationBuilder", "",
+                    Map.of(new PropertyName("valueType"), new PropertyValue.StringValue(type),
+                        new PropertyName("tween"), new PropertyValue.StringValue("default"),
+                        new PropertyName("builder"), new PropertyValue.StringValue("child"),
+                        new PropertyName("durationUs"), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(300000))));
+            var sdk = fixture.flutterLib().getParent().getParent().getParent();
+            var core = sdk.resolve("bin/cache/dart-sdk/lib/core/" + type.toLowerCase(java.util.Locale.ROOT) + ".dart");
+            Files.createDirectories(core.getParent());Files.writeString(core,"class " + type + " {}\n");
+            var duration=sdk.resolve("bin/cache/dart-sdk/lib/core/duration.dart");Files.writeString(duration,"class Duration {}\n");
+            var model = new RadioFixture(fixture,sdk,core); var ticket = radioTicket(model);
+            java.util.function.Function<PairCandidateAnalysisTicket,List<DartSymbolEvidence>> evidence = request ->
+                    request.request().symbolProbes().stream().map(probe -> accepted(probe,
+                            probe.expectedSymbolName().equals("Duration") ? duration
+                                    : probe.expectedLibraryUri().equals("dart:core") ? core : fixture.frameworkFile())).toList();
+            assertEquals(type.equals("int") ? 1 : 2,ticket.request().symbolProbes().stream().filter(probe->probe.expectedSymbolName().equals(type)).count());
+            assertTrue(ticket.accept(analysis(ticket,evidence.apply(ticket))).ready());
+            for (var original : ticket.request().symbolProbes().stream().filter(probe->probe.expectedSymbolName().equals(type)).toList()) {
+                var forged = new DartSymbolProbe(original.id(),original.offset(),original.length(),original.expectedSymbolName(),
+                        original.expectedLibraryUri(),original.expectedTargetRoot(),original.expectedTargetKind(),Optional.empty());
+                var fresh=radioTicket(model);
+                var bad=evidence.apply(fresh).stream().map(value->value.probe().equals(original)?accepted(forged,core):value).toList();
+                assertAnalyzedRejected(fresh.accept(analysis(fresh,bad)),PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            }
+            var fresh=radioTicket(model);
+            var wrong=evidence.apply(fresh).stream().map(value->value.probe().expectedLibraryUri().equals("dart:core")
+                    ?accepted(value.probe(),fixture.frameworkFile()):value).toList();
+            assertFalse(fresh.accept(analysis(fresh,wrong)).ready());
+        }
+    }
+
     private RadioFixture radioFixture(String type, boolean nullable, String variant, String tree) throws Exception {
         PropertyValue value = nullable ? new PropertyValue.NullValue() : switch (type) {
             case "int", "num" -> new PropertyValue.IntegerValue(java.math.BigInteger.ONE);
@@ -879,7 +1469,139 @@ class PairSaveEvidenceGateTest {
                 probe.expectedLibraryUri().equals("dart:core") ? radio.coreTarget() : radio.fixture().frameworkFile())).toList();
     }
 
+    @Test
+    void notificationSubtypeBoundIsManifestedEvenWithoutCallbackAndCannotBeDroppedOrForged() throws Exception {
+        for (PropertyValue typeValue : List.<PropertyValue>of(new PropertyValue.StringValue("ScrollNotification"),
+                new PropertyValue.DartObjectReferenceValue(Optional.of("package:evidence_gate_fixture/clippers.dart"),
+                        "ProjectClipper", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty()))) {
+            Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.NotificationListener", "notificationType",
+                    Map.of(new PropertyName("notificationType"), typeValue));
+            var ticket = ticket(fixture, fixture.current());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
+            var bound = ticket.request().symbolProbes().stream().filter(probe -> probe.staticTypeProbe()
+                    .filter(type -> type.sourceTypeBound().equals(Optional.of("Notification"))).isPresent()).findFirst().orElseThrow();
+            var type = bound.staticTypeProbe().orElseThrow();
+            assertEquals("Type", type.expectedDartType());
+            for (boolean removeBound : List.of(true, false)) {
+                var freshTicket = ticket(fixture, fixture.current());
+                var altered = new DartStaticTypeProbe(type.expressionOffset(), type.expressionLength(), type.importInsertionOffset(),
+                        type.statementInsertionOffset(), type.expectedDartType(), type.expectedTypeLibraryUri(),
+                        removeBound ? type.sourceTypeOverride() : Optional.of("Notification"),
+                        removeBound ? Optional.empty() : type.sourceTypeBound());
+                var forged = new DartSymbolProbe(bound.id(), bound.offset(), bound.length(), bound.expectedSymbolName(),
+                        bound.expectedLibraryUri(), bound.expectedTargetRoot(), bound.expectedTargetKind(), Optional.of(altered));
+                var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(bound)
+                        ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                                Optional.of(new DartStaticTypeEvidence(altered, true, Optional.empty()))) : value).toList();
+                assertAnalyzedRejected(freshTicket.accept(analysis(freshTicket, evidence)),
+                        PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            }
+        }
+    }
+
     private record RadioFixture(Fixture fixture, Path sdk, Path coreTarget) {}
+
+    @Test
+    void dartUiPointerKindsRequireEveryExactGeneratedOccurrenceAndRejectUriLookalikes() throws Exception {
+        DartUiFixture ui = dartUiFixture();
+        var ticket = dartUiTicket(ui);
+        var evidence = dartUiEvidence(ui, ticket);
+        assertEquals(3, evidence.stream().filter(value -> value.probe().expectedLibraryUri().equals("dart:ui")).count(),
+                "The set type and both enum values retain separate analyzer evidence");
+        assertTrue(ticket.request().symbolProbes().stream().filter(probe -> probe.expectedLibraryUri().equals("dart:ui"))
+                .allMatch(probe -> probe.expectedTargetRoot().equals(ui.sdk()) && probe.expectedSymbolName().equals("PointerDeviceKind")));
+        var accepted = ticket.accept(analysis(ticket, evidence));
+        assertTrue(accepted.ready(), () -> accepted.diagnostics().toString());
+        assertTrue(PairSaveEvidenceGate.bindApplied(accepted.analyzedOptional().orElseThrow(), ui.fixture().live()).ready());
+
+        var missingTicket = dartUiTicket(ui);
+        var missing = dartUiEvidence(ui, missingTicket).stream()
+                .filter(value -> !value.probe().expectedLibraryUri().equals("dart:ui")).toList();
+        assertAnalyzedRejected(missingTicket.accept(analysis(missingTicket, missing)),
+                PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        for (String lookalike : List.of("dart:ui_evil", "dart:ui/", "package:ui/painting.dart")) {
+            var maliciousTicket = dartUiTicket(ui);
+            var malicious = dartUiEvidence(ui, maliciousTicket).stream().map(value -> {
+                var original = value.probe();
+                if (!original.expectedLibraryUri().equals("dart:ui")) return value;
+                var changed = new DartSymbolProbe(original.id(), original.offset(), original.length(), original.expectedSymbolName(),
+                        lookalike, original.expectedTargetRoot(), original.expectedTargetKind(), original.staticTypeProbe());
+                return accepted(changed, ui.uiTarget());
+            }).toList();
+            assertAnalyzedRejected(maliciousTicket.accept(analysis(maliciousTicket, malicious)),
+                    PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        }
+    }
+
+    @Test
+    void dartUiExactProbesRejectNavigationOrDeclaredRootOutsideTheTrustedSdk() throws Exception {
+        DartUiFixture ui = dartUiFixture();
+        Path outsideRoot = Files.createDirectories(ui.sdk().resolveSibling("flutter-evil"));
+        Path outsideTarget = outsideRoot.resolve("pointer.dart");
+        Files.writeString(outsideTarget, "enum PointerDeviceKind { touch, mouse }\n");
+        var navigationTicket = dartUiTicket(ui);
+        var navigation = dartUiEvidence(ui, navigationTicket).stream().map(value ->
+                value.probe().expectedLibraryUri().equals("dart:ui") ? accepted(value.probe(), outsideTarget) : value).toList();
+        assertAnalyzedRejected(navigationTicket.accept(analysis(navigationTicket, navigation)),
+                PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+
+        var rootTicket = dartUiTicket(ui);
+        var forgedRoot = dartUiEvidence(ui, rootTicket).stream().map(value -> {
+            var original = value.probe();
+            if (!original.expectedLibraryUri().equals("dart:ui")) return value;
+            var changed = new DartSymbolProbe(original.id(), original.offset(), original.length(), original.expectedSymbolName(),
+                    original.expectedLibraryUri(), outsideRoot, original.expectedTargetKind(), original.staticTypeProbe());
+            return accepted(changed, outsideTarget);
+        }).toList();
+        var rejected = rootTicket.accept(analysis(rootTicket, forgedRoot));
+        assertAnalyzedRejected(rejected, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        assertAnalyzedRejected(rejected, PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        assertAnalyzedRejected(rejected, PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+    }
+
+    @Test
+    void dartUiNavigationIsRevalidatedWhenBindingAfterCandidateAnalysis() throws Exception {
+        DartUiFixture ui = dartUiFixture();
+        var ticket = dartUiTicket(ui);
+        var analyzed = ticket.accept(analysis(ticket, dartUiEvidence(ui, ticket)));
+        assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
+        Files.delete(ui.uiTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(analyzed.analyzedOptional().orElseThrow(), ui.fixture().live());
+        assertFalse(bound.ready());
+        assertEquals(ticket.request().symbolProbes().stream()
+                .filter(probe -> probe.expectedLibraryUri().equals("dart:ui"))
+                .map(probe -> "analysis.symbolEvidence." + probe.id() + ".target").toList(),
+                bound.diagnostics().stream().map(PairSaveEvidenceDiagnostic::subject).toList());
+        assertTrue(bound.diagnostics().stream().allMatch(diagnostic ->
+                diagnostic.code() == PairSaveEvidenceDiagnostic.Code.PATH_VALIDATION_FAILED),
+                () -> bound.diagnostics().toString());
+    }
+
+    private DartUiFixture dartUiFixture() throws Exception {
+        var devices = new PropertyValue.PointerDeviceKindSetValue(List.of(
+                PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.TOUCH,
+                PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.MOUSE));
+        Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.GestureDetector", "",
+                Map.of(new PropertyName("supportedDevices"), devices));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve("bin/cache/pkg/sky_engine/lib/ui/pointer.dart");
+        Files.createDirectories(target.getParent());
+        Files.writeString(target, "enum PointerDeviceKind { touch, mouse }\n");
+        return new DartUiFixture(fixture, sdk, target);
+    }
+
+    private PairCandidateAnalysisTicket dartUiTicket(DartUiFixture ui) throws IOException {
+        Fixture fixture = ui.fixture();
+        return PairSaveEvidenceGate.prepareAnalysis(fixture.current(), fixture.prepared(), fixture.projectRoot(),
+                fixture.dartFile(), DartCandidateWarningPolicy.ALLOW, ui.sdk());
+    }
+
+    private static List<DartSymbolEvidence> dartUiEvidence(DartUiFixture ui, PairCandidateAnalysisTicket ticket) {
+        return ticket.request().symbolProbes().stream().map(probe -> accepted(probe,
+                probe.expectedLibraryUri().equals("dart:ui") ? ui.uiTarget() : ui.fixture().frameworkFile())).toList();
+    }
+
+    private record DartUiFixture(Fixture fixture, Path sdk, Path uiTarget) {}
 
     @Test
     void refreshFunctionProofLibraryCoversMixedWidgetReferencesWithoutChangingNavigation() throws Exception {
@@ -909,6 +1631,213 @@ class PairSaveEvidenceGateTest {
                 assertTrue(analyzed.ready(), () -> analyzed.diagnostics().toString());
                 assertTrue(PairSaveEvidenceGate.bindApplied(analyzed.analyzedOptional().orElseThrow(), fixture.live()).ready());
             }
+        }
+    }
+
+    @Test
+    void scaffoldAnonymousBuilderRequiresExactSignatureAndUnchangedProjectNavigation() throws Exception {
+        String signature = "Widget? Function(BuildContext, Animation<double>)";
+        for (boolean imported : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredScrim", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.Scaffold", "bottomSheetScrimBuilder");
+            var ticket = ticket(fixture, fixture.current());
+            var builder = ticket.request().symbolProbes().stream().filter(probe -> probe.expectedSymbolName().equals("configuredScrim"))
+                    .findFirst().orElseThrow();
+            assertEquals(signature, builder.staticTypeProbe().orElseThrow().expectedDartType());
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", builder.expectedLibraryUri());
+            assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), builder.expectedTargetRoot());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
+            var fresh = ticket(fixture, fixture.current());
+            var original = builder.staticTypeProbe().orElseThrow();
+            var wrongType = new DartStaticTypeProbe(original.expressionOffset(), original.expressionLength(), original.importInsertionOffset(),
+                    original.statementInsertionOffset(), "WidgetBuilder", original.expectedTypeLibraryUri());
+            var forged = new DartSymbolProbe(builder.id(), builder.offset(), builder.length(), builder.expectedSymbolName(),
+                    builder.expectedLibraryUri(), builder.expectedTargetRoot(), builder.expectedTargetKind(), Optional.of(wrongType));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                            Optional.of(new DartStaticTypeEvidence(wrongType, true, Optional.empty()))) : value).toList();
+            assertAnalyzedRejected(fresh.accept(analysis(fresh, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        }
+    }
+
+    @Test
+    void appBarPredicateRequiresExactSignatureAndUnchangedProjectNavigation() throws Exception {
+        String signature = "ScrollNotificationPredicate";
+        for (boolean imported : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredPredicate", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.AppBar", "notificationPredicate");
+            var ticket = ticket(fixture, fixture.current());
+            var builder = ticket.request().symbolProbes().stream().filter(probe -> probe.expectedSymbolName().equals("configuredPredicate"))
+                    .findFirst().orElseThrow();
+            assertEquals(signature, builder.staticTypeProbe().orElseThrow().expectedDartType());
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", builder.expectedLibraryUri());
+            assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), builder.expectedTargetRoot());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
+            var fresh = ticket(fixture, fixture.current());
+            var original = builder.staticTypeProbe().orElseThrow();
+            var wrongType = new DartStaticTypeProbe(original.expressionOffset(), original.expressionLength(), original.importInsertionOffset(),
+                    original.statementInsertionOffset(), "WidgetBuilder", original.expectedTypeLibraryUri());
+            var forged = new DartSymbolProbe(builder.id(), builder.offset(), builder.length(), builder.expectedSymbolName(),
+                    builder.expectedLibraryUri(), builder.expectedTargetRoot(), builder.expectedTargetKind(), Optional.of(wrongType));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                            Optional.of(new DartStaticTypeEvidence(wrongType, true, Optional.empty()))) : value).toList();
+            assertAnalyzedRejected(fresh.accept(analysis(fresh, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        }
+    }
+
+    @Test
+    void elevatedLayerBuildersRequireExactSignaturesAndUnchangedProjectNavigation() throws Exception {
+        String signature = "ButtonLayerBuilder";
+        for (String property : List.of("styleBackgroundBuilder", "styleForegroundBuilder")) for (boolean imported : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredLayer", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.ElevatedButton", property);
+            var ticket = ticket(fixture, fixture.current());
+            var builder = ticket.request().symbolProbes().stream().filter(probe -> probe.expectedSymbolName().equals("configuredLayer"))
+                    .findFirst().orElseThrow();
+            assertEquals(signature, builder.staticTypeProbe().orElseThrow().expectedDartType());
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", builder.expectedLibraryUri());
+            assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), builder.expectedTargetRoot());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
+            var fresh = ticket(fixture, fixture.current());
+            var original = builder.staticTypeProbe().orElseThrow();
+            var wrongType = new DartStaticTypeProbe(original.expressionOffset(), original.expressionLength(), original.importInsertionOffset(),
+                    original.statementInsertionOffset(), "WidgetBuilder", original.expectedTypeLibraryUri());
+            var forged = new DartSymbolProbe(builder.id(), builder.offset(), builder.length(), builder.expectedSymbolName(),
+                    builder.expectedLibraryUri(), builder.expectedTargetRoot(), builder.expectedTargetKind(), Optional.of(wrongType));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                            Optional.of(new DartStaticTypeEvidence(wrongType, true, Optional.empty()))) : value).toList();
+            assertAnalyzedRejected(fresh.accept(analysis(fresh, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        }
+    }
+
+    @Test
+    void textFieldBuildersRequireExactNullableSignaturesAndUnchangedProjectNavigation() throws Exception {
+        for (String property : List.of("buildCounter", "contextMenuBuilder")) for (boolean imported : List.of(false, true)) {
+            String signature = property.equals("buildCounter") ? "InputCounterWidgetBuilder?" : "EditableTextContextMenuBuilder?";
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredBuilder", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.material.TextField", property);
+            var ticket = ticket(fixture, fixture.current());
+            var builder = ticket.request().symbolProbes().stream().filter(probe -> probe.expectedSymbolName().equals("configuredBuilder"))
+                    .findFirst().orElseThrow();
+            assertEquals(signature, builder.staticTypeProbe().orElseThrow().expectedDartType());
+            assertEquals(property.equals("buildCounter") ? "package:flutter/material.dart" : "package:flutter/widgets.dart",
+                    builder.staticTypeProbe().orElseThrow().expectedTypeLibraryUri());
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", builder.expectedLibraryUri());
+            assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), builder.expectedTargetRoot());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
+            var fresh = ticket(fixture, fixture.current());
+            var original = builder.staticTypeProbe().orElseThrow();
+            var wrongType = new DartStaticTypeProbe(original.expressionOffset(), original.expressionLength(), original.importInsertionOffset(),
+                    original.statementInsertionOffset(), "WidgetBuilder", original.expectedTypeLibraryUri());
+            var forged = new DartSymbolProbe(builder.id(), builder.offset(), builder.length(), builder.expectedSymbolName(),
+                    builder.expectedLibraryUri(), builder.expectedTargetRoot(), builder.expectedTargetKind(), Optional.of(wrongType));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                            Optional.of(new DartStaticTypeEvidence(wrongType, true, Optional.empty()))) : value).toList();
+            assertAnalyzedRejected(fresh.accept(analysis(fresh, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+        }
+    }
+
+    @Test
+    void listViewItemExtentBuilderRequiresExactNullableProofAndUnchangedProjectNavigation() throws Exception {
+        for (boolean imported : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredExtent", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            Fixture fixture = fixture(Optional.of(reference), true, List.of(), "flutter.widgets.ListView", "itemExtentBuilder");
+            var ticket = ticket(fixture, fixture.current());
+            var builder = ticket.request().symbolProbes().stream().filter(probe -> probe.expectedSymbolName().equals("configuredExtent"))
+                    .findFirst().orElseThrow();
+            var original = builder.staticTypeProbe().orElseThrow();
+            assertEquals("ItemExtentBuilder?", original.expectedDartType());
+            // Widgets owns ListView; the analyzer resolves the typedef through its fixed Rendering import.
+            assertEquals("package:flutter/widgets.dart", original.expectedTypeLibraryUri());
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", builder.expectedLibraryUri());
+            assertEquals(fixture.projectRoot().resolve("lib").toRealPath(), builder.expectedTargetRoot());
+            assertTrue(original.sourceTypeOverride().isEmpty());
+            assertTrue(original.sourceTypeBound().isEmpty());
+            var accepted = ticket.accept(analysis(ticket, fixture.acceptedEvidence()));
+            assertTrue(accepted.ready(), accepted.diagnostics().toString());
+            assertTrue(PairSaveEvidenceGate.bindApplied(accepted.analyzedOptional().orElseThrow(), fixture.live()).ready());
+            var fresh = ticket(fixture, fixture.current());
+            var wrongType = new DartStaticTypeProbe(original.expressionOffset(), original.expressionLength(), original.importInsertionOffset(),
+                    original.statementInsertionOffset(), "ItemExtentBuilder", original.expectedTypeLibraryUri());
+            var forged = new DartSymbolProbe(builder.id(), builder.offset(), builder.length(), builder.expectedSymbolName(),
+                    builder.expectedLibraryUri(), builder.expectedTargetRoot(), builder.expectedTargetKind(), Optional.of(wrongType));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? new DartSymbolEvidence(forged, value.targets(), true, Optional.empty(),
+                            Optional.of(new DartStaticTypeEvidence(wrongType, true, Optional.empty()))) : value).toList();
+            assertAnalyzedRejected(fresh.accept(analysis(fresh, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            Path outsideTarget = Files.createDirectories(temporaryDirectory.resolve("outside-project")).resolve("extent.dart");
+            Files.writeString(outsideTarget, "Object configuredExtent = Object();\n");
+            var navigationTicket = ticket(fixture, fixture.current());
+            var navigation = fixture.acceptedEvidence().stream().map(value -> value.probe().equals(builder)
+                    ? accepted(value.probe(), outsideTarget) : value).toList();
+            assertAnalyzedRejected(navigationTicket.accept(analysis(navigationTicket, navigation)),
+                    PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+    }
+
+    @Test
+    void tooltipThemeDataReferencesUseMaterialProofAndRejectStaleWidgetsEvidence() throws Exception {
+        for (boolean imported : List.of(false, true)) for (boolean member : List.of(false, true)) for (boolean factory : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredTheme", member ? Optional.of("value") : Optional.empty(),
+                    factory ? PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION : PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                    factory ? Optional.of(false) : Optional.empty());
+            Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.TooltipTheme", "data",
+                    Map.of(new PropertyName("data"), reference));
+            PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+            var typed = ticket.request().symbolProbes().stream().flatMap(probe -> probe.staticTypeProbe().stream()).toList();
+            assertEquals(1, typed.size());
+            assertEquals("TooltipThemeData", typed.getFirst().expectedDartType());
+            assertEquals("package:flutter/material.dart", typed.getFirst().expectedTypeLibraryUri());
+            DartSymbolEvidence original = fixture.acceptedEvidence().stream()
+                    .filter(value -> value.probe().staticTypeProbe().isPresent()).findFirst().orElseThrow();
+            var probe = original.probe(); var type = probe.staticTypeProbe().orElseThrow();
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", probe.expectedLibraryUri());
+            var staleType = new DartStaticTypeProbe(type.expressionOffset(), type.expressionLength(), type.importInsertionOffset(),
+                    type.statementInsertionOffset(), type.expectedDartType(), "package:flutter/widgets.dart");
+            var staleProbe = new DartSymbolProbe(probe.id(), probe.offset(), probe.length(), probe.expectedSymbolName(),
+                    probe.expectedLibraryUri(), probe.expectedTargetRoot(), probe.expectedTargetKind(), Optional.of(staleType));
+            var staleEvidence = new DartSymbolEvidence(staleProbe, original.targets(), true, Optional.empty(),
+                    Optional.of(new DartStaticTypeEvidence(staleType, true, Optional.empty())));
+            var evidence = fixture.acceptedEvidence().stream().map(value -> value == original ? staleEvidence : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            var exactTicket = ticket(fixture, fixture.current());
+            assertTrue(exactTicket.accept(analysis(exactTicket, fixture.acceptedEvidence())).ready());
+        }
+    }
+
+    @Test
+    void animatedIconReferencesUseMaterialProofWithoutChangingNavigationRoots() throws Exception {
+        for (boolean imported : List.of(false, true)) for (boolean member : List.of(false, true)) for (boolean factory : List.of(false, true)) {
+            var reference = new PropertyValue.DartObjectReferenceValue(
+                    imported ? Optional.of("package:" + PROJECT_PACKAGE_NAME + "/clippers.dart") : Optional.empty(),
+                    "configuredIcon", member ? Optional.of("value") : Optional.empty(),
+                    factory ? PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION : PropertyValue.DartObjectReferenceValue.Access.REFERENCE,
+                    factory ? Optional.of(false) : Optional.empty());
+            Fixture fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.AnimatedIcon", "icon",
+                    Map.of(new PropertyName("icon"), reference, new PropertyName("progress"), new PropertyValue.DoubleValue(java.math.BigDecimal.ZERO)));
+            PairCandidateAnalysisTicket ticket = ticket(fixture, fixture.current());
+            var typed = ticket.request().symbolProbes().stream().flatMap(probe -> probe.staticTypeProbe().stream()).toList();
+            assertEquals(1, typed.size());
+            assertEquals("AnimatedIconData", typed.getFirst().expectedDartType());
+            assertEquals("package:flutter/material.dart", typed.getFirst().expectedTypeLibraryUri());
+            var probe = ticket.request().symbolProbes().stream().filter(value -> value.staticTypeProbe().isPresent()).findFirst().orElseThrow();
+            assertEquals(imported ? "package:" + PROJECT_PACKAGE_NAME + "/clippers.dart" : "project:current", probe.expectedLibraryUri());
+            assertTrue(ticket.accept(analysis(ticket, fixture.acceptedEvidence())).ready());
         }
     }
 
@@ -1656,6 +2585,17 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) throws Exception {
+        return fixture(projectReference, createProjectLibrary, declaredPackages,
+                widgetType, propertyName, radioProperties, WidgetClassKind.STATELESS);
+    }
+
+    private Fixture fixture(
+            Optional<PropertyValue.DartObjectReferenceValue> projectReference,
+            boolean createProjectLibrary,
+            List<DeclaredPackage> declaredPackages,
+            String widgetType,
+            String propertyName,
+            Map<PropertyName, PropertyValue> radioProperties, WidgetClassKind kind) throws Exception {
         Path projectRoot = Files.createDirectories(
                 temporaryDirectory.resolve("project"));
         Files.writeString(projectRoot.resolve("pubspec.yaml"),
@@ -1682,20 +2622,20 @@ class PairSaveEvidenceGateTest {
                 StandardCharsets.UTF_8);
 
         DartRegionGenerator generator = new DartRegionGenerator();
-        DartSourceDescriptor seedDescriptor = descriptor("", "");
+        DartSourceDescriptor seedDescriptor = withKind(descriptor("", ""), kind);
         GeneratedDartRegions generatedBefore = generator.generate(
                 document(seedDescriptor, "before"),
                 BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
-        DartSourceDescriptor baselineDescriptor = descriptor(
+        DartSourceDescriptor baselineDescriptor = withKind(descriptor(
                 generatedBefore.imports().payload(),
-                generatedBefore.build().payload());
+                generatedBefore.build().payload()), kind);
         DesignerDocument baselineDocument = document(
                 baselineDescriptor, "before");
         DartGenerationResult baselineGeneration = generator.generate(
                 baselineDocument, BuiltInWidgetCatalog.getDefault());
         byte[] baselineSource = sourceBytes(
                 generatedBefore.imports().payload(),
-                generatedBefore.build().payload());
+                generatedBefore.build().payload(), kind);
         Files.write(dartFile, baselineSource);
         DartSourceIntegrityScanner scanner = new DartSourceIntegrityScanner();
         DartSourceIntegrityResult sourceIntegrity = scanner.scan(
@@ -2010,8 +2950,64 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) {
-        if (widgetType.equals("flutter.material.Radio") || widgetType.equals("flutter.widgets.RadioGroup")) {
-            var slots = widgetType.equals("flutter.widgets.RadioGroup")
+        if (widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    radioProperties, Map.of()));
+        }
+        if (widgetType.equals("flutter.widgets.SliverFloatingHeader")) {
+            var def=BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId(widgetType)).orElseThrow();
+            var seed=dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(def,StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
+            var sliver=new WidgetNode(seed.id(),seed.type(),radioProperties,seed.slots());
+            var viewport=new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                    new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                    Map.of(new SlotName("slivers"),new WidgetSlot.ListSlot(List.of(sliver))));
+            return new DesignerDocument(DOCUMENT_ID,descriptor,viewport);
+        }
+        if (widgetType.equals("flutter.widgets.SliverAnimatedOpacity")) {
+            var properties=new java.util.LinkedHashMap<PropertyName,PropertyValue>(radioProperties);
+            properties.put(new PropertyName("opacity"),new PropertyValue.DoubleValue(java.math.BigDecimal.ONE));
+            var sliver=new WidgetNode(StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
+                new WidgetTypeId(widgetType),properties,Map.of());
+            var viewport=new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                new WidgetTypeId("flutter.widgets.CustomScrollView"),Map.of(),
+                Map.of(new SlotName("slivers"),new WidgetSlot.ListSlot(List.of(sliver))));
+            return new DesignerDocument(DOCUMENT_ID,descriptor,viewport);
+        }
+        if (widgetType.equals("flutter.material.AnimatedIcon") || widgetType.equals("flutter.widgets.FadeInImage")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    radioProperties, Map.of()));
+        }
+        if (widgetType.equals("flutter.material.TooltipTheme")) {
+            var child = new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                    new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue(text)), Map.of());
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    radioProperties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.of(child))));
+        }
+        if (widgetType.equals("flutter.material.Tooltip")) {
+            var properties = new java.util.LinkedHashMap<PropertyName, PropertyValue>(radioProperties);
+            properties.put(new PropertyName("message"), new PropertyValue.StringValue(text));
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    properties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())));
+        }
+        if (widgetType.equals("flutter.material.ExpansionTile")) {
+            var title = new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
+                    new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue(text)), Map.of());
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    radioProperties, Map.of(new SlotName("title"), WidgetSlot.SingleSlot.of(title))));
+        }
+        if (widgetType.equals("flutter.widgets.GestureDetector")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    radioProperties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())));
+        }
+        if (widgetType.equals("flutter.material.Radio") || widgetType.equals("flutter.widgets.RadioGroup")
+                || widgetType.equals("flutter.widgets.NotificationListener")) {
+            var slots = !widgetType.equals("flutter.material.Radio")
                     ? Map.of(new SlotName("child"), (WidgetSlot) new WidgetSlot.SingleSlot(Optional.of(
                             new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"),
                                     new WidgetTypeId("flutter.widgets.Text"),
@@ -2023,6 +3019,31 @@ class PairSaveEvidenceGateTest {
         }
         if (projectReference.isEmpty()) {
             return document(descriptor, text);
+        }
+        if (widgetType.equals("flutter.material.ElevatedButton")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    Map.of(new PropertyName(propertyName), projectReference.orElseThrow()),
+                    Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty())));
+        }
+        if (widgetType.equals("flutter.material.AppBar") || widgetType.equals("flutter.material.TextField")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    Map.of(new PropertyName(propertyName), projectReference.orElseThrow()), Map.of()));
+        }
+        if (widgetType.equals("flutter.widgets.ListView")) {
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    Map.of(new PropertyName(propertyName), projectReference.orElseThrow()),
+                    Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of()))));
+        }
+        if (widgetType.equals("flutter.material.Scaffold")) {
+            var body = new WidgetNode(StableId.parse("cccccccc-cccc-4ccc-8ccc-cccccccccccc"), new WidgetTypeId("flutter.widgets.Text"),
+                    Map.of(new PropertyName("data"), new PropertyValue.StringValue(text)), Map.of());
+            return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
+                    StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
+                    Map.of(new PropertyName(propertyName), projectReference.orElseThrow()),
+                    Map.of(new SlotName("body"), WidgetSlot.SingleSlot.of(body))));
         }
         if (widgetType.equals("flutter.material.RefreshIndicator") || widgetType.equals("flutter.material.TextButton")) {
             var animation = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "configuredAnimation",
@@ -2097,10 +3118,23 @@ class PairSaveEvidenceGateTest {
     }
 
     private static byte[] sourceBytes(String imports, String build) {
+        return sourceBytes(imports, build, WidgetClassKind.STATELESS);
+    }
+
+    private static DartSourceDescriptor withKind(DartSourceDescriptor source, WidgetClassKind kind) {
+        return new DartSourceDescriptor(source.dartFile(), source.className(), kind,
+                source.generatorVersion(), source.managedRegions());
+    }
+
+    private static byte[] sourceBytes(String imports, String build, WidgetClassKind kind) {
         return ("// <netbeans-flutter-designer region=\"imports\">\n"
                 + imports
                 + "// </netbeans-flutter-designer>\n\n"
-                + "class HomePage extends StatelessWidget {\n"
+                + (kind == WidgetClassKind.STATELESS ? "class HomePage extends StatelessWidget {\n"
+                        : "class HomePage extends StatefulWidget {\n"
+                        + "  const HomePage({super.key});\n"
+                        + "  @override\n  State<HomePage> createState() => _HomePageState();\n}\n\n"
+                        + "class _HomePageState extends State<HomePage> {\n")
                 + "  // <netbeans-flutter-designer region=\"build\">\n"
                 + build
                 + "  // </netbeans-flutter-designer>\n"

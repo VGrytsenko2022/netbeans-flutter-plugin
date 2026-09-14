@@ -1,11 +1,13 @@
 package dev.flutter.netbeans.designer.command;
 
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
+import dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
+import dev.flutter.netbeans.designer.events.WidgetEventDescriptor;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
@@ -72,11 +74,23 @@ final class DesignerCommandTransformer {
             case SetProperty set -> setProperty(current, index, set);
             case ResetProperty reset -> resetProperty(current, index, reset);
             case PatchProperties patch -> patchProperties(current, index, patch);
+            case CreateEventHandler create -> createEventHandler(current, index, create);
+            case CreateMenuAnchorBuilder create -> createMenuAnchorBuilder(current, index, create);
+            case RenameEventHandler rename -> renameEventHandler(current, index, rename);
+            case CreateStateBinding create -> createStateBinding(current, index, create);
+            case RenameStateField rename -> renameStateField(current, index, rename);
+            case RemoveStateBinding remove -> removeStateBinding(current, index, remove);
+            case BindPropertyToState bind -> bindPropertyToState(current, index, bind);
+            case RemovePropertyStateBinding remove -> removePropertyStateBinding(current, index, remove);
         };
         if (transformed.status() != DesignerCommandStatus.APPLIED) {
             return transformed;
         }
         DesignerDocument candidate = transformed.document().orElseThrow();
+        Optional<SemanticResult> boundRangeConflict = boundSliderRangeConflict(index, candidate);
+        if (boundRangeConflict.isPresent()) {
+            return boundRangeConflict.orElseThrow();
+        }
         ValidationResult validation = validator.validate(candidate, catalog);
         if (!validation.valid()) {
             ValidationIssue issue = validation.errors().getFirst();
@@ -88,10 +102,40 @@ final class DesignerCommandTransformer {
                     "The command result failed " + issue.code()
                     + ": " + issue.message());
         }
-        if (candidate.equals(current)) {
+        if (candidate.equals(current) && !(command instanceof CreateEventHandler)) {
             return noChange("The command leaves the semantic document unchanged.");
         }
         return transformed;
+    }
+
+    /**
+     * Preview edits do not rewrite user-owned State initializers or prove the
+     * live runtime value. A changed range could therefore pass preview and Dart
+     * type checks but fail a Slider assertion at runtime.
+     */
+    private Optional<SemanticResult> boundSliderRangeConflict(TreeIndex before, DesignerDocument candidate) {
+        List<NodeRef> controlledSliders = before.nodes().values().stream()
+                .filter(node -> node.node().stateBinding().isPresent()
+                        && Set.of("flutter.material.Slider", "flutter.material.RangeSlider")
+                                .contains(node.node().type().value()))
+                .toList();
+        if (controlledSliders.isEmpty()) return Optional.empty();
+        TreeIndex after = TreeIndex.create(candidate.root(), limits.maxNodes());
+        for (NodeRef original : controlledSliders) {
+            NodeRef replacement = after.nodes().get(original.node().id());
+            if (replacement == null || replacement.node().stateBinding().isEmpty()) continue;
+            for (String name : List.of("min", "max")) {
+                PropertyName property = new PropertyName(name);
+                if (!Objects.equals(original.node().properties().get(property), replacement.node().properties().get(property))) {
+                    return Optional.of(failure(DesignerCommandStatus.REJECTED,
+                            DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED,
+                            replacement.path() + "/properties/" + name, Optional.of(replacement.node().id()),
+                            "Remove the State binding before changing Minimum or Maximum; "
+                                    + "Canvas preview values do not prove the retained runtime field is inside the new bounds."));
+                }
+            }
+        }
+        return Optional.empty();
     }
 
     private SemanticResult add(
@@ -342,7 +386,7 @@ final class DesignerCommandTransformer {
                 slot.owner().node().type(),
                 slot.owner().node().properties(),
                 slots,
-                slot.owner().node().extensions());
+                slot.owner().node().extensions(), slot.owner().node().stateBinding(), slot.owner().node().propertyBindings());
         return applied(withRoot(
                 current,
                 replace(current.root(), command.ownerId(), changedOwner)));
@@ -433,6 +477,224 @@ final class DesignerCommandTransformer {
                         command.propertyName(), command.value()))));
     }
 
+    private SemanticResult createMenuAnchorBuilder(
+            DesignerDocument current, TreeIndex index, CreateMenuAnchorBuilder command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        PropertyName builder = new PropertyName("builder");
+        PropertyValue old = target.node().properties().get(builder);
+        if (!target.node().type().equals(dev.flutter.netbeans.designer.catalog.MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE)
+                || old != null && !(old instanceof PropertyValue.NullValue)) {
+            return failure(DesignerCommandStatus.CONFLICT, DesignerCommandDiagnosticCode.MENU_ANCHOR_BUILDER_REJECTED,
+                    target.path() + "/properties/builder", Optional.of(command.widgetId()),
+                    "Create Menu Builder requires a MenuAnchor with an omitted or explicit-null builder. Existing builders remain user-owned; reset the binding first.");
+        }
+        return setProperty(current, index, new SetProperty(command.widgetId(), builder,
+                new PropertyValue.DartObjectReferenceValue(Optional.empty(), command.methodName(), Optional.empty(),
+                        PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())));
+    }
+
+    private SemanticResult createEventHandler(
+            DesignerDocument current, TreeIndex index, CreateEventHandler command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        try {
+            if (!FocusWidgetPropertySchema.propertyAvailable(target.node(), command.event())) {
+                return eventFailure(command.widgetId(), command.event(), "This Focus event belongs to the standard constructor; External uses the node's callback.");
+            }
+            WidgetEventDescriptor event = EventCommandSupport.event(catalog, target.node(), command.event());
+            PropertyDefinition property = catalog.find(target.node().type()).orElseThrow()
+                    .property(command.event()).orElseThrow();
+            SemanticResult result = setProperty(current, index, new SetProperty(command.widgetId(),
+                    command.event(), event.bindingValue(command.handlerName(), property)));
+            // An already-bound but missing method can still be created as a source-only transaction.
+            return result.status() == DesignerCommandStatus.NO_CHANGE ? applied(current) : result;
+        } catch (IllegalArgumentException invalid) {
+            return eventFailure(command.widgetId(), command.event(), invalid.getMessage());
+        }
+    }
+
+    private SemanticResult renameEventHandler(
+            DesignerDocument current, TreeIndex index, RenameEventHandler command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        try {
+            EventCommandSupport.event(catalog, target.node(), command.event());
+            String oldName = EventCommandSupport.localHandler(target.node().properties().get(command.event()))
+                    .orElseThrow(() -> new IllegalArgumentException(
+                            "The event is not bound to a local instance handler."));
+            if (oldName.equals(command.newName())) return noChange("The handler name is unchanged.");
+            WidgetNode root = current.root();
+            for (NodeRef node : index.nodes().values()) {
+                LinkedHashMap<PropertyName, PropertyValue> properties = new LinkedHashMap<>(node.node().properties());
+                boolean changed = false;
+                for (Map.Entry<PropertyName, PropertyValue> entry : properties.entrySet()) {
+                    if (EventCommandSupport.localHandler(entry.getValue()).filter(oldName::equals).isPresent()) {
+                        PropertyValue replacement;
+                        if (entry.getValue() instanceof PropertyValue.CallbackValue) {
+                            replacement = new PropertyValue.CallbackValue(command.newName());
+                        } else {
+                            PropertyValue.DartObjectReferenceValue value =
+                                    (PropertyValue.DartObjectReferenceValue) entry.getValue();
+                            replacement = new PropertyValue.DartObjectReferenceValue(value.libraryUri(),
+                                    command.newName(), value.member(), value.access(), value.constant());
+                        }
+                        entry.setValue(replacement);
+                        changed = true;
+                    }
+                }
+                if (changed || node.node().stateBinding().filter(binding -> binding.handlerName().equals(oldName)).isPresent()) {
+                    // Re-read the evolving tree so an ancestor replacement does not discard a child rename.
+                    WidgetNode live = EventCommandSupport.widget(root, node.node().id());
+                    root = replace(root, live.id(), new WidgetNode(live.id(), live.type(), properties,
+                            live.slots(), live.extensions(), live.stateBinding().map(binding ->
+                                    binding.handlerName().equals(oldName)
+                                            ? new dev.flutter.netbeans.designer.model.StateBinding(binding.fieldName(),
+                                                    command.newName(), binding.type(), binding.referenceType(), binding.previousOnChanged(),
+                                                    binding.action(), binding.selectedValue())
+                                            : binding), live.propertyBindings()));
+                }
+            }
+            return applied(withRoot(current, root));
+        } catch (IllegalArgumentException invalid) {
+            return eventFailure(command.widgetId(), command.event(), invalid.getMessage());
+        }
+    }
+
+    private SemanticResult eventFailure(StableId widgetId, PropertyName event, String message) {
+        return failure(DesignerCommandStatus.REJECTED, DesignerCommandDiagnosticCode.EVENT_HANDLER_REJECTED,
+                "/command/event/" + pointer(event.value()), Optional.of(widgetId), message);
+    }
+
+    private SemanticResult createStateBinding(
+            DesignerDocument current, TreeIndex index, CreateStateBinding command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        try {
+            if (current.source().widgetKind() != dev.flutter.netbeans.designer.model.WidgetClassKind.STATEFUL) {
+                throw new IllegalArgumentException("Create State binding requires a verified Stateful form. No automatic conversion is performed.");
+            }
+            var binding = dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.createBinding(
+                    target.node(), command.fieldName(), command.handlerName(), command.action(), command.selectedValue(), command.reusedField());
+            PropertyName onChanged = dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.find(target.node()).orElseThrow().eventProperty();
+            WidgetEventDescriptor event = EventCommandSupport.event(catalog, target.node(), onChanged);
+            PropertyDefinition property = catalog.find(target.node().type()).orElseThrow().property(onChanged).orElseThrow();
+            var properties = new LinkedHashMap<>(target.node().properties());
+            properties.put(onChanged, event.bindingValue(binding.handlerName(), property));
+            WidgetNode replacement = new WidgetNode(target.node().id(), target.node().type(), properties,
+                    target.node().slots(), target.node().extensions(), Optional.of(binding), target.node().propertyBindings());
+            return applied(withRoot(current, replace(current.root(), replacement.id(), replacement)));
+        } catch (IllegalArgumentException invalid) {
+            return stateBindingFailure(command.widgetId(), invalid.getMessage());
+        }
+    }
+
+    private SemanticResult renameStateField(DesignerDocument current, TreeIndex index, RenameStateField command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        try {
+            var field = StateCommandSupport.field(target.node(), command.fieldName());
+            if (command.fieldName().equals(command.newName())) return noChange("The State field name is unchanged.");
+            Map<String, String> names = field.type() == dev.flutter.netbeans.designer.model.StateBinding.Type.TEXT_CONTROLLER
+                    ? Map.of(command.fieldName(), command.newName(), command.fieldName() + "StateListener", command.newName() + "StateListener")
+                    : Map.of(command.fieldName(), command.newName());
+            Set<String> replacements = Set.copyOf(names.values());
+            Map<String, String> reverse = reverseNames(names);
+            for (NodeRef entry : index.nodes().values()) {
+                WidgetNode node = entry.node();
+                if (node.stateBinding().filter(binding -> replacements.contains(binding.fieldName())
+                        || replacements.contains(binding.handlerName())).isPresent()
+                        || node.propertyBindings().values().stream().anyMatch(binding -> replacements.contains(binding.fieldName()))) {
+                    throw new IllegalArgumentException("The requested State field or controller-listener name is already used by another binding; renaming cannot merge fields.");
+                }
+                // Dormant saved callbacks may not appear in current generated code, but must not be captured later.
+                if (node.stateBinding().flatMap(dev.flutter.netbeans.designer.model.StateBinding::previousOnChanged)
+                        .filter(value -> !StateCommandSupport.renameReference(value, reverse).equals(value)).isPresent()
+                        || node.properties().values().stream().anyMatch(value ->
+                                !StateCommandSupport.renameReference(value, reverse).equals(value))) {
+                    throw new IllegalArgumentException("The requested State name is already retained by another callback reference.");
+                }
+            }
+            WidgetNode root = current.root();
+            for (NodeRef entry : index.nodes().values()) {
+                // Use the evolving subtree so renaming an ancestor cannot restore old child metadata.
+                WidgetNode node = EventCommandSupport.widget(root, entry.node().id());
+                var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+                node.properties().forEach((name, value) -> properties.put(name, StateCommandSupport.renameReference(value, names)));
+                var action = node.stateBinding().map(binding -> new dev.flutter.netbeans.designer.model.StateBinding(
+                        binding.fieldName().equals(command.fieldName()) ? command.newName() : binding.fieldName(),
+                        binding.handlerName(), binding.type(), binding.referenceType(),
+                        binding.previousOnChanged().map(value -> StateCommandSupport.renameReference(value, names)),
+                        binding.action(), binding.selectedValue()));
+                var consumers = new LinkedHashMap<PropertyName, dev.flutter.netbeans.designer.model.StatePropertyBinding>();
+                node.propertyBindings().forEach((name, binding) -> consumers.put(name,
+                        binding.fieldName().equals(command.fieldName()) ? new dev.flutter.netbeans.designer.model.StatePropertyBinding(
+                                command.newName(), binding.type(), binding.referenceType(), binding.transform(), binding.comparisonValue()) : binding));
+                WidgetNode replacement = new WidgetNode(node.id(), node.type(), properties, node.slots(), node.extensions(), action, consumers);
+                if (!replacement.equals(node)) root = replace(root, node.id(), replacement);
+            }
+            return applied(withRoot(current, root));
+        } catch (IllegalArgumentException invalid) {
+            return stateBindingFailure(command.widgetId(), invalid.getMessage());
+        }
+    }
+
+    private static Map<String, String> reverseNames(Map<String, String> names) {
+        var reverse = new LinkedHashMap<String, String>();
+        names.forEach((before, after) -> reverse.put(after, before));
+        return reverse;
+    }
+
+    private SemanticResult removeStateBinding(
+            DesignerDocument current, TreeIndex index, RemoveStateBinding command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        if (target.node().stateBinding().isEmpty()) return noChange("The widget has no State binding.");
+        var binding = target.node().stateBinding().orElseThrow();
+        PropertyName onChanged = dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.find(target.node()).orElseThrow().eventProperty();
+        var properties = new LinkedHashMap<>(target.node().properties());
+        if (EventCommandSupport.localHandler(properties.get(onChanged)).filter(binding.handlerName()::equals).isPresent()) {
+            if (binding.previousOnChanged().isPresent()) properties.put(onChanged, binding.previousOnChanged().orElseThrow());
+            else properties.remove(onChanged);
+        }
+        WidgetNode replacement = new WidgetNode(target.node().id(), target.node().type(), properties,
+                target.node().slots(), target.node().extensions(), Optional.empty(), target.node().propertyBindings());
+        return applied(withRoot(current, replace(current.root(), replacement.id(), replacement)));
+    }
+
+    private SemanticResult stateBindingFailure(StableId widgetId, String message) {
+        return failure(DesignerCommandStatus.REJECTED, DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED,
+                "/command/stateBinding", Optional.of(widgetId), message);
+    }
+
+    private SemanticResult bindPropertyToState(DesignerDocument current, TreeIndex index, BindPropertyToState command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        if (!FocusWidgetPropertySchema.propertyAvailable(target.node(), command.propertyName())) {
+            return failure(DesignerCommandStatus.REJECTED, DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED,
+                    target.path(), Optional.of(command.widgetId()), "This Focus property is inactive in the external-node constructor.");
+        }
+        if (command.binding().equals(target.node().propertyBindings().get(command.propertyName()))) {
+            return noChange("The property already has this State binding.");
+        }
+        var bindings = new LinkedHashMap<>(target.node().propertyBindings());
+        bindings.put(command.propertyName(), command.binding());
+        WidgetNode replacement = new WidgetNode(target.node().id(), target.node().type(), target.node().properties(),
+                target.node().slots(), target.node().extensions(), target.node().stateBinding(), bindings);
+        return applied(withRoot(current, replace(current.root(), replacement.id(), replacement)));
+    }
+
+    private SemanticResult removePropertyStateBinding(DesignerDocument current, TreeIndex index, RemovePropertyStateBinding command) {
+        NodeRef target = index.nodes().get(command.widgetId());
+        if (target == null) return targetNotFound(command.widgetId());
+        if (!target.node().propertyBindings().containsKey(command.propertyName())) return noChange("The property has no State binding.");
+        var bindings = new LinkedHashMap<>(target.node().propertyBindings());
+        bindings.remove(command.propertyName());
+        WidgetNode replacement = new WidgetNode(target.node().id(), target.node().type(), target.node().properties(),
+                target.node().slots(), target.node().extensions(), target.node().stateBinding(), bindings);
+        return applied(withRoot(current, replace(current.root(), replacement.id(), replacement)));
+    }
+
     private SemanticResult resetProperty(
             DesignerDocument current,
             TreeIndex index,
@@ -515,7 +777,18 @@ final class DesignerCommandTransformer {
                 target.node().type(),
                 properties,
                 target.node().slots(),
-                target.node().extensions());
+                target.node().extensions(), target.node().stateBinding(), target.node().propertyBindings());
+        for (PatchProperties.Patch patch : command.patches()) {
+            if (patch instanceof PatchProperties.SetPatch set
+                    && replacement.type().equals(FocusWidgetPropertySchema.FOCUS_TYPE)
+                    && Set.of("onKey", "onKeyEvent").contains(set.propertyName().value())
+                    && !(set.value() instanceof PropertyValue.NullValue)
+                    && !FocusWidgetPropertySchema.propertyAvailable(replacement, set.propertyName())
+                    && !set.value().equals(target.node().properties().get(set.propertyName()))) {
+                return eventFailure(command.widgetId(), set.propertyName(),
+                        "This Focus event cannot be bound in the external-node constructor; stored inactive handlers are preserved.");
+            }
+        }
         return applied(withRoot(
                 current, replace(current.root(), command.widgetId(), replacement)));
     }
@@ -615,7 +888,7 @@ final class DesignerCommandTransformer {
                 owner.type(),
                 owner.properties(),
                 slots,
-                owner.extensions());
+                owner.extensions(), owner.stateBinding(), owner.propertyBindings());
     }
 
     private Insertion insert(
@@ -714,7 +987,7 @@ final class DesignerCommandTransformer {
                 parent.node().type(),
                 parent.node().properties(),
                 slots,
-                parent.node().extensions());
+                parent.node().extensions(), parent.node().stateBinding(), parent.node().propertyBindings());
         return Insertion.success(replace(root, parent.node().id(), newParent));
     }
 
@@ -774,7 +1047,7 @@ final class DesignerCommandTransformer {
                 parent.node().type(),
                 parent.node().properties(),
                 slots,
-                parent.node().extensions());
+                parent.node().extensions(), parent.node().stateBinding(), parent.node().propertyBindings());
         return Removal.success(replace(root, parent.node().id(), newParent));
     }
 
@@ -988,7 +1261,7 @@ final class DesignerCommandTransformer {
             return node;
         }
         return new WidgetNode(
-                node.id(), node.type(), node.properties(), changedSlots, node.extensions());
+                node.id(), node.type(), node.properties(), changedSlots, node.extensions(), node.stateBinding(), node.propertyBindings());
     }
 
     private static CollectedIds collectIds(WidgetNode root, int maximum) {

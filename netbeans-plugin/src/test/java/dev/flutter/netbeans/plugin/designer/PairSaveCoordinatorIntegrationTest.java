@@ -828,7 +828,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .contains("\"schemaVersion\": 1"));
             assertTrue(new String(
                     c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 13"));
+                    .contains("\"schemaVersion\": 16"));
 
             SetProperty background = new SetProperty(
                     ROOT_ID,
@@ -844,7 +844,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .encode(c1.current().decoded().document()).copyBytes();
             assertTrue(new String(
                     canonicalC0Fd, StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 13"));
+                    .contains("\"schemaVersion\": 16"));
             assertFalse(Arrays.equals(
                     c1.prepared().baselineFdBytes(), canonicalC0Fd));
 
@@ -3891,9 +3891,9 @@ class PairSaveCoordinatorIntegrationTest {
             assertSame(exactPhysicalPair,
                     firstPending.physicalPredecessorPairIdentity()
                             .orElseThrow());
-            assertTrue(retainedPairBytes(
-                    candidate.prospectiveDartBytes(),
-                    candidate.prospectiveFdBytes()) <= maximum,
+            assertTrue(retainedPairBytes(candidate.prospectiveDartBytes(),
+                    candidate.prospectiveFdBytes())
+                    + candidate.dartTransition().userSourceProjection().retainedBytes() <= maximum,
                     "the C3 endpoint must fit individually so only aggregate physical history rejects it");
             try (firstPending) {
                 IOException failure = assertThrows(
@@ -3997,14 +3997,20 @@ class PairSaveCoordinatorIntegrationTest {
             assertEquals(2, pair.coordinator().unsavedPairHistoryEdgeCount());
 
             long maximum = staged.maxRetainedPairBytes();
-            long[] uniquePhysicalEndpointBytes = {
-                retainedPairBytes(history.oldDart(), history.oldFd()),
-                retainedPairBytes(history.savedDart(), history.savedFd()),
-                retainedPairBytes(sourceS2, history.savedFd()),
-                retainedPairBytes(
-                        c2.candidateDartBytes(),
-                        c2.preparedPairIdentity().prospectiveFdBytes())
-            };
+            long[] uniquePhysicalEndpointBytes;
+            // Obtain the exact prospective physical proof costs without adopting a save,
+            // touching CES, analyzing, or writing either file.
+            try (var budgetProbe = orchestrator.beginDurableSave()) {
+                uniquePhysicalEndpointBytes = new long[] {
+                    retainedRevisionBytes(budgetProbe.reanchoredPhysicalRevisionByProjectingAnchor(
+                            history.oldRevisionId(), history.oldDart())),
+                    retainedRevisionBytes(budgetProbe.reanchoredPhysicalRevisionByProjectingAnchor(
+                            history.savedRevisionId(), history.savedDart())),
+                    retainedRevisionBytes(budgetProbe.reanchoredPhysicalRevisionByProjectingAnchor(
+                            history.savedRevisionId(), sourceS2)),
+                    retainedRevisionBytes(budgetProbe.reanchoredRevision(stagedC2.revisionId()))
+                };
+            }
             long aggregate = 0;
             for (long endpointBytes : uniquePhysicalEndpointBytes) {
                 assertTrue(endpointBytes <= maximum,
@@ -6154,6 +6160,11 @@ class PairSaveCoordinatorIntegrationTest {
         return Math.addExact((long) dart.length, (long) fd.length);
     }
 
+    private static long retainedRevisionBytes(DesignerCommandRevision revision) {
+        return Math.addExact(retainedPairBytes(revision.dartCandidateBytes(), revision.fdBytes()),
+                revision.userSourceProjection().retainedBytes());
+    }
+
     private static void assertSavedHistoryProof(
             TestPair pair,
             FlutterDesignerDocumentState.Current savedCurrent,
@@ -6346,11 +6357,13 @@ class PairSaveCoordinatorIntegrationTest {
         Path frameworkReal = flutterSdkRoot.resolve(
                 "packages/flutter/lib/src/widgets/framework.dart").toRealPath();
 
-        var pending = orchestrator.beginCommand(new SetProperty(
+        var attempt = orchestrator.beginCommand(new SetProperty(
                 ROOT_ID,
                 DATA,
-                new PropertyValue.StringValue(value)))
-                .lease().orElseThrow();
+                new PropertyValue.StringValue(value)));
+        assertTrue(attempt.result().changed(),
+                () -> "Fixture command admission failed before staging: " + attempt.result().diagnostics());
+        var pending = attempt.lease().orElseThrow();
         try (pending;
                 PairSaveCoordinator.PairPreparation preparation =
                         pair.coordinator().beginPairPreparation(
@@ -6533,7 +6546,7 @@ class PairSaveCoordinatorIntegrationTest {
             String canonical = new String(
                     baselineFd, StandardCharsets.UTF_8);
             String legacy = canonical.replace(
-                    "\"schemaVersion\": 13",
+                    "\"schemaVersion\": 16",
                     "\"schemaVersion\": 1");
             if (legacy.equals(canonical)) {
                 throw new AssertionError(
@@ -7119,23 +7132,29 @@ class PairSaveCoordinatorIntegrationTest {
                     + second.diagnostics());
         }
 
+        // Every admission and re-anchor must fit before the distinct physical-variant
+        // aggregate is tested. Include retained proof arrays, not merely serialized pairs.
+        long maximum = 0;
+        for (var session : List.of(baselineSession, first.session(), savedC1,
+                sourceAnchored, second.session(), second.session().markSaved())) {
+            maximum = Math.max(maximum, retainedSemanticHistoryBytes(session));
+        }
+        return maximum;
+    }
+
+    private static long retainedSemanticHistoryBytes(DesignerCommandSession session) {
         long retainedBytes = 0;
-        // Pair Save first re-derives the complete logical history against the
-        // exact C2 durable anchor. Size the pure-session limit for that exact
-        // canonical graph; the coordinator-level physical-variant aggregate
-        // must be the first bound that rejects this fixture.
-        DesignerCommandSession cursor = second.session().markSaved();
+        DesignerCommandSession cursor = session;
+        while (cursor.canUndo()) cursor = cursor.undo().session();
         while (true) {
             retainedBytes = Math.addExact(
                     retainedBytes,
-                    retainedPairBytes(
-                            cursor.current().dartCandidateBytes(),
-                            cursor.current().fdBytes()));
-            var undo = cursor.undo();
-            if (!undo.changed()) {
+                    retainedRevisionBytes(cursor.current()));
+            var redo = cursor.redo();
+            if (!redo.changed()) {
                 return retainedBytes;
             }
-            cursor = undo.session();
+            cursor = redo.session();
         }
     }
 
@@ -7188,8 +7207,7 @@ class PairSaveCoordinatorIntegrationTest {
         for (DesignerCommandRevision endpoint : physicalEndpoints) {
             retainedBytes = Math.addExact(
                     retainedBytes,
-                    retainedPairBytes(
-                            endpoint.dartCandidateBytes(), endpoint.fdBytes()));
+                    retainedRevisionBytes(endpoint));
         }
 
         DesignerCommandSession atC1 = savedC2.undo().session();
@@ -7201,16 +7219,16 @@ class PairSaveCoordinatorIntegrationTest {
                     "physical-command budget probe could not derive C3: "
                     + third.diagnostics());
         }
-        long candidateBytes = retainedPairBytes(
-                third.session().current().dartCandidateBytes(),
-                third.session().current().fdBytes());
-        if (candidateBytes <= 0
-                || Math.addExact(retainedBytes, candidateBytes)
-                    <= retainedBytes) {
+        long candidateBytes = retainedRevisionBytes(third.session().current());
+        long logicalMaximum = Math.max(exactSemanticHistoryBytesThroughSecondCommand(baselineSession, plan),
+                retainedSemanticHistoryBytes(third.session()));
+        long maximum = Math.max(retainedBytes, logicalMaximum);
+        if (candidateBytes <= 0 || Math.addExact(retainedBytes, candidateBytes) <= maximum) {
             throw new AssertionError(
-                    "physical-command budget probe did not add a positive C3 endpoint");
+                    "physical-command fixture cannot isolate aggregate rejection: logical=" + logicalMaximum
+                    + ", physical=" + retainedBytes + ", newEndpoint=" + candidateBytes);
         }
-        return retainedBytes;
+        return maximum;
     }
 
     private TestPair createPair(String baseName) throws Exception {

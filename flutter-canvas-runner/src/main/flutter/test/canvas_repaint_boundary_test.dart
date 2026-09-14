@@ -27,7 +27,7 @@ void main() {
         contract.substring(start, end),
         'W|$_type\nS|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       final boundary = _find(_decode(_model()).root)!;
       expect(boundary.properties, isEmpty);
       expect(boundary.slot('child')?.child, isNull);

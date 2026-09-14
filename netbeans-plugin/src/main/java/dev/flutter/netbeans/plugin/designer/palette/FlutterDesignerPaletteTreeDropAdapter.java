@@ -438,7 +438,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             }
             return new Destination(
                     targetChildId,
-                    WidgetPlacementRules.requiredAnyWidgetWrapperSlot(source).orElseThrow().name(),
+                    WidgetPlacementRules.requiredWrapperSlot(source).orElseThrow().name(),
                     0,
                     Optional.of(targetChildId));
         }
@@ -513,7 +513,7 @@ public final class FlutterDesignerPaletteTreeDropAdapter {
             WidgetCatalog catalog,
             WidgetDefinition wrapper,
             WidgetNode target) {
-        Optional<SlotDefinition> childSlotLookup = WidgetPlacementRules.requiredAnyWidgetWrapperSlot(wrapper);
+        Optional<SlotDefinition> childSlotLookup = WidgetPlacementRules.requiredWrapperSlot(wrapper);
         if (childSlotLookup.isEmpty()) {
             return Optional.of(
                     "Required-child Palette wrapper '" + wrapper.typeId().value()

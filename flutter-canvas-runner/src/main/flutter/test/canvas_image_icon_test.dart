@@ -50,7 +50,7 @@ void main() {
       );
       expect(block, isNot(contains('S|')));
       expect(block, isNot(contains('C|')));
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), false);
       final empty = _decode(_model());

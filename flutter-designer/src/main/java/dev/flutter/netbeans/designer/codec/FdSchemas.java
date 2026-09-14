@@ -30,7 +30,13 @@ final class FdSchemas {
             "META-INF/netbeans-flutter-designer/schema/fd-v12.schema.json";
     static final String V13_RESOURCE =
             "META-INF/netbeans-flutter-designer/schema/fd-v13.schema.json";
-    static final String CURRENT_RESOURCE = V13_RESOURCE;
+    static final String V14_RESOURCE =
+            "META-INF/netbeans-flutter-designer/schema/fd-v14.schema.json";
+    static final String V15_RESOURCE =
+            "META-INF/netbeans-flutter-designer/schema/fd-v15.schema.json";
+    static final String V16_RESOURCE =
+            "META-INF/netbeans-flutter-designer/schema/fd-v16.schema.json";
+    static final String CURRENT_RESOURCE = V16_RESOURCE;
 
     private FdSchemas() {
     }
@@ -89,6 +95,18 @@ final class FdSchemas {
 
     static InputStream openV13() {
         return open(V13_RESOURCE);
+    }
+
+    static InputStream openV14() {
+        return open(V14_RESOURCE);
+    }
+
+    static InputStream openV15() {
+        return open(V15_RESOURCE);
+    }
+
+    static InputStream openV16() {
+        return open(V16_RESOURCE);
     }
 
     private static InputStream open(String resource) {

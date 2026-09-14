@@ -15,13 +15,15 @@ import java.util.Optional;
  * <p>The three preset properties are intentionally strings rather than opaque
  * Dart expressions. Generation and the native Canvas resolve only the reviewed
  * public static constants listed here. Widget-valued constructor parameters,
- * {@code BoxDecoration}, and the bottom-sheet scrim builder remain outside this
- * property schema because they require slots or structured/runtime graphs.</p>
+ * and {@code BoxDecoration} remain outside this property schema because they
+ * require slots or structured graphs. The bottom-sheet scrim builder is an
+ * exact analyzer-verified project function reference, never an executed preview callback.</p>
  */
 public final class ScaffoldWidgetPropertySchema {
     public static final WidgetTypeId SCAFFOLD_TYPE =
             new WidgetTypeId("flutter.material.Scaffold");
-    public static final int CONSTRUCTOR_PROPERTY_COUNT = 17;
+    public static final int CONSTRUCTOR_PROPERTY_COUNT = 18;
+    public static final String BOTTOM_SHEET_SCRIM_BUILDER_TYPE = "Widget? Function(BuildContext, Animation<double>)";
     public static final int SLOT_COUNT = 3;
 
     public enum Group {
@@ -166,6 +168,9 @@ public final class ScaffoldWidgetPropertySchema {
 
         direct(values, "restorationId", Group.RESTORATION,
                 "Restoration ID", "Non-empty stable ID used to restore drawer state.");
+        direct(values, "bottomSheetScrimBuilder", Group.APPEARANCE,
+                "Bottom sheet scrim builder", "Optional non-null " + BOTTOM_SHEET_SCRIM_BUILDER_TYPE
+                        + " project reference. Omission preserves Flutter's default animated scrim. The callback itself cannot be null; returning null produces no scrim. References, members/getters and zero-argument factories require strict analyzer proof. Project callbacks never run in Canvas.");
 
         if (values.size() != CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(

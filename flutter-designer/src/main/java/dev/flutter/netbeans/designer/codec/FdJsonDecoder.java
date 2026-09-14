@@ -27,6 +27,8 @@ import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.SlotName;
 import dev.flutter.netbeans.designer.model.StableId;
+import dev.flutter.netbeans.designer.model.StateBinding;
+import dev.flutter.netbeans.designer.model.StatePropertyBinding;
 import dev.flutter.netbeans.designer.model.ThemeToken;
 import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.model.WidgetNode;
@@ -612,15 +614,20 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:9",
                     "urn:netbeans-flutter-designer:schema:fd:10",
                     "urn:netbeans-flutter-designer:schema:fd:11",
-                    "urn:netbeans-flutter-designer:schema:fd:12" ->
-                    "urn:netbeans-flutter-designer:schema:fd:13";
+                    "urn:netbeans-flutter-designer:schema:fd:12",
+                    "urn:netbeans-flutter-designer:schema:fd:13",
+                    "urn:netbeans-flutter-designer:schema:fd:14",
+                    "urn:netbeans-flutter-designer:schema:fd:15" ->
+                    "urn:netbeans-flutter-designer:schema:fd:16";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
                     "../fd-v7.schema.json", "../fd-v8.schema.json",
                     "../fd-v9.schema.json", "../fd-v10.schema.json",
-                    "../fd-v11.schema.json", "../fd-v12.schema.json" ->
-                    "../fd-v13.schema.json";
+                    "../fd-v11.schema.json", "../fd-v12.schema.json",
+                    "../fd-v13.schema.json", "../fd-v14.schema.json",
+                    "../fd-v15.schema.json" ->
+                    "../fd-v16.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -659,7 +666,7 @@ final class FdJsonDecoder {
         }
         return changed
                 ? new WidgetNode(
-                        node.id(), node.type(), properties, slots, node.extensions())
+                        node.id(), node.type(), properties, slots, node.extensions(), node.stateBinding(), node.propertyBindings())
                 : node;
     }
 
@@ -1019,6 +1026,8 @@ final class FdJsonDecoder {
         Map<PropertyName, PropertyValue> properties = null;
         Map<SlotName, WidgetSlot> slots = null;
         Extensions extensions = Extensions.empty();
+        Optional<StateBinding> stateBinding = Optional.empty();
+        Map<PropertyName, StatePropertyBinding> propertyBindings = Map.of();
         boolean idSeen = false;
         boolean typeSeen = false;
         boolean propertiesSeen = false;
@@ -1053,6 +1062,18 @@ final class FdJsonDecoder {
                     extensionsSeen = true;
                     extensions = readExtensions(parser, valueToken, pointer, context);
                 }
+                case "stateBinding" -> {
+                    if (sourceVersion < 14) {
+                        throw failure(FdCodecDiagnosticCode.INVALID_VALUE, pointer,
+                                "State bindings require schema version 14 or later.");
+                    }
+                    stateBinding = Optional.of(readStateBinding(parser, valueToken, pointer, sourceVersion));
+                }
+                case "propertyBindings" -> {
+                    if (sourceVersion < 15) throw failure(FdCodecDiagnosticCode.INVALID_VALUE, pointer,
+                            "State property bindings require schema version 15 or later.");
+                    propertyBindings = readStatePropertyBindings(parser, valueToken, pointer, sourceVersion);
+                }
                 default -> throw unknownField(parser, pointer);
             }
         }
@@ -1073,12 +1094,138 @@ final class FdJsonDecoder {
         final Map<PropertyName, PropertyValue> finalProperties = properties;
         final Map<SlotName, WidgetSlot> finalSlots = slots;
         final Extensions finalExtensions = extensionsSeen ? extensions : Extensions.empty();
+        final Optional<StateBinding> finalStateBinding = stateBinding;
+        final Map<PropertyName, StatePropertyBinding> finalPropertyBindings = propertyBindings;
         return modelValue(base, () -> new WidgetNode(
                 finalId,
                 finalType,
                 finalProperties,
                 finalSlots,
-                finalExtensions));
+                finalExtensions,
+                finalStateBinding, finalPropertyBindings));
+    }
+
+    private StateBinding readStateBinding(
+            JsonParser parser, JsonToken token, String base, int sourceVersion)
+            throws IOException, DecodeFailure {
+        requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
+        String fieldName = null;
+        String handlerName = null;
+        StateBinding.Type type = null;
+        Optional<PropertyValue.DartObjectReferenceValue> referenceType = Optional.empty();
+        Optional<PropertyValue> previousOnChanged = Optional.empty();
+        StateBinding.Action action = StateBinding.Action.CHANGE;
+        Optional<PropertyValue> selectedValue = Optional.empty();
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            requireCurrent(parser, JsonToken.FIELD_NAME, base, "field name");
+            String field = checkedFieldName(parser, base);
+            String pointer = pointer(base, field);
+            JsonToken valueToken = requiredNext(parser, pointer);
+            switch (field) {
+                case "fieldName" -> fieldName = requireString(parser, valueToken, pointer);
+                case "handlerName" -> handlerName = requireString(parser, valueToken, pointer);
+                case "type" -> {
+                    String name = requireString(parser, valueToken, pointer);
+                    type = modelValue(pointer, () -> StateBinding.Type.fromWireName(name));
+                    if (sourceVersion < 15 && Set.of(StateBinding.Type.STRING, StateBinding.Type.INT,
+                            StateBinding.Type.NUM, StateBinding.Type.TEXT_CONTROLLER).contains(type)) {
+                        throw failure(FdCodecDiagnosticCode.INVALID_VALUE, pointer, "This State field type requires schema version 15 or later.");
+                    }
+                }
+                case "referenceType" -> {
+                    PropertyValue value = readPropertyValue(parser, valueToken, pointer, sourceVersion);
+                    if (!(value instanceof PropertyValue.DartObjectReferenceValue reference)) {
+                        throw failure(FdCodecDiagnosticCode.INVALID_VALUE, pointer,
+                                "State reference type must be a simple Dart type reference.");
+                    }
+                    referenceType = Optional.of(reference);
+                }
+                case "previousOnChanged" -> previousOnChanged = Optional.of(
+                        readPropertyValue(parser, valueToken, pointer, sourceVersion));
+                case "action" -> {
+                    if (sourceVersion < 15) throw unknownField(parser, pointer);
+                    String value = requireString(parser, valueToken, pointer);
+                    action = modelValue(pointer, () -> StateBinding.Action.fromWireName(value));
+                }
+                case "selectedValue" -> {
+                    if (sourceVersion < 15) throw unknownField(parser, pointer);
+                    selectedValue = Optional.of(readPropertyValue(parser, valueToken, pointer, sourceVersion));
+                }
+                default -> throw unknownField(parser, pointer);
+            }
+        }
+        if (fieldName == null) throw missing(parser, pointer(base, "fieldName"), "fieldName");
+        if (handlerName == null) throw missing(parser, pointer(base, "handlerName"), "handlerName");
+        if (type == null) throw missing(parser, pointer(base, "type"), "type");
+        String finalFieldName = fieldName;
+        String finalHandlerName = handlerName;
+        StateBinding.Type finalType = type;
+        Optional<PropertyValue.DartObjectReferenceValue> finalReference = referenceType;
+        Optional<PropertyValue> finalPrevious = previousOnChanged;
+        StateBinding.Action finalAction = action;
+        Optional<PropertyValue> finalSelectedValue = selectedValue;
+        return modelValue(base, () -> new StateBinding(
+                finalFieldName, finalHandlerName, finalType, finalReference, finalPrevious, finalAction, finalSelectedValue));
+    }
+
+    private Map<PropertyName, StatePropertyBinding> readStatePropertyBindings(
+            JsonParser parser, JsonToken token, String base, int sourceVersion) throws IOException, DecodeFailure {
+        requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
+        Map<PropertyName, StatePropertyBinding> values = new LinkedHashMap<>();
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            if (values.size() >= limits.maxPropertiesPerWidget()) throw resourceLimit(parser, base,
+                    "A widget exceeds the configured State property binding count limit.");
+            requireCurrent(parser, JsonToken.FIELD_NAME, base, "field name");
+            String name = checkedFieldName(parser, base);
+            String path = pointer(base, name);
+            PropertyName property = modelValue(path, () -> new PropertyName(name));
+            values.put(property, readStatePropertyBinding(parser, requiredNext(parser, path), path, sourceVersion));
+        }
+        return values;
+    }
+
+    private StatePropertyBinding readStatePropertyBinding(JsonParser parser, JsonToken token, String base,
+            int sourceVersion) throws IOException, DecodeFailure {
+        requireToken(parser, token, JsonToken.START_OBJECT, base, "object");
+        String fieldName = null;
+        StateBinding.Type type = null;
+        StatePropertyBinding.Transform transform = null;
+        Optional<PropertyValue.DartObjectReferenceValue> reference = Optional.empty();
+        Optional<PropertyValue> comparison = Optional.empty();
+        while (parser.nextToken() != JsonToken.END_OBJECT) {
+            requireCurrent(parser, JsonToken.FIELD_NAME, base, "field name");
+            String field = checkedFieldName(parser, base);
+            String path = pointer(base, field);
+            JsonToken next = requiredNext(parser, path);
+            switch (field) {
+                case "fieldName" -> fieldName = requireString(parser, next, path);
+                case "type" -> {
+                    String value = requireString(parser, next, path);
+                    type = modelValue(path, () -> StateBinding.Type.fromWireName(value));
+                }
+                case "transform" -> {
+                    String value = requireString(parser, next, path);
+                    transform = modelValue(path, () -> StatePropertyBinding.Transform.fromWireName(value));
+                }
+                case "referenceType" -> {
+                    PropertyValue value = readPropertyValue(parser, next, path, sourceVersion);
+                    if (!(value instanceof PropertyValue.DartObjectReferenceValue typed)) throw failure(
+                            FdCodecDiagnosticCode.INVALID_VALUE, path, "State reference type must be a simple Dart type reference.");
+                    reference = Optional.of(typed);
+                }
+                case "comparisonValue" -> comparison = Optional.of(readPropertyValue(parser, next, path, sourceVersion));
+                default -> throw unknownField(parser, path);
+            }
+        }
+        if (fieldName == null) throw missing(parser, pointer(base, "fieldName"), "fieldName");
+        if (type == null) throw missing(parser, pointer(base, "type"), "type");
+        if (transform == null) throw missing(parser, pointer(base, "transform"), "transform");
+        String finalField = fieldName;
+        StateBinding.Type finalType = type;
+        StatePropertyBinding.Transform finalTransform = transform;
+        Optional<PropertyValue.DartObjectReferenceValue> finalReference = reference;
+        Optional<PropertyValue> finalComparison = comparison;
+        return modelValue(base, () -> new StatePropertyBinding(finalField, finalType, finalReference, finalTransform, finalComparison));
     }
 
     private Map<PropertyName, PropertyValue> readProperties(
@@ -1176,7 +1323,23 @@ final class FdJsonDecoder {
             throw invalidValue(parser, pointer(base, "kind"),
                     "ShapeBorderClipper values require schema version 13.");
         }
+        if (sourceVersion < 16 && kind.equals("pointerDeviceKindSet")) {
+            throw invalidValue(parser, pointer(base, "kind"),
+                    "Pointer-device kind sets require schema version 16.");
+        }
         return switch (kind) {
+            case "pointerDeviceKindSet" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "values"));
+                List<String> entries = jsonStringArray(fields, "values", base);
+                List<PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind> values = new ArrayList<>();
+                for (int index = 0; index < entries.size(); index++) {
+                    String path = pointer(base, "values") + "/" + index;
+                    String value = entries.get(index);
+                    values.add(modelValue(path, () ->
+                            PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.fromWireName(value)));
+                }
+                yield modelValue(base, () -> new PropertyValue.PointerDeviceKindSetValue(values));
+            }
             case "null" -> {
                 enforceAllowedFields(parser, fields, base, Set.of("kind"));
                 yield new PropertyValue.NullValue();

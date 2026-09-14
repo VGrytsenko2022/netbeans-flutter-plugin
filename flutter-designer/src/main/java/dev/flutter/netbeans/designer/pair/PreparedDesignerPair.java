@@ -43,7 +43,8 @@ public final class PreparedDesignerPair {
             throw new IllegalArgumentException(
                     "prospective document must retain the transition descriptor");
         }
-        if (baselineFd.equals(prospectiveFd)) {
+        if (baselineFd.equals(prospectiveFd)
+                && dartTransition.userSourceProjection().isIdentity()) {
             throw new IllegalArgumentException(
                     "a prepared two-file transition must change the .fd bytes");
         }

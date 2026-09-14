@@ -41,6 +41,40 @@ import java.util.regex.Pattern;
  */
 public final class DartCandidateAnalyzer {
     private static final String INVALID_ASSIGNMENT = "invalid_assignment";
+    /** Reviewed public Flutter gesture typedefs; several are not re-exported by Widgets or Material. */
+    private static final Set<String> GESTURE_CALLBACK_PROOF_TYPES = Set.of(
+            "GestureDragCancelCallback",
+            "GestureDragDownCallback",
+            "GestureDragEndCallback",
+            "GestureDragStartCallback",
+            "GestureDragUpdateCallback",
+            "GestureForcePressEndCallback",
+            "GestureForcePressPeakCallback",
+            "GestureForcePressStartCallback",
+            "GestureForcePressUpdateCallback",
+            "GestureLongPressCallback",
+            "GestureLongPressCancelCallback",
+            "GestureLongPressDownCallback",
+            "GestureLongPressEndCallback",
+            "GestureLongPressMoveUpdateCallback",
+            "GestureLongPressStartCallback",
+            "GestureLongPressUpCallback",
+            "GestureScaleEndCallback",
+            "GestureScaleStartCallback",
+            "GestureScaleUpdateCallback",
+            "GestureTapCallback",
+            "GestureTapCancelCallback",
+            "GestureTapDownCallback",
+            "GestureTapMoveCallback",
+            "GestureTapUpCallback");
+    /** Listener/MouseRegion typedefs have split Rendering/Services ownership, not a complete Widgets export. */
+    private static final Set<String> POINTER_CALLBACK_PROOF_TYPES = Set.of(
+            "PointerDownEventListener", "PointerMoveEventListener", "PointerUpEventListener",
+            "PointerHoverEventListener", "PointerCancelEventListener", "PointerPanZoomStartEventListener",
+            "PointerPanZoomUpdateEventListener", "PointerPanZoomEndEventListener", "PointerSignalEventListener",
+            "PointerEnterEventListener", "PointerExitEventListener");
+    private static final Set<String> SERVICES_POINTER_CALLBACK_PROOF_TYPES = Set.of(
+            "PointerEnterEventListener", "PointerExitEventListener", "PointerHoverEventListener");
     private static final String STATIC_TYPE_PROOF_OPTIONS = """
             analyzer:
               language:
@@ -477,7 +511,6 @@ public final class DartCandidateAnalyzer {
         if (globalFailure) {
             typed.forEach(evidence -> rejected.add(evidence.probe().id()));
         }
-
         Map<String, DartStaticTypeEvidence> staticEvidence = new HashMap<>();
         for (DartSymbolEvidence evidence : typed) {
             DartStaticTypeProbe probe = evidence.probe()
@@ -599,7 +632,8 @@ public final class DartCandidateAnalyzer {
                             DartCandidateWarningPolicy.ALLOW,
                             List.of(),
                             request.candidateCapacityBudget());
-            return parseDiagnostics(errorsResponse.result(), proofRequest);
+            List<DartCandidateDiagnostic> parsedDiagnostics = parseDiagnostics(errorsResponse.result(), proofRequest);
+            return parsedDiagnostics;
         } finally {
             if (!operation.cancelled() && proofSession.isAlive()) {
                 ObjectNode removals = JSON.createObjectNode();
@@ -644,6 +678,36 @@ public final class DartCandidateAnalyzer {
         String coreAlias = alias + "Core";
         String importLine = "import '" + context.expectedTypeLibraryUri()
                 + "' as " + alias + ";\n";
+        if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> probe.sourceTypeBound().isPresent())) {
+            importLine += "import 'package:flutter/widgets.dart' as " + alias + "Notifications;\n";
+        }
+        if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(DartCandidateAnalyzer::usesGestureProofType)) {
+            // Retain the single shared Widgets/Material proof context. Only the
+            // witness gains this fixed SDK import, with an alias derived from a
+            // prefix proved absent from the original user source.
+            importLine += "import 'package:flutter/gestures.dart' as " + alias + "Gestures;\n";
+        }
+        if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> Set.of("AsyncCallback", "ValueListenable<Object>", "ValueNotifier<EdgeInsets>?").contains(probe.expectedDartType()))) {
+            importLine += "import 'package:flutter/foundation.dart' as " + alias + "Foundation;\n";
+        }
+        if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> Set.of("Image?", "Rect?").contains(probe.expectedDartType()))) {
+            // RawImage's Image is dart:ui.Image, never the Flutter Widget with the same name.
+            importLine += "import 'dart:ui' as " + alias + "Ui;\n";
+        }
+        boolean pointerProofTypes = typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(DartCandidateAnalyzer::usesPointerProofType);
+        if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder").contains(probe.expectedDartType()))) {
+            importLine += "import 'package:flutter/rendering.dart' as " + alias + "Rendering;\n";
+        }
+        if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> probe.expectedDartType().equals("SystemUiOverlayStyle?"))) {
+            importLine += "import 'package:flutter/services.dart' as " + alias + "Services;\n";
+        }
         boolean explicitCore;
         try {
             explicitCore = DartCoreImportScope.hasExplicitCoreImport(request.content());
@@ -659,18 +723,22 @@ public final class DartCandidateAnalyzer {
         // An Object? destination cannot discriminate dynamic: the independent
         // int control always proves strict-casts, regardless of the first field.
         String controlExpectedType = coreAlias + ".int";
-        boolean hasSourceTypes = typed.stream().anyMatch(evidence -> {
-            DartStaticTypeProbe probe = evidence.probe().staticTypeProbe().orElseThrow();
-            return probe.sourceTypeOverride().isPresent() || probe.expectedDartType().equals("Object?");
-        });
         String nonDynamicGetter = alias + "NonDynamic";
         Set<String> coreSourceTypes = typed.stream().filter(evidence -> evidence.probe().expectedLibraryUri().equals("dart:core"))
                 .map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .filter(probe -> probe.expectedDartType().equals("Type"))
+                .filter(probe -> probe.expectedDartType().equals("Type") && probe.sourceTypeBound().isEmpty())
                 .flatMap(probe -> probe.sourceTypeOverride().stream())
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
-        String extension = hasSourceTypes ? "\nextension " + alias + "Extension on " + coreAlias
-                + ".Object? { " + coreAlias + ".int get " + nonDynamicGetter + " => 0; }\n" : "";
+        // Every exact reference proof gets a non-dynamic witness.  A typed
+        // initializer alone is insufficient under Dart's assignability rules:
+        // `dynamic` can flow into any destination type even with the reviewed
+        // strict-casts option.  An extension member is statically resolved for
+        // a real Object value, while a dynamic receiver remains a dynamic
+        // invocation; assigning that result to core int then produces the
+        // blocking invalid_assignment diagnostic.  Keep this witness in the
+        // analyzer-only overlay; it is never written to the user's file.
+        String extension = "\nextension " + alias + "Extension on " + coreAlias
+                + ".Object? { " + coreAlias + ".int get " + nonDynamicGetter + " => 0; }\n";
         StringBuilder statements = new StringBuilder();
         ArrayList<StaticTypeProofControl> relativeControls = new ArrayList<>();
         statements.append("    ")
@@ -707,6 +775,231 @@ public final class DartCandidateAnalyzer {
                     .append(" = ")
                     .append(expression)
                     .append(";\n");
+            if (DartStaticTypeProbe.SCAFFOLD_SCRIM_BUILDER_TYPE.equals(probe.expectedDartType())) {
+                // Function assignability alone can hide a dynamic return type.
+                // Inspect the exact invocation result in this analyzer-only
+                // overlay; these throw-only argument providers never execute.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("ScrimContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".Animation<").append(coreAlias).append(".double> ")
+                        .append(alias).append("ScrimAnimation").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget? ").append(alias).append("ScrimResult")
+                        .append(index).append(" = (").append(expression).append(")(").append(alias)
+                        .append("ScrimContext").append(index).append("(), ").append(alias).append("ScrimAnimation")
+                        .append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("ValueWidgetBuilder<Object>")) {
+                String selected = probe.sourceTypeOverride().orElse(coreAlias + ".Object");
+                // Preserve the original callback's return type, not only its contextual typedef.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("ValueContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(selected).append(' ').append(alias)
+                        .append("ValueArgument").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".Widget? ").append(alias)
+                        .append("ValueChild").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias)
+                        .append("ValueResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("ValueContext").append(index).append("(), ")
+                        .append(alias).append("ValueArgument").append(index).append("(), ")
+                        .append(alias).append("ValueChild").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("ValueListenable<Object>")) {
+                String selected = probe.sourceTypeOverride().orElse(coreAlias + ".Object");
+                // Reject a raw/dynamic value even when covariance would admit its source.
+                statements.append("    final ").append(selected).append(' ').append(alias)
+                        .append("ListenableValue").append(index).append(" = (").append(expression).append(").value;\n")
+                        .append("    final ").append(coreAlias).append(".int ").append(alias)
+                        .append("ListenableValueCheck").append(index).append(" = (").append(expression)
+                        .append(").value.").append(nonDynamicGetter).append(";\n");
+            }
+            if (probe.expectedDartType().equals("Tween<Object>")) {
+                String selected = probe.sourceTypeOverride().orElse(coreAlias + ".Object");
+                // Reject a raw/dynamic value even when covariance would admit its source.
+                statements.append("    final ").append(selected).append(' ').append(alias)
+                        .append("TweenValue").append(index).append(" = (").append(expression).append(").lerp(0.5);\n")
+                        .append("    final ").append(coreAlias).append(".int ").append(alias)
+                        .append("TweenValueCheck").append(index).append(" = (").append(expression)
+                        .append(").lerp(0.5).").append(nonDynamicGetter).append(";\n");
+            }
+            if (Set.of("AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder").contains(probe.expectedDartType())) {
+                boolean layout = probe.expectedDartType().equals("AnimatedSwitcherLayoutBuilder");
+                statements.append("    ").append(alias).append(layout ? ".Widget? " : ".Widget ").append(alias)
+                        .append("SwitcherChild").append(index).append("() => throw 0;\n")
+                        .append("    ").append(layout ? coreAlias + ".List<" + alias + ".Widget> " : alias + ".Animation<" + coreAlias + ".double> ").append(alias)
+                        .append("SwitcherArgument").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias)
+                        .append("SwitcherResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("SwitcherChild").append(index).append("(), ")
+                        .append(alias).append("SwitcherArgument").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("AnimatedCrossFadeBuilder")) {
+                // Proof-only invocation rejects an original dynamic return hidden by assignability.
+                statements.append("    ").append(alias).append(".Widget ").append(alias)
+                        .append("CrossFadeChild").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".Key ").append(alias)
+                        .append("CrossFadeKey").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias)
+                        .append("CrossFadeResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("CrossFadeChild").append(index).append("(), ")
+                        .append(alias).append("CrossFadeKey").append(index).append("(), ")
+                        .append(alias).append("CrossFadeChild").append(index).append("(), ")
+                        .append(alias).append("CrossFadeKey").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("TransitionBuilder")) {
+                // Inspect the original call result too: function assignability may hide dynamic.
+                // These fixed SDK argument providers exist only in the non-executed proof overlay.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("TransitionContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".Widget? ").append(alias)
+                        .append("TransitionChild").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias)
+                        .append("TransitionResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("TransitionContext").append(index).append("(), ")
+                        .append(alias).append("TransitionChild").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("Animation<double>?")) {
+                // Inspect the original nullable animation value: raw/dynamic generic arguments
+                // must not be hidden by covariant assignment. This overlay never executes.
+                statements.append("    final ").append(coreAlias).append(".double? ").append(alias)
+                        .append("RawOpacityValue").append(index).append(" = (").append(expression).append(")?.value;\n");
+            }
+            if (probe.expectedDartType().equals("ImageProvider<Object>")) {
+                // Inspect the ORIGINAL provider's key, not the covariantly assigned local.
+                // Raw ImageProvider<dynamic> would otherwise pass an Object assignment.
+                statements.append("    (").append(expression).append(").obtainKey(")
+                        .append(alias).append(".ImageConfiguration.empty).then((").append(alias).append("ImageKey").append(index)
+                        .append(") { final ").append(coreAlias).append(".int ").append(alias).append("ImageKeyProof").append(index)
+                        .append(" = ").append(alias).append("ImageKey").append(index).append(".").append(nonDynamicGetter)
+                        .append("; });\n");
+            }
+            if (probe.expectedDartType().equals("ImageErrorWidgetBuilder?")) {
+                // Nullable callbacks are legitimate, but dynamic callback results are not.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("ImageContext").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget? ").append(alias)
+                        .append("ImageErrorResult").append(index).append(" = (").append(expression)
+                        .append(")?.call(").append(alias).append("ImageContext").append(index).append("(), ")
+                        .append(coreAlias).append(".Object(), null);\n");
+            }
+            if (Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "OrientationWidgetBuilder").contains(probe.expectedDartType())) {
+                // A Dart Widget-returning function may otherwise hide a dynamic result.
+                // This proof-only call never executes; argument types use fixed SDK imports.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("LayoutContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(probe.expectedDartType().equals("OrientationWidgetBuilder") ? ".Orientation " : probe.expectedDartType().equals("LayoutWidgetBuilder") ? "Rendering.BoxConstraints " : "Rendering.SliverConstraints ").append(alias)
+                        .append("LayoutConstraints").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias)
+                        .append("LayoutResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("LayoutContext").append(index).append("(), ")
+                        .append(alias).append("LayoutConstraints").append(index).append("());\n");
+            }
+            if (Set.of("NullableIndexedWidgetBuilder", "IndexedWidgetBuilder").contains(probe.expectedDartType())) {
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("SliverContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(coreAlias).append(".int ").append(alias)
+                        .append("SliverIndex").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(probe.expectedDartType().equals("IndexedWidgetBuilder") ? ".Widget " : ".Widget? ")
+                        .append(alias).append("SliverResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("SliverContext").append(index).append("(), ")
+                        .append(alias).append("SliverIndex").append(index).append("());\n");
+            }
+            if (Set.of("ChildIndexGetter", "ChildIndexGetter?").contains(probe.expectedDartType())) {
+                statements.append("    ").append(alias).append(".Key ").append(alias)
+                        .append("SliverKey").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(coreAlias).append(".int? ").append(alias)
+                        .append("SliverKeyResult").append(index).append(" = (").append(expression)
+                        .append(probe.expectedDartType().endsWith("?") ? ")?.call(" : ")(")
+                        .append(alias).append("SliverKey").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("ScrollNotificationPredicate")
+                    && Set.of("package:flutter/widgets.dart", "package:flutter/material.dart")
+                            .contains(probe.expectedTypeLibraryUri())) {
+                // A function returning dynamic may be assignable to a bool
+                // predicate. Prove the exact call result independently under
+                // strict-casts, without executing or persisting this overlay.
+                statements.append("    ").append(alias).append(".ScrollNotification ").append(alias)
+                        .append("ScrollNotification").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(coreAlias).append(".bool ").append(alias)
+                        .append("PredicateResult").append(index).append(" = (").append(expression)
+                        .append(")(").append(alias).append("ScrollNotification").append(index).append("());\n");
+            }
+            if (probe.expectedDartType().equals("ButtonLayerBuilder")
+                    && probe.expectedTypeLibraryUri().equals("package:flutter/material.dart")) {
+                // Independently reject dynamic or nullable widget results from
+                // this reviewed SDK function family. Providers only type-check;
+                // no application builder is invoked by Designer analysis.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("LayerContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(coreAlias).append(".Set<").append(alias).append(".WidgetState> ")
+                        .append(alias).append("LayerStates").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".Widget? ").append(alias)
+                        .append("LayerChild").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget ").append(alias).append("LayerResult")
+                        .append(index).append(" = (").append(expression).append(")(").append(alias)
+                        .append("LayerContext").append(index).append("(), ").append(alias).append("LayerStates")
+                        .append(index).append("(), ").append(alias).append("LayerChild").append(index).append("());\n");
+            }
+            if (Set.of("InputCounterWidgetBuilder", "InputCounterWidgetBuilder?").contains(probe.expectedDartType())) {
+                // Preserve the SDK's required named arguments, independently of
+                // nullable values and callback nullability. Inspect the ORIGINAL
+                // call result: calling the typed local would hide dynamic returns.
+                // Null-aware invocation admits a nullable callback without ever
+                // executing application code in this analyzer-only overlay.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("CounterContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(coreAlias).append(".int ").append(alias)
+                        .append("CounterLength").append(index).append("() => throw 0;\n")
+                        .append("    ").append(coreAlias).append(".int? ").append(alias)
+                        .append("CounterMaxLength").append(index).append("() => throw 0;\n")
+                        .append("    ").append(coreAlias).append(".bool ").append(alias)
+                        .append("CounterFocused").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias).append(".Widget? ").append(alias)
+                        .append("CounterResult").append(index).append(" = (").append(expression)
+                        .append(probe.expectedDartType().endsWith("?") ? ")?.call(" : ")(")
+                        .append(alias).append("CounterContext").append(index).append("(), currentLength: ")
+                        .append(alias).append("CounterLength").append(index).append("(), maxLength: ")
+                        .append(alias).append("CounterMaxLength").append(index).append("(), isFocused: ")
+                        .append(alias).append("CounterFocused").append(index).append("());\n");
+            }
+            if (Set.of("EditableTextContextMenuBuilder", "EditableTextContextMenuBuilder?").contains(probe.expectedDartType())) {
+                // The typedef assignment rejects nullable Widget returns; this
+                // additional direct-result witness rejects dynamic returns. Only
+                // a nullable callback itself may account for a null call result.
+                statements.append("    ").append(alias).append(".BuildContext ").append(alias)
+                        .append("MenuContext").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append(".EditableTextState ").append(alias)
+                        .append("MenuState").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(alias)
+                        .append(probe.expectedDartType().endsWith("?") ? ".Widget? " : ".Widget ")
+                        .append(alias).append("MenuResult").append(index).append(" = (").append(expression)
+                        .append(probe.expectedDartType().endsWith("?") ? ")?.call(" : ")(")
+                        .append(alias).append("MenuContext").append(index).append("(), ")
+                        .append(alias).append("MenuState").append(index).append("());\n");
+            }
+            if (usesItemExtentProofType(probe)) {
+                // This SDK typedef is not reexported by Widgets. Qualify both
+                // it and its layout dimensions through the fixed Rendering
+                // proof import. Calling the ORIGINAL expression additionally
+                // rejects dynamic results without invoking application code.
+                statements.append("    ").append(coreAlias).append(".int ").append(alias)
+                        .append("ExtentIndex").append(index).append("() => throw 0;\n")
+                        .append("    ").append(alias).append("Rendering.SliverLayoutDimensions ").append(alias)
+                        .append("ExtentDimensions").append(index).append("() => throw 0;\n")
+                        .append("    final ").append(coreAlias).append(".double? ").append(alias)
+                        .append("ExtentResult").append(index).append(" = (").append(expression)
+                        .append(probe.expectedDartType().endsWith("?") ? ")?.call(" : ")(")
+                        .append(alias).append("ExtentIndex").append(index).append("(), ")
+                        .append(alias).append("ExtentDimensions").append(index).append("());\n");
+            }
+            // Do not trust the assignment above to distinguish a dynamic
+            // project reference.  The extension getter is intentionally
+            // evaluated on the exact original expression so nullable SDK
+            // arguments remain source-compatible while dynamic receivers are
+            // rejected by strict-casts.
+            statements.append("    final ").append(coreAlias).append(".int ")
+                    .append(alias).append("NonDynamicCheck").append(index)
+                    .append(" = (").append(expression).append(").")
+                    .append(nonDynamicGetter).append(";\n");
             if (probe.sourceTypeOverride().isPresent() || probe.expectedDartType().equals("Object?")) {
                 String selectedType = probe.sourceTypeOverride().orElse(expectedType);
                 String selected = alias + "Selected" + index;
@@ -718,6 +1011,14 @@ public final class DartCandidateAnalyzer {
                         .append(alias).append("SelectedCheck").append(index).append(" = ")
                         .append(selected).append("().").append(nonDynamicGetter).append(";\n");
                 boolean coreSelected = coreSourceTypes.contains(selectedType);
+                if (probe.sourceTypeBound().isPresent()) {
+                    // A Type literal alone does not prove the generic bound. This
+                    // independent SDK-qualified assignment also runs for an omitted
+                    // callback, with suppressed source diagnostics removed above.
+                    statements.append("    final ").append(alias).append("Notifications.Notification ")
+                            .append(alias).append("NotificationBound").append(index).append(" = ")
+                            .append(selected).append("();\n");
+                }
                 if (probe.sourceTypeOverride().isPresent() && !coreSelected && !selectedType.endsWith("?")) {
                     int nullableControlStart = statements.length();
                     statements.append("    final ").append(selectedType).append(' ').append(alias)
@@ -807,8 +1108,13 @@ public final class DartCandidateAnalyzer {
                 "Cannot allocate a bounded collision-free static-type proof import alias.");
     }
 
-    private static String qualifiedExpectedType(String value, String alias, String coreAlias)
+    private static String qualifiedExpectedType(String value, String alias, String coreAlias,
+            boolean gestureLibrary, boolean pointerLibrary)
             throws AnalysisFailure {
+        if (DartStaticTypeProbe.SCAFFOLD_SCRIM_BUILDER_TYPE.equals(value)) {
+            return alias + ".Widget? Function(" + alias + ".BuildContext, "
+                    + alias + ".Animation<" + coreAlias + ".double>)";
+        }
         Matcher matcher = CLOSED_EXPECTED_TYPE.matcher(value);
         if (!matcher.matches()) {
             throw malformed("Static-type probe contains an invalid expected type.");
@@ -816,17 +1122,48 @@ public final class DartCandidateAnalyzer {
         String outerType = matcher.group(1);
         // Object is a core type, not an export of the selected Flutter proof
         // library. Keep the witness-owned core import and the user's scope intact.
-        String result = (isCoreProofType(outerType) ? coreAlias : alias) + '.' + outerType;
+        String result = proofTypeAlias(outerType, alias, coreAlias, gestureLibrary, pointerLibrary) + '.' + outerType;
         if (matcher.group(2) != null) {
             String argument = matcher.group(2);
-            String argumentAlias = isCoreProofType(argument.replace("?", "")) ? coreAlias : alias;
+            String argumentAlias = proofTypeAlias(argument.replace("?", ""), alias, coreAlias, gestureLibrary, pointerLibrary);
             result += '<' + argumentAlias + '.' + argument + '>';
         }
         return matcher.group(3) == null ? result : result + '?';
     }
 
     private static boolean isCoreProofType(String name) {
-        return Set.of("Object", "String", "int", "double", "num", "bool", "Type").contains(name);
+        return Set.of("Object", "String", "int", "double", "num", "bool", "Type", "Duration", "List").contains(name);
+    }
+
+    private static String proofTypeAlias(String name, String alias, String coreAlias,
+            boolean gestureLibrary, boolean pointerLibrary) {
+        if (isCoreProofType(name)) return coreAlias;
+        if (pointerLibrary && POINTER_CALLBACK_PROOF_TYPES.contains(name)) {
+            return alias + (SERVICES_POINTER_CALLBACK_PROOF_TYPES.contains(name) ? "Services" : "Rendering");
+        }
+        return gestureLibrary && GESTURE_CALLBACK_PROOF_TYPES.contains(name) ? alias + "Gestures" : alias;
+    }
+
+    private static boolean usesPointerProofType(DartStaticTypeProbe probe) {
+        if (!Set.of("package:flutter/widgets.dart", "package:flutter/material.dart")
+                .contains(probe.expectedTypeLibraryUri())) return false;
+        Matcher matcher = CLOSED_EXPECTED_TYPE.matcher(probe.expectedDartType());
+        return matcher.matches() && (POINTER_CALLBACK_PROOF_TYPES.contains(matcher.group(1))
+                || matcher.group(2) != null
+                && POINTER_CALLBACK_PROOF_TYPES.contains(matcher.group(2).replace("?", "")));
+    }
+
+    private static boolean usesItemExtentProofType(DartStaticTypeProbe probe) {
+        return Set.of("ItemExtentBuilder", "ItemExtentBuilder?").contains(probe.expectedDartType());
+    }
+
+    private static boolean usesGestureProofType(DartStaticTypeProbe probe) {
+        if (!Set.of("package:flutter/widgets.dart", "package:flutter/material.dart", "package:flutter/gestures.dart")
+                .contains(probe.expectedTypeLibraryUri())) return false;
+        Matcher matcher = CLOSED_EXPECTED_TYPE.matcher(probe.expectedDartType());
+        return matcher.matches() && (GESTURE_CALLBACK_PROOF_TYPES.contains(matcher.group(1))
+                || matcher.group(2) != null
+                && GESTURE_CALLBACK_PROOF_TYPES.contains(matcher.group(2).replace("?", "")));
     }
 
     private static String requestedTypeDescription(DartStaticTypeProbe probe) {
@@ -839,13 +1176,29 @@ public final class DartCandidateAnalyzer {
             case "Object?" -> nullable;
             case "ValueChanged<Object?>" -> "ValueChanged<" + nullable + '>';
             case "RadioGroupRegistry<Object>" -> "RadioGroupRegistry<" + type + '>';
+            case "Tween<Object>" -> "Tween<" + type + '>';
+            case "ValueListenable<Object>" -> "ValueListenable<" + type + '>';
+            case "ValueWidgetBuilder<Object>" -> "ValueWidgetBuilder<" + type + '>';
+            case "NotificationListenerCallback<Notification>" -> "NotificationListenerCallback<" + type + '>';
             default -> probe.expectedDartType();
         };
     }
 
     private static String qualifiedExpectedType(DartStaticTypeProbe probe, String alias, String coreAlias)
             throws AnalysisFailure {
-        if (probe.sourceTypeOverride().isEmpty()) return qualifiedExpectedType(probe.expectedDartType(), alias, coreAlias);
+        if (Set.of("Image?", "Rect?").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
+        if (probe.expectedDartType().equals("SystemUiOverlayStyle?")) return alias + "Services.SystemUiOverlayStyle?";
+        if (probe.expectedDartType().equals("AsyncCallback")) return alias + "Foundation.AsyncCallback";
+        if (probe.expectedDartType().equals("ValueNotifier<EdgeInsets>?")) return alias + "Foundation.ValueNotifier<" + alias + ".EdgeInsets>?";
+        if (probe.expectedDartType().equals("ValueListenable<Object>") && probe.sourceTypeOverride().isEmpty())
+            return alias + "Foundation.ValueListenable<" + coreAlias + ".Object>";
+        if (usesItemExtentProofType(probe)) {
+            return alias + "Rendering." + probe.expectedDartType();
+        }
+        if (probe.sourceTypeOverride().isEmpty()) {
+            return qualifiedExpectedType(probe.expectedDartType(), alias, coreAlias,
+                    usesGestureProofType(probe), usesPointerProofType(probe));
+        }
         String type = probe.sourceTypeOverride().orElseThrow();
         String nullable = type.endsWith("?") ? type : type + '?';
         return switch (probe.expectedDartType()) {
@@ -854,6 +1207,10 @@ public final class DartCandidateAnalyzer {
             case "Object?" -> nullable;
             case "ValueChanged<Object?>" -> alias + ".ValueChanged<" + nullable + '>';
             case "RadioGroupRegistry<Object>" -> alias + ".RadioGroupRegistry<" + type + '>';
+            case "Tween<Object>" -> alias + ".Tween<" + type + '>';
+            case "ValueListenable<Object>" -> alias + "Foundation.ValueListenable<" + type + '>';
+            case "ValueWidgetBuilder<Object>" -> alias + ".ValueWidgetBuilder<" + type + '>';
+            case "NotificationListenerCallback<Notification>" -> alias + ".NotificationListenerCallback<" + type + '>';
             default -> throw malformed("Source type override has an unsupported proof family.");
         };
     }

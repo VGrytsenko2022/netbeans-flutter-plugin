@@ -22,6 +22,7 @@ public final class DartDesignerSuperclassOccurrence {
 
     private final OriginalDartBytes sourceIdentity;
     private final String className;
+    private final String symbolName;
     private final int startUtf16;
     private final int endUtf16;
     private final int startByte;
@@ -34,11 +35,21 @@ public final class DartDesignerSuperclassOccurrence {
             int endUtf16,
             int startByte,
             int endByte) {
+        this(sourceIdentity, className, SYMBOL_NAME, startUtf16, endUtf16, startByte, endByte);
+    }
+
+    DartDesignerSuperclassOccurrence(
+            OriginalDartBytes sourceIdentity, String className, String symbolName,
+            int startUtf16, int endUtf16, int startByte, int endByte) {
         this.sourceIdentity = Objects.requireNonNull(sourceIdentity, "sourceIdentity");
         if (className == null || className.isBlank()) {
             throw new IllegalArgumentException("className must not be blank");
         }
         this.className = className;
+        if (!java.util.Set.of("StatelessWidget", "StatefulWidget", "State").contains(symbolName)) {
+            throw new IllegalArgumentException("Unreviewed Designer superclass symbol: " + symbolName);
+        }
+        this.symbolName = symbolName;
         if (startUtf16 < 0 || endUtf16 <= startUtf16
                 || startByte < 0 || endByte <= startByte) {
             throw new IllegalArgumentException(
@@ -56,7 +67,7 @@ public final class DartDesignerSuperclassOccurrence {
     }
 
     public String symbolName() {
-        return SYMBOL_NAME;
+        return symbolName;
     }
 
     public int startUtf16() {
@@ -93,10 +104,10 @@ public final class DartDesignerSuperclassOccurrence {
             throw new IllegalArgumentException(
                     "superclass byte occurrence exceeds its source snapshot");
         }
-        byte[] expected = SYMBOL_NAME.getBytes(StandardCharsets.UTF_8);
+        byte[] expected = symbolName.getBytes(StandardCharsets.UTF_8);
         if (!Arrays.equals(expected, Arrays.copyOfRange(source, startByte, endByte))) {
             throw new IllegalArgumentException(
-                    "superclass byte occurrence does not select StatelessWidget");
+                    "superclass byte occurrence does not select " + symbolName);
         }
 
         int bomBytes = utf8BomLength(source);
@@ -112,9 +123,9 @@ public final class DartDesignerSuperclassOccurrence {
                     "superclass occurrence source is not strict UTF-8", invalidUtf8);
         }
         if (endUtf16 > text.length()
-                || !text.substring(startUtf16, endUtf16).equals(SYMBOL_NAME)) {
+                || !text.substring(startUtf16, endUtf16).equals(symbolName)) {
             throw new IllegalArgumentException(
-                    "superclass UTF-16 occurrence does not select StatelessWidget");
+                    "superclass UTF-16 occurrence does not select " + symbolName);
         }
         if (byteOffsetAt(text, startUtf16, bomBytes) != startByte
                 || byteOffsetAt(text, endUtf16, bomBytes) != endByte) {
@@ -165,6 +176,7 @@ public final class DartDesignerSuperclassOccurrence {
                 || other instanceof DartDesignerSuperclassOccurrence value
                 && sourceIdentity.equals(value.sourceIdentity)
                 && className.equals(value.className)
+                && symbolName.equals(value.symbolName)
                 && startUtf16 == value.startUtf16
                 && endUtf16 == value.endUtf16
                 && startByte == value.startByte
@@ -173,14 +185,14 @@ public final class DartDesignerSuperclassOccurrence {
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourceIdentity, className, startUtf16, endUtf16,
+        return Objects.hash(sourceIdentity, className, symbolName, startUtf16, endUtf16,
                 startByte, endByte);
     }
 
     @Override
     public String toString() {
         return "DartDesignerSuperclassOccurrence[className=" + className
-                + ", symbolName=" + SYMBOL_NAME
+                + ", symbolName=" + symbolName
                 + ", startUtf16=" + startUtf16
                 + ", endUtf16=" + endUtf16
                 + ", startByte=" + startByte

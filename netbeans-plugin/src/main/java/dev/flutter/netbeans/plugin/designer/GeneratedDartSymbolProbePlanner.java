@@ -15,6 +15,10 @@ import dev.flutter.netbeans.designer.generation.GeneratedDartRegions;
 import dev.flutter.netbeans.designer.generation.GeneratedDartSymbolOccurrence;
 import dev.flutter.netbeans.designer.generation.GeneratedDartStaticTypeRequirement;
 import dev.flutter.netbeans.designer.pair.PreparedDesignerPair;
+import dev.flutter.netbeans.designer.events.DartEventHandlerSource;
+import dev.flutter.netbeans.designer.model.StateBinding;
+import dev.flutter.netbeans.designer.model.WidgetNode;
+import dev.flutter.netbeans.designer.model.WidgetSlot;
 import dev.flutter.netbeans.designer.source.DartDesignerSuperclassOccurrence;
 import dev.flutter.netbeans.designer.source.DartManagedRegionSnapshot;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
@@ -30,6 +34,7 @@ import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.ArrayDeque;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
@@ -52,6 +57,8 @@ import org.snakeyaml.engine.v2.nodes.ScalarNode;
 final class GeneratedDartSymbolProbePlanner {
     static final String DESIGNER_SUPERCLASS_PROBE_ID =
             "source:designer-superclass";
+    static final String STATE_SUPERCLASS_PROBE_ID =
+            "source:state-superclass";
 
     private static final String FLUTTER_LIBRARY_PREFIX = "package:flutter/";
     private static final String PROPERTY_REFERENCE_ID_TOKEN =
@@ -128,6 +135,7 @@ final class GeneratedDartSymbolProbePlanner {
                     "The exact prospective Dart candidate must be BOM-free");
         }
         String candidate = decodeStrict(candidateBytes);
+        validateStateBindingFields(prepared, candidateBytes);
         int importsStart = payloadStartUtf16(
                 candidateBytes,
                 generated.imports(),
@@ -147,14 +155,23 @@ final class GeneratedDartSymbolProbePlanner {
         String staticTypeLibrary = generated.symbolOccurrences().stream()
                 .flatMap(occurrence -> occurrence.staticTypeRequirement().stream())
                 .map(GeneratedDartStaticTypeRequirement::expectedDartType)
-                .anyMatch(type -> type.equals("RefreshCallback")
+                .anyMatch(type -> type.equals("List<StretchMode>")
+                        || type.equals("RefreshCallback")
                         || type.equals("ValueChanged<RefreshIndicatorStatus?>")
                         || type.equals("ButtonStyle")
+                        || type.equals("TooltipThemeData")
+                        || type.equals("ThemeData")
+                        || type.equals("AnimatedIconData")
+                        || type.equals("MenuStyle")
+                        || type.equals("MenuAnchorChildBuilder")
                         || type.equals("SemanticFormatterCallback")
                         || type.equals("ValueChanged<RangeValues>")
                         || type.equals("RangeLabels")
+                        || type.equals("RangeValues")
                         || type.equals("VisualDensity")
-                        || type.equals("ButtonLayerBuilder"))
+                        || type.equals("ButtonLayerBuilder")
+                        || type.equals("InputCounterWidgetBuilder")
+                        || type.equals("InputCounterWidgetBuilder?"))
                 ? MATERIAL_LIBRARY_URI : WIDGETS_LIBRARY_URI;
 
         ArrayList<DartSymbolProbe> probes = new ArrayList<>();
@@ -176,7 +193,7 @@ final class GeneratedDartSymbolProbePlanner {
                         occurrence.libraryUri()));
             }
         }
-        probes.add(superclassProbe(
+        probes.addAll(superclassProbes(
                 prepared,
                 candidateBytes,
                 candidate,
@@ -214,7 +231,8 @@ final class GeneratedDartSymbolProbePlanner {
                     expectedTargetRoot = projectLibraryRoot;
                 }
             } else if (occurrence.libraryUri().startsWith(FLUTTER_LIBRARY_PREFIX)
-                    || occurrence.libraryUri().equals("dart:core")) {
+                    || occurrence.libraryUri().equals("dart:core")
+                    || occurrence.libraryUri().equals("dart:ui")) {
                 expectedTargetRoot = normalizedRoot;
             } else {
                 continue;
@@ -249,7 +267,10 @@ final class GeneratedDartSymbolProbePlanner {
                     occurrence.symbolName(),
                     occurrence.libraryUri(),
                     expectedTargetRoot,
-                    Optional.empty(),
+                    (occurrence.modelPath().endsWith("/stateBinding/fieldName/rootSymbol")
+                            || occurrence.modelPath().contains("/propertyBindings/")
+                                    && occurrence.modelPath().endsWith("/fieldName/rootSymbol"))
+                            ? Optional.of("FIELD") : Optional.empty(),
                     staticTypeProbe));
         }
         if (probes.stream().noneMatch(probe -> probe.expectedSymbolName()
@@ -270,10 +291,40 @@ final class GeneratedDartSymbolProbePlanner {
         if (!occurrence.id().contains(PROPERTY_REFERENCE_ID_TOKEN)) {
             return false;
         }
-        return (occurrence.id().endsWith(":root")
-                    && occurrence.modelPath().endsWith("/rootSymbol"))
-                || (occurrence.id().endsWith(":member")
-                    && occurrence.modelPath().endsWith("/member"));
+        // Some generated compound values are rendered more than once and add
+        // a deterministic use suffix after the reference token. The model
+        // path remains the authority for distinguishing the root/member
+        // symbol; retain those suffix-bearing occurrences for exact project
+        // provenance and static-type proofs.
+        boolean root = (occurrence.id().endsWith(":root")
+                || occurrence.id().contains(":root:"))
+                && occurrence.modelPath().endsWith("/rootSymbol");
+        boolean member = (occurrence.id().endsWith(":member")
+                || occurrence.id().contains(":member:"))
+                && occurrence.modelPath().endsWith("/member");
+        return root || member;
+    }
+
+    private static void validateStateBindingFields(PreparedDesignerPair prepared, byte[] source) {
+        ArrayList<StateBinding> bindings = new ArrayList<>();
+        var propertyBindings = new ArrayList<dev.flutter.netbeans.designer.model.StatePropertyBinding>();
+        ArrayDeque<WidgetNode> pending = new ArrayDeque<>();
+        pending.push(prepared.prospectiveDocument().root());
+        while (!pending.isEmpty()) {
+            WidgetNode node = pending.pop();
+            node.stateBinding().ifPresent(bindings::add);
+            propertyBindings.addAll(node.propertyBindings().values());
+            for (WidgetSlot slot : node.slots().values()) {
+                if (slot instanceof WidgetSlot.SingleSlot single) single.child().ifPresent(pending::push);
+                else pending.addAll(((WidgetSlot.ListSlot) slot).children());
+            }
+        }
+        if (!bindings.isEmpty() || !propertyBindings.isEmpty()) {
+            String owner = prepared.dartTransition().candidateIntegrity().verifiedMemberClassName()
+                    .orElseThrow(() -> new IllegalArgumentException("State binding has no verified source owner"));
+            DartEventHandlerSource.requireStateBindingFields(source, owner, bindings);
+            DartEventHandlerSource.requirePropertyBindingFields(source, owner, propertyBindings);
+        }
     }
 
     private static int staticTypeStatementInsertion(
@@ -323,7 +374,8 @@ final class GeneratedDartSymbolProbePlanner {
                 statementInsertion,
                 requirement.expectedDartType(),
                 expectedTypeLibraryUri,
-                requirement.sourceTypeOverride());
+                requirement.sourceTypeOverride(),
+                requirement.sourceTypeBound());
     }
 
     private static boolean isProjectLibraryUri(String value) {
@@ -658,7 +710,7 @@ final class GeneratedDartSymbolProbePlanner {
         }
     }
 
-    private static DartSymbolProbe superclassProbe(
+    private static List<DartSymbolProbe> superclassProbes(
             PreparedDesignerPair prepared,
             byte[] candidateBytes,
             String candidate,
@@ -676,10 +728,32 @@ final class GeneratedDartSymbolProbePlanner {
                 .superclassOccurrence()
                 .orElseThrow(() -> new IllegalArgumentException(
                 "The exact candidate has no scanner-owned Designer superclass occurrence"));
-        if (!occurrence.className().equals(
-                        prepared.dartTransition().prospectiveDescriptor().className())
-                || !DartDesignerSuperclassOccurrence.SYMBOL_NAME.equals(
-                        occurrence.symbolName())
+        var descriptor = prepared.dartTransition().prospectiveDescriptor();
+        boolean stateful = descriptor.widgetKind()
+                == dev.flutter.netbeans.designer.model.WidgetClassKind.STATEFUL;
+        ArrayList<DartSymbolProbe> probes = new ArrayList<>();
+        probes.add(superclassProbe(occurrence, descriptor.className(),
+                stateful ? "StatefulWidget" : "StatelessWidget", DESIGNER_SUPERCLASS_PROBE_ID,
+                candidateBytes, candidate, expectedTargetRoot));
+        if (stateful) {
+            DartDesignerSuperclassOccurrence state = integrity.stateSuperclassOccurrence()
+                    .orElseThrow(() -> new IllegalArgumentException(
+                    "The exact Stateful candidate has no scanner-owned State superclass occurrence"));
+            String memberOwner = integrity.verifiedMemberClassName().orElseThrow(() ->
+                    new IllegalArgumentException("The Stateful candidate has no verified member owner"));
+            probes.add(superclassProbe(state, memberOwner, "State", STATE_SUPERCLASS_PROBE_ID,
+                    candidateBytes, candidate, expectedTargetRoot));
+        } else if (integrity.stateSuperclassOccurrence().isPresent()) {
+            throw new IllegalArgumentException("A stateless candidate must not carry a State superclass proof");
+        }
+        return List.copyOf(probes);
+    }
+
+    private static DartSymbolProbe superclassProbe(DartDesignerSuperclassOccurrence occurrence,
+            String expectedClass, String expectedSymbol, String probeId,
+            byte[] candidateBytes, String candidate, Path expectedTargetRoot) {
+        if (!occurrence.className().equals(expectedClass)
+                || !expectedSymbol.equals(occurrence.symbolName())
                 || occurrence.endByte() > candidateBytes.length) {
             throw new IllegalArgumentException(
                     "Scanner-owned superclass evidence does not describe the prospective class");
@@ -698,7 +772,7 @@ final class GeneratedDartSymbolProbePlanner {
                     "Scanner-owned superclass coordinates do not identify the exact candidate");
         }
         return new DartSymbolProbe(
-                DESIGNER_SUPERCLASS_PROBE_ID,
+                probeId,
                 startUtf16,
                 occurrence.lengthUtf16(),
                 occurrence.symbolName(),

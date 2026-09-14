@@ -10,6 +10,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import dev.flutter.netbeans.designer.codec.FdDecodeResult;
 import dev.flutter.netbeans.designer.codec.FdDocumentCodec;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPairLayout;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
@@ -18,6 +19,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
+import javax.swing.SwingUtilities;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -46,6 +49,7 @@ class FlutterDesignerFormWizardIteratorTest {
         panel.readSettings(wizard);
         FlutterDesignerFormWizardVisual visual =
                 (FlutterDesignerFormWizardVisual) panel.getComponent();
+        assertEquals(WidgetClassKind.STATELESS, visual.widgetKind());
         assertEquals("features/orders",
                 visual.relativeLocation().replace('\\', '/'));
         assertTrue(visual.displayedDartFile().replace('\\', '/')
@@ -77,6 +81,7 @@ class FlutterDesignerFormWizardIteratorTest {
                 new FdDocumentCodec().decode(Files.readAllBytes(model)));
         assertEquals("order_screen.dart", decoded.document().source().dartFile());
         assertEquals("OrderScreen", decoded.document().source().className());
+        assertEquals(WidgetClassKind.STATELESS, decoded.document().source().widgetKind());
         assertTrue(new DartSourceIntegrityScanner()
                 .scan(Files.readAllBytes(dart), decoded.document().source())
                 .onDiskDeclaredMatch());
@@ -210,6 +215,56 @@ class FlutterDesignerFormWizardIteratorTest {
         visual.initialize(null, null, "MemoryScreen", "nested");
         assertEquals("", visual.displayedDartFile());
         assertEquals("", visual.displayedModelFile());
+    }
+
+    @Test
+    void explicitStatefulChoiceIsStoredAndCreatesMirroredStateOwnedBuild() throws Exception {
+        ProjectFiles project = project("stateful_choice", "lib/forms");
+        TestWizardDescriptor wizard = wizard(project, "lib/forms");
+        FlutterDesignerFormWizardIterator iterator = new FlutterDesignerFormWizardIterator(false);
+        iterator.initialize(wizard);
+        FlutterDesignerFormWizardPanel panel = (FlutterDesignerFormWizardPanel) iterator.current();
+        panel.readSettings(wizard);
+        var visual = (FlutterDesignerFormWizardVisual) panel.getComponent();
+        String displayedSource = visual.displayedDartFile();
+        String displayedModel = visual.displayedModelFile();
+        AtomicInteger changes = new AtomicInteger();
+        panel.addChangeListener(event -> changes.incrementAndGet());
+        SwingUtilities.invokeAndWait(() -> visual.setWidgetKind(WidgetClassKind.STATEFUL));
+        assertTrue(changes.get() > 0);
+        assertEquals(displayedSource, visual.displayedDartFile());
+        assertEquals(displayedModel, visual.displayedModelFile());
+        panel.storeSettings(wizard);
+        assertEquals(WidgetClassKind.STATEFUL, wizard.getProperty(FlutterDesignerFormWizardPanel.PROP_WIDGET_KIND));
+        iterator.instantiate();
+        Path source = project.path().resolve("lib/forms/new_screen.dart");
+        Path model = project.path().resolve(".fd_templates/forms/new_screen.fd");
+        var decoded = assertInstanceOf(FdDecodeResult.Current.class, new FdDocumentCodec().decode(Files.readAllBytes(model)));
+        assertEquals(WidgetClassKind.STATEFUL, decoded.document().source().widgetKind());
+        assertTrue(Files.readString(source).contains("State<NewScreen> createState() => _NewScreenState();"));
+        assertTrue(Files.readString(source).contains("class _NewScreenState extends State<NewScreen>"));
+        var integrity = new DartSourceIntegrityScanner().scan(Files.readAllBytes(source), decoded.document().source());
+        assertTrue(integrity.onDiskDeclaredMatch(), integrity.diagnostics().toString());
+        iterator.uninitialize(wizard);
+    }
+
+    @Test
+    void restoresExplicitKindAndRejectsUnknownKindBeforeCreatingFiles() throws Exception {
+        ProjectFiles project = project("stateful_settings", "lib");
+        TestWizardDescriptor wizard = wizard(project, "lib");
+        wizard.putProperty(FlutterDesignerFormWizardPanel.PROP_WIDGET_KIND, WidgetClassKind.STATEFUL);
+        FlutterDesignerFormWizardIterator iterator = new FlutterDesignerFormWizardIterator(false);
+        iterator.initialize(wizard);
+        FlutterDesignerFormWizardPanel panel = (FlutterDesignerFormWizardPanel) iterator.current();
+        panel.readSettings(wizard);
+        assertEquals(WidgetClassKind.STATEFUL,
+                ((FlutterDesignerFormWizardVisual) panel.getComponent()).widgetKind());
+        panel.storeSettings(wizard);
+        wizard.putProperty(FlutterDesignerFormWizardPanel.PROP_WIDGET_KIND, "unsupported-kind");
+        IOException failure = assertThrows(IOException.class, iterator::instantiate);
+        assertTrue(failure.getMessage().contains("widget kind"));
+        assertFalse(Files.exists(project.path().resolve("lib/new_screen.dart")));
+        assertFalse(Files.exists(project.path().resolve(".fd_templates/new_screen.fd")));
     }
 
     private ProjectFiles project(String name, String selectedFolder) throws Exception {

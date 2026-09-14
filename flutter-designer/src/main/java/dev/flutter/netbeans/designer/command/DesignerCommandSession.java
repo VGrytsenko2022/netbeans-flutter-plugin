@@ -28,6 +28,9 @@ import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlan;
 import dev.flutter.netbeans.designer.transition.DartSourceTransitionPlanner;
 import dev.flutter.netbeans.designer.transition.DartSourceTransitionResult;
 import dev.flutter.netbeans.designer.transition.DartSourceTransitionStatus;
+import dev.flutter.netbeans.designer.transition.DartUserSourceProjection;
+import dev.flutter.netbeans.designer.events.WidgetEventDescriptor;
+import dev.flutter.netbeans.designer.model.WidgetNode;
 import dev.flutter.netbeans.designer.validation.ValidationIssue;
 import dev.flutter.netbeans.designer.validation.ValidationResult;
 import dev.flutter.netbeans.designer.validation.WidgetTreeValidator;
@@ -57,6 +60,7 @@ public final class DesignerCommandSession {
     private final int cursor;
     private final long savedRevisionId;
     private final long nextRevisionId;
+    private final List<AcceptedSourceVariant> acceptedSourceVariants;
 
     private DesignerCommandSession(
             WidgetCatalog catalog,
@@ -67,6 +71,12 @@ public final class DesignerCommandSession {
             int cursor,
             long savedRevisionId,
             long nextRevisionId) {
+        this(catalog, limits, anchor, revisions, edits, cursor, savedRevisionId, nextRevisionId, List.of());
+    }
+
+    private DesignerCommandSession(WidgetCatalog catalog, DesignerCommandLimits limits, DurableAnchor anchor,
+            List<DesignerCommandRevision> revisions, List<DesignerCommandEdit> edits, int cursor,
+            long savedRevisionId, long nextRevisionId, List<AcceptedSourceVariant> acceptedSourceVariants) {
         this.catalog = Objects.requireNonNull(catalog, "catalog");
         this.limits = Objects.requireNonNull(limits, "limits");
         this.anchor = Objects.requireNonNull(anchor, "anchor");
@@ -75,6 +85,7 @@ public final class DesignerCommandSession {
         this.cursor = cursor;
         this.savedRevisionId = savedRevisionId;
         this.nextRevisionId = nextRevisionId;
+        this.acceptedSourceVariants = List.copyOf(acceptedSourceVariants);
         validateState();
     }
 
@@ -253,6 +264,12 @@ public final class DesignerCommandSession {
         if (!threeWay.onDiskThreeWayMatch()) {
             return threeWayOpenFailure(threeWay);
         }
+        try {
+            requireStateBindingFields(document, baselineDart, source);
+        } catch (IllegalArgumentException invalid) {
+            return openFailure(DesignerCommandStatus.CONFLICT,
+                    DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED, "/source/dartFile", invalid.getMessage());
+        }
 
         DurableAnchor anchor = new DurableAnchor(
                 baselineFd, document, baselineDart, generation, source, threeWay);
@@ -265,7 +282,13 @@ public final class DesignerCommandSession {
                 source,
                 Optional.empty(),
                 Optional.empty(),
-                DesignerRevisionPersistenceKind.BASELINE);
+                DesignerRevisionPersistenceKind.BASELINE,
+                DartUserSourceProjection.identity(baselineDart, document.source()));
+        if (initial.retainedPairBytes() > limits.maxRetainedPairBytes()) {
+            return openFailure(DesignerCommandStatus.LIMIT_EXCEEDED,
+                    DesignerCommandDiagnosticCode.HISTORY_BYTE_LIMIT, "",
+                    "The baseline pair and user-source proof exceed the retained command-history limit.");
+        }
         DesignerCommandSession session = new DesignerCommandSession(
                 catalog,
                 limits,
@@ -369,12 +392,18 @@ public final class DesignerCommandSession {
         requireExactCurrentPhysicalEndpoint(
                 Objects.requireNonNull(
                         exactEndpointPair, "exactEndpointPair"));
-        return applyFromLiveEnvelope(command, exactEndpointPair.liveDartBytes());
+        return applyFromLiveEnvelope(command, exactEndpointPair.liveDartBytes(),
+                exactEndpointPair.dartTransition().userSourceProjection());
     }
 
     private DesignerCommandSessionResult applyFromLiveEnvelope(
             DesignerCommand command,
             byte[] exactLiveEnvelope) {
+        return applyFromLiveEnvelope(command, exactLiveEnvelope, current().userSourceProjection());
+    }
+
+    private DesignerCommandSessionResult applyFromLiveEnvelope(DesignerCommand command,
+            byte[] exactLiveEnvelope, DartUserSourceProjection sourceProjection) {
         DesignerCommandTransformer.SemanticResult semantic =
                 new DesignerCommandTransformer(catalog, limits.validationLimits())
                         .apply(current().document(), command);
@@ -394,17 +423,68 @@ public final class DesignerCommandSession {
                             + limits.maxHistoryEdits() + " undoable edits."));
         }
 
+        boolean insertHeaderDelegate =
+                !dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.usesInitialDelegate(current().document().root())
+                && dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.usesInitialDelegate(semantic.document().orElseThrow().root());
+        DartUserSourceProjection userSource;
+        try {
+            userSource = sourceProjection.rebaseOnto(
+                    exactLiveEnvelope, anchor.document().source());
+            if (insertHeaderDelegate) {
+                userSource = userSource.insertPersistentHeaderDelegate();
+            }
+            if (command instanceof CreateMenuAnchorBuilder create) {
+                userSource = userSource.insertHandler(eventMemberOwner(), create.methodName(),
+                        create.declaration(), List.of("package:flutter/material.dart"));
+            } else if (command instanceof CreateEventHandler create) {
+                WidgetNode widget = EventCommandSupport.widget(current().document().root(), create.widgetId());
+                WidgetEventDescriptor event = EventCommandSupport.event(catalog, widget, create.event());
+                userSource = userSource.insertHandler(eventMemberOwner(),
+                        create.handlerName(), event.createStub(create.handlerName()), event.signature().importUris());
+            } else if (command instanceof RenameEventHandler rename) {
+                WidgetNode widget = EventCommandSupport.widget(current().document().root(), rename.widgetId());
+                String oldName = EventCommandSupport.localHandler(widget.properties().get(rename.event()))
+                        .orElseThrow(() -> new IllegalArgumentException("The event has no local handler to rename."));
+                userSource = userSource.renameHandler(eventMemberOwner(),
+                        oldName, rename.newName());
+            } else if (command instanceof RenameStateField rename) {
+                WidgetNode widget = EventCommandSupport.widget(current().document().root(), rename.widgetId());
+                var field = StateCommandSupport.field(widget, rename.fieldName());
+                dev.flutter.netbeans.designer.events.DartEventHandlerSource.requireStateFieldRenameNamesAvailable(
+                        current().dartCandidateBytes(), eventMemberOwner(), field, rename.newName());
+                userSource = userSource.renameStateField(eventMemberOwner(), field, rename.newName());
+            } else if (command instanceof CreateStateBinding create) {
+                WidgetNode widget = EventCommandSupport.widget(
+                        semantic.document().orElseThrow().root(), create.widgetId());
+                // A retained user-source proof uses the durable managed template;
+                // inspect the latest generated payload too, including prior unsaved commands.
+                dev.flutter.netbeans.designer.events.DartEventHandlerSource.requireStateBindingNamesAvailable(
+                        current().dartCandidateBytes(), eventMemberOwner(), widget.stateBinding().orElseThrow(), create.reusedField().isPresent());
+                userSource = userSource.insertStateBinding(eventMemberOwner(), widget, create.initialText(), create.reusedField().isPresent());
+            }
+        } catch (IllegalArgumentException invalid) {
+            return unchanged(DesignerCommandStatus.CONFLICT, diagnostic(
+                    insertHeaderDelegate
+                            ? DesignerCommandDiagnosticCode.PERSISTENT_HEADER_DELEGATE_REJECTED
+                            : command instanceof CreateMenuAnchorBuilder
+                            ? DesignerCommandDiagnosticCode.MENU_ANCHOR_BUILDER_REJECTED
+                            : command instanceof CreateStateBinding || command instanceof RenameStateField
+                            ? DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED
+                            : DesignerCommandDiagnosticCode.EVENT_HANDLER_REJECTED,
+                    "/source/dartFile", invalid.getMessage()));
+        }
         DerivedRevision derived = deriveRevision(
                 anchor,
                 semantic.document().orElseThrow(),
                 nextRevisionId,
-                exactLiveEnvelope);
+                exactLiveEnvelope,
+                userSource);
         if (derived.diagnostic().isPresent()) {
             return unchanged(
                     derived.status(), derived.diagnostic().orElseThrow());
         }
         DesignerCommandRevision after = derived.revision().orElseThrow();
-        long retainedBytes = retainedBytesThrough(cursor);
+        long retainedBytes = Math.addExact(retainedBytesThrough(cursor), acceptedSourceVariantBytes());
         if (wouldExceed(retainedBytes, after.retainedPairBytes(),
                 limits.maxRetainedPairBytes())) {
             return unchanged(
@@ -432,9 +512,110 @@ public final class DesignerCommandSession {
                 nextEdits,
                 cursor + 1,
                 savedRevisionId,
-                Math.incrementExact(nextRevisionId));
+                Math.incrementExact(nextRevisionId),
+                acceptedSourceVariants);
         return changed(DesignerCommandStatus.APPLIED, next, edit);
     }
+
+    private String eventMemberOwner() {
+        return current().sourceIntegrity().verifiedMemberClassName().orElseThrow(() ->
+                new IllegalArgumentException("The Designer event member owner is not verified in the current source."));
+    }
+
+    private static void requireStateBindingFields(DesignerDocument document, byte[] source,
+            DartSourceIntegrityResult integrity) {
+        var bindings = new ArrayList<dev.flutter.netbeans.designer.model.StateBinding>();
+        var consumers = new ArrayList<dev.flutter.netbeans.designer.model.StatePropertyBinding>();
+        var pending = new java.util.ArrayDeque<WidgetNode>();
+        pending.push(document.root());
+        while (!pending.isEmpty()) {
+            WidgetNode node = pending.pop();
+            node.stateBinding().ifPresent(bindings::add);
+            node.propertyBindings().entrySet().stream()
+                    .filter(entry -> dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema.propertyAvailable(node, entry.getKey()))
+                    .filter(entry -> dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey()))
+                    .filter(entry -> dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema.propertyAvailable(node, entry.getKey()))
+                    .map(java.util.Map.Entry::getValue).forEach(consumers::add);
+            for (var slot : node.slots().values()) {
+                switch (slot) {
+                    case dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot single -> single.child().ifPresent(pending::push);
+                    case dev.flutter.netbeans.designer.model.WidgetSlot.ListSlot list -> list.children().forEach(pending::push);
+                }
+            }
+        }
+        if (!bindings.isEmpty() || !consumers.isEmpty()) {
+            if (document.source().widgetKind() != dev.flutter.netbeans.designer.model.WidgetClassKind.STATEFUL) {
+                throw new IllegalArgumentException("State bindings require a verified Stateful source owner.");
+            }
+            dev.flutter.netbeans.designer.events.DartEventHandlerSource.requireStateBindingFields(source,
+                    integrity.verifiedMemberClassName().orElseThrow(() -> new IllegalArgumentException(
+                            "The State field owner is not verified in the current source.")), bindings);
+            dev.flutter.netbeans.designer.events.DartEventHandlerSource.requirePropertyBindingFields(source,
+                    integrity.verifiedMemberClassName().orElseThrow(), consumers);
+        }
+    }
+
+    /**
+     * Derives a same-logical-revision candidate from newly observed user Source.
+     * The original exact physical pair is mandatory. The resulting capability
+     * remains pure evidence and must pass the native owner's analyzer gate.
+     */
+    public DesignerSourceRestage prepareSourceRestage(PreparedDesignerPair predecessorPair, byte[] observedDart) {
+        Objects.requireNonNull(observedDart, "observedDart");
+        requireExactCurrentPhysicalEndpoint(Objects.requireNonNull(predecessorPair, "predecessorPair"));
+        DartUserSourceProjection observed = DartUserSourceProjection.observedEdit(
+                predecessorPair.prospectiveDartBytes(), observedDart, current().document().source());
+        DartUserSourceProjection combined = predecessorPair.dartTransition().userSourceProjection().then(observed);
+        DerivedRevision derived = deriveRevision(anchor, current().document(), current().revisionId(),
+                predecessorPair.liveDartBytes(), current().generation(), combined);
+        if (derived.revision().isEmpty()) {
+            throw new IllegalArgumentException("Observed Source candidate cannot be derived: "
+                    + derived.diagnostic().orElseThrow().message());
+        }
+        DesignerCommandRevision physical = derived.revision().orElseThrow();
+        if (physical.persistenceKind() != DesignerRevisionPersistenceKind.PAIRED
+                || physical.generation() != current().generation()
+                || !physical.document().equals(current().document())
+                || !physical.fdSnapshot().equals(current().fdSnapshot())
+                || !Arrays.equals(physical.dartCandidateBytes(), observedDart)) {
+            throw new IllegalArgumentException("Observed Source must preserve the exact logical model and generated payloads.");
+        }
+        if (acceptedSourceVariants.size() >= limits.maxHistoryEdits()) {
+            throw new IllegalArgumentException("Observed Source variants exceed the bounded history entry limit.");
+        }
+        long bytes = Math.addExact(retainedBytesThrough(revisions.size() - 1), acceptedSourceVariantBytes());
+        if (wouldExceed(bytes, physical.retainedPairBytes(), limits.maxRetainedPairBytes())) {
+            throw new IllegalArgumentException("Observed Source variants exceed the retained command-history byte limit.");
+        }
+        ArrayList<AcceptedSourceVariant> variants = new ArrayList<>(acceptedSourceVariants);
+        variants.add(new AcceptedSourceVariant(current(), physical));
+        DesignerCommandSession accepted = new DesignerCommandSession(catalog, limits, anchor,
+                revisions, edits, cursor, savedRevisionId, nextRevisionId, variants);
+        return new DesignerSourceRestage(this, accepted, physical, predecessorPair);
+    }
+
+    /** Pure adoption only; the native owner must first accept exact analyzer/live-source evidence. */
+    public DesignerCommandSession acceptSourceRestage(DesignerSourceRestage restage) {
+        if (!Objects.requireNonNull(restage, "restage").belongsTo(this)) {
+            throw new IllegalArgumentException("The Source restage belongs to another exact command session.");
+        }
+        return restage.acceptedSession();
+    }
+
+    private boolean acceptedSourceVariant(DesignerCommandRevision logical, PreparedDesignerPair physical) {
+        return acceptedSourceVariants.stream().anyMatch(value -> value.logical() == logical
+                && value.physical().preparedPair().orElseThrow() == physical);
+    }
+
+    private long acceptedSourceVariantBytes() {
+        long bytes = 0;
+        for (AcceptedSourceVariant value : acceptedSourceVariants) {
+            bytes = Math.addExact(bytes, value.physical().retainedPairBytes());
+        }
+        return bytes;
+    }
+
+    private record AcceptedSourceVariant(DesignerCommandRevision logical, DesignerCommandRevision physical) { }
 
     private void requireExactCurrentPhysicalEndpoint(
             PreparedDesignerPair exactEndpointPair) {
@@ -463,7 +644,8 @@ public final class DesignerCommandSession {
                         anchor.source(), transition.liveSource())
                 || !exactManagedPayloadsMatch(
                         logical.sourceIntegrity(),
-                        transition.candidateIntegrity())) {
+                        transition.candidateIntegrity())
+                || !physicalUserEnvelopeMatches(logical, exactEndpointPair)) {
             throw new IllegalArgumentException(
                     "The physical endpoint pair is detached from the exact current logical revision or durable anchor");
         }
@@ -581,7 +763,8 @@ public final class DesignerCommandSession {
                         anchor.source(), transition.liveSource())
                 || !exactManagedPayloadsMatch(
                         saved.sourceIntegrity(),
-                        transition.candidateIntegrity())) {
+                        transition.candidateIntegrity())
+                || !physicalUserEnvelopeMatches(saved, exactPair)) {
             throw new IllegalArgumentException(
                     "The exact physical pair is detached from the current durable anchor or semantic revision");
         }
@@ -603,7 +786,7 @@ public final class DesignerCommandSession {
                 threeWay);
 
         return markSavedAtAnchor(
-                saved, nextAnchor, "Exact-pair command history re-anchor");
+                saved, nextAnchor, "Exact-pair command history re-anchor", exactPair);
     }
 
     /**
@@ -634,14 +817,44 @@ public final class DesignerCommandSession {
             DesignerCommandRevision saved,
             DurableAnchor nextAnchor,
             String failureContext) {
+        return markSavedAtAnchor(saved, nextAnchor, failureContext, null);
+    }
+
+    private DesignerCommandSession markSavedAtAnchor(DesignerCommandRevision saved,
+            DurableAnchor nextAnchor, String failureContext, PreparedDesignerPair exactPhysicalSaved) {
 
         ArrayList<DesignerCommandRevision> nextRevisions = new ArrayList<>(
                 revisions.size());
         DesignerCommandRevision nextSaved = null;
         long retainedBytes = 0;
+        byte[] sourceBasis = exactPhysicalSaved != null ? exactPhysicalSaved.liveDartBytes()
+                : saved.preparedPair().map(PreparedDesignerPair::liveDartBytes)
+                .orElseGet(anchor::dartBytes);
+        DartUserSourceProjection savedProjection = (exactPhysicalSaved != null
+                ? exactPhysicalSaved.dartTransition().userSourceProjection() : saved.userSourceProjection())
+                .rebaseOnto(sourceBasis, anchor.document().source());
         for (DesignerCommandRevision revision : revisions) {
+            boolean retainHistoricalEnvelope = revision != saved && revision.historicalUserEnvelope();
+            byte[] liveTemplate;
+            DartUserSourceProjection sourceProjection;
+            if (revision == saved) {
+                liveTemplate = nextAnchor.dartBytes();
+                sourceProjection = DartUserSourceProjection.identity(liveTemplate, nextAnchor.document().source());
+            } else if (retainHistoricalEnvelope) {
+                byte[] historical = revision.preparedPair().map(PreparedDesignerPair::liveDartBytes)
+                        .orElseGet(revision::dartCandidateBytes);
+                DartSourceIntegrityResult historicalIntegrity = new DartSourceIntegrityScanner(limits.sourceLimits())
+                        .scan(historical, anchor.document().source());
+                liveTemplate = projectManagedPayloads(historical, historicalIntegrity, nextAnchor);
+                sourceProjection = revision.userSourceProjection().rebaseOnto(liveTemplate, nextAnchor.document().source());
+            } else {
+                liveTemplate = nextAnchor.dartBytes();
+                sourceProjection = savedProjection.inverse()
+                        .then(revision.userSourceProjection().rebaseOnto(sourceBasis, anchor.document().source()))
+                        .rebaseOnto(liveTemplate, nextAnchor.document().source());
+            }
             DerivedRevision derived = deriveRevision(
-                    nextAnchor, revision.document(), revision.revisionId());
+                    nextAnchor, revision.document(), revision.revisionId(), liveTemplate, sourceProjection);
             if (derived.revision().isEmpty()) {
                 DesignerCommandDiagnostic failure = derived.diagnostic().orElseThrow();
                 throw new IllegalStateException(
@@ -649,6 +862,7 @@ public final class DesignerCommandSession {
                         + " at " + failure.path() + ": " + failure.message());
             }
             DesignerCommandRevision next = derived.revision().orElseThrow();
+            if (retainHistoricalEnvelope) next = next.preservingHistoricalUserEnvelope();
             if (revision == saved) {
                 nextSaved = next;
             }
@@ -727,7 +941,8 @@ public final class DesignerCommandSession {
                 retained.document(),
                 retained.revisionId(),
                 exactLiveSourceTemplate,
-                retained.generation());
+                retained.generation(),
+                retained.userSourceProjection());
         if (derived.revision().isEmpty()) {
             DesignerCommandDiagnostic failure = derived.diagnostic().orElseThrow();
             throw new IllegalArgumentException(
@@ -772,7 +987,8 @@ public final class DesignerCommandSession {
      * <p>The historical template must first be a byte-exact valid source for
      * the requested retained revision. This method then replaces only its two
      * scanner-proven managed payload ranges with the exact payload bytes from
-     * the current durable anchor. The projected source is scanned again as an
+     * the current durable anchor, then reverses only the retained bounded user
+     * contribution to reconstruct its live basis. The projected source is scanned again as an
      * exact durable-anchor template before the strict
      * {@link #rederiveRetainedRevision(long, byte[])} path is used. Normalized
      * hash equivalence alone never authorizes the projection.</p>
@@ -812,8 +1028,13 @@ public final class DesignerCommandSession {
                     "The historical physical template cannot accept the exact durable managed payloads");
         }
 
+        // Historical endpoint bytes already contain this revision's deliberate member edits.
+        // Reconstruct their exact live basis before applying the forward proof again. Otherwise
+        // a source-only paired revision would collapse to a false BASELINE no-op.
+        byte[] liveBasis = retained.userSourceProjection().inverse().applyTo(
+                projected, anchor.document().source());
         DesignerCommandRevision physical = rederiveRetainedRevision(
-                revisionId, projected);
+                revisionId, liveBasis);
         if (wouldExceed(
                 0,
                 physical.retainedPairBytes(),
@@ -827,7 +1048,12 @@ public final class DesignerCommandSession {
     private byte[] projectDurableManagedPayloads(
             byte[] exactHistoricalTemplate,
             DartSourceIntegrityResult historical) {
-        byte[] durableBytes = anchor.dartBytes();
+        return projectManagedPayloads(exactHistoricalTemplate, historical, anchor);
+    }
+
+    private byte[] projectManagedPayloads(byte[] exactHistoricalTemplate,
+            DartSourceIntegrityResult historical, DurableAnchor targetAnchor) {
+        byte[] durableBytes = targetAnchor.dartBytes();
         List<String> ids = List.of(
                 DartSourceIntegrityScanner.IMPORTS_REGION,
                 DartSourceIntegrityScanner.BUILD_REGION);
@@ -842,7 +1068,7 @@ public final class DesignerCommandSession {
                     .orElseThrow(() -> new IllegalArgumentException(
                     "The historical physical template lacks managed region "
                     + id));
-            DartManagedRegionSnapshot durableRegion = anchor.source().region(id)
+            DartManagedRegionSnapshot durableRegion = targetAnchor.source().region(id)
                     .orElseThrow(() -> new IllegalStateException(
                     "The durable anchor lacks managed region " + id));
             if (historicalRegion.payloadStartByte() < precedingHistoricalEnd
@@ -951,6 +1177,7 @@ public final class DesignerCommandSession {
             throw new IllegalStateException(
                     "The new Source anchor changes or invalidates managed Designer regions");
         }
+        requireStateBindingFields(saved.document(), durableDart, source);
         DurableAnchor nextAnchor = new DurableAnchor(
                 anchor.fd(),
                 saved.document(),
@@ -971,7 +1198,9 @@ public final class DesignerCommandSession {
                     nextAnchor,
                     revision.document(),
                     revision.revisionId(),
-                    liveTemplate);
+                    liveTemplate,
+                    revision == saved ? DartUserSourceProjection.identity(durableDart, saved.document().source())
+                            : revision.userSourceProjection());
             if (derived.revision().isEmpty()) {
                 DesignerCommandDiagnostic failure =
                         derived.diagnostic().orElseThrow();
@@ -980,6 +1209,7 @@ public final class DesignerCommandSession {
                         + " at " + failure.path() + ": " + failure.message());
             }
             DesignerCommandRevision next = derived.revision().orElseThrow();
+            if (revision != saved) next = next.preservingHistoricalUserEnvelope();
             if (revision == saved) {
                 nextSaved = next;
             } else if (next.revisionId() != revision.revisionId()
@@ -1141,7 +1371,8 @@ public final class DesignerCommandSession {
                 edits,
                 nextCursor,
                 savedRevisionId,
-                nextRevisionId);
+                nextRevisionId,
+                acceptedSourceVariants);
     }
 
     private DerivedRevision deriveRevision(
@@ -1149,14 +1380,16 @@ public final class DesignerCommandSession {
             DesignerDocument semanticDocument,
             long revisionId) {
         return deriveRevision(
-                durable, semanticDocument, revisionId, durable.dartBytes());
+                durable, semanticDocument, revisionId, durable.dartBytes(),
+                DartUserSourceProjection.identity(durable.dartBytes(), durable.document().source()));
     }
 
     private DerivedRevision deriveRevision(
             DurableAnchor durable,
             DesignerDocument semanticDocument,
             long revisionId,
-            byte[] liveSourceBytes) {
+            byte[] liveSourceBytes,
+            DartUserSourceProjection userSourceProjection) {
         Objects.requireNonNull(liveSourceBytes, "liveSourceBytes");
         DesignerDocument normalized = DesignerCommandTransformer.withSource(
                 semanticDocument, durable.document().source());
@@ -1168,7 +1401,8 @@ public final class DesignerCommandSession {
                 normalized,
                 revisionId,
                 liveSourceBytes,
-                generation);
+                generation,
+                userSourceProjection);
     }
 
     /**
@@ -1181,7 +1415,8 @@ public final class DesignerCommandSession {
             DesignerDocument semanticDocument,
             long revisionId,
             byte[] liveSourceBytes,
-            DartGenerationResult generation) {
+            DartGenerationResult generation,
+            DartUserSourceProjection userSourceProjection) {
         Objects.requireNonNull(liveSourceBytes, "liveSourceBytes");
         Objects.requireNonNull(generation, "generation");
         DesignerDocument normalized = DesignerCommandTransformer.withSource(
@@ -1206,11 +1441,18 @@ public final class DesignerCommandSession {
                         durable.threeWay(),
                         liveSourceBytes,
                         durable.document().source(),
-                        generation);
+                        generation,
+                        userSourceProjection);
         if (transition.status() == DartSourceTransitionStatus.READY) {
             DartSourceTransitionPlan plan = transition.plan().orElseThrow();
             DesignerDocument prospective = DesignerCommandTransformer.withSource(
                     normalized, plan.prospectiveDescriptor());
+            try {
+                requireStateBindingFields(prospective, plan.candidateBytes(), plan.candidateIntegrity());
+            } catch (IllegalArgumentException invalid) {
+                return DerivedRevision.failure(DesignerCommandStatus.CONFLICT, diagnostic(
+                        DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED, "/source/dartFile", invalid.getMessage()));
+            }
             DesignerPairPreparationResult prepared =
                     new DesignerPairPreparationPlanner(
                             new FdDocumentCodec(limits.fdCodecLimits()))
@@ -1236,7 +1478,8 @@ public final class DesignerCommandSession {
                     plan.candidateIntegrity(),
                     Optional.of(plan),
                     Optional.of(pair),
-                    DesignerRevisionPersistenceKind.PAIRED));
+                    DesignerRevisionPersistenceKind.PAIRED,
+                    plan.userSourceProjection()));
         }
         if (transition.status() != DartSourceTransitionStatus.NO_CHANGES) {
             DartSourceTransitionDiagnostic primary = transition.diagnostics().getFirst();
@@ -1289,6 +1532,12 @@ public final class DesignerCommandSession {
         DesignerRevisionPersistenceKind kind = fd.equals(durable.fd())
                 ? DesignerRevisionPersistenceKind.BASELINE
                 : DesignerRevisionPersistenceKind.FD_ONLY;
+        try {
+            requireStateBindingFields(prospective, dart, integrity);
+        } catch (IllegalArgumentException invalid) {
+            return DerivedRevision.failure(DesignerCommandStatus.CONFLICT, diagnostic(
+                    DesignerCommandDiagnosticCode.STATE_BINDING_REJECTED, "/source/dartFile", invalid.getMessage()));
+        }
         return DerivedRevision.success(new DesignerCommandRevision(
                 revisionId,
                 prospective,
@@ -1298,7 +1547,19 @@ public final class DesignerCommandSession {
                 integrity,
                 Optional.empty(),
                 Optional.empty(),
-                kind));
+                kind,
+                userSourceProjection.rebaseOnto(liveSourceBytes, durable.document().source())));
+    }
+
+    private boolean physicalUserEnvelopeMatches(DesignerCommandRevision logical, PreparedDesignerPair pair) {
+        if (acceptedSourceVariant(logical, pair)) return true;
+        try {
+            byte[] expected = logical.userSourceProjection().applyTo(pair.liveDartBytes(), anchor.document().source());
+            return DartUserSourceProjection.sameUserEnvelope(expected, anchor.document().source(),
+                    pair.prospectiveDartBytes(), pair.prospectiveDocument().source());
+        } catch (IllegalArgumentException conflict) {
+            return false;
+        }
     }
 
     /**

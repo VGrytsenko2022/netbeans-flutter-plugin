@@ -176,9 +176,9 @@ class IndexedSemanticsContractTest {
                 Map.of(new SlotName("children"), WidgetSlot.SingleSlot.empty()))) {
             assertFalse(validator.validate(document(node(BigInteger.ZERO, slots)), BuiltInWidgetCatalog.getDefault()).valid());
         }
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     private static void assertNoCapability(List<PropertyDefinition> properties, List<SlotDefinition> slots) {

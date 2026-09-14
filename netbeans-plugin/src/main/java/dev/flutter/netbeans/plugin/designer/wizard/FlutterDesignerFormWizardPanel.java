@@ -1,5 +1,6 @@
 package dev.flutter.netbeans.plugin.designer.wizard;
 
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.plugin.dart.wizard.DartClassNaming;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPairLayout;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
@@ -19,6 +20,7 @@ final class FlutterDesignerFormWizardPanel
         implements WizardDescriptor.Panel<WizardDescriptor> {
     static final String PROP_CLASS_NAME = "flutter.designer.class.name";
     static final String PROP_LOCATION = "flutter.designer.class.location";
+    static final String PROP_WIDGET_KIND = "flutter.designer.widget.kind";
 
     private final FlutterProject project;
     private final ChangeSupport changes = new ChangeSupport(this);
@@ -59,6 +61,9 @@ final class FlutterDesignerFormWizardPanel
                     libRoot(root),
                     "NewScreen",
                     initialLocation);
+            if (settings.getProperty(PROP_WIDGET_KIND) instanceof WidgetClassKind kind) {
+                visual.setWidgetKind(kind);
+            }
         }
     }
 
@@ -68,6 +73,7 @@ final class FlutterDesignerFormWizardPanel
                 (FlutterDesignerFormWizardVisual) getComponent();
         settings.putProperty(PROP_CLASS_NAME, visual.className());
         settings.putProperty(PROP_LOCATION, visual.relativeLocation());
+        settings.putProperty(PROP_WIDGET_KIND, visual.widgetKind());
     }
 
     @Override

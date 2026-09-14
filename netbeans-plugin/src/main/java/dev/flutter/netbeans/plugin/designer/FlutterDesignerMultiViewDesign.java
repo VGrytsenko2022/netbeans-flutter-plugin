@@ -67,6 +67,8 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.canvas.CanvasPreviewMode;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResolutionIssue;
 import dev.flutter.netbeans.designer.canvas.CanvasImageResourceBundle;
@@ -87,6 +89,7 @@ import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
 import dev.flutter.netbeans.designer.command.WrapWidget;
 import dev.flutter.netbeans.designer.model.DesignerDocument;
+import dev.flutter.netbeans.designer.model.CanvasOrientation;
 import dev.flutter.netbeans.designer.model.DesignerThemeMode;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
@@ -105,6 +108,7 @@ import dev.flutter.netbeans.plugin.designer.FlutterDesignerPreviewPlatforms.Prev
 import dev.flutter.netbeans.plugin.designer.assets.FlutterAssetInventory;
 import dev.flutter.netbeans.plugin.designer.assets.FlutterAssetResolver;
 import dev.flutter.netbeans.plugin.designer.assets.FlutterDesignerCanvasImageProjector;
+import dev.flutter.netbeans.plugin.designer.icons.FlutterWidgetIconRegistry;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPalette;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragLifecycle;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDragRegistry;
@@ -112,6 +116,7 @@ import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteDropPl
 import dev.flutter.netbeans.plugin.designer.palette.FlutterDesignerPaletteTreeDropAdapter;
 import dev.flutter.netbeans.plugin.designer.palette.FlutterImageWidgetCreationValues;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetPropertiesNode;
+import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetEventsContext;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterImageAssetChoices;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotEditorContext;
 import dev.flutter.netbeans.plugin.designer.properties.FlutterWidgetSlotMutation;
@@ -130,6 +135,7 @@ import org.openide.explorer.view.BeanTreeView;
 import org.openide.nodes.Children;
 import org.openide.nodes.Node;
 import org.openide.util.Lookup;
+import org.openide.util.ImageUtilities;
 import org.openide.util.lookup.Lookups;
 import org.openide.util.lookup.ProxyLookup;
 import org.openide.windows.TopComponent;
@@ -146,6 +152,13 @@ public final class FlutterDesignerMultiViewDesign
     private static final Logger LOGGER = Logger.getLogger(
             FlutterDesignerMultiViewDesign.class.getName());
     static final String DELETE_WIDGET_ACTION_KEY = "delete";
+    static final String WRAP_GESTURE_DETECTOR_ACTION_KEY = "flutter.wrapGestureDetector";
+    static final String WRAP_LISTENER_ACTION_KEY = "flutter.wrapListener";
+    static final String WRAP_MOUSE_REGION_ACTION_KEY = "flutter.wrapMouseRegion";
+    static final String WRAP_FOCUS_ACTION_KEY = "flutter.wrapFocus";
+    static final String WRAP_NOTIFICATION_LISTENER_ACTION_KEY = "flutter.wrapNotificationListener";
+    static final String WRAP_TOOLTIP_ACTION_KEY = "flutter.wrapTooltip";
+    static final String ROTATE_PREVIEW_ACTION_KEY = "flutter.rotatePreview";
     private static final WidgetTypeId TEXT_WIDGET_TYPE =
             new WidgetTypeId("flutter.widgets.Text");
     private static final PropertyName TEXT_DATA_PROPERTY =
@@ -176,6 +189,12 @@ public final class FlutterDesignerMultiViewDesign
     private final ExplorerManager explorerManager;
     private final FlutterDesignerPropertiesTabController propertiesTabController;
     private final Action deleteWidgetAction;
+    private final Action wrapGestureDetectorAction;
+    private final Action wrapListenerAction;
+    private final Action wrapMouseRegionAction;
+    private final Action wrapFocusAction;
+    private final Action wrapNotificationListenerAction;
+    private final Action wrapTooltipAction;
     private final FlutterDesignerPaletteDragRegistry paletteDragRegistry;
     private final FlutterDesignerPaletteDragLifecycle paletteDragLifecycle;
     private final FlutterDesignerPaletteDropPlanner paletteDropPlanner;
@@ -188,6 +207,7 @@ public final class FlutterDesignerMultiViewDesign
     private final PaletteController paletteController;
     private final BeanTreeView widgetTree;
     private final JComboBox<PreviewTarget> previewModes;
+    private final JButton orientationButton;
     private final FlutterDesignerViewportControls viewportControls;
     private final Timer viewportCommandTimer;
     private final FlutterProjectPlatformProvider projectPlatforms;
@@ -224,6 +244,8 @@ public final class FlutterDesignerMultiViewDesign
     private final String modelName;
     private final String sourceName;
     private final Map<StableId, Node> widgetNodes = new LinkedHashMap<>();
+    private final Map<PreviewTarget, CanvasOrientation> previewOrientations =
+            new LinkedHashMap<>();
     private final AtomicBoolean mutationRefreshRequested = new AtomicBoolean();
     private final AtomicBoolean mutationRefreshScheduled = new AtomicBoolean();
     private final PropertyChangeListener mutationListener =
@@ -253,6 +275,7 @@ public final class FlutterDesignerMultiViewDesign
     private WidgetCatalog presentedCanvasCatalog;
     private PreviewTarget presentedCanvasTarget;
     private CanvasResolvedTheme presentedCanvasTheme;
+    private CanvasOrientation presentedCanvasOrientation;
     private String presentedCanvasImageFingerprint;
     private FlutterDesignerNativeCanvasStatus lastCanvasStatus;
     private boolean previewInitialized;
@@ -380,6 +403,48 @@ public final class FlutterDesignerMultiViewDesign
                 "Remove the selected non-root Flutter widget and its descendants");
         deleteWidgetAction.setEnabled(false);
         visual.getActionMap().put(DELETE_WIDGET_ACTION_KEY, deleteWidgetAction);
+        wrapGestureDetectorAction = new AbstractAction("Wrap with GestureDetector") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.GESTURE_DETECTOR); }
+        };
+        wrapGestureDetectorAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with GestureDetector as one undoable change; keep its identity, properties and child tree");
+        wrapGestureDetectorAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_GESTURE_DETECTOR_ACTION_KEY, wrapGestureDetectorAction);
+        wrapListenerAction = new AbstractAction("Wrap with Listener") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.LISTENER); }
+        };
+        wrapListenerAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with Listener as one undoable change; keep its identity, properties and child tree");
+        wrapListenerAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_LISTENER_ACTION_KEY, wrapListenerAction);
+        wrapMouseRegionAction = new AbstractAction("Wrap with MouseRegion") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.MOUSE_REGION); }
+        };
+        wrapMouseRegionAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with MouseRegion as one undoable change; keep its identity, properties and child tree");
+        wrapMouseRegionAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_MOUSE_REGION_ACTION_KEY, wrapMouseRegionAction);
+        wrapFocusAction = new AbstractAction("Wrap with Focus") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.FOCUS); }
+        };
+        wrapFocusAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with Standard Focus as one undoable change; keep its identity and child tree without creating a project FocusNode");
+        wrapFocusAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_FOCUS_ACTION_KEY, wrapFocusAction);
+        wrapNotificationListenerAction = new AbstractAction("Wrap with NotificationListener") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.NOTIFICATION_LISTENER); }
+        };
+        wrapNotificationListenerAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with NotificationListener<Notification> as one undoable change; preserve its identity and child tree, without inventing a handler");
+        wrapNotificationListenerAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_NOTIFICATION_LISTENER_ACTION_KEY, wrapNotificationListenerAction);
+        wrapTooltipAction = new AbstractAction("Wrap with Tooltip") {
+            @Override public void actionPerformed(ActionEvent event) { wrapSelectedWidgetWithInteraction(InteractionWrapper.TOOLTIP); }
+        };
+        wrapTooltipAction.putValue(Action.SHORT_DESCRIPTION,
+                "Wrap the selected compatible widget with Tooltip as one undoable change; preserve its identity, properties and child tree, with an editable plain message");
+        wrapTooltipAction.setEnabled(false);
+        visual.getActionMap().put(WRAP_TOOLTIP_ACTION_KEY, wrapTooltipAction);
         paletteDragRegistry = new FlutterDesignerPaletteDragRegistry();
         paletteDragLifecycle = new FlutterDesignerPaletteDragLifecycle(
                 paletteDragRegistry);
@@ -513,17 +578,93 @@ public final class FlutterDesignerMultiViewDesign
         previewLabel.setLabelFor(previewModes);
         toolbar.add(previewLabel);
         toolbar.add(previewModes);
+        orientationButton = iconToolbarButton(
+                new AbstractAction("Rotate") {
+                    @Override
+                    public void actionPerformed(ActionEvent event) {
+                        previewOrientationChanged();
+                    }
+                },
+                ROTATE_PREVIEW_ACTION_KEY,
+                "flutter.widgets.RotatedBox",
+                "Rotate Flutter Canvas preview");
+        toolbar.add(orientationButton);
         toolbar.addSeparator();
         toolbar.add(viewportControls.toolbarComponent());
+        toolbar.addSeparator();
+        toolbar.add(iconToolbarButton(
+                wrapGestureDetectorAction,
+                WRAP_GESTURE_DETECTOR_ACTION_KEY,
+                "flutter.widgets.GestureDetector",
+                "Wrap with GestureDetector"));
+        toolbar.add(iconToolbarButton(
+                wrapListenerAction,
+                WRAP_LISTENER_ACTION_KEY,
+                "flutter.widgets.Listener",
+                "Wrap with Listener"));
+        toolbar.add(iconToolbarButton(
+                wrapMouseRegionAction,
+                WRAP_MOUSE_REGION_ACTION_KEY,
+                "flutter.widgets.MouseRegion",
+                "Wrap with MouseRegion"));
+        toolbar.add(iconToolbarButton(
+                wrapFocusAction,
+                WRAP_FOCUS_ACTION_KEY,
+                "flutter.widgets.Focus",
+                "Wrap with Focus"));
+        toolbar.add(iconToolbarButton(
+                wrapNotificationListenerAction,
+                WRAP_NOTIFICATION_LISTENER_ACTION_KEY,
+                "flutter.widgets.NotificationListener",
+                "Wrap with NotificationListener"));
+        toolbar.add(iconToolbarButton(
+                wrapTooltipAction,
+                WRAP_TOOLTIP_ACTION_KEY,
+                "flutter.material.Tooltip",
+                "Wrap with Tooltip"));
         previewModes.addActionListener(event -> previewModeChanged());
         configureAccessibility();
         updatePreviewModeAccessibility();
+        updatePreviewOrientationControl();
 
         // The coordinator is the sole authority allowed to replace a Canvas
         // component. It never creates a successor until the previous owner has
         // completed peer-safe retirement.
         installNewCanvasOwnerCoordinator();
         requestCanvasBackend(FlutterDesignerCanvasBackendSelector.Backend.NATIVE);
+    }
+
+    /**
+     * Creates a compact toolbar button for a reviewed Flutter action.
+     *
+     * <p>The action keeps its descriptive name for menus, key bindings and
+     * accessibility. The toolbar representation is icon-only; the same name
+     * remains available as the tooltip and accessible label.</p>
+     */
+    private static JButton iconToolbarButton(
+            Action action,
+            String actionKey,
+            String widgetType,
+            String accessibleName) {
+        Objects.requireNonNull(action, "action");
+        Objects.requireNonNull(actionKey, "actionKey");
+        Objects.requireNonNull(widgetType, "widgetType");
+        Objects.requireNonNull(accessibleName, "accessibleName");
+
+        JButton button = new JButton(action);
+        button.setName(actionKey);
+        button.setFocusable(false);
+        button.setHideActionText(true);
+        button.setText(null);
+        FlutterWidgetIconRegistry.findIconPath(new WidgetTypeId(widgetType))
+                .map(path -> ImageUtilities.loadImageIcon(path, false))
+                .filter(Objects::nonNull)
+                .ifPresent(button::setIcon);
+        button.setToolTipText(accessibleName);
+        button.getAccessibleContext().setAccessibleName(accessibleName);
+        button.getAccessibleContext().setAccessibleDescription(
+                accessibleName + ". Click to apply this action.");
+        return button;
     }
 
     private void installNewCanvasOwnerCoordinator() {
@@ -2615,6 +2756,10 @@ public final class FlutterDesignerMultiViewDesign
         invalidatePaletteDragAuthority();
         StableId retainedSelection = selectedWidgetId().orElse(null);
         DesignerDocument previousDocument = currentCanvasDocument;
+        if (previousDocument == null
+                || !previousDocument.documentId().equals(document.documentId())) {
+            previewOrientations.clear();
+        }
         currentCanvasDocument = Objects.requireNonNull(document, "document");
         currentCanvasCatalog = Objects.requireNonNull(catalog, "catalog");
         currentCanvasMutationEnabled = mutationHandler != null;
@@ -2672,6 +2817,7 @@ public final class FlutterDesignerMultiViewDesign
         currentCanvasDocument = null;
         currentCanvasCatalog = null;
         currentCanvasMutationEnabled = false;
+        previewOrientations.clear();
         clearPresentedCanvasIdentity();
         clearWidgetTree();
         if (canvasOwner != null) {
@@ -2683,9 +2829,75 @@ public final class FlutterDesignerMultiViewDesign
         if (updatingPreviewModes) {
             return;
         }
+        updatePreviewOrientationControl();
         if (currentCanvasDocument != null) {
             presentCurrentCanvas();
         }
+    }
+
+    private void previewOrientationChanged() {
+        PreviewTarget target = selectedPreviewTarget().orElse(null);
+        if (target == null || !supportsOrientation(target.mode())) {
+            return;
+        }
+        CanvasOrientation next = selectedPreviewOrientation(target)
+                == CanvasOrientation.LANDSCAPE
+                        ? CanvasOrientation.PORTRAIT
+                        : CanvasOrientation.LANDSCAPE;
+        previewOrientations.put(target, next);
+        viewportControls.resetToFit();
+        updatePreviewOrientationControl();
+        if (currentCanvasDocument != null) {
+            presentCurrentCanvas();
+        }
+    }
+
+    private static boolean supportsOrientation(CanvasPreviewMode mode) {
+        return mode == CanvasPreviewMode.MOBILE || mode == CanvasPreviewMode.TABLET;
+    }
+
+    private CanvasOrientation selectedPreviewOrientation(PreviewTarget target) {
+        CanvasOrientation retained = previewOrientations.get(target);
+        if (retained != null) {
+            return retained;
+        }
+        CanvasOrientation saved = currentCanvasDocument == null
+                ? null
+                : currentCanvasDocument.canvas()
+                        .filter(preferences -> target.mode()
+                                == CanvasPreviewProfileResolver.initialMode(
+                                        currentCanvasDocument.canvas()))
+                        .flatMap(preferences -> preferences.orientation())
+                        .orElse(null);
+        CanvasOrientation resolved = saved == null
+                ? CanvasOrientation.PORTRAIT : saved;
+        previewOrientations.put(target, resolved);
+        return resolved;
+    }
+
+    private void updatePreviewOrientationControl() {
+        PreviewTarget target = selectedPreviewTarget().orElse(null);
+        boolean enabled = target != null && supportsOrientation(target.mode());
+        orientationButton.setEnabled(enabled);
+        if (!enabled) {
+            orientationButton.setToolTipText(
+                    "Orientation switching is available for mobile and tablet previews.");
+            orientationButton.getAccessibleContext().setAccessibleDescription(
+                    "Disabled for desktop and web previews.");
+            return;
+        }
+        CanvasOrientation current = selectedPreviewOrientation(target);
+        CanvasOrientation next = current == CanvasOrientation.LANDSCAPE
+                ? CanvasOrientation.PORTRAIT : CanvasOrientation.LANDSCAPE;
+        String nextLabel = next == CanvasOrientation.LANDSCAPE
+                ? "landscape" : "portrait";
+        orientationButton.setToolTipText(
+                "Rotate preview to " + nextLabel + " orientation.");
+        orientationButton.getAccessibleContext().setAccessibleName(
+                "Rotate Flutter Canvas preview");
+        orientationButton.getAccessibleContext().setAccessibleDescription(
+                "Rotate the mobile or tablet preview to " + nextLabel
+                + ". This changes the logical viewport dimensions only and is not saved to the .fd document.");
     }
 
     private Optional<PreviewTarget> selectedPreviewTarget() {
@@ -2875,6 +3087,10 @@ public final class FlutterDesignerMultiViewDesign
                 && Objects.equals(presentedCanvasTarget, target)
                 && Objects.equals(presentedCanvasTheme, resolvedTheme)
                 && Objects.equals(
+                        presentedCanvasOrientation,
+                        supportsOrientation(target.mode())
+                                ? selectedPreviewOrientation(target) : null)
+                && Objects.equals(
                         presentedCanvasImageFingerprint,
                         imageFingerprint)) {
             selectedWidgetId().ifPresent(owner::selectWidget);
@@ -2886,11 +3102,16 @@ public final class FlutterDesignerMultiViewDesign
                 target.mode(),
                 target.targetPlatform(),
                 resolvedTheme,
-                imageResources);
+                imageResources,
+                supportsOrientation(target.mode())
+                        ? Optional.of(selectedPreviewOrientation(target))
+                        : Optional.empty());
         presentedCanvasDocument = document;
         presentedCanvasCatalog = catalog;
         presentedCanvasTarget = target;
         presentedCanvasTheme = resolvedTheme;
+        presentedCanvasOrientation = supportsOrientation(target.mode())
+                ? selectedPreviewOrientation(target) : null;
         presentedCanvasImageFingerprint = imageFingerprint;
         selectedWidgetId().ifPresent(owner::selectWidget);
     }
@@ -2935,6 +3156,7 @@ public final class FlutterDesignerMultiViewDesign
             previewModes.setSelectedItem(selected);
             previewModes.setEnabled(!available.isEmpty());
             updatePreviewModeAccessibility();
+            updatePreviewOrientationControl();
         } finally {
             updatingPreviewModes = false;
         }
@@ -3335,6 +3557,8 @@ public final class FlutterDesignerMultiViewDesign
                     slotEditorContext,
                     slotMutationHandler,
                     currentImageAssetChoices);
+            propertiesNode.updateEventsContext(eventsContext(
+                    entry.getValue(), nextDefinitions.get(entry.getKey()), mutationHandler != null));
         }
         updateDeleteWidgetAction();
         return true;
@@ -3440,7 +3664,7 @@ public final class FlutterDesignerMultiViewDesign
                 new IllegalStateException(
                         "Validated Flutter widget type is absent from its catalog: "
                         + widget.type().value()));
-        Node node = new FlutterWidgetPropertiesNode(
+        FlutterWidgetPropertiesNode node = new FlutterWidgetPropertiesNode(
                 children,
                 widget,
                 definition,
@@ -3448,8 +3672,115 @@ public final class FlutterDesignerMultiViewDesign
                 slotEditorContext,
                 slotMutationHandler,
                 currentImageAssetChoices);
+        node.updateEventsContext(eventsContext(widget, definition, mutationHandler != null));
         widgetNodes.put(widget.id(), node);
         return node;
+    }
+
+    private FlutterWidgetEventsContext eventsContext(
+            WidgetNode widget, WidgetDefinition definition, boolean mutationAllowed) {
+        FlutterDesignerMutationController owner = mutationController;
+        FlutterDesignerMutationController.Snapshot selected = mutationSnapshot;
+        long epoch = mutationViewEpoch;
+        if (!mutationAllowed || dataObject == null || owner == null || selected == null
+                || selected.status() != FlutterDesignerMutationController.Status.READY
+                || selected.token().isEmpty() || selected.document().isEmpty()
+                || selected.catalog().isEmpty()) return null;
+        var token = selected.token().orElseThrow();
+        var sourceDescriptor = selected.document().orElseThrow().source();
+        return new FlutterDesignerEventsBridge(widget, definition, sourceDescriptor, selected.document().orElseThrow().root(),
+                new FlutterDesignerEventsBridge.Operations() {
+            @Override public String unavailableReason() {
+                return eventAuthorityMatches(owner, selected, epoch)
+                        ? "" : "Cannot edit events on widget " + widget.id()
+                                + ": the selected Designer revision changed; reopen the event editor.";
+            }
+
+            @Override public CompletionStage<byte[]> sourceBytes() {
+                return owner.sourceBytes(token);
+            }
+
+            @Override public CompletionStage<Void> submit(DesignerCommand command, String target) {
+                String reason = unavailableReason();
+                if (!reason.isEmpty()) return CompletableFuture.failedFuture(new IllegalStateException(reason));
+                CompletableFuture<Void> completion = new CompletableFuture<>();
+                owner.submit(token, command, modelName + " — " + target).whenComplete((result, failure) ->
+                        java.awt.EventQueue.invokeLater(() -> {
+                            if (failure != null) {
+                                completion.completeExceptionally(failure);
+                            } else if (result.outcome() != FlutterDesignerMutationController.Outcome.APPLIED) {
+                                completion.completeExceptionally(new IllegalStateException(result.operation()
+                                        + " — " + result.target() + ": " + result.reason()));
+                            } else {
+                                if (mutationListening && mutationController == owner && mutationViewEpoch == epoch) {
+                                    renderMutationSnapshot(owner.snapshot());
+                                }
+                                completion.complete(null);
+                            }
+                        }));
+                return completion;
+            }
+
+            @Override public CompletionStage<Void> navigate(byte[] expectedSource, int offset) {
+                return navigateEventSource(owner, selected, epoch, expectedSource, offset);
+            }
+
+        });
+    }
+
+    private boolean eventAuthorityMatches(FlutterDesignerMutationController owner,
+            FlutterDesignerMutationController.Snapshot selected, long epoch) {
+        if (!java.awt.EventQueue.isDispatchThread()) {
+            return org.openide.util.Mutex.EVENT.readAccess(
+                    (org.openide.util.Mutex.Action<Boolean>) () -> eventAuthorityMatches(owner, selected, epoch));
+        }
+        return mutationUiEnabled.getAsBoolean() && componentLifecycleOpen && mutationListening
+                && mutationController == owner && mutationViewEpoch == epoch
+                && owner.snapshot() == selected && mutationSnapshot == selected
+                && selected.status() == FlutterDesignerMutationController.Status.READY
+                && selected.document().filter(document -> document == currentCanvasDocument).isPresent()
+                && selected.catalog().filter(catalog -> catalog == currentCanvasCatalog).isPresent();
+    }
+
+    private CompletionStage<Void> navigateEventSource(FlutterDesignerMutationController owner,
+            FlutterDesignerMutationController.Snapshot selected, long epoch,
+            byte[] expectedSource, int utf16Offset) {
+        CompletableFuture<Void> completion = new CompletableFuture<>();
+        java.awt.EventQueue.invokeLater(() -> {
+            try {
+                if (!eventAuthorityMatches(owner, selected, epoch)) {
+                    throw new IllegalStateException("Cannot navigate to event handler: the Designer revision changed.");
+                }
+                LiveDartDocumentSnapshot live = dataObject.getEditorSupport().liveSnapshot();
+                if (!java.util.Arrays.equals(expectedSource, live.markerBearingUtf8())) {
+                    throw new IllegalStateException("Cannot navigate to event handler: its Dart source changed.");
+                }
+                String text = new String(expectedSource, java.nio.charset.StandardCharsets.UTF_8);
+                if (utf16Offset < 0 || utf16Offset > text.length()) {
+                    throw new IllegalArgumentException("Cannot navigate to event handler: invalid source offset.");
+                }
+                int line = 0;
+                int lineStart = 0;
+                for (int index = 0; index < utf16Offset; index++) {
+                    char character = text.charAt(index);
+                    if (character == '\n') {
+                        if (index == 0 || text.charAt(index - 1) != '\r') line++;
+                        lineStart = index + 1;
+                    } else if (character == '\r') {
+                        line++;
+                        lineStart = index + 1;
+                    }
+                }
+                dataObject.getEditorSupport().getLineSet().getCurrent(line).show(
+                        org.openide.text.Line.ShowOpenType.OPEN,
+                        org.openide.text.Line.ShowVisibilityType.FOCUS,
+                        utf16Offset - lineStart);
+                completion.complete(null);
+            } catch (java.io.IOException | RuntimeException failure) {
+                completion.completeExceptionally(failure);
+            }
+        });
+        return completion;
     }
 
     private FlutterWidgetPropertiesNode.PropertyMutationHandler
@@ -3690,7 +4021,7 @@ public final class FlutterDesignerMultiViewDesign
                             + "' is no longer a direct child of slot '"
                             + exactSlot + "'.");
                 }
-                if (remove.slotName().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(owner) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(owner))) {
+                if (remove.slotName().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(owner) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(owner) || SwitchListTileWidgetPropertySchema.requiresSubtitle(owner) || RadioListTileWidgetPropertySchema.requiresSubtitle(owner))) {
                     throw new IllegalArgumentException("Cannot remove " + owner.type().value() + " Subtitle from '" + exactSlot
                             + "': Three line is true. Disable Three line or replace Subtitle first.");
                 }
@@ -4283,6 +4614,67 @@ public final class FlutterDesignerMultiViewDesign
 
     private void updateDeleteWidgetAction() {
         deleteWidgetAction.setEnabled(deleteWidgetAdmission().isPresent());
+        wrapGestureDetectorAction.setEnabled(interactionWrapAdmission(InteractionWrapper.GESTURE_DETECTOR).isPresent());
+        wrapListenerAction.setEnabled(interactionWrapAdmission(InteractionWrapper.LISTENER).isPresent());
+        wrapMouseRegionAction.setEnabled(interactionWrapAdmission(InteractionWrapper.MOUSE_REGION).isPresent());
+        wrapFocusAction.setEnabled(interactionWrapAdmission(InteractionWrapper.FOCUS).isPresent());
+        wrapNotificationListenerAction.setEnabled(interactionWrapAdmission(InteractionWrapper.NOTIFICATION_LISTENER).isPresent());
+        wrapTooltipAction.setEnabled(interactionWrapAdmission(InteractionWrapper.TOOLTIP).isPresent());
+    }
+
+    private Optional<InteractionWrapAdmission> interactionWrapAdmission(InteractionWrapper wrapper) {
+        var controllerForWrap = mutationController;
+        var candidate = mutationSnapshot;
+        if (deleteWidgetSubmitting || moveWidgetSubmitting || slotWidgetSubmitting || inlineTextEditSubmitting
+                || !mutationUiEnabled.getAsBoolean() || !mutationListening || controllerForWrap == null || candidate == null
+                || candidate.status() != FlutterDesignerMutationController.Status.READY || candidate.token().isEmpty()
+                || candidate.document().isEmpty() || candidate.catalog().isEmpty() || !currentCanvasMutationEnabled
+                || candidate.document().orElseThrow() != currentCanvasDocument || candidate.catalog().orElseThrow() != currentCanvasCatalog) {
+            return Optional.empty();
+        }
+        Node[] selected = explorerManager.getSelectedNodes();
+        if (selected.length != 1) return Optional.empty();
+        StableId id = selected[0].getLookup().lookup(StableId.class);
+        if (id == null || widgetNodes.get(id) != selected[0]) return Optional.empty();
+        var planned = switch (wrapper) {
+            case LISTENER -> dev.flutter.netbeans.plugin.designer.palette.FlutterListenerWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+            case GESTURE_DETECTOR -> dev.flutter.netbeans.plugin.designer.palette.FlutterGestureDetectorWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+            case MOUSE_REGION -> dev.flutter.netbeans.plugin.designer.palette.FlutterMouseRegionWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+            case FOCUS -> dev.flutter.netbeans.plugin.designer.palette.FlutterFocusWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+            case NOTIFICATION_LISTENER -> dev.flutter.netbeans.plugin.designer.palette.FlutterNotificationListenerWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+            case TOOLTIP -> dev.flutter.netbeans.plugin.designer.palette.FlutterTooltipWrapPlanner.plan(
+                    candidate.document().orElseThrow(), candidate.catalog().orElseThrow(), id, StableId::random).command();
+        };
+        return planned.map(command -> new InteractionWrapAdmission(controllerForWrap, candidate.token().orElseThrow(), command));
+    }
+
+    private void wrapSelectedWidgetWithInteraction(InteractionWrapper wrapper) {
+        InteractionWrapAdmission admission = interactionWrapAdmission(wrapper).orElse(null);
+        if (admission == null) { updateDeleteWidgetAction(); return; }
+        slotWidgetSubmitting = true;
+        updateDeleteWidgetAction();
+        submitDesignerMutation(admission.controller(), admission.token(), admission.command(), "Wrap with " + wrapper.label,
+                modelName + " — widget " + admission.command().widgetId(), result -> {
+                    slotWidgetSubmitting = false;
+                    if (result.outcome() == FlutterDesignerMutationController.Outcome.APPLIED) {
+                        selectWidgetAfterMutation(admission.command().wrapper().id());
+                    }
+                    updateDeleteWidgetAction();
+                });
+    }
+
+    private record InteractionWrapAdmission(FlutterDesignerMutationController controller,
+            FlutterDesignerMutationController.RevisionToken token, WrapWidget command) { }
+
+    private enum InteractionWrapper {
+        GESTURE_DETECTOR("GestureDetector"), LISTENER("Listener"), MOUSE_REGION("MouseRegion"), FOCUS("Focus"), NOTIFICATION_LISTENER("NotificationListener"), TOOLTIP("Tooltip");
+        private final String label;
+        InteractionWrapper(String label) { this.label = label; }
     }
 
     private record DeleteWidgetAdmission(
@@ -5367,6 +5759,11 @@ public final class FlutterDesignerMultiViewDesign
                 + "Web is rendered "
                 + "as a responsive browser-sized layout preview; browser-only runtime "
                 + "behavior is not emulated.");
+        orientationButton.getAccessibleContext().setAccessibleName(
+                "Rotate Flutter Canvas preview");
+        orientationButton.getAccessibleContext().setAccessibleDescription(
+                "Rotate mobile or tablet preview between portrait and landscape. "
+                + "The transient choice is not saved to the .fd document.");
         canvasStatusLabel.getAccessibleContext().setAccessibleDescription(
                 canvasStatusLabel.getText());
         canvasProgress.getAccessibleContext().setAccessibleDescription(
@@ -5594,6 +5991,7 @@ public final class FlutterDesignerMultiViewDesign
         presentedCanvasCatalog = null;
         presentedCanvasTarget = null;
         presentedCanvasTheme = null;
+        presentedCanvasOrientation = null;
         presentedCanvasImageFingerprint = null;
     }
 

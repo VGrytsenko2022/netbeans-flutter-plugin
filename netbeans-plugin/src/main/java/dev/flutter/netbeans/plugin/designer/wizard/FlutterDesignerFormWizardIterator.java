@@ -3,6 +3,7 @@ package dev.flutter.netbeans.plugin.designer.wizard;
 import dev.flutter.netbeans.designer.template.DesignerFormTemplate;
 import dev.flutter.netbeans.designer.template.DesignerFormTemplateFactory;
 import dev.flutter.netbeans.designer.codec.FdEncodeException;
+import dev.flutter.netbeans.designer.model.WidgetClassKind;
 import dev.flutter.netbeans.plugin.dart.wizard.DartClassNaming;
 import dev.flutter.netbeans.plugin.designer.FlutterDesignerPairLayout;
 import dev.flutter.netbeans.plugin.project.FlutterProject;
@@ -43,14 +44,19 @@ import org.openide.util.NbBundle.Messages;
     "LBL_DesignerFormWizardStep=Name and Location",
     "LBL_DesignerFormWizardTitle=New Flutter Designer Form",
     "LBL_DesignerClassName=Widget &Class Name:",
+    "LBL_DesignerWidgetKind=Widget &Kind:",
+    "LBL_DesignerKindStateless=Stateless",
+    "LBL_DesignerKindStateful=Stateful",
     "LBL_DesignerLocation=&Folder in lib:",
     "LBL_BrowseDesignerLocation=&Browse...",
     "LBL_DesignerDartFile=Dart &File:",
     "LBL_DesignerModelFile=Designer &Model:",
-    "LBL_DesignerFormHint=Creates a stateless Scaffold form. The Dart source stays under lib and the .fd model is mirrored under .fd_templates.",
+    "LBL_DesignerFormHint=<html>Dart stays under lib; the .fd model is mirrored under .fd_templates.<br>Stateful adds a separate State class, not automatic value bindings.</html>",
     "TTL_SelectDesignerLocation=Select Folder inside lib",
     "ACS_DesignerClassName=Flutter Designer widget class name",
-    "ACD_DesignerClassName=UpperCamelCase name of the generated stateless Flutter widget class.",
+    "ACD_DesignerClassName=UpperCamelCase name of the generated Flutter widget class.",
+    "ACS_DesignerWidgetKind=Flutter Designer widget kind",
+    "ACD_DesignerWidgetKind=Choose Stateless or Stateful. Stateful creates a separate State class for user state and event handlers; it does not add value bindings automatically.",
     "ACS_DesignerLocation=Folder inside lib",
     "ACD_DesignerLocation=Optional folder relative to the Flutter project's lib directory.",
     "ACS_BrowseDesignerLocation=Browse inside lib",
@@ -93,7 +99,7 @@ public final class FlutterDesignerFormWizardIterator
                 FlutterDesignerFormWizardPanel.PROP_LOCATION);
         final DesignerFormTemplate template;
         try {
-            template = templateFactory.create(fileName, className);
+            template = templateFactory.create(fileName, className, selectedWidgetKind());
         } catch (FdEncodeException ex) {
             throw new IOException(
                     "Cannot encode the initial Flutter Designer model: "
@@ -384,6 +390,13 @@ public final class FlutterDesignerFormWizardIterator
         }
         throw new IOException("Cannot create Flutter Designer form: wizard value '"
                 + key + "' is invalid.");
+    }
+
+    private WidgetClassKind selectedWidgetKind() throws IOException {
+        Object value = wizard.getProperty(FlutterDesignerFormWizardPanel.PROP_WIDGET_KIND);
+        if (value == null) return WidgetClassKind.STATELESS;
+        if (value instanceof WidgetClassKind kind) return kind;
+        throw new IOException("Cannot create Flutter Designer form: widget kind must be Stateless or Stateful.");
     }
 
     private static String initialLocation(

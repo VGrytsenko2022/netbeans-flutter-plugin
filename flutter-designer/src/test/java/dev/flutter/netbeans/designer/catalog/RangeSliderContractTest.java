@@ -33,9 +33,9 @@ class RangeSliderContractTest {
         assertEquals(Map.of(p("valuesStart"), i(0), p("valuesEnd"), i(1), p("enabled"), b(true)), prototype.properties());
         assertTrue(valid(prototype));
         assertTrue(WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).isEmpty());
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(512, FdCodecLimits.defaults().maxPropertiesPerWidget());
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
         assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
     }
 

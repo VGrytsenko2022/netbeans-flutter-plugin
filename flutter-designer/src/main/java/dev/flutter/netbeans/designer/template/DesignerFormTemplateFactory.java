@@ -22,6 +22,7 @@ import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityScanner;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 
 /** Builds the canonical, internally consistent starter pair for a new form. */
@@ -51,10 +52,18 @@ public final class DesignerFormTemplateFactory {
      */
     public DesignerFormTemplate create(String dartFile, String className)
             throws FdEncodeException {
+        return create(dartFile, className, WidgetClassKind.STATELESS);
+    }
+
+    /** Creates an explicitly selected class shape without changing existing forms. */
+    public DesignerFormTemplate create(String dartFile, String className, WidgetClassKind widgetKind)
+            throws FdEncodeException {
+        Objects.requireNonNull(widgetKind, "widgetKind");
         WidgetNode root = starterTree();
         DartSourceDescriptor provisionalSource = source(
                 dartFile,
                 className,
+                widgetKind,
                 EMPTY_SHA256,
                 EMPTY_SHA256);
         DesignerDocument provisional = new DesignerDocument(
@@ -71,11 +80,12 @@ public final class DesignerFormTemplateFactory {
         DartSourceDescriptor finalSource = source(
                 dartFile,
                 className,
+                widgetKind,
                 generated.imports().normalizedSha256(),
                 generated.build().normalizedSha256());
         DesignerDocument document = new DesignerDocument(
                 provisional.documentId(), finalSource, root);
-        byte[] dartBytes = renderDart(className, generated)
+        byte[] dartBytes = renderDart(className, widgetKind, generated)
                 .getBytes(StandardCharsets.UTF_8);
         DartSourceIntegrityResult integrity = new DartSourceIntegrityScanner()
                 .scan(dartBytes, finalSource);
@@ -91,12 +101,13 @@ public final class DesignerFormTemplateFactory {
     private static DartSourceDescriptor source(
             String dartFile,
             String className,
+            WidgetClassKind widgetKind,
             String importsSha256,
             String buildSha256) {
         return new DartSourceDescriptor(
                 dartFile,
                 className,
-                WidgetClassKind.STATELESS,
+                widgetKind,
                 Optional.empty(),
                 new ManagedRegions(
                         new ManagedRegion(importsSha256),
@@ -124,12 +135,25 @@ public final class DesignerFormTemplateFactory {
 
     private static String renderDart(
             String className,
+            WidgetClassKind widgetKind,
             GeneratedDartRegions generated) {
+        String classOpening;
+        if (widgetKind == WidgetClassKind.STATEFUL) {
+            String stateClassName = (className.startsWith("_") ? className : "_" + className) + "State";
+            classOpening = "\nclass " + className + " extends StatefulWidget {\n"
+                    + "  const " + className + "({super.key});\n\n"
+                    + "  @override\n"
+                    + "  State<" + className + "> createState() => " + stateClassName + "();\n"
+                    + "}\n\n"
+                    + "class " + stateClassName + " extends State<" + className + "> {\n";
+        } else {
+            classOpening = "\nclass " + className + " extends StatelessWidget {\n"
+                    + "  const " + className + "({super.key});\n\n";
+        }
         return openingMarker(IMPORTS, "")
                 + generated.imports().payload()
                 + closingMarker("")
-                + "\nclass " + className + " extends StatelessWidget {\n"
-                + "  const " + className + "({super.key});\n\n"
+                + classOpening
                 + openingMarker(BUILD, "  ")
                 + generated.build().payload()
                 + closingMarker("  ")

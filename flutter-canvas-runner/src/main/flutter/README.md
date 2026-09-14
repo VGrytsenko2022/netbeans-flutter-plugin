@@ -1,12 +1,513 @@
 # netbeans_flutter_canvas_runner
 
+RawImage maps all 16 painting parameters to the native renderer. Project-owned
+decoded images, nullable opacity animations and Rect center slices preview as
+null, with an explicit field-specific tooltip; no handle or executable project
+code crosses into Canvas. See [RawImage](../../../../docs/RAW_IMAGE.md).
+
+FadeInImage uses the native two-phase image transition with independently
+resolved resources, scaling/resizing, error reporting, colors/fits/filters and
+image semantics. Project providers/builders are not executed; substitutions
+name the affected fields. The 43 curve presets remain exact; native image
+painting clamps overshooting opacity. See [FadeInImage](../../../../docs/FADE_IN_IMAGE.md).
+
+AnimatedIcon renders all 14 SDK glyphs with stopped local progress, native
+IconTheme opacity/size and direction behavior. Source icon/progress/color/size
+use menu_close/0/inherited values with field-specific diagnostics; project code
+never executes. See [AnimatedIcon](../../../../docs/ANIMATED_ICON.md).
+
+
+AnimatedModalBarrier uses its real native widget with a required stopped local
+color or an explicitly labelled stopped-null substitute for project animation.
+Native nullable semantics defaults are preserved; route changes, callbacks and
+alert sounds are isolated. Transparent selection and unbounded-layout recovery
+remain available. See [AnimatedModalBarrier](../../../../docs/ANIMATED_MODAL_BARRIER.md).
+
+
+ModalBarrier renders the native childless barrier in bounded space behind a
+selection-preserving input shield. Canvas suppresses route changes, callbacks and
+alert sounds; source colors/notifiers receive exact transparent/null diagnostics.
+An unbounded axis receives an unavailable-preview message without invented stored
+dimensions. See [ModalBarrier](../../../../docs/MODAL_BARRIER.md).
+
+MatrixTransition uses the native transform widget with a fresh fixed local matrix
+callback, stopped scalar animation, physical Alignment and optional Child.
+Typed project sources never execute: animation previews as 0, callback as identity
+and alignment as center, with exact per-field diagnostics. Non-finite effective
+matrix entries use the shared paint/hit/semantics guard while retaining State,
+child and values. Zero-size/empty widgets remain selectable. See
+[MatrixTransition](../../../../docs/MATRIX_TRANSITION.md).
+
+AlignTransition uses the real native layout widget, local physical/directional
+stopped AlignmentGeometry and a required Child. Optional factors reset immediately
+on null or omission. Source animation/factor references receive a named safe
+center/null preview without executing application code. A non-finite local
+offset quarantines paint, hits and semantics while preserving the widget State
+and child; corrected coordinates restore preview. See
+[AlignTransition](../../../../docs/ALIGN_TRANSITION.md).
+
+DecoratedBoxTransition uses the native widget with a required child and stopped
+local BoxDecoration animation, including shared image/theme/gradient conversion.
+Position chooses background/foreground without padding or clipping. Typed
+project Animation<Decoration> sources use an explicitly labelled empty-decoration
+preview; application Dart retains live Box/Shape/custom decoration animations.
+Required child slots are wrap/replacement targets, never empty insertion zones.
+
+
+RelativePositionedTransition renders native physical Rect/Size parent-data outside
+Canvas instrumentation. Required local LTWH, null-value stopped Animation<Rect?>
+and independent reference Size modes follow the pinned SDK, including zero and
+negative dimensions. References never execute: animation preview uses 0,0,48,48
+and Size preview uses 48,48; each substitution is named in the tooltip.
+Reference Size is not a scale or actual Stack size. Direct Stack-child wrapping,
+null fallback geometry, source/local changes, zero-size selection and native
+State identity are covered in
+[RelativePositionedTransition](../../../../docs/RELATIVE_POSITIONED_TRANSITION.md).
+
+
+PositionedTransition renders the real Stack parent-data animation outside Canvas
+render instrumentation. Local physical LTRB insets use a stopped RelativeRect;
+sources preview at fill with an explicit tooltip. Required Child is created by
+wrapping a direct Stack child, with exact parent-data rejection, coincident
+zero-size handles and unbounded-Stack diagnostics. See
+[PositionedTransition](../../../../docs/POSITIONED_TRANSITION.md).
+
+
+SizeTransition uses native ClipRect/Align layout with signed stopped size factors,
+both axes, modern physical/directional or deprecated axis alignment (exclusive),
+and a nullable cross-axis factor. Negative main-axis factors collapse to zero;
+tight parent constraints still win. Source references preview at factor 1 and
+null optional values, with per-property diagnostics; user code is never executed.
+Native axis-dependent directional defaults, clipping, child/State preservation
+and zero-size selection/drop are covered. See
+[SizeTransition](../../../../docs/SIZE_TRANSITION.md).
+
+RotationTransition uses native signed-turns rotation with a constant
+AlwaysStoppedAnimation, physical Alignment and nullable FilterQuality.
+Zero is identity, positive turns are clockwise even in RTL, and layout is
+unchanged. Source references remain inert at zero turns / center, with explicit
+diagnostics. Constant-value forward status still enables filtering. Non-finite
+rotation/pivot matrices are quarantined at the preview boundary; source values,
+native State and Child identity survive recovery. See
+[RotationTransition](../../../../docs/ROTATION_TRANSITION.md).
+
+ScaleTransition uses the native widget with a constant AlwaysStoppedAnimation.
+Signed/zero scale, physical Alignment and nullable FilterQuality are preserved.
+AlwaysStoppedAnimation reports forward, so its filter remains active despite
+its constant value. Project references stay inert with scale-1 / center
+fallbacks and explicit diagnostics. Empty and zero-scale selection/drop targets
+remain available. See [ScaleTransition](../../../../docs/SCALE_TRANSITION.md).
+
+SlideTransition mounts the native AnimatedWidget with a stopped local
+Animation<Offset>, exact hit-test flag and explicit/null TextDirection.
+Null does not inherit ambient RTL. Local edits retain State and child identity;
+project references are never executed and report their stopped-zero preview.
+Optional empty children retain drop targets. See [SlideTransition](../../../../docs/SLIDE_TRANSITION.md).
+
+FadeTransition and SliverFadeTransition mount native opacity render objects with
+stopped local Animation<double> values, preserving child/scroll geometry and
+native hit testing and semantics. Project animations are never executed: the
+preview reports its stopped-opacity-1 fallback. Both optional slots remain
+editable even when empty or fully transparent. See [Fade transitions](../../../../docs/FADE_TRANSITION.md).
+
+DefaultTextStyleTransition mounts the native widget with a stopped local
+TextStyle or an explicitly labeled stopped-empty fallback for project-owned
+Animation<TextStyle> references. All five scalar arguments and 31 local style
+fields are supported, with required Child, stable native State/child identity
+and zero-size selection. Project timing/controllers are never executed in
+Canvas. See [DefaultTextStyleTransition](../../../../docs/DEFAULT_TEXT_STYLE_TRANSITION.md).
+
+DefaultTextStyle and its static merge method use native immediate inheritance,
+with 41 writable rows each and required Child. Merge null/unset inherits the
+ancestor (including Max lines); ordinary defaults replace it. All local style
+fields and paragraph/height settings are rendered. Project references remain
+inert with explicit per-variant fallback diagnostics. Zero-sized children
+remain selectable. See [DefaultTextStyle](../../../../docs/DEFAULT_TEXT_STYLE.md).
+
+Native Theme applies its required ThemeData immediately to its required Child.
+Six shared M2/M3 light/dark/fallback factories are rendered exactly; a project
+ThemeData reference remains inert with an explicit light Material 3 fallback
+diagnostic. Required-child wrapping uses the reviewed creation contract.
+No animation fields or events are admitted. See [Theme](../../../../docs/THEME.md).
+
+AnimatedTheme uses native ThemeDataTween with all four constructor properties,
+required Child and the exact optional 200 ms Duration. Light/dark/fallback
+factory presets cover Material 3 and Material 2. The nearest theme replaces its
+parent data. Project ThemeData/Curve/Duration/On end references are inert and
+labeled (fallback light Material 3, linear, 200 ms, no callback); arbitrary
+ThemeData fields remain source-owned. See
+[the complete contract](../../../../docs/ANIMATED_THEME.md).
+
+AnimatedSwitcher supports all six constructor properties and an optional Child.
+Native animation entries have separate Canvas geometry, menu and Tooltip keys;
+outgoing entries cannot steal pointer/focus/selection. Same-type unkeyed children
+update in place. Flutter 3.44.8 defaultTransitionBuilder reuses transition keys:
+Canvas uses an explicitly labeled unkeyed outer transition wrapper to retain
+independent outgoing entries. Generated Dart retains SDK defaults. Custom
+project builders/references are stored and analyzed, never executed in Canvas.
+See [the complete contract](../../../../docs/ANIMATED_SWITCHER.md).
+
+AnimatedCrossFade uses the full Flutter 3.44.8 constructor, two required keyed
+subtrees, independent first/second/size curves, forward/reverse Duration and
+physical/directional alignment. Canvas executes no project code; custom builders
+use the labeled native default layout. Only the top branch accepts Designer
+surface selection/drop; both branches remain editable in tree/Slots.
+See [the complete contract](../../../../docs/ANIMATED_CROSS_FADE.md).
+
+
+AnimatedSize mounts the full native constructor with physical/directional alignment,
+all curves, exact duration/reverseDuration, clipping and optional Child.
+Project references are inert and labeled. Empty nodes retain selection/drop handles.
+Pinned Flutter 3.44.8 runs normal size growth/shrink forward using duration;
+reverseDuration is retained unchanged. See docs/ANIMATED_SIZE.md at repository root.
+
+
+AnimatedContainer mounts the full native constructor: eight geometry/decoration
+tweens, nullable local values, all 43 curves, Duration and optional Child.
+Color/decoration and clipping dependencies match Flutter; width/height tighten
+constraints natively. Project-owned values are inert and labeled (null geometry/
+decoration, 300 ms, linear, no callback; unavailable background disables preview clipping).
+A shared matrix guard contains non-finite Matrix4Tween frames without changing source.
+See [the complete contract](../../../../docs/ANIMATED_CONTAINER.md).
+
+AnimatedRotation uses native signed turns (1 = 360 degrees clockwise, also in RTL),
+physical Alignment, nullable Filter quality, Duration, all 43 curves and optional Child.
+Targets are not normalized: 0 to 1 animates a complete revolution, not a no-op.
+Layout, Child state, transformed hits and animation-only filtering stay native.
+Project double/Alignment/Curve/Duration/On end references are inert and labeled
+(zero turns, center, linear, 300 ms, no callback).
+A per-frame guard retains the native tween/Child but withholds paint, semantics and
+hits if extreme angles/pivots make the matrix non-finite; it labels the limitation
+and recovers automatically when the matrix becomes finite. Stored/source values
+are unchanged. See [the complete contract](../../../../docs/ANIMATED_ROTATION.md).
+
+AnimatedScale mounts the native signed scale tween, physical Alignment and nullable
+FilterQuality, Duration, all 43 curves and optional Child. Layout and child identity
+are preserved; negative scales flip both axes and zero disables child hit testing.
+Only scale animates: alignment/quality changes do not start separate tweens.
+The native filter is applied during animation only. Project double/Alignment/Curve/
+Duration/On end bindings stay inert and labeled (1, center, linear, 300 ms, no callback).
+Empty nodes retain selection and Child drop handles.
+See [the complete contract](../../../../docs/ANIMATED_SCALE.md).
+
+AnimatedSlide mounts the native fractional Offset tween without changing layout.
+Signed offsets are physical in both LTR and RTL, and all 43 curves preserve
+native overshoot. Child identity, size-dependent translation, hit testing and
+zero-size drop targets are tested. Project Offset/Curve/Duration/On end bindings
+stay inert and labeled: zero offset, linear curve, 300 ms, no completion callback.
+See [the complete contract](../../../../docs/ANIMATED_SLIDE.md).
+
+AnimatedPadding uses native nonnegative physical/directional padding animation,
+all 43 Curve presets, Duration and optional Child. Mixed geometry transitions,
+RTL, overshoot clamping and child identity follow Flutter. Project-owned
+EdgeInsetsGeometry/Curve/Duration/On end references stay inert and labeled;
+custom geometry uses 16 pixels per side. Empty zero-padding targets remain
+selectable and droppable. See [the complete contract](../../../../docs/ANIMATED_PADDING.md).
+
+AnimatedAlign uses native physical/directional alignment and size-factor tweens,
+with full RTL and nullable controls. Custom AlignmentGeometry/Curve/Duration/On end
+bindings stay inert and labeled. Child state and native null-factor behavior are
+preserved. See [the complete contract](../../../../docs/ANIMATED_ALIGN.md).
+
+AnimatedOpacity mounts the native implicit animation with full scalar controls,
+optional Child, zero-opacity semantics and hit testing. Project Curve, Duration
+and On end references stay inert with an explicit preview limitation label;
+generated source keeps exact bindings. Empty Child drop targets remain usable.
+See [the complete contract](../../../../docs/ANIMATED_OPACITY.md).
+
+TweenAnimationBuilder has box/sliver previews with a fresh preview-owned Tween<double>
+and pass-through Child. Project Tween/T/builder/curve/duration/onEnd references
+remain inert and explicitly labeled. Native callbacks are not executed in Canvas.
+See [the complete contract](../../../../docs/TWEEN_ANIMATION_BUILDER.md).
+
+ValueListenableBuilder has native box/sliver previews with an immutable
+preview-owned source and pass-through Child. Project T/source/builder identities
+remain inert, with an explicit limitation label. The application uses the exact
+paired ValueListenable<T>/ValueWidgetBuilder<T> bindings and owns disposal.
+See [the complete contract](../../../../docs/VALUE_LISTENABLE_BUILDER.md).
+
+AnimatedBuilder mounts the native widget with a preview-owned immutable
+animation source and pass-through Child callback in box/sliver projections.
+Typed project source/builder references are inert and explicitly labeled;
+custom animation is not simulated. Child drop zones, zero-size selection,
+native layout and retained identity are tested.
+See [the complete contract](../../../../docs/ANIMATED_BUILDER.md).
+
+ListenableBuilder has native box/sliver projections with an optional matching
+Child slot. Its preview-owned immutable Listenable and pass-through callback
+never run project objects/getters/factories or builders. Either custom binding
+produces an explicit warning: displayed Child is only a design-time fallback.
+Native geometry, retained identity, empty selection and Child drop zones are
+covered. See [the complete contract](../../../../docs/LISTENABLE_BUILDER.md).
+
+DeviceOrientationBuilder has native box and sliver placement projections of the
+same unnamed constructor, using MediaQuery.orientationOf rather than parent bounds.
+Empty previews return SizedBox.shrink or SliverToBoxAdapter respectively.
+The explicit sliver classifier keeps selection/semantics/drop wrappers in the
+correct rendering protocol. Profile rotation propagates through native MediaQuery.
+Project builder references remain inert and presence-only with an unavailable
+preview notice. See [the complete contract](../../../../docs/DEVICE_ORIENTATION_BUILDER.md).
+
+OrientationBuilder mounts the actual native widget with a preview-owned empty
+box builder. Parent orientation (not device MediaQuery) and intrinsic-layout
+restrictions are preserved. Project builder presence gets an explicit unavailable
+preview notice; no user function/getter/factory is executed. Empty selection,
+parent insertion and native element identity use the shared Designer paths.
+See [the complete contract](../../../../docs/ORIENTATION_BUILDER.md).
+
+LayoutBuilder mounts the real native layout-time builder with a preview-owned
+SizedBox.shrink() result. All parent constraints remain authoritative, including
+tight and unbounded axes. Empty zero-sized instances retain the shared selection
+handle. Typed project builder bindings are presence-only and explicitly labeled
+unavailable: no project callback/getter/factory is executed in isolated Canvas.
+See [the complete contract](../../../../docs/LAYOUT_BUILDER.md).
+
+FlexibleSpaceBarSettings mounts the actual inherited widget and all six native
+values. It has one required box Child, with no injected sizing or scroll behavior.
+Java and Dart both enforce minExtent <= currentExtent <= maxExtent. A toolbarOpacity
+above 1 remains stored and is valid for Settings; a FlexibleSpaceBar descendant
+labels its unavailable color preview because native title colors require 0..1.
+See [the complete contract](../../../../docs/FLEXIBLE_SPACE_BAR_SETTINGS.md).
+
+FlexibleSpaceBar uses native inherited FlexibleSpaceBarSettings, all three
+collapse modes, all eight stretch-effect combinations, nullable directional
+padding, title scale and independent Title/Background slots. Project padding
+and effect lists remain presence-only and inert with an explicit warning.
+Without inherited settings or finite geometry, Canvas labels the unavailable
+preview and preserves modeled children; generated source is never wrapped.
+See [the complete contract](../../../../docs/FLEXIBLE_SPACE_BAR.md).
+
+SliverAppBar, medium and large use their actual native constructors, five slots
+and reviewed scroll modes. The mirrored title retains one canonical model identity.
+PreferredSize bottom geometry is forwarded to the native header. Project styles
+and event code are not executed; stored/generated references remain unchanged.
+See [the complete contract](../../../../docs/SLIVER_APP_BAR.md).
+
+SliverFloatingHeader mounts the native required-child floating header. Both snap
+modes and full AnimationStyle fields use SDK defaults when omitted/null.
+Presence-only project references are never executed. Negative stored durations
+use zero only in the preview, with an explicit warning; generated Dart is unchanged.
+See [the complete contract](../../../../docs/SLIVER_FLOATING_HEADER.md).
+
+PinnedHeaderSliver uses the native content-sized pinned header with one nullable
+Child. Both scroll axes, reverse/RTL, child-size edits, semantics and precise
+selection/drop geometry retain the existing shared Canvas behavior.
+See [the complete contract](../../../../docs/PINNED_HEADER_SLIVER.md).
+
+SliverResizingHeader uses the native pinned sliver and all three nullable box slots.
+Its prototype subtrees are measured under a hidden-geometry marker, with no fake
+Canvas hit targets. Pointer drops go to Child; explicit Slots/tree operations retain
+access to both measurement prototypes.
+See [the complete contract](../../../../docs/SLIVER_RESIZING_HEADER.md).
+
+
+SliverPersistentHeader is admitted with required presence-only Delegate and optional
+Pinned/Floating booleans. A preview-owned native delegate uses 56–112 extents;
+every header displays an explicit project-code limitation. The runner never
+evaluates delegate getters, build, vsync, snap or stretch.
+See [the complete contract](../../../../docs/SLIVER_PERSISTENT_HEADER.md).
+
+
 Isolated Windows child process for the NetBeans Flutter Designer's first native
 read-only Canvas slice. NetBeans builds and launches this versioned runner for
 each open `.fd` Design tab and embeds its real `FlutterView` as a verified child
 window. The Canvas is painted by Flutter directly; the protocol never transfers
-screenshots or framebuffer pixels. Model protocol v18 may additionally carry
+screenshots or framebuffer pixels. Model protocol v19 may additionally carry
 bounded, content-addressed compressed project-image bytes for typed asset
 previews.
+
+## ListView per-item extent builder (Flutter 3.44.8)
+
+`itemExtentBuilder` accepts omission, explicit null or a strict nullable
+`ItemExtentBuilder?` reference. Canvas receives anonymous presence only and
+never executes project functions, getters or factories. A configured reference
+uses natural child sizing with an explicit warning: callback nullability,
+per-index sizes and out-of-range results are unknown, not reproduced.
+No constant builder is fabricated, and configured children remain intact.
+
+Omission/null permits existing fixed `itemExtent` or natural sizing; any project
+reference conflicts with fixed `itemExtent`, even if the callback might be null.
+The SDK callback receives current `SliverLayoutDimensions` and may be called
+repeatedly during layout. It returns null beyond available items; existing
+children require usable nonnegative extents. Tests cover real varied extents,
+current dimensions, both axes, reverse/shrink-wrap and retained Canvas scrolling,
+geometry and selection across reference/reset changes.
+
+## CustomScrollView and SliverToBoxAdapter (Flutter 3.44.8)
+
+The runner mounts the native `CustomScrollView` with its reviewed scrolling,
+viewport, semantics, restoration, clipping and hit-testing fields. Its `slivers`
+list is trait-validated by the model; `SliverToBoxAdapter` is the first accepted
+sliver and hosts an ordinary Designer child through the real SDK adapter.
+
+Sliver adapters must remain direct children of the viewport's `RenderSliver`
+list. The Canvas therefore skips the box-only semantics, gesture and custom-paint
+wrappers around the adapter itself while retaining instrumentation on its child
+and the owning `CustomScrollView`. A detached adapter receives a bounded box
+fallback so a newly dropped palette item remains previewable until it is placed
+under a compatible sliver parent.
+
+## TextField counter and context-menu builders (Flutter 3.44.8)
+
+`buildCounter` and `contextMenuBuilder` accept omission, explicit null, or strict
+nullable project references (`InputCounterWidgetBuilder?` and
+`EditableTextContextMenuBuilder?`). Canvas receives only anonymous presence;
+project functions, getters and factories never execute.
+
+Omitted/null counter uses the actual SDK default. A configured counter might
+itself be null or return null/different content, so the warning explicitly labels
+the SDK default counter as an approximation, not the unknown project result.
+Omitted menu retains the SDK platform default; explicit null disables it exactly.
+A menu reference might be null or return different content; its warning labels
+the retained SDK platform menu as an approximation.
+
+The existing noninteractive Canvas pointer/focus guard is unchanged. Tests seed
+the real controller to verify text, grapheme counts, selection and element-state
+retention; isolated rehosting of captured SDK fields verifies focused counter and
+actual platform-menu behavior without expanding Designer input or IME support.
+
+## ElevatedButton style layer builders (Flutter 3.44.8)
+
+`styleBackgroundBuilder` and `styleForegroundBuilder` accept optional non-null
+`ButtonLayerBuilder` project references. Canvas receives only anonymous presence
+and does not execute project functions, getters or factories. Its explicit
+limitation tooltip explains the same identity-layer approximation used for
+TextButton: retain the real SDK child (or an empty non-null widget for a null
+child), not invented project content or geometry.
+
+Omission/reset preserves theme inheritance. The SDK foreground builder receives
+the original nullable child; the background builder wraps the padded result.
+Effective local or inherited builders automatically select `Clip.antiAlias`;
+without builders the SDK selects `Clip.none`. An explicit clip setting wins.
+The real button, its hover/press/focus/disabled states and hit testing remain
+active, while project callbacks and layer code remain isolated.
+
+## AppBar scroll notification predicate (Flutter 3.44.8)
+
+`notificationPredicate` preserves `default`, `depthZero` and `all` presets and
+also accepts a non-null project `ScrollNotificationPredicate` reference.
+Canvas receives anonymous presence only and never executes project code. A
+configured reference shows an explicit limitation tooltip and uses the actual
+SDK depth-zero predicate as an approximation. Omission and `default` use that
+same SDK default; `all` also accepts nested-depth notifications.
+
+AppBar uses accepted scroll updates to determine scrolled-under elevation;
+this predicate does not consume notifications or stop their propagation.
+Changing presence or resetting it preserves the real AppBar state, preferred
+size, child identity and existing scroll position.
+
+## Scaffold bottom-sheet scrim builder (Flutter 3.44.8)
+
+`bottomSheetScrimBuilder` accepts an optional non-null project reference with the
+exact type `Widget? Function(BuildContext, Animation<double>)`. The nullable
+return can suppress a scrim in generated application code; explicit callback
+null is invalid. Canvas receives anonymous presence and never executes the
+builder. A configured reference adds an explicit preview limitation and retains
+Flutter's actual default builder. Omission uses that same SDK default directly.
+
+The default scrim remains a non-dismissable black ModalBarrier controlled by the
+SDK animation: bottom-sheet coverage above 70% maps to animation values up to
+1 at 100%, with the SDK opacity bounds of 0.1 and 0.6. Preview changes do not add
+a scrim when no sheet requests one, hide an active default scrim, replace the
+Scaffold state or change the existing three child slots. Tests exercise the
+captured SDK builder, live animation and ScaffoldState.showBottomSheet.
+
+## NotificationListener preview (Flutter 3.44.8)
+
+The reviewed `flutter.widgets.NotificationListener` projection contains the
+required `notificationType`, optional nullable `onNotification` and required
+child. All fourteen SDK Notification filter types use actual typed
+`NotificationListener<T>` widgets. These include base/layout/scroll families,
+metrics, overscroll indicators, draggable sheets, keep-alive and navigation.
+The exact child layout and model identity remain intact across type changes.
+
+Present handlers become local callbacks that return false; omitted/null handlers
+stay null. Application code never runs, and preview callbacks cannot consume
+framework or Designer notifications. A custom project subtype is reduced to
+anonymous presence. Its explicit tooltip explains the Notification-base preview
+approximation, because Canvas cannot reproduce project-specific type filtering.
+The saved model and generated Dart preserve the exact project type and callback.
+Required-child wrapping is atomic; zero-sized children retain native geometry
+and external selection handles. Model protocol 19 and transport 1 remain unchanged.
+
+## MouseRegion preview (Flutter 3.44.8)
+
+The reviewed MouseRegion projection covers all three mouse callbacks, cursor,
+opaque, nullable hitTestBehavior and optional child without changing model
+protocol 19. Callback and Dart object identities become presence markers, never
+executable application code. The real MouseRegion installs inert local callbacks
+only for present handlers; omitted/null handlers stay absent. Real mouse movement,
+exit and unmount do not change Designer selection or override child selection.
+
+All 41 closed cursor presets are supported. WidgetStateMouseCursor presets resolve
+against the SDK's empty state set. A custom project MouseCursor reference has an
+explicit preview-unavailable tooltip and uses MouseCursor.defer as a preview-only
+approximation; the exact stored reference and generated Dart are unchanged.
+Designer-only cursor/opaque annotations are suppressed within MouseRegion and its
+subtree so real cursor inheritance, overlapping regions, opaque and hit testing
+remain observable. Leaving that subtree restores ordinary Designer cursor hints.
+
+Opaque defaults to true and accepts both literal values; State consumer metadata
+never enters the runner or changes its stored literal preview. Omitted/null
+hitTestBehavior retains the native MouseRegion default, while all three explicit
+HitTestBehavior values remain exact. Empty nodes preserve native layout and have
+external zero-size selection/drop handles. Renderer identity survives callback,
+cursor and preview-availability changes. Native and internal Web share this path.
+
+## Listener preview (Flutter 3.44.8)
+
+The reviewed `flutter.widgets.Listener` projection covers all nine raw pointer
+callbacks, `behavior` and its optional `child`, without changing model protocol
+19. Callback values are reduced to typed presence markers; explicit null and
+omission install no callback. The real Listener receives inert local no-op
+callbacks, never application handlers, objects or source code. Raw hover,
+cancel, scroll and pan/zoom notifications do not change Designer selection or
+compete in the gesture arena. The existing Designer selection handlers retain
+the deepest child selection.
+
+All three HitTestBehavior values use the real RenderPointerListener behavior;
+omission retains `deferToChild` and explicit null is rejected. Empty Listener
+nodes keep their actual layout and get external selection/drop handles when
+zero-sized. Render object identity survives callback changes. The offline Web
+build uses the same decoder, renderer and drop logic.
+
+## GestureDetector preview (Flutter 3.44.8)
+
+The reviewed `flutter.widgets.GestureDetector` projection supports all 58
+constructor callbacks, all six configuration properties and the optional
+`child`. Model protocol 19 adds the closed `pointerDeviceKindSet` value:
+`touch`, `mouse`, `stylus`, `invertedStylus`, `trackpad`, `unknown`.
+An omitted or explicitly null set admits SDK-default devices; an explicitly
+empty set remains empty. Unknown names, duplicate entries, extra JSON keys
+and executable callback metadata are rejected.
+
+The renderer constructs a real GestureDetector. Application callbacks and
+object references are reduced to presence markers; only inert local Designer
+selection callbacks are installed. Cancellation callbacks are no-ops so a
+losing ancestor recognizer cannot overwrite a child's Designer selection.
+Designer selection remains available even when the application-supported
+device set excludes the current pointer. The SDK's pan/scale and competing
+axis recognizer assertions are checked before rendering. Configuration defaults,
+nullable behavior, semantics exclusion, drag start and trackpad scale options
+follow the pinned SDK. Empty zero-sized detectors retain real zero-size layout
+and use external Designer selection/drop handles, never persisted placeholder
+children.
+
+The internal offline Web artifact can be reproduced from this directory with
+the pinned SDK (this does not enable the Web provider):
+
+```powershell
+flutter build web --release --target lib/main_web.dart --no-tree-shake-icons --no-web-resources-cdn --pwa-strategy none --no-wasm-dry-run
+```
+
+The explicit `--no-wasm-dry-run` keeps the generated bootstrap at exactly one
+reviewed dart2js/CanvasKit build. The SDK's default dry run adds an empty second
+build record, which the strict artifact admission correctly rejects.
+
+After changing runner sources, regenerate exact byte sizes/SHA-256 values in
+`CanvasRunnerBundle.manifest`; after rebuilding Web, refresh every existing
+file entry in `WebCanvasArtifact.manifest`. Do not weaken the packaged-source
+size/hash or Web artifact admission checks.
 
 ## Internal browser-host foundation (not product-routed)
 
@@ -78,9 +579,9 @@ decoder accepts exactly `Scaffold`, `AppBar`, `ElevatedButton`, `TextField`,
 `Column`, `Row`, `Text`, `Icon`, `Image`, `Padding`, `Center`, `Align`,
 `FractionallySizedBox`, `FittedBox`, `ConstrainedBox`, `UnconstrainedBox`, `LimitedBox`, `OverflowBox`,
 `SizedBox`, `AspectRatio`, `Stack`, `IndexedStack`, `Expanded`, `Flexible`, `Spacer`, `Baseline`, `IntrinsicHeight`, `IntrinsicWidth`, `Offstage`, `SizedOverflowBox`,
-`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `ListBody`,
+`ListView`, `GridView.count`, `SingleChildScrollView`, `Wrap`, `Container`, `Opacity`, `Transform`, `RotatedBox`, `PreferredSize`, `ListBody`,
 `OverflowBar`, `SafeArea`, `ColoredBox`, `Placeholder`, `Directionality`,
-`DecoratedBox`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch` and `Slider`,
+`DecoratedBox`, `Builder`, `ClipRect`, `ClipOval`, `ClipRRect`, `ClipPath`, `ClipRSuperellipse`, `PhysicalModel`, `PhysicalShape`, `RepaintBoundary`, `IgnorePointer`, `AbsorbPointer`, `ExcludeSemantics`, `BlockSemantics`, `MergeSemantics`, `IndexedSemantics`, `ExcludeFocus`, `ExcludeFocusTraversal`, `Visibility`, `TickerMode`, `DefaultTextHeightBehavior`, `DefaultSelectionStyle`, `IconTheme`, `ImageIcon`, `Divider`, `VerticalDivider`, `Card`, `Badge`, `CircleAvatar`, `LinearProgressIndicator`, `CircularProgressIndicator`, `RefreshProgressIndicator`, `RefreshIndicator`, `TextButton`, `OutlinedButton`, `FilledButton`, `FloatingActionButton`, `IconButton`, `Checkbox`, `Switch` and `Slider`,
 with reviewed typed properties and slots. It
 rejects unknown widgets, fields and values instead of loading arbitrary project
 Dart code.
@@ -213,7 +714,7 @@ never apply a top-level suggested screen rectangle to that child, while a
 standalone runner retains the normal suggested-rectangle behavior.
 
 An empty Row, Column, ListView, GridView, ListBody, OverflowBar, Wrap, FittedBox, ConstrainedBox,
-UnconstrainedBox, LimitedBox, OverflowBox, RotatedBox or ColoredBox keeps its real Flutter layout (including
+UnconstrainedBox, LimitedBox, OverflowBox, RotatedBox, PreferredSize or ColoredBox keeps its real Flutter layout (including
 zero-size outcomes) but receives a non-layout-affecting 36-pixel-minimum
 selection outline and hit rectangle. Its whole bounded rectangle is insertion
 index zero; a populated Row, Column, ListView, GridView, ListBody or OverflowBar exposes only its terminal append
@@ -591,6 +1092,17 @@ widgets; 35 sources across 34 insertable destinations form 1,190 cells, with
 1,032 accepted and 158 rejected. The practical Material/Base backlog was 35/92
 complete with 57 remaining, and Layout contains 27 items. Canvas model protocol
 remains v14; NBFC framing, control and wire remain v1.
+
+[`flutter.widgets.PreferredSize`](https://api.flutter.dev/flutter/widgets/PreferredSize/PreferredSize.html)
+is the next complete Layout Canvas widget. Its exact projection requires the
+finite non-negative `Size preferredSize` and a required single `child`; palette
+creation supplies `Size(100, 56)`. The native and exact-Web views construct the
+real `PreferredSize`, advertising the stored size without constraining the
+child. It is a required-child wrapper source, so an existing non-root child is
+wrapped atomically and the required slot is not offered as an empty insertion
+target. The `PreferredSizeWidget` trait remains available to AppBar/Scaffold
+slots. The renderer and runtime schema are shared with the native process and
+the packaged Web artifact.
 
 [`flutter.widgets.ListBody`](https://api.flutter.dev/flutter/widgets/ListBody/ListBody.html)
 is the sixteenth post-core Canvas widget. Its exact constructor projection
@@ -1455,6 +1967,243 @@ admit NaN geometry. Signed finite and both infinite splash/inner radii retain
 the pinned SDK behavior without a speculative clamp. Model/wire versions and
 existing budgets are unchanged.
 
+## MenuItemButton Canvas
+
+The native Flutter 3.44.8 MenuItemButton is rendered with all 520 reviewed
+properties: fourteen direct fields, eight shortcut fields, and all 498 shared
+ButtonStyle leaves. The optional Child, Leading Icon and Trailing Icon slots
+are real model children; none is fabricated. The catalog now has 102 widgets /
+5300 properties. Model v19, transport v1, and the source-bundle inventory are
+unchanged.
+
+The enabled value controls a benign native onPressed callback. Menu activation,
+hover/focus, disabled behavior, closeOnActivate, label semantics and the parent
+menu orientation remain SDK behavior. Designer selection uses pointer-down only
+within MenuItemButton so that the real native button gesture can win through all
+three child slots. No global shortcut registration, project callback, controller,
+shortcut factory or layer builder is executed. The 432 reviewed non-modifier
+LogicalKeyboardKey constants have independently checked exact SDK key IDs.
+SingleActivator and CharacterActivator generate native shortcut hints. The SDK
+menu serializer requires a CharacterActivator string of exactly one UTF-16 code
+unit; other valid constructor strings remain unchanged in the model and source,
+but their unavailable preview hint is omitted with an explicit diagnostic.
+
+Style composition uses MenuButtonTheme and the native MenuItemButton defaults,
+including when Material 2 is selected. The SDK property-object merge remains
+intact; a sparse scalar resolver that returns null can expose the underlying
+TextButtonTheme exactly as in a native menu. Bound project styles use a labeled
+default/theme approximation. Bound layer builders use identity layers around
+the real child; native Clip.none remains the default and explicit clip wins.
+
+Three non-overlapping empty-slot insertion zones follow Directionality. Selection,
+ordinary style/shortcut edits and diagnostic appearance preserve the native menu,
+child state, baseline and intrinsic geometry. Only actual native wrapper changes
+(hover-region presence, enabled accelerator binding, label semantics wrapper or
+label axis) invalidate a nested Tooltip preview when needed for safe overlay
+disposal. The source model is never changed by these preview transitions.
+
+A Menu-only geometry guard retains the real SDK subtree when its native vertical
+label receives unbounded width or a native Flex exceeds the available extent, including RTL
+overflow. Unsafe paint, semantics and pointer input are withheld with an explicit
+diagnostic, and blocked descendant rectangles are excluded from Designer drop
+resolution. Existing keyboard focus behavior is not replaced by this paint guard.
+Naturally sized horizontal labels and native finite style-width constraints remain
+unchanged; the guard uses public render topology to include actual menu-axis overrides.
+Restoring safe constraints restores the native presentation without fabricating
+nodes or changing stored values.
+
+## TooltipTheme Canvas
+
+The real const TooltipTheme constructor wraps its required Child with a fresh
+TooltipThemeData. All 15 pinned Flutter 3.44.8 theme fields, 31 local TextStyle
+fields and an exclusive nonnull whole Data reference are independently reviewed:
+47 properties; current catalog 102 widgets / 5300 properties. Empty locals create
+const TooltipThemeData(). No copyWith or lerp is used: the pinned copyWith drops
+exitDuration, and lerp omits all five duration/trigger/feedback behavior fields.
+
+The nearest native theme replaces the entire outer tooltip theme, not a fieldwise
+merge. Local null values stay null and therefore use Tooltip's SDK/platform
+defaults, not an outer scope's fields. Explicit nonnull Tooltip fields retain
+the SDK's precedence. Trigger modes, hover wait, touch show and hover exit timing,
+signed duration microseconds and semantics follow actual SDK behavior. The scope
+also applies to implicit IconButton/FAB tooltips and composes with TooltipVisibility.
+
+Isolated preview never evaluates project Data, TextStyle, Decoration, Duration or
+other references. Unknown whole Data uses an explicitly diagnosed empty nearest
+theme; unknown local reference fields use null defaults. A stable diagnostic
+sibling preserves the actual child, baseline, intrinsic size, selection and open
+overlay when warnings appear/disappear. Structured decoration/image/gradient and
+all local TextStyle families retain the same exact bounded contracts as Tooltip.
+
+Negative or overflowing overlay insets use visibly diagnosed zero insets;
+negative/NaN minimum height uses zero; NaN/negative-infinite vertical offset uses
+24. These safeguards apply at the theme provider so implicit native tooltips are
+safe too; model values and generated Dart are never normalized. Ordinary theme
+edits retain the tested Tooltip and editor State/focus. Structural wrap/unwrap/move
+closes only affected preview overlays under the existing scoped lifecycle rule.
+Required-child wrapping adds no empty-child insertion target. The shared direct
+ParentData policy and model v19 / transport v1 remain unchanged.
+
+## TooltipVisibility Canvas
+
+The real Flutter 3.44.8 const TooltipVisibility wraps its required Child with one
+required Boolean visible property (creation default true). The independent
+catalog now contains 102 widgets / 5300 properties. Model v19 and transport v1
+remain unchanged. Palette creation wraps the existing child; no placeholder child
+is invented. The shared direct-parent ParentData policy remains unchanged: place
+TooltipVisibility inside Expanded/Flexible, not between one and its Row/Column.
+
+Native SDK inheritance controls explicit Tooltip and the implicit Tooltips of
+IconButton/FloatingActionButton. The closest scope overrides, rather than ANDs
+with, outer scopes. False removes RawTooltip and any open overlay, prevents new
+hover/tap/long-press/manual activation, and removes the tooltip's own semantics
+annotation in this pinned implementation (despite contrary API prose). Actual
+child semantics and layout remain. No compatibility semantics shim is added.
+
+Ordinary single-tooltip visibility updates retain the tested Tooltip/TextField
+and inline-editor State, focus, selection and geometry. For a nested open Tooltip
+branch, changing an outer Tooltip's effective RawTooltip presence retires only
+that nested preview branch to avoid reparenting an open SDK OverlayPortal during
+Canvas layout; the outer TooltipState and all model IDs/values remain intact.
+The nested tooltip can reopen under an inner true scope. Explicit and nonempty
+implicit SDK tooltip owners share this safeguard; diagnostic badges do not count
+as model tooltip owners. Structural wrap/unwrap/move uses the same existing scoped
+preview cleanup. There is no State producer or project-code execution.
+
+## Tooltip Canvas
+
+The real Flutter 3.44.8 const Tooltip constructor has 53 independently checked
+properties: all 22 non-child SDK arguments plus all 31 shared local TextStyle
+fields. Its optional Child is never fabricated. The current catalog has 102
+widgets / 5300 properties; model v19 and transport v1 are unchanged. Plain message
+and rich InlineSpan reference obey the exact nonnull XOR. Empty plain text really
+disables the SDK tooltip. Explicit nulls, signed microsecond wait/show/exit
+durations, all cursor presets, structured BoxDecoration and bounded image resources
+retain their reviewed contracts.
+
+Canvas uses the actual SDK Tooltip/RawTooltip overlay, hover delays, touch gesture
+arena, tap/longPress/manual modes, dismissal, placement and semantics. Manual mode
+still admits mouse hover. Only accepted native tap/longPress triggers invoke the
+benign preview callback; hover and ensureTooltipVisible do not invoke it in this
+pinned SDK. The anchor uses narrow pointer-down Designer selection without adding
+a competing synthetic tap recognizer. Nested tooltips select the deepest node
+once, and actual child button recognizers can win normally.
+
+Project references, callbacks, factories and position delegates never execute.
+Unknown appearance, durations and placement inherit the SDK theme/defaults with
+an explicit small diagnostic badge. Unknown rich InlineSpan content uses a labeled
+unavailable TextSpan surrogate: project text, WidgetSpan interaction and semantics
+are not claimed to be reproduced. The diagnostic sibling does not resize or
+replace the real anchor, participate in its baseline, or become a model/drop child.
+Adding/removing diagnostics and changing selection preserve open Tooltip and child
+State, including the inline editor's focus. Structural wrapping, unwrapping and
+reparenting close affected preview overlays and may reset their transient SDK
+State; changing a Container ancestor's actual wrapper topology (for example,
+adding/removing padding) does the same only in the affected subtree. Scalar changes
+within that same wrapper topology retain State. Persistent model IDs, properties
+and generated Dart remain unchanged.
+
+The same scoped rule covers reviewed generic constructor, custom-clipper
+availability, Badge/FAB preview-key and native wrapper branches. ExpansionTile
+shape presence and zero/nonzero background-alpha endpoints select different
+Material wrappers; those transitions retire affected open previews, while RGB
+and positive-to-positive alpha edits retain State. Existing diagnostic wrappers
+use stable sibling badges only in Tooltip-containing branches, including warnings
+derived from layout/theme, so merely adding a warning never reparents a portal.
+
+Unsafe negative/overflowing overlay Container padding and margins use explicitly
+diagnosed zero insets. Negative/NaN minimum height uses zero; negative-infinite or
+NaN vertical offset uses the SDK default 24. Positive infinity for these two fields
+remains exact where the pinned SDK safely bounds it. Invalid inherited constraints
+are diagnosed and replaced only for preview. Negative durations remain signed and
+follow the SDK's immediate timer behavior. These guards are tested while actually
+showing overlays, not only while mounting the anchor. Empty anchors keep zero SDK
+geometry and the existing compact Designer-only Child drop handle.
+
+## ExpansionTile Canvas
+
+The real Flutter 3.44.8 const constructor has 76 independently checked properties
+and five slots: required title, optional leading/subtitle/trailing and a children
+list. The current catalog has 102 widgets / 5300 properties. Palette creation wraps
+an existing widget as Title; it never fabricates a title or admits a titleless node.
+Both 21-field shape families and all four AnimationStyle fields are retained,
+including 43 curve presets, signed microsecond durations, explicit nulls and
+anonymous typed-reference presence. Protocol v19 and transport v1 are unchanged.
+
+Canvas owns a persistent ExpansibleController and uses the actual SDK tile, header,
+body, focus, keyboard actions and semantics. Ordinary model edits and selection
+changes retain transient expansion. An explicit Initially expanded edit synchronizes
+only the local preview controller; generated runtime treats this field solely as
+an initialization seed. It is not a State producer/consumer. Project controllers,
+state controllers, callbacks and factories are never executed. Unknown appearance
+and animation use explicitly diagnosed SDK-theme/default approximations.
+
+The SDK owns maintainState disposal versus Offstage/TickerMode retention. Collapsed
+children have no Canvas hit, selection-outline, zero-size handle or drop geometry;
+tree selection does not silently expand them. Show trailing icon=false also hides
+a supplied Trailing slot. Header drop zones use its real ListTile bounds, while
+Children append/reorder zones use the visible body. An expanded empty body gets a
+compact Designer-only append band at the header edge without fake layout children.
+
+Pinned ExpansionTile/Expansible ignore AnimationStyle.reverseDuration; its stored
+value is retained without invented collapse timing or a warning for negative values.
+Negative active durations assert in the SDK, so Canvas explicitly substitutes zero.
+easeInBack, easeInOutBack, elasticIn and elasticInOut can produce invalid negative
+height factors; only affected active preview curves use easeIn. Negative/overflowing
+padding and positive-infinite/NaN minimum header height similarly use explicit zero
+approximations, retaining source values and mounted children. Finite signed heights
+and negativeInfinity remain exact. Unbounded-width paint/semantics are withheld
+without disposing the SDK subtree. Missing model Material is separately unavailable;
+the editor chrome is not counted as ancestry, and actual SDK shape/background
+Material branches are honored without inserting a synthetic Material.
+
+## RadioListTile standard/adaptive Canvas
+
+Both real Flutter 3.44.8 constructors have 153 independently checked properties
+and optional title/subtitle/secondary slots (102 widgets / 5300 properties).
+Six scalar generic types and their nullable variants retain exact RadioGroup
+membership. The actual SDK tile is the group's single public RadioClient; its
+inner Radio remains hidden by the SDK registry. A synchronous public-registry
+observer participates in the existing duplicate-selection quarantine without
+creating proxy clients or extra groups. It mirrors all direct pinned SDK inherited
+dependencies and flushes a dirty cached tile before restoring guarded membership,
+including independent RadioTheme/ListTileTheme updates. Group moves and generic
+changes unregister old membership; the SDK owns native keyboard traversal.
+
+Modern null groupValue genuinely falls back to the deprecated local groupValue.
+Omitted/null onChanged disables only when no matching group activates the tile;
+explicit enabled without a callback or group is diagnosed with slot State retained.
+Project selection/type references never invent equality or a checked state.
+Other project objects/callbacks remain anonymous, inert, labeled approximations.
+The four nullable state-map families, renamed stateful side, local cursor buckets,
+ten tile shapes and signed geometry preserve the reviewed SDK contracts. Nonfinite
+scale/reaction geometry uses an explicit zero approximation, while existing tile
+geometry guards retain child State and source values. Selected is independent of
+checked; native merged radio semantics do not add a button flag by default.
+Adaptive-only useCupertinoCheckmarkStyle is retained but inactive in Standard.
+
+## SwitchListTile standard/adaptive Canvas
+
+Both actual Flutter 3.44.8 constructors have 236 independently checked properties
+and optional title/subtitle/secondary single slots (current catalog: 102 widgets / 5300 properties).
+Four state-color families, all nine complete thirteen-field thumb-icon buckets,
+stateful cursors, bounded image resources, all tile shapes and local density are
+retained. No standalone-Switch-only arguments or synthetic Enabled row are added.
+Null onChanged disables the entire SDK tile; local callbacks select the Designer
+node without changing the controlled Value. Native MergeSemantics yields a switch
+toggled state, with the additional button flag false by default.
+
+Adaptive uses the pinned SDK's unified MaterialSwitch with Cupertino-style painting
+on Apple platforms, not a separate CupertinoSwitch widget. Adaptive-only
+applyCupertinoTheme is retained but inactive in Standard. Project objects and
+callbacks are anonymous presence only and never executed; unknown appearance uses
+explicitly labeled SDK-theme/default approximations. Nonfinite reaction radii are
+diagnosed and only that reaction uses radius zero; finite signed values remain exact.
+Shared ListTile guards withhold unavailable geometry/slot paint without inventing
+children, changing stored values or losing child State. The known pinned Switch
+Cupertino painter lifecycle boundary resets only the SDK tile shell, preserving
+the outer FocusNode and globally keyed slot children; ordinary updates retain State.
+
 ## Switch standard/adaptive Canvas
 
 Both constructors use the real public Switch with 201 capability-checked fields.
@@ -1475,6 +2224,60 @@ into user Dart. These are preview-only boundaries, not repairs to generated apps
 Finite padding whose sum overflows on an unbounded parent axis receives an explicit
 preview-unavailable status and the existing selectable handle; bounded layout keeps
 the exact SDK behavior. No stored padding is clamped.
+
+## MenuAnchor Canvas
+
+The runner constructs the real pinned Flutter 3.44.8 MenuAnchor with all 219
+reviewed properties: 16 direct fields and 203 MenuStyle leaves. MenuChildren is
+a required list that may be empty; Child is optional. Neither slot receives a
+fabricated model child. Current catalog: 102 widgets / 5300 properties; model v19,
+transport v1 and public schema versions are unchanged.
+
+Each mounted anchor owns a stable isolated MenuController. Selecting an anchor,
+or a child it owns, exposes an accessible **Preview menu / Close preview**
+Designer action beside its actual geometry. This action does not change selection,
+source, model values or child dimensions. Ordinary child taps are not repurposed
+as app openers. Project builders/controllers/focus nodes/callbacks/factories never
+execute: reference presence is anonymous and diagnosed. Create Menu Builder in
+the IDE produces user-owned app code; this separate Canvas action does not claim
+to execute that code.
+
+MenuStyle uses MenuTheme and pinned menu defaults, not ButtonStyle defaults. All
+nine resolver buckets remain exact source data, while the native panel and mouse
+cursor resolve with the empty WidgetState set. Local size/side/shape components
+inherit missing components from the menu theme/default; a local density axis
+constructs a complete VisualDensity with an omitted peer equal to zero. Resetting
+both axes restores native inherited density. Native root/nested alignment fallback
+is left to MenuAnchor when no complete local alignment is supplied. Nonfinite or
+inconsistent inherited geometry is explicitly diagnosed and previewed with safe
+native-default geometry, without rewriting the model.
+
+A stable Overlay inside the logical viewport preserves native menu coordinates
+under zoom and Canvas clipping. It deliberately has no LookupBoundary, which would
+hide View.of and break EditableText. Consequently source useRootOverlay=true is
+preserved but diagnosed as an isolated preview approximation: both root/nearest
+menu placement use this local viewport Overlay. Bound LayerLink uses a stable
+isolated target/follower when possible, not the project's connection. If menu
+descendants own native Tooltip overlays (including IconButton/FAB tooltip), that
+surrogate link is omitted with an explicit warning because the pinned SDK cannot
+compute the Tooltip transform through a follower. Diagnostic badges under an
+active surrogate follower retain their accessible warning text without opening
+their own unsafe diagnostic Tooltip popup.
+
+Open menu children retain actual IDs, selection, inline editing, focus and SDK
+State through ordinary style, callback-presence, State-payload and warning edits.
+Native activation closes the menu according to closeOnActivate, and keyboard
+traversal skips disabled entries. No shortcut registration is invented. The
+deprecated anchorTapClosesMenu field remains stored but is inert in this SDK.
+Structural changes such as animated/layerLink/cross-axis wrapper branches, model
+reparenting, and adding/removing a Tooltip under a linked menu may close/reset only
+the affected transient preview subtree. Stored children and source remain exact.
+
+MenuChildren drop/move zones use real overlay panel geometry and disappear when
+closing animation begins, even while native controller.isOpen remains true.
+Closed menu children are neither hit nor drop targets. With an empty zero-sized
+anchor, the existing selection handle accepts Child while closed and the empty
+MenuChildren list while explicitly previewing; no fake menu item is mounted.
 
 ## Checkbox standard/adaptive Canvas
 
@@ -1520,3 +2323,52 @@ success; Apple-ignored references do not report false unavailable warnings.
 Constructor-legal equal bounds work in Material; the raw Apple SDK normalization
 bug and other unsafe normalization/layout/theme contexts are diagnosed without
 changing model/source. There is no global tick-count cap on Divisions.
+
+## Scrollbar Canvas
+
+The runner now mounts the real Flutter 3.44.8 `Scrollbar` with all eight typed
+constructor fields and its required single `child`. Nullable visibility and
+interaction values preserve omission versus explicit `false`; orientation uses
+the SDK enum (`left`/`right` for vertical scrolling, `top`/`bottom` for
+horizontal scrolling). Controller, notification-predicate and `Radius`
+references remain model/source data and are diagnosed instead of being executed
+by the isolated runner.
+
+Because a palette child may not own a `ScrollPosition`, the preview adds a
+non-serialized `SingleChildScrollView` on the selected axis. This gives the
+native scrollbar a valid position without changing generated Dart, child IDs or
+state. The current aggregate catalog is 116 widgets and 6,362 writable rows;
+the source manifest records the updated runner hashes. CJK IME and Linux/macOS
+Canvas providers remain outside this milestone.
+
+## PreferredSize Canvas
+
+The runner mounts the native Flutter 3.44.8 `PreferredSize` with its required
+finite non-negative `preferredSize` and required single `child`. Palette
+creation starts at `Size(100, 56)`; the stored size is advertised to parents
+without constraining the nested child. The required child remains a real Slots
+entry and is preserved through Canvas DnD, Save/reopen and history. PreferredSize
+is a wrapper source, not an empty-slot insertion destination, and its
+`PreferredSizeWidget` trait remains available to the typed AppBar/Scaffold
+slots. Native and exact-Web rendering use the same metadata and renderer.
+
+## Builder Canvas
+
+The runner mounts the native Flutter 3.44.8 `Builder` with its required
+`WidgetBuilder` callback represented as presence-only metadata. Palette-created
+nodes use a reviewed no-op callback, and the isolated preview renders a bounded
+48 × 36 `SizedBox`; project callback bodies and symbols are never executed by
+Canvas. Generated Dart retains the typed callback identifier, Properties keeps
+the callback editable, and Builder has no child slots.
+
+## ListWheelScrollView Canvas
+
+The runner mounts the native Flutter 3.44.8 `ListWheelScrollView` with its
+reviewed 18-property contract, required positive `itemExtent` and ordered
+`children` list. Wheel geometry, clipping, hit testing, restoration, physics
+presets and change-reporting behavior are passed through the model. Controller,
+scroll-behavior and callback references are retained and diagnosed; project
+code is never executed in the isolated runner. `renderChildrenOutsideViewport`
+is normalized only for the preview when the SDK requires `Clip.none`; stored
+values and generated Dart remain unchanged. CustomScrollView/sliver branches
+are not part of this slice.

@@ -83,11 +83,36 @@ public final class CanvasPreviewProfileResolver {
             Optional<CanvasPreferences> preferences,
             CanvasEngineIdentity engineIdentity,
             CanvasResolvedTheme resolvedTheme) {
+        return resolve(
+                mode,
+                targetPlatform,
+                preferences,
+                engineIdentity,
+                resolvedTheme,
+                Optional.empty());
+    }
+
+    /**
+     * Resolves a profile with an optional transient orientation override.
+     *
+     * <p>The override belongs to the preview presentation only; it is not
+     * persisted in the designer document. It is intentionally accepted for
+     * mobile and tablet modes only. Desktop and web previews retain their
+     * canonical dimensions.</p>
+     */
+    public static CanvasRenderProfile resolve(
+            CanvasPreviewMode mode,
+            CanvasTargetPlatform targetPlatform,
+            Optional<CanvasPreferences> preferences,
+            CanvasEngineIdentity engineIdentity,
+            CanvasResolvedTheme resolvedTheme,
+            Optional<CanvasOrientation> orientationOverride) {
         Objects.requireNonNull(mode, "mode");
         Objects.requireNonNull(targetPlatform, "targetPlatform");
         Objects.requireNonNull(preferences, "preferences");
         Objects.requireNonNull(engineIdentity, "engineIdentity");
         Objects.requireNonNull(resolvedTheme, "resolvedTheme");
+        Objects.requireNonNull(orientationOverride, "orientationOverride");
         requireCompatible(mode, targetPlatform);
         CanvasViewport defaultViewport = defaultViewport(mode);
         double[] size = new double[]{
@@ -103,18 +128,15 @@ public final class CanvasPreviewProfileResolver {
             if (ownsSavedViewport) {
                 size[0] = value.logicalWidth().map(Number::doubleValue).orElse(size[0]);
                 size[1] = value.logicalHeight().map(Number::doubleValue).orElse(size[1]);
-                if (value.orientation().orElse(null) == CanvasOrientation.LANDSCAPE
-                        && size[0] < size[1]
-                        || value.orientation().orElse(null) == CanvasOrientation.PORTRAIT
-                        && size[0] > size[1]) {
-                    double swap = size[0];
-                    size[0] = size[1];
-                    size[1] = swap;
-                }
             }
+            CanvasOrientation savedOrientation = ownsSavedViewport
+                    ? value.orientation().orElse(null) : null;
+            applyOrientation(size, orientationOverride.orElse(savedOrientation), mode);
             locale = value.locale().orElse(locale);
             textScale = value.textScaleFactor().map(Number::doubleValue)
                     .orElse(textScale);
+        } else {
+            applyOrientation(size, orientationOverride.orElse(null), mode);
         }
         return new CanvasRenderProfile(
                 mode,
@@ -125,6 +147,24 @@ public final class CanvasPreviewProfileResolver {
                 new CanvasLocale(locale),
                 new CanvasTextScaleFactor(textScale),
                 engineIdentity);
+    }
+
+    private static void applyOrientation(
+            double[] size,
+            CanvasOrientation orientation,
+            CanvasPreviewMode mode) {
+        if (orientation == null || (mode != CanvasPreviewMode.MOBILE
+                && mode != CanvasPreviewMode.TABLET)) {
+            return;
+        }
+        boolean landscape = size[0] > size[1];
+        boolean shouldSwap = orientation == CanvasOrientation.LANDSCAPE
+                ? !landscape : landscape;
+        if (shouldSwap) {
+            double swap = size[0];
+            size[0] = size[1];
+            size[1] = swap;
+        }
     }
 
     /**

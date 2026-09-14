@@ -48,6 +48,15 @@ public final class FlutterImageWidgetCreationValues {
             FlutterImageAssetChoices choices) {
         Objects.requireNonNull(definition, "definition");
         Objects.requireNonNull(choices, "choices");
+        if (dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            PropertyValue.ImageProviderValue provider = choices.choices().isEmpty()
+                    ? PropertyValue.ImageProviderValue.unresolved()
+                    : new PropertyValue.ImageProviderValue(PropertyValue.ImageProviderValue.ProviderKind.ASSET,
+                        choices.choices().getFirst().assetName(), choices.choices().getFirst().packageName(),
+                        java.util.Optional.empty(), java.util.Optional.empty());
+            return new Available(Map.of(new PropertyName("placeholder"), provider, IMAGE_PROPERTY, provider),
+                    "Create FadeInImage with two independently editable providers; no asset is required.");
+        }
         boolean imageIcon = IMAGE_ICON_TYPE.equals(definition.typeId());
         if (!IMAGE_TYPE.equals(definition.typeId()) && !imageIcon) {
             return new Available(Map.of(), "No creation-time values are required.");

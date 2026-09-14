@@ -2,6 +2,14 @@ package dev.flutter.netbeans.plugin.designer;
 
 import dev.flutter.netbeans.designer.command.AddWidget;
 import dev.flutter.netbeans.designer.command.ClearSlotChildren;
+import dev.flutter.netbeans.designer.command.CreateEventHandler;
+import dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder;
+import dev.flutter.netbeans.designer.command.CreateStateBinding;
+import dev.flutter.netbeans.designer.command.BindPropertyToState;
+import dev.flutter.netbeans.designer.command.RemovePropertyStateBinding;
+import dev.flutter.netbeans.designer.command.RemoveStateBinding;
+import dev.flutter.netbeans.designer.command.RenameEventHandler;
+import dev.flutter.netbeans.designer.command.RenameStateField;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.DesignerCommandKind;
 import dev.flutter.netbeans.designer.command.MoveWidget;
@@ -30,6 +38,14 @@ final class DesignerCommandPresentation {
             case SET_PROPERTY -> "Set Flutter Property";
             case RESET_PROPERTY -> "Reset Flutter Property";
             case PATCH_PROPERTIES -> "Update Flutter Properties";
+            case CREATE_EVENT_HANDLER -> "Create Flutter Event Handler";
+            case CREATE_MENU_ANCHOR_BUILDER -> "Create Menu Anchor Builder";
+            case RENAME_EVENT_HANDLER -> "Rename Flutter Event Handler";
+            case RENAME_STATE_FIELD -> "Rename Flutter State Field";
+            case CREATE_STATE_BINDING -> "Create Flutter State Binding";
+            case REMOVE_STATE_BINDING -> "Remove Flutter State Binding";
+            case BIND_PROPERTY_TO_STATE -> "Bind Flutter Property to State";
+            case REMOVE_PROPERTY_STATE_BINDING -> "Remove Flutter Property State Binding";
         };
     }
 
@@ -45,6 +61,14 @@ final class DesignerCommandPresentation {
             case SET_PROPERTY -> "Set Flutter property";
             case RESET_PROPERTY -> "Reset Flutter property";
             case PATCH_PROPERTIES -> "Update Flutter properties";
+            case CREATE_EVENT_HANDLER -> "Create Flutter event handler";
+            case CREATE_MENU_ANCHOR_BUILDER -> "Create MenuAnchor builder";
+            case RENAME_EVENT_HANDLER -> "Rename Flutter event handler";
+            case RENAME_STATE_FIELD -> "Rename Flutter State field";
+            case CREATE_STATE_BINDING -> "Create Flutter state binding";
+            case REMOVE_STATE_BINDING -> "Remove Flutter state binding";
+            case BIND_PROPERTY_TO_STATE -> "Bind Flutter property to State";
+            case REMOVE_PROPERTY_STATE_BINDING -> "Remove Flutter property State binding";
         };
     }
 
@@ -56,6 +80,14 @@ final class DesignerCommandPresentation {
                 reset.widgetId() + "." + reset.propertyName();
             case PatchProperties patch -> patch.widgetId() + " ("
                     + patch.patches().size() + " properties)";
+            case CreateEventHandler create -> create.widgetId() + "." + create.event();
+            case CreateMenuAnchorBuilder create -> create.widgetId() + ".builder -> " + create.methodName();
+            case RenameEventHandler rename -> rename.widgetId() + "." + rename.event();
+            case RenameStateField rename -> rename.widgetId() + ": " + rename.fieldName() + " -> " + rename.newName();
+            case CreateStateBinding create -> create.widgetId() + " -> " + create.fieldName();
+            case RemoveStateBinding remove -> remove.widgetId() + " (state binding)";
+            case BindPropertyToState bind -> bind.widgetId() + "." + bind.propertyName();
+            case RemovePropertyStateBinding remove -> remove.widgetId() + "." + remove.propertyName();
             case AddWidget add -> add.destination().parentId() + "."
                     + add.destination().slotName() + "["
                     + add.destination().index() + "]";

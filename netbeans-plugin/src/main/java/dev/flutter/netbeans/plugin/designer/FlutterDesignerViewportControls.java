@@ -69,6 +69,11 @@ final class FlutterDesignerViewportControls {
         return presentation;
     }
 
+    /** Returns the next Canvas viewport presentation to the deterministic Fit state. */
+    void resetToFit() {
+        publish(CanvasViewportPresentation.fit());
+    }
+
     /** Applies authoritative runner feedback without producing another command. */
     void setMetrics(CanvasViewportMetrics metrics) {
         Objects.requireNonNull(metrics, "metrics");

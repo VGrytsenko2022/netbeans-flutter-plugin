@@ -47,10 +47,10 @@ class CircularProgressIndicatorContractTest {
         assertTrue(generated(prototype).build().payload().contains("return const CircularProgressIndicator()"));
         assertFalse(generated(prototype).imports().payload().contains("dart:core"));
         assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE, WidgetPlacementRules.creationMode(definition));
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
-        assertEquals(350, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(674, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(value -> value.properties().stream())
                 .filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
     }

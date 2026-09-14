@@ -114,7 +114,7 @@ public class IconButtonPropertyContractTest {
             assertThrows(IllegalArgumentException.class, () -> editor.setAsText("() => rawCode()"));
         }
         assertTrue(DEF.property(new PropertyName("child")).isEmpty()); assertTrue(DEF.property(new PropertyName("iconAlignment")).isEmpty());
-        assertEquals(286, BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.ElevatedButton")).orElseThrow().properties().size());
+        assertEquals(288, BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.ElevatedButton")).orElseThrow().properties().size());
     }
 
     public static LinkedHashMap<PropertyName, PropertyValue> full(String variant, boolean directional, boolean paint) { return full(variant, directional, paint, false); }

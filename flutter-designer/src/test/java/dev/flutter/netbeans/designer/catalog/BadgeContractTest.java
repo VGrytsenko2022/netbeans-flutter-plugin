@@ -31,7 +31,7 @@ class BadgeContractTest {
         var prototype=WidgetNodePrototypeFactory.create(definition,StableId.random());
         assertTrue(prototype.properties().isEmpty());assertTrue(valid(prototype));assertTrue(generated(prototype).build().payload().contains("const Badge("));
         assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
-        assertEquals(13,DesignerDocument.SCHEMA_VERSION);assertEquals(14,WidgetCatalog.API_VERSION);assertEquals(18,CanvasModelPayloadCodec.VERSION);
+        assertEquals(16,DesignerDocument.SCHEMA_VERSION);assertEquals(15,WidgetCatalog.API_VERSION);assertEquals(19,CanvasModelPayloadCodec.VERSION);
     }
     @Test void completeThirtyOneTextStyleLeavesReuseExactTextValueDomainsAndBinding() {
         var text=BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow();

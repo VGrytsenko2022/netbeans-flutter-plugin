@@ -9,7 +9,9 @@ public record DartSourceIntegrityResult(
         Optional<OriginalDartBytes> original,
         List<DartManagedRegionSnapshot> regions,
         List<DartSourceIntegrityDiagnostic> diagnostics,
-        Optional<DartDesignerSuperclassOccurrence> superclassOccurrence) {
+        Optional<DartDesignerSuperclassOccurrence> superclassOccurrence,
+        Optional<DartDesignerSuperclassOccurrence> stateSuperclassOccurrence,
+        Optional<String> verifiedMemberClassName) {
 
     private static final String SOURCE_PATH = "/source/dartFile";
 
@@ -19,6 +21,8 @@ public record DartSourceIntegrityResult(
         diagnostics = List.copyOf(Objects.requireNonNull(diagnostics, "diagnostics"));
         superclassOccurrence = Objects.requireNonNull(
                 superclassOccurrence, "superclassOccurrence");
+        stateSuperclassOccurrence = Objects.requireNonNull(stateSuperclassOccurrence, "stateSuperclassOccurrence");
+        verifiedMemberClassName = Objects.requireNonNull(verifiedMemberClassName, "verifiedMemberClassName");
         if (original.isEmpty() && diagnostics.isEmpty()) {
             throw new IllegalArgumentException(
                     "a result without an exact snapshot must contain a diagnostic");
@@ -35,6 +39,33 @@ public record DartSourceIntegrityResult(
                         "superclass occurrence may be published only by a clean scan");
             }
         }
+        if (stateSuperclassOccurrence.isPresent()) {
+            var state = stateSuperclassOccurrence.orElseThrow();
+            if (original.isEmpty() || !state.belongsTo(original.orElseThrow()) || !diagnostics.isEmpty()
+                    || !state.symbolName().equals("State") || superclassOccurrence.isEmpty()
+                    || !superclassOccurrence.orElseThrow().symbolName().equals("StatefulWidget")) {
+                throw new IllegalArgumentException("State superclass evidence requires an exact clean StatefulWidget proof");
+            }
+        }
+        if (verifiedMemberClassName.isPresent()) {
+            String owner = verifiedMemberClassName.orElseThrow();
+            boolean stateless = superclassOccurrence.filter(value -> value.symbolName().equals("StatelessWidget")
+                    && value.className().equals(owner)).isPresent();
+            boolean stateful = stateSuperclassOccurrence.filter(value -> value.className().equals(owner)).isPresent();
+            if (!diagnostics.isEmpty() || !(stateless || stateful)) {
+                throw new IllegalArgumentException("Member owner must retain scanner-owned clean superclass evidence");
+            }
+        }
+    }
+
+    /** Compatibility constructor retaining the original primary-superclass API. */
+    public DartSourceIntegrityResult(Optional<OriginalDartBytes> original,
+            List<DartManagedRegionSnapshot> regions, List<DartSourceIntegrityDiagnostic> diagnostics,
+            Optional<DartDesignerSuperclassOccurrence> superclassOccurrence) {
+        this(original, regions, diagnostics, superclassOccurrence, Optional.empty(),
+                diagnostics.isEmpty() ? superclassOccurrence
+                        .filter(value -> value.symbolName().equals("StatelessWidget"))
+                        .map(DartDesignerSuperclassOccurrence::className) : Optional.empty());
     }
 
     /** Compatibility constructor for explicit unavailable/forged test evidence. */

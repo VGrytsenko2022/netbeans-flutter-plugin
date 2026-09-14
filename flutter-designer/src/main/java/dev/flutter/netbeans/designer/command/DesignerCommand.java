@@ -16,7 +16,15 @@ public sealed interface DesignerCommand permits
         WrapWidget,
         SetProperty,
         ResetProperty,
-        PatchProperties {
+        PatchProperties,
+        CreateEventHandler,
+        CreateMenuAnchorBuilder,
+        RenameEventHandler,
+        CreateStateBinding,
+        RenameStateField,
+        RemoveStateBinding,
+        BindPropertyToState,
+        RemovePropertyStateBinding {
 
     DesignerCommandKind kind();
 }

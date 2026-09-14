@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -7594,8 +7595,15 @@ class FlutterDesignerMutationControllerIntegrationTest {
                     table.changeSelection(row, 1, false, false);
                     assertTrue(table.editCellAt(row, 1),
                             "the reopened saved boolean must start editing");
-                    JCheckBox checkbox = assertInstanceOf(
-                            JCheckBox.class, table.getEditorComponent());
+                    // NetBeans adds a ButtonPanel when the property also has
+                    // the State binding custom-editor button. The actual
+                    // in-place boolean control must remain our checkbox.
+                    JCheckBox checkbox = findFirst(table.getEditorComponent(), JCheckBox.class);
+                    assertNotNull(checkbox, "The real PropertySheet cell editor must contain a checkbox, not a text/combo fallback.");
+                    assertEquals("flutter.boolean.inplace", checkbox.getName(),
+                            "The nested control must be the registered typed boolean in-place editor.");
+                    assertTrue(checkbox.isEnabled(), "The reopened checkbox must remain editable.");
+                    assertTrue(checkbox.isVisible(), "The checkbox must remain visible inside the custom-editor button container.");
                     assertTrue(checkbox.isSelected());
                     assertEquals(javax.swing.SwingConstants.CENTER,
                             checkbox.getHorizontalAlignment());
@@ -18166,6 +18174,1911 @@ class FlutterDesignerMutationControllerIntegrationTest {
         }
     }
 
+    @Test
+    void eventHandlerCreateRenameDisconnectSaveAndHistoryRetainOneExactPair() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_lifecycle", scaffoldCenterTextExactPair())) {
+            var initial = fixture.ready();
+            assertArrayEquals(fixture.baselineDart(), fixture.mutations()
+                    .sourceBytes(initial.token().orElseThrow()).get(10, TimeUnit.SECONDS));
+            assertNull(sessionOwner(fixture.mutations()), "Opening a handler chooser must not acquire history.");
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+
+            PropertyName event = new PropertyName("onDrawerChanged");
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, event, "_drawerChanged"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String createdText = new String(created, StandardCharsets.UTF_8);
+            assertTrue(createdText.contains("void _drawerChanged(bool isOpened)"), createdText);
+            assertTrue(createdText.contains("onDrawerChanged: _drawerChanged"), createdText);
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertTrue(fixture.analyzedContents().getLast().contains("void _drawerChanged"));
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> fixture.mutations()
+                    .sourceBytes(initial.token().orElseThrow()).get(10, TimeUnit.SECONDS));
+
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(fixture.baselineDart(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(
+                    SCAFFOLD_ID, event, "_drawerToggled"));
+            String renamed = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(renamed.contains("void _drawerToggled(bool isOpened)"), renamed);
+            assertFalse(renamed.contains("_drawerChanged"), renamed);
+            applyEventCommand(fixture, new ResetProperty(SCAFFOLD_ID, event));
+            String disconnected = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(disconnected.contains("void _drawerToggled"), disconnected);
+            assertFalse(disconnected.contains("onDrawerChanged:"), disconnected);
+            assertEquals(PairSaveCoordinatorStatus.STAGED_PAIR, fixture.coordinator().state().status());
+
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            assertEquals(disconnected, Files.readString(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()),
+                    "Disconnect may restore baseline FD while source legitimately keeps the new method.");
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8)
+                    .contains("onDrawerChanged: _drawerToggled"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertEquals(disconnected, new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8));
+        }
+    }
+
+    @Test
+    void rejectedEventCreationNeverInsertsMethodOrBindingIntoLiveSource() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_rejected", scaffoldCenterTextExactPair())) {
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "invalid_handler", "Handler candidate rejected")));
+            var result = fixture.mutations().submit(fixture.ready().token().orElseThrow(),
+                    new dev.flutter.netbeans.designer.command.CreateEventHandler(SCAFFOLD_ID,
+                            new PropertyName("onDrawerChanged"), "_rejected"), "Scaffold.onDrawerChanged")
+                    .get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, result.outcome(), result::reason);
+            assertArrayEquals(fixture.baselineDart(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            assertFalse(fixture.dataObject().getCombinedUndoRedo().canUndo());
+        }
+    }
+
+    @Test
+    void savedUserHandlerBodySurvivesFollowingPropertyMutation() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_user_body", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength());
+                int offset = text.indexOf("// TODO: Handle onDrawerChanged.");
+                assertTrue(offset >= 0);
+                fixture.document().insertString(offset, "debugPrint('user body');\n    ", null);
+            });
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            applyEventCommand(fixture, new SetProperty(SCAFFOLD_ID, new PropertyName("backgroundColor"),
+                    new PropertyValue.ColorValue(0xFF112233L)));
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8)
+                    .contains("debugPrint('user body');"));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            assertTrue(Files.readString(fixture.dartPath()).contains("debugPrint('user body');"));
+        }
+    }
+
+    @Test
+    void eventHandlerBodyCanBeEditedBeforeFirstSaveOnEdtAndRetainsNativeHistory() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_first_save", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            byte[] stub = fixture.editor().liveSnapshot().markerBearingUtf8();
+            insertEventBody(fixture, "debugPrint('before first save');");
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            awaitReady(fixture.mutations());
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+            assertNull(fixture.dataObject().getCookie(SaveCookie.class));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            assertArrayEquals(stub, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(fixture.baselineDart(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            assertArrayEquals(stub, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(SCAFFOLD_ID, new PropertyName("backgroundColor"),
+                    new PropertyValue.ColorValue(0xFF112233L)));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            assertTrue(Files.readString(fixture.dartPath()).contains("debugPrint('before first save');"));
+        }
+    }
+
+    @Test
+    void rejectedMixedEventSourceAnalysisPreservesEditorAndBothDiskFilesAndCanRetry() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_rejected", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('retain my body');");
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var analyzer = fixture.mutations().sourceAnalyzerContext();
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "invalid_handler_body", "Handler body rejected")));
+            assertThrows(IOException.class, () -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+            assertNotNull(fixture.dataObject().getCookie(SaveCookie.class));
+            fixture.mutations().setAnalyzerFactoryForTests(analyzer.factory());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+        }
+    }
+
+    @Test
+    void mixedEventSaveRejectsSourceChangedDuringAnalysisAndCanRetry() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_stale", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('first');");
+            var analyzer = fixture.mutations().sourceAnalyzerContext();
+            CompletableFuture<DartCandidateAnalysisResult> gate = new CompletableFuture<>();
+            CountDownLatch started = new CountDownLatch(1);
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> {
+                started.countDown();
+                return gatedAnalysis(gate);
+            });
+            var pending = CompletableFuture.runAsync(() -> {
+                try { fixture.dataObject().getCookie(SaveCookie.class).save(); }
+                catch (IOException failure) { throw new java.util.concurrent.CompletionException(failure); }
+            });
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            insertEventBody(fixture, "debugPrint('second');");
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+            assertTrue(gate.isCancelled(), "Stale analyzer work must be cancelled without awaiting completion.");
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+            fixture.mutations().setAnalyzerFactoryForTests(analyzer.factory());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+        }
+    }
+
+    @Test
+    void disposingDuringMixedEventSaveCancelsAnalyzerWithoutWritingEitherFile() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_dispose", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('unsaved');");
+            CompletableFuture<DartCandidateAnalysisResult> gate = new CompletableFuture<>();
+            CountDownLatch started = new CountDownLatch(1);
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> {
+                started.countDown();
+                return gatedAnalysis(gate);
+            });
+            var pending = CompletableFuture.runAsync(() -> {
+                try { fixture.dataObject().getCookie(SaveCookie.class).save(); }
+                catch (IOException failure) { throw new java.util.concurrent.CompletionException(failure); }
+            });
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            fixture.dataObject().dispose();
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+            assertTrue(gate.isCancelled());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void mixedEventBodySurvivesTransactionFailureWithoutBypassingRecoveryGuard() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_retry_transaction", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('first');");
+            byte[] first = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.coordinator().setPairTransactionForTests(request -> {
+                throw new IOException("Synthetic pre-write failure");
+            });
+            assertThrows(IOException.class, () -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(first, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(PairSaveCoordinatorStatus.RECOVERY_CONFLICT, fixture.coordinator().state().status());
+            fixture.coordinator().setPairTransactionForTests(null);
+            assertThrows(IOException.class, () -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(first, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(fixture.baselineFd(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void externalPairChangeDuringMixedSourceAnalysisRetainsConflictAndUserText() throws Exception {
+        try (MutationFixture fixture = fixture("event_handler_mixed_external", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('retain this');");
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            CompletableFuture<DartCandidateAnalysisResult> gate = new CompletableFuture<>();
+            CountDownLatch started = new CountDownLatch(1);
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> {
+                started.countDown();
+                return gatedAnalysis(gate);
+            });
+            var pending = CompletableFuture.runAsync(() -> {
+                try { fixture.dataObject().getCookie(SaveCookie.class).save(); }
+                catch (IOException failure) { throw new java.util.concurrent.CompletionException(failure); }
+            });
+            assertTrue(started.await(10, TimeUnit.SECONDS));
+            byte[] external = (new String(fixture.baselineFd(), StandardCharsets.UTF_8) + "\n")
+                    .getBytes(StandardCharsets.UTF_8);
+            Files.write(fixture.fdPath(), external);
+            fixture.coordinator().handleFileEvent(new org.openide.filesystems.FileEvent(
+                    FileUtil.toFileObject(fixture.fdPath().toFile())));
+            assertThrows(java.util.concurrent.ExecutionException.class, () -> pending.get(10, TimeUnit.SECONDS));
+            assertTrue(gate.isCancelled());
+            assertEquals(PairSaveCoordinatorStatus.EXTERNAL_CONFLICT, fixture.coordinator().state().status());
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(fixture.baselineDart(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(external, Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void firstSavedEventBodyReopensAsAnEditableExactPair() throws Exception {
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("event_handler_mixed_save_reopen", scaffoldCenterTextExactPair())) {
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            insertEventBody(fixture, "debugPrint('reopened body');");
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        // Fresh DataObject/controller/document: do not reuse in-memory history.
+        try (MutationFixture reopened = fixture("event_handler_mixed_reopened", saved)) {
+            assertTrue(reopened.ready().token().isPresent());
+            assertNull(reopened.dataObject().getCookie(SaveCookie.class));
+            applyEventCommand(reopened, new SetProperty(SCAFFOLD_ID, new PropertyName("backgroundColor"),
+                    new PropertyValue.ColorValue(0xFF112233L)));
+            reopened.dataObject().getCookie(SaveCookie.class).save();
+            assertTrue(Files.readString(reopened.dartPath()).contains("debugPrint('reopened body');"));
+        }
+    }
+
+    @Test
+    void statefulEventsKeepStateFieldsAndHandlerBodiesThroughSaveHistoryAndReopen() throws Exception {
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("stateful_events", statefulScaffoldExactPair())) {
+            assertEquals(WidgetClassKind.STATEFUL, fixture.ready().document().orElseThrow().source().widgetKind());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerChanged"));
+            byte[] stub = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String created = new String(stub, StandardCharsets.UTF_8);
+            assertTrue(created.indexOf("void _drawerChanged") > created.indexOf("class _HomePageState"), created);
+            insertEventBody(fixture, "setState(() { _counter += isOpened ? 1 : -1; });");
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            assertArrayEquals(stub, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            assertArrayEquals(fixture.baselineDart(), fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            onEdt(history::redo);
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(
+                    SCAFFOLD_ID, new PropertyName("onDrawerChanged"), "_drawerToggled"));
+            applyEventCommand(fixture, new SetProperty(SCAFFOLD_ID, new PropertyName("backgroundColor"),
+                    new PropertyValue.ColorValue(0xFF112233L)));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            String retained = Files.readString(fixture.dartPath());
+            assertTrue(retained.contains("int _counter = 0;"));
+            assertTrue(retained.contains("setState(() { _counter += isOpened ? 1 : -1; });"));
+            assertTrue(retained.contains("void _drawerToggled(bool isOpened)"));
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture reopened = fixture("stateful_events_reopened", saved)) {
+            assertEquals(WidgetClassKind.STATEFUL, reopened.ready().document().orElseThrow().source().widgetKind());
+            applyEventCommand(reopened, new ResetProperty(SCAFFOLD_ID, new PropertyName("onDrawerChanged")));
+            reopened.dataObject().getCookie(SaveCookie.class).save();
+            assertTrue(Files.readString(reopened.dartPath()).contains("void _drawerToggled(bool isOpened)"));
+            assertTrue(Files.readString(reopened.dartPath()).contains("int _counter = 0;"));
+        }
+    }
+
+    @Test
+    void stateBindingFirstSaveHistoryPreviewRenameRemovalAndReopenPreserveUserSource() throws Exception {
+        StableId controlId = StableId.random();
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("state_value_binding", statefulScaffoldExactPair())) {
+            var ready = fixture.ready();
+            WidgetNode root = ready.document().orElseThrow().root();
+            StableId child = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow().id();
+            WidgetNode control = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    ready.catalog().orElseThrow().find(new WidgetTypeId("flutter.material.Switch")).orElseThrow(), controlId);
+            applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), child,
+                    new ReplaceSlotChild.NewSubtree(control)));
+            byte[] beforeBinding = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(
+                    controlId, "_selected", "_selectionChanged"));
+            byte[] stub = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(stub, StandardCharsets.UTF_8).contains("value: _selected"));
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength());
+                int method = text.indexOf("void _selectionChanged");
+                int body = text.indexOf("setState", method);
+                assertTrue(method >= 0 && body > method, text);
+                fixture.document().insertString(body, "// Keep my state handler.\n    ", null);
+            });
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            assertArrayEquals(stub, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            assertArrayEquals(beforeBinding, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            onEdt(history::redo);
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(controlId, new PropertyName("value"), new PropertyValue.BooleanValue(true)));
+            assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), controlId).stateBinding().isPresent());
+            String previewChanged = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(previewChanged.contains("value: _selected"));
+            assertTrue(previewChanged.contains("bool _selected = false;"), "Preview edits must not rewrite user field initializers");
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(
+                    controlId, new PropertyName("onChanged"), "_selectionUpdated"));
+            assertEquals("_selectionUpdated", findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(),
+                    controlId).stateBinding().orElseThrow().handlerName());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture reopened = fixture("state_value_binding_reopened", saved)) {
+            assertTrue(findModelWidget(reopened.ready().document().orElseThrow().root(), controlId).stateBinding().isPresent());
+            applyEventCommand(reopened, new dev.flutter.netbeans.designer.command.RemoveStateBinding(controlId));
+            WidgetNode detached = findModelWidget(reopened.mutations().snapshot().document().orElseThrow().root(), controlId);
+            assertTrue(detached.stateBinding().isEmpty());
+            assertEquals(new PropertyValue.BooleanValue(true), detached.properties().get(new PropertyName("value")));
+            assertFalse(detached.properties().containsKey(new PropertyName("onChanged")));
+            reopened.dataObject().getCookie(SaveCookie.class).save();
+            String source = Files.readString(reopened.dartPath());
+            assertTrue(source.contains("value: true"));
+            assertTrue(source.contains("bool _selected = false;"));
+            assertTrue(source.contains("void _selectionUpdated(bool value)"));
+            assertTrue(source.contains("// Keep my state handler."));
+        }
+    }
+
+    @Test
+    void menuAnchorBuilderEventsStateSaveReopenHistoryRetainsChildMenuOrderAndUserSource() throws Exception {
+        StableId menuId = StableId.random(); ExactPair saved; Map<SlotName, WidgetSlot> retainedSlots;
+        var builder = new PropertyName("builder"); var style = new PropertyName("style"); var color = new PropertyName("styleBackgroundColor");
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8); String owner = "class _HomePageState extends State<HomePage> {";
+        String retainedSource = "\n  // Preserve the user's complete MenuStyle getter.\n  MenuStyle get _menuStyle => const MenuStyle();\n";
+        assertTrue(source.contains(owner)); source = source.replace(owner, owner + retainedSource);
+        var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(), dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+        try (MutationFixture fixture = fixture("menu_anchor_builder_state", new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes()))) {
+            var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.MenuAnchor")).orElseThrow();
+            var menu = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, menuId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, menu, CHILD, 0));
+            for (String label : List.of("First item", "Second item")) applyEventCommand(fixture, new AddWidget(new WidgetPlacement(menuId, new SlotName("menuChildren"), label.startsWith("First") ? 0 : 1),
+                    new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue(label)), Map.of())));
+            retainedSlots = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), menuId).slots();
+            byte[] beforeBuilder = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder(menuId, "_buildMyMenu"));
+            byte[] afterBuilder = fixture.editor().liveSnapshot().markerBearingUtf8(); String builtSource = new String(afterBuilder, StandardCharsets.UTF_8);
+            assertTrue(builtSource.contains("Widget _buildMyMenu(")); assertTrue(builtSource.contains("TextButton(")); assertTrue(builtSource.contains("controller.open()")); assertTrue(builtSource.contains("controller.close()"));
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(beforeBuilder, fixture.editor().liveSnapshot().markerBearingUtf8()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(afterBuilder, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var alreadyBound = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder(menuId, "_doNotReplace"), "Do not replace existing Menu Builder").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, alreadyBound.outcome(), alreadyBound.reason()); assertArrayEquals(afterBuilder, fixture.editor().liveSnapshot().markerBearingUtf8());
+            for (String event : List.of("onOpen", "onClose", "onAnimationStatusChanged")) applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(menuId, new PropertyName(event), "_menu" + event.substring(2)));
+            onEdt(() -> {
+                String current = fixture.document().getText(0, fixture.document().getLength()); int start = current.indexOf("Widget _buildMyMenu("); int body = current.indexOf('{', start) + 1; assertTrue(start >= 0 && body > start);
+                fixture.document().insertString(body, "\n    // Keep my customized menu builder body.\n", null);
+            });
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] diskDart = Files.readAllBytes(fixture.dartPath()), diskFd = Files.readAllBytes(fixture.fdPath());
+            var exactBefore = fixture.mutations().snapshot().document().orElseThrow();
+            var blocked = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new dev.flutter.netbeans.designer.command.BindPropertyToState(menuId, new PropertyName("animated"), state), "Menu builder Source edits require exact saved endpoint").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blocked.outcome()); assertTrue(blocked.reason().contains("exact live staged endpoint changed"), blocked.reason());
+            assertEquals(exactBefore, fixture.mutations().snapshot().document().orElseThrow()); assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(diskDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(diskFd, Files.readAllBytes(fixture.fdPath()));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            for (String name : List.of("consumeOutsideTap", "crossAxisUnconstrained", "useRootOverlay", "animated")) {
+                applyEventCommand(fixture, new SetProperty(menuId, new PropertyName(name), new PropertyValue.BooleanValue(false)));
+                applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(menuId, new PropertyName(name), state));
+            }
+            applyEventCommand(fixture, new SetProperty(menuId, color, new PropertyValue.ColorValue(0xff224466L)));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), menuId).slots());
+        }
+        try (MutationFixture fixture = fixture("menu_anchor_builder_state_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), menuId); assertEquals(retainedSlots, widget.slots()); assertEquals(4, widget.propertyBindings().size()); assertTrue(widget.stateBinding().isEmpty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(menuId, List.of(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(color), new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(style,
+                    new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_menuStyle", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())))));
+            applyEventCommand(fixture, new ResetProperty(menuId, builder));
+            byte[] reset = fixture.editor().liveSnapshot().markerBearingUtf8(); assertTrue(new String(reset, StandardCharsets.UTF_8).contains("Widget _buildMyMenu("));
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(reset, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var collision = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder(menuId, "_buildMyMenu"), "Retained builder method must not be overwritten").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, collision.outcome(), collision.reason()); assertArrayEquals(reset, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(menuId, builder, new PropertyValue.NullValue()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateMenuAnchorBuilder(menuId, "_buildAnotherMenu"));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertTrue(Files.readString(fixture.dartPath()).contains(retainedSource)); assertTrue(Files.readString(fixture.dartPath()).contains("// Keep my customized menu builder body.")); assertTrue(Files.readString(fixture.dartPath()).contains("Widget _buildAnotherMenu("));
+        }
+        try (MutationFixture fixture = fixture("menu_anchor_second_builder_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), menuId); assertEquals(retainedSlots, widget.slots()); assertEquals("_buildAnotherMenu", ((PropertyValue.DartObjectReferenceValue) widget.properties().get(builder)).rootSymbol()); assertEquals(4, widget.propertyBindings().size());
+        }
+    }
+
+    @Test
+    void submenuButtonEventsStateIndependentStylesSaveReopenHistoryRetainsAllFourSlotsAndSource() throws Exception {
+        StableId submenuId = StableId.random(); ExactPair saved; Map<SlotName, WidgetSlot> retainedSlots;
+        var buttonColor = new PropertyName("styleForegroundColor"); var menuColor = new PropertyName("menuStyleBackgroundColor");
+        var iconDefault = new PropertyName("submenuIconDefault"); var iconHovered = new PropertyName("submenuIconHovered");
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8); String owner = "class _HomePageState extends State<HomePage> {";
+        String userSource = "\n  // Retain independently owned submenu style objects.\n  ButtonStyle get _submenuButtonStyle => const ButtonStyle();\n  MenuStyle get _submenuMenuStyle => const MenuStyle();\n  WidgetStateProperty<Widget?> get _submenuIndicator => const WidgetStatePropertyAll<Widget?>(null);\n";
+        assertTrue(source.contains(owner)); source = source.replace(owner, owner + userSource);
+        var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(), dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+        try (MutationFixture fixture = fixture("submenu_button_styles_state", new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes()))) {
+            var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.SubmenuButton")).orElseThrow();
+            var submenu = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, submenuId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, submenu, CHILD, 0));
+            for (String slot : List.of("leadingIcon", "trailingIcon", "menuChildren")) {
+                int count = slot.equals("menuChildren") ? 2 : 1;
+                for (int index = 0; index < count; index++) applyEventCommand(fixture, new AddWidget(new WidgetPlacement(submenuId, new SlotName(slot), index),
+                        new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue(slot + " " + index)), Map.of())));
+            }
+            retainedSlots = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), submenuId).slots();
+            for (String event : List.of("onHover", "onFocusChange", "onOpen", "onClose", "onAnimationStatusChanged"))
+                applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(submenuId, new PropertyName(event), "_submenu" + event.substring(2)));
+            onEdt(() -> {
+                for (String method : List.of("_submenuHover", "_submenuFocusChange", "_submenuOpen", "_submenuClose", "_submenuAnimationStatusChanged")) {
+                    String current = fixture.document().getText(0, fixture.document().getLength()); int start = current.indexOf("void " + method + "("); int body = current.indexOf('{', start) + 1; assertTrue(start >= 0 && body > start, current);
+                    fixture.document().insertString(body, "\n    // Keep submenu body " + method + ".\n", null);
+                }
+            });
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] diskDart = Files.readAllBytes(fixture.dartPath()), diskFd = Files.readAllBytes(fixture.fdPath()); var before = fixture.mutations().snapshot().document().orElseThrow();
+            var blocked = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new dev.flutter.netbeans.designer.command.BindPropertyToState(submenuId, new PropertyName("animated"), state), "Submenu State requires the exact Source endpoint").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blocked.outcome()); assertTrue(blocked.reason().contains("exact live staged endpoint changed"), blocked.reason());
+            assertEquals(before, fixture.mutations().snapshot().document().orElseThrow()); assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(diskDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(diskFd, Files.readAllBytes(fixture.fdPath()));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            for (String name : List.of("useRootOverlay", "animated")) {
+                applyEventCommand(fixture, new SetProperty(submenuId, new PropertyName(name), new PropertyValue.BooleanValue(false)));
+                applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(submenuId, new PropertyName(name), state));
+            }
+            applyEventCommand(fixture, new SetProperty(submenuId, buttonColor, new PropertyValue.ColorValue(0xff224466L)));
+            applyEventCommand(fixture, new SetProperty(submenuId, menuColor, new PropertyValue.ColorValue(0xff6688aaL)));
+            applyEventCommand(fixture, new SetProperty(submenuId, iconDefault, PropertyValue.IconDataValue.none()));
+            applyEventCommand(fixture, new SetProperty(submenuId, iconHovered, new PropertyValue.NullValue()));
+            byte[] configured = fixture.editor().liveSnapshot().markerBearingUtf8(); var configuredModel = fixture.mutations().snapshot().document().orElseThrow();
+            for (String whole : List.of("style", "menuStyle", "submenuIcon")) {
+                var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new SetProperty(submenuId, new PropertyName(whole), new PropertyValue.NullValue()), "Raw whole/local submenu conflicts must not erase either style").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected.reason()); assertArrayEquals(configured, fixture.editor().liveSnapshot().markerBearingUtf8()); assertEquals(configuredModel, fixture.mutations().snapshot().document().orElseThrow());
+            }
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(configured, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture fixture = fixture("submenu_button_styles_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), submenuId); assertEquals(retainedSlots, widget.slots()); assertEquals(2, widget.propertyBindings().size()); assertTrue(widget.stateBinding().isEmpty());
+            for (String whole : List.of("style", "menuStyle", "submenuIcon")) {
+                var resets = whole.equals("style") ? List.of(buttonColor) : whole.equals("menuStyle") ? List.of(menuColor) : List.of(iconDefault, iconHovered);
+                String root = whole.equals("style") ? "_submenuButtonStyle" : whole.equals("menuStyle") ? "_submenuMenuStyle" : "_submenuIndicator";
+                var patches = new ArrayList<dev.flutter.netbeans.designer.command.PatchProperties.Patch>(); resets.forEach(name -> patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(name)));
+                patches.add(new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(new PropertyName(whole), new PropertyValue.DartObjectReferenceValue(Optional.empty(), root, Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())));
+                byte[] prior = fixture.editor().liveSnapshot().markerBearingUtf8(); applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(submenuId, patches)); byte[] next = fixture.editor().liveSnapshot().markerBearingUtf8();
+                var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(prior, fixture.editor().liveSnapshot().markerBearingUtf8()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(next, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), submenuId).slots());
+            }
+            for (String event : List.of("onHover", "onFocusChange", "onOpen", "onClose", "onAnimationStatusChanged")) applyEventCommand(fixture, new ResetProperty(submenuId, new PropertyName(event)));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertTrue(Files.readString(fixture.dartPath()).contains(userSource));
+            for (String method : List.of("_submenuHover", "_submenuFocusChange", "_submenuOpen", "_submenuClose", "_submenuAnimationStatusChanged")) assertTrue(Files.readString(fixture.dartPath()).contains("// Keep submenu body " + method + "."));
+        }
+        try (MutationFixture fixture = fixture("submenu_button_whole_styles_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), submenuId); assertEquals(retainedSlots, widget.slots()); assertEquals(2, widget.propertyBindings().size());
+            for (String whole : List.of("style", "menuStyle", "submenuIcon")) {
+                assertInstanceOf(PropertyValue.DartObjectReferenceValue.class, widget.properties().get(new PropertyName(whole)));
+                applyEventCommand(fixture, new ResetProperty(submenuId, new PropertyName(whole)));
+            }
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), submenuId).slots()); assertTrue(Files.readString(fixture.dartPath()).contains(userSource));
+        }
+    }
+
+    @Test
+    void menuItemButtonEventsStateShortcutStyleSaveReopenHistoryPreservesAllThreeChildren() throws Exception {
+        StableId menuId = StableId.random(); ExactPair saved; WidgetNode retainedChild; Map<SlotName, WidgetSlot> retainedSlots;
+        var enabled = new PropertyName("enabled"); var trigger = new PropertyName("shortcutTrigger"); var character = new PropertyName("shortcutCharacter"); var control = new PropertyName("shortcutControl"); var shortcut = new PropertyName("shortcut"); var style = new PropertyName("style");
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8); String owner = "class _HomePageState extends State<HomePage> {"; assertTrue(source.contains(owner));
+        String retainedSource = "\n  // Keep source-owned menu objects and lifecycle.\n  MenuSerializableShortcut get _menuShortcut => const CharacterActivator('k', control: true);\n  ButtonStyle get _menuStyle => const ButtonStyle();\n";
+        source = source.replace(owner, owner + retainedSource);
+        var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(), dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+        try (MutationFixture fixture = fixture("menu_item_events_state", new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes()))) {
+            retainedChild = findModelWidget(fixture.ready().document().orElseThrow().root(), NESTED_TEXT_ID);
+            var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.MenuItemButton")).orElseThrow(); var menu = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, menuId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, menu, CHILD, 0));
+            for (String slot : List.of("leadingIcon", "trailingIcon")) {
+                var child = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.Text"), Map.of(new PropertyName("data"), new PropertyValue.StringValue("Retained " + slot)), Map.of());
+                applyEventCommand(fixture, new AddWidget(new WidgetPlacement(menuId, new SlotName(slot), 0), child));
+            }
+            retainedSlots = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), menuId).slots();
+            for (String event : List.of("onPressed", "onHover", "onFocusChange")) applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(menuId, new PropertyName(event), "_menu" + event.substring(2)));
+            byte[] events = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(events, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> {
+                for (String method : List.of("_menuPressed", "_menuHover", "_menuFocusChange")) {
+                    String current = fixture.document().getText(0, fixture.document().getLength()); int start = current.indexOf("void " + method + "("); int body = current.indexOf('{', start) + 1; assertTrue(start >= 0 && body > start, current);
+                    fixture.document().insertString(body, "\n    // Keep user body for " + method + ".\n", null);
+                }
+            });
+            var binding = new dev.flutter.netbeans.designer.command.BindPropertyToState(menuId, enabled, state); byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] diskDart = Files.readAllBytes(fixture.dartPath()), diskFd = Files.readAllBytes(fixture.fdPath()); var before = fixture.mutations().snapshot().document().orElseThrow();
+            var blocked = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), binding, "Menu State binding requires the exact live source endpoint").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blocked.outcome()); assertTrue(blocked.reason().contains("exact live staged endpoint changed"), blocked.reason()); assertEquals(before, fixture.mutations().snapshot().document().orElseThrow());
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(diskDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(diskFd, Files.readAllBytes(fixture.fdPath()));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            for (String name : List.of("enabled", "autofocus", "requestFocusOnHover", "closeOnActivate")) {
+                applyEventCommand(fixture, new SetProperty(menuId, new PropertyName(name), new PropertyValue.BooleanValue(false)));
+                applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(menuId, new PropertyName(name), state));
+            }
+            applyEventCommand(fixture, new SetProperty(menuId, trigger, new PropertyValue.EnumValue("LogicalKeyboardKey", "keyK")));
+            applyEventCommand(fixture, new SetProperty(menuId, control, new PropertyValue.BooleanValue(true)));
+            applyEventCommand(fixture, new SetProperty(menuId, new PropertyName("styleForegroundColor"), new PropertyValue.ColorValue(0xff224466L)));
+            byte[] configured = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new SetProperty(menuId, character, new PropertyValue.StringValue("K")), "Raw shortcut branch conflicts do not silently clear a key").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected.reason()); assertArrayEquals(configured, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath())); assertArrayEquals(configured, saved.dartBytes());
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), menuId).slots());
+        }
+        try (MutationFixture fixture = fixture("menu_item_events_state_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), menuId); assertEquals(retainedSlots, widget.slots()); assertEquals(retainedChild, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow()); assertEquals(4, widget.propertyBindings().size()); assertTrue(widget.stateBinding().isEmpty());
+            for (String event : List.of("onPressed", "onHover", "onFocusChange")) assertTrue(widget.properties().containsKey(new PropertyName(event)));
+            byte[] single = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(menuId, List.of(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(trigger), new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(character, new PropertyValue.StringValue("K")))));
+            byte[] characterSource = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(single, fixture.editor().liveSnapshot().markerBearingUtf8()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(characterSource, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var shortcutRef = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_menuShortcut", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(menuId, List.of(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(character), new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(control), new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(shortcut, shortcutRef))));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(menuId, List.of(new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(new PropertyName("styleForegroundColor")), new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(style, new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_menuStyle", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty())))));
+            for (String name : List.of("enabled", "autofocus", "requestFocusOnHover", "closeOnActivate")) applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemovePropertyStateBinding(menuId, new PropertyName(name)));
+            applyEventCommand(fixture, new ResetProperty(menuId, new PropertyName("onPressed")));
+            byte[] detached = fixture.editor().liveSnapshot().markerBearingUtf8(); onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(detached, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertTrue(Files.readString(fixture.dartPath()).contains(retainedSource));
+            for (String method : List.of("_menuPressed", "_menuHover", "_menuFocusChange")) assertTrue(Files.readString(fixture.dartPath()).contains("// Keep user body for " + method + "."));
+        }
+        try (MutationFixture fixture = fixture("menu_item_whole_objects_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), menuId); assertEquals(retainedSlots, widget.slots()); assertTrue(widget.propertyBindings().isEmpty()); assertEquals(new PropertyValue.BooleanValue(false), widget.properties().get(enabled)); assertFalse(widget.properties().containsKey(new PropertyName("onPressed")));
+            applyEventCommand(fixture, new SetProperty(menuId, shortcut, new PropertyValue.NullValue())); applyEventCommand(fixture, new SetProperty(menuId, style, new PropertyValue.NullValue()));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); var result = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), menuId);
+            assertEquals(new PropertyValue.NullValue(), result.properties().get(shortcut)); assertEquals(new PropertyValue.NullValue(), result.properties().get(style)); assertEquals(retainedSlots, result.slots()); assertTrue(Files.readString(fixture.dartPath()).contains(retainedSource));
+        }
+    }
+
+    @Test
+    void tooltipThemeWholeLocalStateSaveReopenHistoryPreservesChildAndUserSource() throws Exception {
+        StableId wrapperId = StableId.random(); ExactPair savedLocal; ExactPair savedWhole; WidgetNode retainedChild;
+        var data = new PropertyName("data"); var below = new PropertyName("preferBelow");
+        var durationNames = List.of("waitDurationUs", "showDurationUs", "exitDurationUs");
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_tooltipThemeData", Optional.empty(), PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(),
+                dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8);
+        String owner = "class _HomePageState extends State<HomePage> {"; assertTrue(source.contains(owner));
+        String retainedSource = "\n  // User-owned complete theme: preserve exact exitDuration.\n  TooltipThemeData get _tooltipThemeData => const TooltipThemeData(exitDuration: Duration(microseconds: 4321));\n";
+        source = source.replace(owner, owner + retainedSource);
+        try (MutationFixture fixture = fixture("tooltip_theme_local_state", new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes()))) {
+            retainedChild = findModelWidget(fixture.ready().document().orElseThrow().root(), NESTED_TEXT_ID);
+            var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.TooltipTheme")).orElseThrow();
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, wrapperId); assertTrue(wrapper.properties().isEmpty());
+            byte[] beforeWrap = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            byte[] wrapped = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(beforeWrap, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(wrapped, fixture.editor().liveSnapshot().markerBearingUtf8());
+            for (int index = 0; index < durationNames.size(); index++) applyEventCommand(fixture, new SetProperty(wrapperId, new PropertyName(durationNames.get(index)), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf((index + 1) * 1234))));
+            applyEventCommand(fixture, new SetProperty(wrapperId, below, new PropertyValue.NullValue()));
+            for (boolean bindState : List.of(false, true)) {
+                if (bindState) applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(wrapperId, below, state));
+                var before = fixture.mutations().snapshot().document().orElseThrow(); byte[] live = fixture.editor().liveSnapshot().markerBearingUtf8();
+                byte[] diskDart = Files.readAllBytes(fixture.dartPath()), diskFd = Files.readAllBytes(fixture.fdPath());
+                var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new SetProperty(wrapperId, data, reference), "TooltipTheme Data cannot erase local null/durations/State").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected.reason());
+                assertEquals(before, fixture.mutations().snapshot().document().orElseThrow()); assertArrayEquals(live, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(diskDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(diskFd, Files.readAllBytes(fixture.fdPath()));
+            }
+            byte[] bound = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId).propertyBindings().isEmpty());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(bound, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            savedLocal = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath())); assertArrayEquals(bound, savedLocal.dartBytes());
+            assertTrue(new String(savedLocal.dartBytes(), StandardCharsets.UTF_8).contains(retainedSource));
+        }
+        try (MutationFixture fixture = fixture("tooltip_theme_local_reopened", savedLocal)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow());
+            assertEquals(state, widget.propertyBindings().get(below)); assertEquals(new PropertyValue.NullValue(), widget.properties().get(below));
+            for (int index = 0; index < durationNames.size(); index++) assertEquals(new PropertyValue.IntegerValue(java.math.BigInteger.valueOf((index + 1) * 1234)), widget.properties().get(new PropertyName(durationNames.get(index))));
+            assertTrue(widget.stateBinding().isEmpty()); assertTrue(dev.flutter.netbeans.designer.events.WidgetEventCatalog.eventsFor(BuiltInWidgetCatalog.getDefault().find(widget.type()).orElseThrow()).isEmpty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemovePropertyStateBinding(wrapperId, below));
+            for (String duration : durationNames) applyEventCommand(fixture, new ResetProperty(wrapperId, new PropertyName(duration)));
+            applyEventCommand(fixture, new ResetProperty(wrapperId, below));
+            assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId).properties().isEmpty());
+            byte[] empty = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new SetProperty(wrapperId, data, reference)); byte[] whole = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(empty, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(whole, fixture.editor().liveSnapshot().markerBearingUtf8());
+            for (DesignerCommand invalid : List.of(new SetProperty(wrapperId, below, new PropertyValue.NullValue()), new SetProperty(wrapperId, below, new PropertyValue.BooleanValue(false)), new SetProperty(wrapperId, data, new PropertyValue.NullValue()), new dev.flutter.netbeans.designer.command.BindPropertyToState(wrapperId, below, state))) {
+                var before = fixture.mutations().snapshot().document().orElseThrow();
+                var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), invalid, "TooltipTheme local/null/State edit must not erase whole Data").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected.reason());
+                assertEquals(before, fixture.mutations().snapshot().document().orElseThrow()); assertArrayEquals(whole, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(savedLocal.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(savedLocal.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            }
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            savedWhole = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath())); assertArrayEquals(whole, savedWhole.dartBytes());
+            assertTrue(new String(savedWhole.dartBytes(), StandardCharsets.UTF_8).contains(retainedSource));
+        }
+        try (MutationFixture fixture = fixture("tooltip_theme_whole_reopened", savedWhole)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId); assertEquals(Map.of(data, reference), widget.properties());
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow());
+            applyEventCommand(fixture, new ResetProperty(wrapperId, data));
+            applyEventCommand(fixture, new SetProperty(wrapperId, new PropertyName("exitDurationUs"), new PropertyValue.NullValue()));
+            applyEventCommand(fixture, new SetProperty(wrapperId, below, new PropertyValue.BooleanValue(false)));
+            byte[] local = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(local, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); assertArrayEquals(local, Files.readAllBytes(fixture.dartPath()));
+            assertTrue(Files.readString(fixture.dartPath()).contains(retainedSource));
+            var result = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId); assertTrue(result.propertyBindings().isEmpty());
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) result.slots().get(CHILD)).child().orElseThrow());
+        }
+    }
+
+    @Test
+    void tooltipVisibilityWrapStateSaveReopenHistoryPreservesRequiredChildAndUserSource() throws Exception {
+        StableId wrapperId = StableId.random(); ExactPair saved; WidgetNode retainedChild;
+        var visible = new PropertyName("visible");
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8);
+        String owner = "class _HomePageState extends State<HomePage> {"; assertTrue(source.contains(owner));
+        String retainedSource = "\n  // User-owned Tooltip visibility state.\n  bool _tooltipsVisible = true;\n";
+        source = source.replace(owner, owner + retainedSource);
+        try (MutationFixture fixture = fixture("tooltip_visibility_state", new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes()))) {
+            retainedChild = findModelWidget(fixture.ready().document().orElseThrow().root(), NESTED_TEXT_ID);
+            var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.TooltipVisibility")).orElseThrow();
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(definition, wrapperId);
+            byte[] beforeWrap = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            byte[] wrapped = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(beforeWrap, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(wrapped, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(wrapperId, visible, new PropertyValue.BooleanValue(false)));
+            var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_tooltipsVisible", dev.flutter.netbeans.designer.model.StateBinding.Type.BOOL,
+                    Optional.empty(), dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.DIRECT, Optional.empty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(wrapperId, visible, state));
+            byte[] bound = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId).propertyBindings().isEmpty());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(bound, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var configured = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId);
+            assertEquals(new PropertyValue.BooleanValue(false), configured.properties().get(visible)); assertEquals(state, configured.propertyBindings().get(visible)); assertTrue(configured.stateBinding().isEmpty());
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) configured.slots().get(CHILD)).child().orElseThrow());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(bound, saved.dartBytes()); assertTrue(new String(saved.dartBytes(), StandardCharsets.UTF_8).contains(retainedSource));
+        }
+        try (MutationFixture fixture = fixture("tooltip_visibility_state_reopened", saved)) {
+            var widget = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) widget.slots().get(CHILD)).child().orElseThrow());
+            assertEquals("_tooltipsVisible", widget.propertyBindings().get(visible).fieldName());
+            assertEquals(new PropertyValue.BooleanValue(false), widget.properties().get(visible));
+            assertTrue(dev.flutter.netbeans.designer.events.WidgetEventCatalog.eventsFor(BuiltInWidgetCatalog.getDefault().find(widget.type()).orElseThrow()).isEmpty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemovePropertyStateBinding(wrapperId, visible));
+            byte[] detached = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertEquals("_tooltipsVisible", findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId).propertyBindings().get(visible).fieldName());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(detached, fixture.editor().liveSnapshot().markerBearingUtf8());
+            for (DesignerCommand invalid : List.of(new ResetProperty(wrapperId, visible), new SetProperty(wrapperId, visible, new PropertyValue.NullValue()))) {
+                var before = fixture.mutations().snapshot().document().orElseThrow();
+                var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), invalid, "TooltipVisibility required Visible reset/null").get(10, TimeUnit.SECONDS);
+                assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome(), rejected.reason());
+                assertEquals(before, fixture.mutations().snapshot().document().orElseThrow()); assertArrayEquals(detached, fixture.editor().liveSnapshot().markerBearingUtf8());
+                assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            }
+            applyEventCommand(fixture, new SetProperty(wrapperId, visible, new PropertyValue.BooleanValue(true)));
+            byte[] restored = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(detached, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(restored, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            assertArrayEquals(restored, Files.readAllBytes(fixture.dartPath())); assertTrue(Files.readString(fixture.dartPath()).contains(retainedSource));
+            var result = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), wrapperId);
+            assertEquals(retainedChild, ((WidgetSlot.SingleSlot) result.slots().get(CHILD)).child().orElseThrow()); assertTrue(result.propertyBindings().isEmpty()); assertTrue(result.stateBinding().isEmpty());
+        }
+    }
+
+    @Test
+    void tooltipWrapContentEventsStateSaveReopenHistoryPreserveAnchorAndUserBodies() throws Exception {
+        StableId tooltipId = StableId.random(); ExactPair saved; WidgetNode retainedAnchor;
+        var message = new PropertyName("message"); var richMessage = new PropertyName("richMessage"); var triggered = new PropertyName("onTriggered");
+        var waitDuration = new PropertyName("waitDurationUs"); var showDuration = new PropertyName("showDurationUs"); var exitDuration = new PropertyName("exitDurationUs");
+        var initial = statefulScaffoldExactPair(); String source = new String(initial.dartBytes(), StandardCharsets.UTF_8);
+        String owner = "class _HomePageState extends State<HomePage> {"; assertTrue(source.contains(owner));
+        source = source.replace(owner, owner + "\n  InlineSpan get _tooltipRich => const TextSpan(text: 'User-owned rich tooltip');\n  Offset _tooltipPosition(TooltipPositionContext context) => Offset.zero;\n");
+        var seed = new ExactPair(source.getBytes(StandardCharsets.UTF_8), initial.fdBytes());
+        try (MutationFixture fixture = fixture("tooltip_content_events_state", seed)) {
+            var root = fixture.ready().document().orElseThrow().root(); retainedAnchor = findModelWidget(root, NESTED_TEXT_ID);
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.Tooltip")).orElseThrow(), tooltipId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(tooltipId, waitDuration, new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(250000))));
+            applyEventCommand(fixture, new SetProperty(tooltipId, showDuration, new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(1500000))));
+            applyEventCommand(fixture, new SetProperty(tooltipId, exitDuration, new PropertyValue.NullValue()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(tooltipId, triggered, "_tooltipTriggered"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("void _tooltipTriggered()"));
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertFalse(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId).properties().containsKey(triggered));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength()); int method = text.indexOf("void _tooltipTriggered"); int body = text.indexOf('{', method) + 1;
+                assertTrue(method >= 0 && body > method, text); fixture.document().insertString(body, "\n    // Keep my Tooltip observer body.\n", null);
+            });
+            var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(),
+                    dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+            var binding = new dev.flutter.netbeans.designer.command.BindPropertyToState(tooltipId, new PropertyName("preferBelow"), state);
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] durableDart = Files.readAllBytes(fixture.dartPath()); byte[] durableFd = Files.readAllBytes(fixture.fdPath());
+            var before = fixture.mutations().snapshot().document().orElseThrow();
+            var blocked = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), binding, "Tooltip binding before native Source save").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blocked.outcome()); assertTrue(blocked.reason().contains("exact live staged endpoint changed"), blocked.reason());
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(durableDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(durableFd, Files.readAllBytes(fixture.fdPath())); assertEquals(before, fixture.mutations().snapshot().document().orElseThrow());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); applyEventCommand(fixture, binding);
+            applyEventCommand(fixture, new SetProperty(tooltipId, new PropertyName("positionDelegate"), dev.flutter.netbeans.plugin.designer.properties.TooltipPropertyContractTest.reference("_tooltipPosition")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(tooltipId, List.of(
+                    new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(message),
+                    new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(richMessage, dev.flutter.netbeans.plugin.designer.properties.TooltipPropertyContractTest.reference("_tooltipRich")))));
+            byte[] rich = fixture.editor().liveSnapshot().markerBearingUtf8(); onEdt(history::undo); awaitReady(fixture.mutations());
+            assertEquals(new PropertyValue.StringValue("Tooltip"), findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId).properties().get(message));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(rich, fixture.editor().liveSnapshot().markerBearingUtf8());
+            var configured = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId); assertTrue(configured.stateBinding().isEmpty());
+            assertEquals(retainedAnchor, ((WidgetSlot.SingleSlot) configured.slots().get(CHILD)).child().orElseThrow());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture fixture = fixture("tooltip_content_events_state_reopened", saved)) {
+            var tooltip = findModelWidget(fixture.ready().document().orElseThrow().root(), tooltipId); assertFalse(tooltip.properties().containsKey(message));
+            assertEquals(retainedAnchor, ((WidgetSlot.SingleSlot) tooltip.slots().get(CHILD)).child().orElseThrow()); assertEquals("_counter", tooltip.propertyBindings().get(new PropertyName("preferBelow")).fieldName());
+            byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new ResetProperty(tooltipId, richMessage), "Tooltip final content reset").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome()); assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(tooltipId, triggered, "_tooltipObserved"));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.PatchProperties(tooltipId, List.of(
+                    new dev.flutter.netbeans.designer.command.PatchProperties.ResetPatch(richMessage), new dev.flutter.netbeans.designer.command.PatchProperties.SetPatch(message, new PropertyValue.StringValue("")))));
+            applyEventCommand(fixture, new ResetProperty(tooltipId, exitDuration)); var reset = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId);
+            assertFalse(reset.properties().containsKey(exitDuration)); assertEquals(tooltip.properties().get(waitDuration), reset.properties().get(waitDuration)); assertEquals(tooltip.properties().get(showDuration), reset.properties().get(showDuration));
+            byte[] exact = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertEquals(new PropertyValue.NullValue(), findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId).properties().get(exitDuration));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(exact, fixture.editor().liveSnapshot().markerBearingUtf8()); fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); assertArrayEquals(exact, Files.readAllBytes(fixture.dartPath()));
+            applyEventCommand(fixture, new SetProperty(tooltipId, triggered, new PropertyValue.NullValue())); applyEventCommand(fixture, new ResetProperty(tooltipId, triggered));
+            byte[] omitted = fixture.editor().liveSnapshot().markerBearingUtf8(); onEdt(history::undo); awaitReady(fixture.mutations());
+            assertEquals(new PropertyValue.NullValue(), findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId).properties().get(triggered));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(omitted, fixture.editor().liveSnapshot().markerBearingUtf8()); fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            var finalTooltip = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tooltipId); assertEquals(new PropertyValue.StringValue(""), finalTooltip.properties().get(message)); assertFalse(finalTooltip.properties().containsKey(richMessage)); assertFalse(finalTooltip.properties().containsKey(triggered));
+            assertEquals(retainedAnchor, ((WidgetSlot.SingleSlot) finalTooltip.slots().get(CHILD)).child().orElseThrow()); assertTrue(finalTooltip.stateBinding().isEmpty()); assertArrayEquals(omitted, Files.readAllBytes(fixture.dartPath()));
+            String result = Files.readString(fixture.dartPath()); assertTrue(result.contains("void _tooltipObserved()"), result); assertTrue(result.contains("// Keep my Tooltip observer body."), result);
+            assertTrue(result.contains("InlineSpan get _tooltipRich => const TextSpan(text: 'User-owned rich tooltip');"), result); assertTrue(result.contains("positionDelegate: _tooltipPosition"), result); assertTrue(result.contains("_counter == 0"), result);
+        }
+    }
+
+    @Test
+    void expansionTileEventsStateSaveReopenHistoryPreserveAllSlotsAndAnimation() throws Exception {
+        StableId tileId = StableId.random(); ExactPair saved; Map<SlotName, WidgetSlot> retainedSlots;
+        var duration = new PropertyName("expansionAnimationStyleDurationUs"); var reverseDuration = new PropertyName("expansionAnimationStyleReverseDurationUs");
+        var callback = new PropertyName("onExpansionChanged"); var seed = new PropertyName("initiallyExpanded");
+        try (MutationFixture fixture = fixture("expansion_tile_events_state", statefulScaffoldExactPair())) {
+            var root = fixture.ready().document().orElseThrow().root(); var oldChild = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow();
+            var prototype = dev.flutter.netbeans.plugin.designer.properties.ExpansionTilePropertyContractTest.prototype();
+            var tile = new WidgetNode(tileId, prototype.type(), prototype.properties(), prototype.slots()); retainedSlots = tile.slots();
+            applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), oldChild.id(), new ReplaceSlotChild.NewSubtree(tile)));
+            applyEventCommand(fixture, new SetProperty(tileId, seed, new PropertyValue.BooleanValue(true)));
+            applyEventCommand(fixture, new SetProperty(tileId, duration, new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(250000))));
+            applyEventCommand(fixture, new SetProperty(tileId, reverseDuration, new PropertyValue.NullValue()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(tileId, callback, "_tileExpansionChanged"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("void _tileExpansionChanged(bool isExpanded)"));
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            assertFalse(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).properties().containsKey(callback));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength()); int method = text.indexOf("void _tileExpansionChanged"); int body = text.indexOf('{', method) + 1;
+                assertTrue(method >= 0 && body > method, text); fixture.document().insertString(body, "\n    // Keep my ExpansionTile observer body.\n", null);
+            });
+            var state = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_counter", dev.flutter.netbeans.designer.model.StateBinding.Type.INT, Optional.empty(),
+                    dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.IntegerValue(java.math.BigInteger.ZERO)));
+            var binding = new dev.flutter.netbeans.designer.command.BindPropertyToState(tileId, new PropertyName("enabled"), state);
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] durableDart = Files.readAllBytes(fixture.dartPath()); byte[] durableFd = Files.readAllBytes(fixture.fdPath());
+            var before = fixture.mutations().snapshot().document().orElseThrow();
+            var blocked = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), binding, "ExpansionTile binding before native Source save").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blocked.outcome()); assertTrue(blocked.reason().contains("exact live staged endpoint changed"), blocked.reason());
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8()); assertArrayEquals(durableDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(durableFd, Files.readAllBytes(fixture.fdPath()));
+            assertEquals(before, fixture.mutations().snapshot().document().orElseThrow());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+            applyEventCommand(fixture, binding);
+            var bound = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertTrue(bound.stateBinding().isEmpty(), "ExpansionTile does not become a controlled State producer."); assertFalse(bound.propertyBindings().containsKey(seed));
+            assertEquals(state, bound.propertyBindings().get(new PropertyName("enabled"))); assertEquals(retainedSlots, bound.slots());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture fixture = fixture("expansion_tile_events_state_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), tileId); assertEquals(retainedSlots, restored.slots()); assertTrue(restored.stateBinding().isEmpty());
+            assertEquals(new PropertyValue.BooleanValue(true), restored.properties().get(seed)); assertEquals(new PropertyValue.NullValue(), restored.properties().get(reverseDuration));
+            assertEquals("_counter", restored.propertyBindings().get(new PropertyName("enabled")).fieldName());
+            var title = ((WidgetSlot.SingleSlot) restored.slots().get(new SlotName("title"))).child().orElseThrow(); byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new RemoveWidget(title.id()), "ExpansionTile required Title").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome()); assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(tileId, callback, "_tileExpansionObserved"));
+            applyEventCommand(fixture, new ResetProperty(tileId, reverseDuration));
+            var changed = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertFalse(changed.properties().containsKey(reverseDuration)); assertEquals(restored.properties().get(duration), changed.properties().get(duration));
+            assertEquals(retainedSlots, changed.slots()); assertTrue(changed.stateBinding().isEmpty());
+            byte[] reset = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertEquals(new PropertyValue.NullValue(), findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).properties().get(reverseDuration));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(reset, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); assertArrayEquals(reset, Files.readAllBytes(fixture.dartPath()));
+            String source = Files.readString(fixture.dartPath()); assertTrue(source.contains("ExpansionTile("), source); assertTrue(source.contains("_counter == 0"), source);
+            assertTrue(source.contains("void _tileExpansionObserved(bool isExpanded)"), source); assertTrue(source.contains("// Keep my ExpansionTile observer body."), source);
+            assertTrue(source.contains("duration: const Duration(microseconds: 250000)") || source.contains("duration: Duration(microseconds: 250000)"), source);
+            applyEventCommand(fixture, new SetProperty(tileId, callback, new PropertyValue.NullValue()));
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).slots());
+            applyEventCommand(fixture, new ResetProperty(tileId, callback)); byte[] omitted = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertEquals(new PropertyValue.NullValue(), findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).properties().get(callback));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(omitted, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations()); assertArrayEquals(omitted, Files.readAllBytes(fixture.dartPath()));
+            var finalTile = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertEquals(retainedSlots, finalTile.slots()); assertFalse(finalTile.properties().containsKey(callback)); assertTrue(finalTile.propertyBindings().containsKey(new PropertyName("enabled")));
+            assertTrue(Files.readString(fixture.dartPath()).contains("// Keep my ExpansionTile observer body."));
+        }
+    }
+
+    @Test
+    void radioListTileEventsStateSaveReopenHistoryRetainAllSlotsAndUserBodies() throws Exception {
+        StableId tileId = StableId.random(); ExactPair saved; Map<SlotName, WidgetSlot> retainedSlots;
+        try (MutationFixture fixture = fixture("radio_tile_events_state", statefulScaffoldExactPair())) {
+            var root = fixture.ready().document().orElseThrow().root();
+            var oldChild = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow();
+            var prototype = dev.flutter.netbeans.plugin.designer.properties.RadioListTilePropertyContractTest.prototype();
+            var tile = new WidgetNode(tileId, prototype.type(), prototype.properties(), prototype.slots()); retainedSlots = tile.slots();
+            applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), oldChild.id(), new ReplaceSlotChild.NewSubtree(tile)));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(true)));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("useCupertinoCheckmarkStyle"), new PropertyValue.BooleanValue(false)));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(tileId, new PropertyName("onFocusChange"), "_tileFocusChanged"));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(tileId, "_tileChoice", "_tileChanged"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("groupValue: _tileChoice"));
+            assertFalse(new String(created, StandardCharsets.UTF_8).contains("useCupertinoCheckmarkStyle:"));
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations());
+            assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).stateBinding().isEmpty());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength()); int method = text.indexOf("void _tileChanged"); int body = text.indexOf("setState", method);
+                assertTrue(method >= 0 && body > method, text); fixture.document().insertString(body, "// Keep my RadioListTile state behavior.\n    ", null);
+            });
+            var selectedBinding = new dev.flutter.netbeans.designer.command.BindPropertyToState(tileId, new PropertyName("selected"),
+                    new dev.flutter.netbeans.designer.model.StatePropertyBinding("_tileChoice", dev.flutter.netbeans.designer.model.StateBinding.Type.NULLABLE_STRING, Optional.empty(),
+                            dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.EQUALS, Optional.of(new PropertyValue.StringValue("option"))));
+            byte[] editedBody = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] durableDart = Files.readAllBytes(fixture.dartPath()); byte[] durableFd = Files.readAllBytes(fixture.fdPath());
+            var beforeBlockedBinding = fixture.mutations().snapshot().document().orElseThrow();
+            var blockedBinding = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), selectedBinding,
+                    "RadioListTile binding before native Source save").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.FAILED, blockedBinding.outcome());
+            assertTrue(blockedBinding.reason().contains("exact live staged endpoint changed"), blockedBinding.reason());
+            assertArrayEquals(editedBody, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(durableDart, Files.readAllBytes(fixture.dartPath())); assertArrayEquals(durableFd, Files.readAllBytes(fixture.fdPath()));
+            assertEquals(beforeBlockedBinding, fixture.mutations().snapshot().document().orElseThrow());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            assertArrayEquals(editedBody, Files.readAllBytes(fixture.dartPath()));
+            applyEventCommand(fixture, selectedBinding);
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).slots());
+        }
+        try (MutationFixture fixture = fixture("radio_tile_events_state_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), tileId);
+            assertEquals(retainedSlots, restored.slots()); assertEquals("_tileChoice", restored.stateBinding().orElseThrow().fieldName());
+            var subtitle = ((WidgetSlot.SingleSlot) restored.slots().get(new SlotName("subtitle"))).child().orElseThrow();
+            assertEquals("_tileChoice", restored.propertyBindings().get(new PropertyName("selected")).fieldName());
+            byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new RemoveWidget(subtitle.id()), "RadioListTile required Subtitle").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome()); assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("variant"), new PropertyValue.StringValue("adaptive")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(tileId, new PropertyName("onChanged"), "_tileUpdated"));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemoveStateBinding(tileId));
+            var detached = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertTrue(detached.stateBinding().isEmpty()); assertEquals(new PropertyValue.StringValue("noop"), detached.properties().get(new PropertyName("onChanged")));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("onChanged"), new PropertyValue.NullValue()));
+            byte[] disabled = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(disabled, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            String source = Files.readString(fixture.dartPath()); assertTrue(source.contains("RadioListTile<String>.adaptive("), source); assertTrue(source.contains("onChanged: null"), source);
+            assertTrue(source.contains("useCupertinoCheckmarkStyle: false"), source); assertTrue(source.contains("void _tileUpdated(String? value)"), source);
+            assertTrue(source.contains("// Keep my RadioListTile state behavior."), source); assertTrue(source.contains("onFocusChange: _tileFocusChanged"), source);
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).slots());
+            assertArrayEquals(disabled, Files.readAllBytes(fixture.dartPath()));
+            applyEventCommand(fixture, new ResetProperty(tileId, new PropertyName("onChanged")));
+            var reset = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertFalse(reset.properties().containsKey(new PropertyName("onChanged")));
+            assertEquals(retainedSlots, reset.slots()); assertTrue(reset.propertyBindings().containsKey(new PropertyName("selected")));
+            byte[] omitted = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(disabled, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(omitted, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            assertArrayEquals(omitted, Files.readAllBytes(fixture.dartPath()));
+            assertTrue(Files.readString(fixture.dartPath()).contains("// Keep my RadioListTile state behavior."));
+        }
+    }
+
+    @Test
+    void switchListTileEventsStateSaveReopenHistoryRetainAllSlotsAndUserBodies() throws Exception {
+        StableId tileId = StableId.random(); ExactPair saved; Map<SlotName, WidgetSlot> retainedSlots;
+        try (MutationFixture fixture = fixture("switch_tile_events_state", statefulScaffoldExactPair())) {
+            var root = fixture.ready().document().orElseThrow().root();
+            var oldChild = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow();
+            var prototype = dev.flutter.netbeans.plugin.designer.properties.SwitchListTilePropertyContractTest.prototype();
+            var tile = new WidgetNode(tileId, prototype.type(), prototype.properties(), prototype.slots()); retainedSlots = tile.slots();
+            applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), oldChild.id(), new ReplaceSlotChild.NewSubtree(tile)));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("isThreeLine"), new PropertyValue.BooleanValue(true)));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("applyCupertinoTheme"), new PropertyValue.BooleanValue(false)));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(tileId, new PropertyName("onFocusChange"), "_tileFocusChanged"));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(tileId, "_tileValue", "_tileChanged"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("value: _tileValue"));
+            assertFalse(new String(created, StandardCharsets.UTF_8).contains("applyCupertinoTheme:"));
+            var history = fixture.dataObject().getCombinedUndoRedo(); onEdt(history::undo); awaitReady(fixture.mutations());
+            assertTrue(findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).stateBinding().isEmpty());
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> {
+                String text = fixture.document().getText(0, fixture.document().getLength()); int method = text.indexOf("void _tileChanged"); int body = text.indexOf("setState", method);
+                assertTrue(method >= 0 && body > method, text); fixture.document().insertString(body, "// Keep my SwitchListTile state behavior.\n    ", null);
+            });
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).slots());
+        }
+        try (MutationFixture fixture = fixture("switch_tile_events_state_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), tileId);
+            assertEquals(retainedSlots, restored.slots()); assertEquals("_tileValue", restored.stateBinding().orElseThrow().fieldName());
+            var subtitle = ((WidgetSlot.SingleSlot) restored.slots().get(new SlotName("subtitle"))).child().orElseThrow();
+            byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(), new RemoveWidget(subtitle.id()), "SwitchListTile required Subtitle").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome()); assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("variant"), new PropertyValue.StringValue("adaptive")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameEventHandler(tileId, new PropertyName("onChanged"), "_tileUpdated"));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemoveStateBinding(tileId));
+            var detached = findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId);
+            assertTrue(detached.stateBinding().isEmpty()); assertEquals(new PropertyValue.StringValue("noop"), detached.properties().get(new PropertyName("onChanged")));
+            applyEventCommand(fixture, new SetProperty(tileId, new PropertyName("onChanged"), new PropertyValue.NullValue()));
+            byte[] disabled = fixture.editor().liveSnapshot().markerBearingUtf8(); var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(disabled, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            String source = Files.readString(fixture.dartPath()); assertTrue(source.contains("SwitchListTile.adaptive("), source); assertTrue(source.contains("onChanged: null"), source);
+            assertTrue(source.contains("applyCupertinoTheme: false"), source); assertTrue(source.contains("void _tileUpdated(bool value)"), source);
+            assertTrue(source.contains("// Keep my SwitchListTile state behavior."), source); assertTrue(source.contains("onFocusChange: _tileFocusChanged"), source);
+            assertEquals(retainedSlots, findModelWidget(fixture.mutations().snapshot().document().orElseThrow().root(), tileId).slots());
+            assertArrayEquals(disabled, Files.readAllBytes(fixture.dartPath()));
+        }
+    }
+
+    @Test
+    void reopenedBoundSourceSaveRejectsFieldOwnershipTamperingWithoutWritingEitherFile() throws Exception {
+        StableId controlId = StableId.random();
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("state_binding_before_cold_save", statefulScaffoldExactPair())) {
+            var ready = fixture.ready();
+            WidgetNode root = ready.document().orElseThrow().root();
+            StableId child = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow().id();
+            WidgetNode control = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    ready.catalog().orElseThrow().find(new WidgetTypeId("flutter.material.Switch")).orElseThrow(), controlId);
+            applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), child,
+                    new ReplaceSlotChild.NewSubtree(control)));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(
+                    controlId, "_selected", "_selectionChanged"));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture reopened = fixture("state_binding_cold_save", saved)) {
+            onEdt(() -> {
+                String source = reopened.document().getText(0, reopened.document().getLength());
+                int declaration = source.indexOf("bool _selected =");
+                assertTrue(declaration >= 0, source);
+                reopened.document().insertString(declaration, "final ", null);
+            });
+            IOException failure = assertThrows(IOException.class,
+                    () -> reopened.dataObject().getCookie(SaveCookie.class).save());
+            assertTrue(failure.getMessage().contains("_selected"), failure.toString());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(reopened.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(reopened.fdPath()));
+            assertTrue(new String(reopened.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8)
+                    .contains("final bool _selected ="), "Rejected Save must preserve the user's unsaved Source");
+        }
+    }
+
+    @Test
+    void textControllerAndDependentTextSaveHistoryAndReopenPreserveOwnedLifecycleAndUserCode() throws Exception {
+        StableId controlId = StableId.random();
+        StableId consumerId = StableId.random();
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("controller_consumer_history", statefulScaffoldExactPair())) {
+            replaceBodyWithControllerAndConsumer(fixture, controlId, consumerId);
+            byte[] beforeController = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(
+                    controlId, "_textController", "_textChanged", dev.flutter.netbeans.designer.model.StateBinding.Action.CHANGE,
+                    Optional.empty(), "Hello\n$world", Optional.empty()));
+            byte[] controllerOnly = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var dependency = new dev.flutter.netbeans.designer.model.StatePropertyBinding("_textController",
+                    dev.flutter.netbeans.designer.model.StateBinding.Type.TEXT_CONTROLLER, Optional.empty(),
+                    dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.TEXT, Optional.empty());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(
+                    consumerId, new PropertyName("data"), dependency));
+            byte[] withConsumer = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String generated = new String(withConsumer, StandardCharsets.UTF_8);
+            assertTrue(generated.contains("controller: _textController"), generated);
+            assertTrue(generated.contains("_textController.text"), generated);
+            assertTrue(generated.contains("_textController.addListener(_textControllerStateListener);"), generated);
+            assertTrue(generated.contains("_textController.dispose();"), generated);
+            onEdt(() -> {
+                String source = fixture.document().getText(0, fixture.document().getLength());
+                int method = source.indexOf("void _textChanged(String value)");
+                int body = source.indexOf("// Handle user text changes", method);
+                assertTrue(method >= 0 && body > method, source);
+                fixture.document().insertString(body, "// Keep my text handler.\n    ", null);
+            });
+            byte[] edited = fixture.editor().liveSnapshot().markerBearingUtf8();
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            assertArrayEquals(edited, Files.readAllBytes(fixture.dartPath()));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            assertArrayEquals(withConsumer, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            assertArrayEquals(controllerOnly, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::undo);
+            assertArrayEquals(beforeController, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(history::redo);
+            onEdt(history::redo);
+            onEdt(history::redo);
+            assertArrayEquals(edited, fixture.editor().liveSnapshot().markerBearingUtf8());
+            applyEventCommand(fixture, new SetProperty(consumerId, new PropertyName("data"), new PropertyValue.StringValue("Canvas only")));
+            String previewEdited = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(previewEdited.contains("_textController.text"));
+            assertTrue(previewEdited.contains("// Keep my text handler."));
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture reopened = fixture("controller_consumer_history_reopened", saved)) {
+            WidgetNode root = reopened.ready().document().orElseThrow().root();
+            assertEquals(dev.flutter.netbeans.designer.model.StateBinding.Type.TEXT_CONTROLLER,
+                    findModelWidget(root, controlId).stateBinding().orElseThrow().type());
+            assertEquals(dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.TEXT,
+                    findModelWidget(root, consumerId).propertyBindings().get(new PropertyName("data")).transform());
+            applyEventCommand(reopened, new dev.flutter.netbeans.designer.command.RemoveStateBinding(controlId));
+            reopened.dataObject().getCookie(SaveCookie.class).save();
+            String source = Files.readString(reopened.dartPath());
+            assertFalse(source.contains("controller: _textController"));
+            assertTrue(source.contains("_textController.text"));
+            assertTrue(source.contains("_textController.removeListener(_textControllerStateListener);"));
+            assertTrue(source.contains("_textController.dispose();"));
+            assertTrue(source.contains("// Keep my text handler."));
+            assertTrue(findModelWidget(reopened.mutations().snapshot().document().orElseThrow().root(), controlId).stateBinding().isEmpty());
+        }
+    }
+
+    @Test
+    void consumerOnlyColdSourceSaveRejectsControllerCleanupTamperingWithoutWritingEitherFile() throws Exception {
+        StableId controlId = StableId.random();
+        StableId consumerId = StableId.random();
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("controller_consumer_cold_seed", statefulScaffoldExactPair())) {
+            replaceBodyWithControllerAndConsumer(fixture, controlId, consumerId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(
+                    controlId, "_textController", "_textChanged", dev.flutter.netbeans.designer.model.StateBinding.Action.CHANGE,
+                    Optional.empty(), "Initial text", Optional.empty()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(consumerId, new PropertyName("data"),
+                    new dev.flutter.netbeans.designer.model.StatePropertyBinding("_textController",
+                            dev.flutter.netbeans.designer.model.StateBinding.Type.TEXT_CONTROLLER, Optional.empty(),
+                            dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.TEXT, Optional.empty())));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RemoveStateBinding(controlId));
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture reopened = fixture("controller_consumer_cold_tamper", saved)) {
+            var root = reopened.ready().document().orElseThrow().root();
+            assertTrue(findModelWidget(root, controlId).stateBinding().isEmpty(), "Only the consumer metadata requires this retained controller.");
+            assertTrue(findModelWidget(root, consumerId).propertyBindings().containsKey(new PropertyName("data")));
+            onEdt(() -> {
+                String source = reopened.document().getText(0, reopened.document().getLength());
+                String cleanup = "_textController.dispose();";
+                int offset = source.indexOf(cleanup);
+                assertTrue(offset >= 0, source);
+                reopened.document().remove(offset, cleanup.length());
+                reopened.document().insertString(offset, "// User removed controller disposal.", null);
+            });
+            IOException rejected = assertThrows(IOException.class, () -> reopened.dataObject().getCookie(SaveCookie.class).save());
+            assertTrue(rejected.getMessage().contains("_textController"), rejected.toString());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(reopened.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(reopened.fdPath()));
+            assertTrue(new String(reopened.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8)
+                    .contains("// User removed controller disposal."), "Rejected Save retains the user's unsaved text for correction.");
+        }
+    }
+
+    @Test
+    void stateFieldRenameIsOneUndoableSharedSourceMutationAndRemainsEditableAfterReopen() throws Exception {
+        StableId controlId = StableId.random();
+        StableId consumerId = StableId.random();
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("state_field_rename", statefulScaffoldExactPair())) {
+            replaceBodyWithControllerAndConsumer(fixture, controlId, consumerId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateStateBinding(
+                    controlId, "_textController", "_textChanged", dev.flutter.netbeans.designer.model.StateBinding.Action.CHANGE,
+                    Optional.empty(), "Initial", Optional.empty()));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.BindPropertyToState(consumerId, new PropertyName("data"),
+                    new dev.flutter.netbeans.designer.model.StatePropertyBinding("_textController",
+                            dev.flutter.netbeans.designer.model.StateBinding.Type.TEXT_CONTROLLER, Optional.empty(),
+                            dev.flutter.netbeans.designer.model.StatePropertyBinding.Transform.TEXT, Optional.empty())));
+            onEdt(() -> {
+                String source = fixture.document().getText(0, fixture.document().getLength());
+                int body = source.indexOf("// Handle user text changes");
+                assertTrue(body >= 0, source);
+                fixture.document().insertString(body, "// Keep _textController in this comment.\n"
+                        + "    final label = '_textController';\n"
+                        + "    if (label.isNotEmpty) print(this._textController.text);\n    ", null);
+                fixture.dataObject().getCookie(SaveCookie.class).save();
+            });
+            byte[] before = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] beforeFd = Files.readAllBytes(fixture.fdPath());
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.RenameStateField(
+                    consumerId, "_textController", "_queryController"));
+            byte[] renamed = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String source = new String(renamed, StandardCharsets.UTF_8);
+            assertTrue(source.contains("final TextEditingController _queryController ="), source);
+            assertTrue(source.contains("controller: _queryController"), source);
+            assertTrue(source.contains("_queryController.text"), source);
+            assertTrue(source.contains("_queryController.addListener(_queryControllerStateListener);"), source);
+            assertTrue(source.contains("_queryController.removeListener(_queryControllerStateListener);"), source);
+            assertTrue(source.contains("_queryController.dispose();"), source);
+            assertTrue(source.contains("void _textChanged(String value)"), source);
+            assertTrue(source.contains("// Keep _textController in this comment."));
+            assertTrue(source.contains("final label = '_textController';"));
+            assertTrue(source.contains("print(this._queryController.text)"));
+            assertArrayEquals(before, Files.readAllBytes(fixture.dartPath()), "Rename must not autosave");
+            assertArrayEquals(beforeFd, Files.readAllBytes(fixture.fdPath()), "Rename must not autosave either file");
+            var root = fixture.mutations().snapshot().document().orElseThrow().root();
+            assertEquals("_queryController", findModelWidget(root, controlId).stateBinding().orElseThrow().fieldName());
+            assertEquals("_queryController", findModelWidget(root, consumerId).propertyBindings().get(new PropertyName("data")).fieldName());
+            assertEquals("_textChanged", findModelWidget(root, controlId).stateBinding().orElseThrow().handlerName());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertEquals("_textController", findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(),
+                    consumerId).propertyBindings().get(new PropertyName("data")).fieldName());
+            onEdt(history::redo);
+            assertArrayEquals(renamed, fixture.editor().liveSnapshot().markerBearingUtf8());
+            onEdt(() -> fixture.dataObject().getCookie(SaveCookie.class).save());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            onEdt(history::undo);
+            assertArrayEquals(before, fixture.editor().liveSnapshot().markerBearingUtf8(),
+                    "Saved rename must retain exact reversible source history");
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()),
+                    "Undo after Save stages an edit without rewriting the durable file");
+            onEdt(history::redo);
+            assertArrayEquals(renamed, fixture.editor().liveSnapshot().markerBearingUtf8());
+        }
+        try (MutationFixture reopened = fixture("state_field_rename_reopened", saved)) {
+            var before = reopened.ready();
+            var rejected = reopened.mutations().submit(before.token().orElseThrow(),
+                    new dev.flutter.netbeans.designer.command.RenameStateField(controlId, "_queryController", "_counter"),
+                    "Reject existing State member collision").get(10, TimeUnit.SECONDS);
+            assertNotEquals(FlutterDesignerMutationController.Outcome.APPLIED, rejected.outcome());
+            assertArrayEquals(saved.dartBytes(), reopened.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(reopened.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(reopened.fdPath()));
+            applyEventCommand(reopened, new SetProperty(consumerId, new PropertyName("data"), new PropertyValue.StringValue("Preview after rename")));
+            applyEventCommand(reopened, new dev.flutter.netbeans.designer.command.RenameStateField(controlId, "_queryController", "_searchController"));
+            onEdt(() -> reopened.dataObject().getCookie(SaveCookie.class).save());
+            String source = Files.readString(reopened.dartPath());
+            assertTrue(source.contains("_searchController.text"));
+            assertTrue(source.contains("_searchController.dispose();"));
+            assertTrue(source.contains("void _textChanged(String value)"));
+            var root = reopened.mutations().snapshot().document().orElseThrow().root();
+            assertEquals(new PropertyValue.StringValue("Preview after rename"), findModelWidget(root, consumerId).properties().get(new PropertyName("data")));
+        }
+    }
+
+    private static void replaceBodyWithControllerAndConsumer(MutationFixture fixture, StableId controlId, StableId consumerId) throws Exception {
+        var ready = awaitReady(fixture.mutations());
+        var catalog = ready.catalog().orElseThrow();
+        var root = ready.document().orElseThrow().root();
+        var previous = ((WidgetSlot.SingleSlot) root.slots().get(new SlotName("body"))).child().orElseThrow();
+        WidgetNode control = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                catalog.find(new WidgetTypeId("flutter.material.TextField")).orElseThrow(), controlId);
+        WidgetNode consumer = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                catalog.find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow(), consumerId);
+        WidgetNode column = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                catalog.find(new WidgetTypeId("flutter.widgets.Column")).orElseThrow(), StableId.random());
+        WidgetNode subtree = new WidgetNode(column.id(), column.type(), column.properties(),
+                Map.of(new SlotName("children"), new WidgetSlot.ListSlot(List.of(control, consumer))), column.extensions());
+        applyEventCommand(fixture, new ReplaceSlotChild(root.id(), new SlotName("body"), previous.id(),
+                new ReplaceSlotChild.NewSubtree(subtree)));
+    }
+
+    private ExactPair statefulScaffoldExactPair() throws Exception {
+        ExactPair stateless = scaffoldCenterTextExactPair();
+        var codec = new FdDocumentCodec();
+        DesignerDocument old = ((dev.flutter.netbeans.designer.codec.FdDecodeResult.Current)
+                codec.decode(stateless.fdBytes())).document();
+        DartSourceDescriptor source = new DartSourceDescriptor(old.source().dartFile(), old.source().className(),
+                WidgetClassKind.STATEFUL, old.source().generatorVersion(), old.source().managedRegions());
+        DesignerDocument stateful = new DesignerDocument(old.schemaReference(), old.documentId(), source,
+                old.canvas(), old.root(), old.extensions());
+        String dart = new String(stateless.dartBytes(), StandardCharsets.UTF_8).replace(
+                "class HomePage extends StatelessWidget {",
+                "class HomePage extends StatefulWidget {\n  const HomePage({super.key});\n"
+                + "  @override\n  State<HomePage> createState() => _HomePageState();\n}\n\n"
+                + "class _HomePageState extends State<HomePage> {\n  int _counter = 0;");
+        return new ExactPair(dart.getBytes(StandardCharsets.UTF_8), codec.encode(stateful).copyBytes());
+    }
+
+    @Test
+    void gestureWrapperDevicesHandlerSaveReopenAndHistoryRetainTheChildAndSource() throws Exception {
+        ExactPair saved;
+        StableId wrapperId = StableId.random();
+        var type = new WidgetTypeId("flutter.widgets.GestureDetector");
+        var devicesName = new PropertyName("supportedDevices");
+        var devices = new PropertyValue.PointerDeviceKindSetValue(List.of(
+                PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.TOUCH,
+                PropertyValue.PointerDeviceKindSetValue.PointerDeviceKind.MOUSE));
+        try (MutationFixture fixture = fixture("gesture_wrap_lifecycle", scaffoldCenterTextExactPair())) {
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), wrapperId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(wrapperId, devicesName, devices));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(wrapperId,
+                    new PropertyName("onTapMove"), "_moved"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("onTapMove: _moved"));
+            var node = findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(), wrapperId);
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) node.slots().get(CHILD)).child().orElseThrow().id());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_moved"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("gesture_wrap_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(devices, restored.properties().get(devicesName));
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD)).child().orElseThrow().id());
+            applyEventCommand(fixture, new SetProperty(wrapperId, devicesName, new PropertyValue.PointerDeviceKindSetValue(List.of())));
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("PointerDeviceKind>{}"));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "gesture_rejection", "Gesture candidate rejected")));
+            var result = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, new PropertyName("excludeFromSemantics"), new PropertyValue.BooleanValue(true)),
+                    "GestureDetector rejected configuration").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, result.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void listenerWrapperHandlerSaveReopenAndHistoryPreserveChildAndRejectInvalidChanges() throws Exception {
+        ExactPair saved;
+        StableId wrapperId = StableId.random();
+        var type = new WidgetTypeId("flutter.widgets.Listener");
+        var behavior = new PropertyName("behavior");
+        var hover = new PropertyName("onPointerHover");
+        try (MutationFixture fixture = fixture("listener_wrap_lifecycle", scaffoldCenterTextExactPair())) {
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), wrapperId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(wrapperId, behavior, new PropertyValue.EnumValue("HitTestBehavior", "opaque")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(wrapperId, hover, "_hovered"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String source = new String(created, StandardCharsets.UTF_8);
+            assertTrue(source.contains("onPointerHover: _hovered"), source);
+            assertTrue(source.contains("PointerHoverEvent"), source);
+            var node = findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(), wrapperId);
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) node.slots().get(CHILD)).child().orElseThrow().id());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_hovered"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("listener_wrap_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(new PropertyValue.EnumValue("HitTestBehavior", "opaque"), restored.properties().get(behavior));
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD)).child().orElseThrow().id());
+            applyEventCommand(fixture, new ResetProperty(wrapperId, hover));
+            String disconnected = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(disconnected.contains("onPointerHover:"), disconnected);
+            assertTrue(disconnected.contains("void _hovered("), disconnected);
+            applyEventCommand(fixture, new SetProperty(wrapperId, hover, new PropertyValue.CallbackValue("_hovered")));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.NullValue()), "Invalid Listener behavior").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "listener_rejection", "Listener candidate rejected")));
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.EnumValue("HitTestBehavior", "translucent")),
+                    "Listener rejected configuration").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void mouseRegionWrapperHandlerSaveReopenAndHistoryPreserveChildAndRejectInvalidChanges() throws Exception {
+        ExactPair saved;
+        StableId wrapperId = StableId.random();
+        var type = new WidgetTypeId("flutter.widgets.MouseRegion");
+        var behavior = new PropertyName("cursor");
+        var hover = new PropertyName("onEnter");
+        try (MutationFixture fixture = fixture("mouse_region_wrap_lifecycle", scaffoldCenterTextExactPair())) {
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), wrapperId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(wrapperId, behavior, new PropertyValue.StringValue("click")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(wrapperId, hover, "_entered"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String source = new String(created, StandardCharsets.UTF_8);
+            assertTrue(source.contains("onEnter: _entered"), source);
+            assertTrue(source.contains("PointerEnterEvent"), source);
+            var node = findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(), wrapperId);
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) node.slots().get(CHILD)).child().orElseThrow().id());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_entered"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("mouse_region_wrap_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(new PropertyValue.StringValue("click"), restored.properties().get(behavior));
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD)).child().orElseThrow().id());
+            applyEventCommand(fixture, new ResetProperty(wrapperId, hover));
+            String disconnected = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(disconnected.contains("onEnter:"), disconnected);
+            assertTrue(disconnected.contains("void _entered("), disconnected);
+            applyEventCommand(fixture, new SetProperty(wrapperId, hover, new PropertyValue.CallbackValue("_entered")));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.NullValue()), "Invalid MouseRegion behavior").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "mouse_region_rejection", "MouseRegion candidate rejected")));
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.StringValue("text")),
+                    "MouseRegion rejected configuration").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void focusWrapperHandlerSaveReopenAndHistoryPreserveChildAndRejectInvalidChanges() throws Exception {
+        ExactPair saved;
+        StableId wrapperId = StableId.random();
+        var type = new WidgetTypeId("flutter.widgets.Focus");
+        var behavior = new PropertyName("autofocus");
+        var hover = new PropertyName("onKeyEvent");
+        try (MutationFixture fixture = fixture("focus_wrap_lifecycle", scaffoldCenterTextExactPair())) {
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), wrapperId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(wrapperId, behavior, new PropertyValue.BooleanValue(true)));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(wrapperId, hover, "_key"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String source = new String(created, StandardCharsets.UTF_8);
+            assertTrue(source.contains("onKeyEvent: _key"), source);
+            assertTrue(source.contains("KeyEvent"), source);
+            var node = findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(), wrapperId);
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) node.slots().get(CHILD)).child().orElseThrow().id());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_key"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("focus_wrap_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(new PropertyValue.BooleanValue(true), restored.properties().get(behavior));
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD)).child().orElseThrow().id());
+            applyEventCommand(fixture, new ResetProperty(wrapperId, hover));
+            String disconnected = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(disconnected.contains("onKeyEvent:"), disconnected);
+            assertTrue(disconnected.contains("KeyEventResult _key("), disconnected);
+            applyEventCommand(fixture, new SetProperty(wrapperId, hover, new PropertyValue.CallbackValue("_key")));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.NullValue()), "Invalid Focus behavior").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "focus_rejection", "Focus candidate rejected")));
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, behavior, new PropertyValue.BooleanValue(false)),
+                    "Focus rejected configuration").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void notificationWrapperHandlerSaveReopenAndHistoryPreserveChildAndRejectInvalidChanges() throws Exception {
+        ExactPair saved;
+        StableId wrapperId = StableId.random();
+        var type = new WidgetTypeId("flutter.widgets.NotificationListener");
+        var filter = new PropertyName("notificationType");
+        var event = new PropertyName("onNotification");
+        try (MutationFixture fixture = fixture("notification_wrap_lifecycle", scaffoldCenterTextExactPair())) {
+            var wrapper = dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(
+                    BuiltInWidgetCatalog.getDefault().find(type).orElseThrow(), wrapperId);
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.WrapWidget(NESTED_TEXT_ID, wrapper, CHILD, 0));
+            applyEventCommand(fixture, new SetProperty(wrapperId, filter, new PropertyValue.StringValue("ScrollNotification")));
+            applyEventCommand(fixture, new dev.flutter.netbeans.designer.command.CreateEventHandler(wrapperId, event, "_notification"));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            String source = new String(created, StandardCharsets.UTF_8);
+            assertTrue(source.contains("onNotification: _notification"), source);
+            assertTrue(source.contains("bool _notification(Notification notification)"), source);
+            var node = findModelWidget(awaitReady(fixture.mutations()).document().orElseThrow().root(), wrapperId);
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) node.slots().get(CHILD)).child().orElseThrow().id());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo);
+            awaitReady(fixture.mutations());
+            assertFalse(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("_notification"));
+            onEdt(history::redo);
+            awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("notification_wrap_reopened", saved)) {
+            var restored = findModelWidget(fixture.ready().document().orElseThrow().root(), wrapperId);
+            assertEquals(new PropertyValue.StringValue("ScrollNotification"), restored.properties().get(filter));
+            assertEquals(NESTED_TEXT_ID, ((WidgetSlot.SingleSlot) restored.slots().get(CHILD)).child().orElseThrow().id());
+            applyEventCommand(fixture, new ResetProperty(wrapperId, event));
+            String disconnected = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(disconnected.contains("onNotification:"), disconnected);
+            assertTrue(disconnected.contains("bool _notification("), disconnected);
+            applyEventCommand(fixture, new SetProperty(wrapperId, event, new PropertyValue.CallbackValue("_notification")));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, filter, new PropertyValue.NullValue()), "Invalid notification filter").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "notification_rejection", "Notification candidate rejected")));
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(wrapperId, filter, new PropertyValue.StringValue("Notification")),
+                    "Rejected notification filter").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void scaffoldScrimBuilderSaveReopenResetAndHistoryPreserveUserCodeAndRejectedEdits() throws Exception {
+        var initial = scaffoldCenterTextExactPair();
+        String function = "\nWidget? _scrim(BuildContext context, Animation<double> animation) {\n"
+                + "  // User-owned scrim body.\n  return null;\n}\n";
+        var seeded = new ExactPair((new String(initial.dartBytes(), StandardCharsets.UTF_8) + function)
+                .getBytes(StandardCharsets.UTF_8), initial.fdBytes());
+        var property = new PropertyName("bottomSheetScrimBuilder");
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_scrim", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("scaffold_scrim_lifecycle", seeded)) {
+            applyEventCommand(fixture, new SetProperty(SCAFFOLD_ID, property, reference));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("bottomSheetScrimBuilder: _scrim"));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            String undone = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(undone.contains("bottomSheetScrimBuilder:"));
+            assertTrue(undone.endsWith(function));
+            onEdt(history::redo); awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("scaffold_scrim_reopened", saved)) {
+            assertEquals(reference, fixture.ready().document().orElseThrow().root().properties().get(property));
+            applyEventCommand(fixture, new ResetProperty(SCAFFOLD_ID, property));
+            String reset = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(reset.contains("bottomSheetScrimBuilder:"));
+            assertTrue(reset.endsWith(function));
+            applyEventCommand(fixture, new SetProperty(SCAFFOLD_ID, property, reference));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(SCAFFOLD_ID, property, new PropertyValue.NullValue()), "Invalid null scrim builder").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "scrim_rejection", "Scaffold scrim builder rejected")));
+            var invalidReference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "wrongScrim", Optional.empty(),
+                    PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var typedRejection = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(SCAFFOLD_ID, property, invalidReference), "Rejected scrim builder").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, typedRejection.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void appBarPredicatePresetsSaveReopenResetAndHistoryPreserveUserCodeAndRejectedEdits() throws Exception {
+        StableId appBarId = StableId.random();
+        var appBar = new WidgetNode(appBarId, new WidgetTypeId("flutter.material.AppBar"), Map.of(), Map.of());
+        var provisional = new DesignerDocument(DOCUMENT_ID, descriptor("0".repeat(64), "0".repeat(64)), appBar);
+        var provisionalGenerated = new DartRegionGenerator().generate(provisional, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        var exact = new DesignerDocument(DOCUMENT_ID, descriptor(provisionalGenerated.imports().normalizedSha256(),
+                provisionalGenerated.build().normalizedSha256()), appBar);
+        var generated = new DartRegionGenerator().generate(exact, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        var initial = new ExactPair(source(generated).getBytes(StandardCharsets.UTF_8), new FdDocumentCodec().encode(exact).copyBytes());
+        String function = "\nbool _predicate(ScrollNotification notification) {\n"
+                + "  // User-owned predicate body.\n  return notification.depth == 1;\n}\n";
+        var seeded = new ExactPair((new String(initial.dartBytes(), StandardCharsets.UTF_8) + function)
+                .getBytes(StandardCharsets.UTF_8), initial.fdBytes());
+        var property = new PropertyName("notificationPredicate");
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_predicate", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("appbar_predicate_lifecycle", seeded)) {
+            applyEventCommand(fixture, new SetProperty(appBarId, property, reference));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            assertTrue(new String(created, StandardCharsets.UTF_8).contains("notificationPredicate: _predicate"));
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            String undone = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(undone.contains("notificationPredicate:"));
+            assertTrue(undone.endsWith(function));
+            onEdt(history::redo); awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save();
+            awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("appbar_predicate_reopened", saved)) {
+            assertEquals(reference, fixture.ready().document().orElseThrow().root().properties().get(property));
+            applyEventCommand(fixture, new ResetProperty(appBarId, property));
+            String reset = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(reset.contains("notificationPredicate:"));
+            assertTrue(reset.endsWith(function));
+            applyEventCommand(fixture, new SetProperty(appBarId, property, reference));
+            for (String preset : List.of("default", "depthZero", "all")) {
+                applyEventCommand(fixture, new SetProperty(appBarId, property, new PropertyValue.StringValue(preset)));
+                assertEquals(new PropertyValue.StringValue(preset), awaitReady(fixture.mutations()).document().orElseThrow().root().properties().get(property));
+                assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).endsWith(function));
+            }
+            applyEventCommand(fixture, new SetProperty(appBarId, property, reference));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(appBarId, property, new PropertyValue.NullValue()), "Invalid null AppBar predicate").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "predicate_rejection", "AppBar predicate rejected")));
+            var invalidReference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "wrongPredicate", Optional.empty(),
+                    PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var typedRejection = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(appBarId, property, invalidReference), "Rejected AppBar predicate").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, typedRejection.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void elevatedLayerBuildersSaveReopenAndIndependentResetPreserveStyleChildHistoryAndRejectedEdits() throws Exception {
+        StableId buttonId = StableId.random();
+        var color = new PropertyValue.ColorValue(0xff123456L);
+        var label = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(DATA, new PropertyValue.StringValue("Layer label")), Map.of());
+        var button = new WidgetNode(buttonId, new WidgetTypeId("flutter.material.ElevatedButton"),
+                Map.of(new PropertyName("enabled"), new PropertyValue.BooleanValue(true),
+                        new PropertyName("styleBackgroundColor"), color),
+                Map.of(CHILD, WidgetSlot.SingleSlot.of(label)));
+        var provisional = new DesignerDocument(DOCUMENT_ID, descriptor("0".repeat(64), "0".repeat(64)), button);
+        var first = new DartRegionGenerator().generate(provisional, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        var exact = new DesignerDocument(DOCUMENT_ID, descriptor(first.imports().normalizedSha256(), first.build().normalizedSha256()), button);
+        var generated = new DartRegionGenerator().generate(exact, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        String function = "\nWidget _layer(BuildContext context, Set<WidgetState> states, Widget? child) {\n"
+                + "  // User-owned layer body.\n  return child ?? const SizedBox();\n}\n";
+        var initial = new ExactPair((source(generated) + function).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+        var background = new PropertyName("styleBackgroundBuilder");
+        var foreground = new PropertyName("styleForegroundBuilder");
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_layer", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("elevated_layers_lifecycle", initial)) {
+            applyEventCommand(fixture, new SetProperty(buttonId, background, reference));
+            applyEventCommand(fixture, new SetProperty(buttonId, foreground, reference));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            String undone = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(undone.contains("backgroundBuilder: _layer")); assertFalse(undone.contains("foregroundBuilder:"));
+            assertTrue(undone.endsWith(function));
+            onEdt(history::redo); awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("elevated_layers_reopened", saved)) {
+            var restored = fixture.ready().document().orElseThrow().root();
+            assertEquals(reference, restored.properties().get(background));
+            assertEquals(reference, restored.properties().get(foreground)); assertEquals(button.slots(), restored.slots());
+            applyEventCommand(fixture, new ResetProperty(buttonId, background));
+            var after = awaitReady(fixture.mutations()).document().orElseThrow().root();
+            assertFalse(after.properties().containsKey(background)); assertEquals(reference, after.properties().get(foreground));
+            assertEquals(color, after.properties().get(new PropertyName("styleBackgroundColor"))); assertEquals(button.slots(), after.slots());
+            applyEventCommand(fixture, new ResetProperty(buttonId, foreground));
+            String reset = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(reset.contains("backgroundBuilder:")); assertFalse(reset.contains("foregroundBuilder:"));
+            assertTrue(reset.endsWith(function));
+            applyEventCommand(fixture, new SetProperty(buttonId, background, reference));
+            applyEventCommand(fixture, new SetProperty(buttonId, foreground, reference));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(buttonId, background, new PropertyValue.NullValue()), "Invalid null layer").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "layer_rejection", "ElevatedButton layer rejected")));
+            var wrong = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "wrongLayer", Optional.empty(),
+                    PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(buttonId, foreground, wrong), "Rejected foreground layer").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void textFieldBuildersSaveReopenNullResetAndHistoryPreserveCallbacksAndRejectedEdits() throws Exception {
+        StableId fieldId = StableId.random();
+        var maximum = new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(12));
+        var changed = new PropertyValue.CallbackValue("_changed");
+        var field = new WidgetNode(fieldId, new WidgetTypeId("flutter.material.TextField"),
+                Map.of(new PropertyName("maxLength"), maximum, new PropertyName("onChanged"), changed), Map.of());
+        var provisional = new DesignerDocument(DOCUMENT_ID, descriptor("0".repeat(64), "0".repeat(64)), field);
+        var first = new DartRegionGenerator().generate(provisional, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        var exact = new DesignerDocument(DOCUMENT_ID, descriptor(first.imports().normalizedSha256(), first.build().normalizedSha256()), field);
+        var generated = new DartRegionGenerator().generate(exact, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        String functions = "\nWidget? _counter(BuildContext context, {required int currentLength, required int? maxLength, required bool isFocused}) {\n"
+                + "  // User-owned counter body.\n  return null;\n}\n"
+                + "Widget _menu(BuildContext context, EditableTextState state) => const SizedBox();\n"
+                + "void _changed(String value) { /* Keep this event. */ }\n";
+        var initial = new ExactPair((source(generated) + functions).getBytes(StandardCharsets.UTF_8),
+                new FdDocumentCodec().encode(exact).copyBytes());
+        var counter = new PropertyName("buildCounter"); var menu = new PropertyName("contextMenuBuilder");
+        var counterRef = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_counter", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        var menuRef = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_menu", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        ExactPair saved;
+        try (MutationFixture fixture = fixture("text_field_builders_lifecycle", initial)) {
+            applyEventCommand(fixture, new SetProperty(fieldId, counter, counterRef));
+            applyEventCommand(fixture, new SetProperty(fieldId, menu, menuRef));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            String undone = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(undone.contains("buildCounter: _counter")); assertFalse(undone.contains("contextMenuBuilder:"));
+            assertTrue(undone.endsWith(functions));
+            onEdt(history::redo); awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            saved = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, saved.dartBytes());
+        }
+        try (MutationFixture fixture = fixture("text_field_builders_reopened", saved)) {
+            var restored = fixture.ready().document().orElseThrow().root();
+            assertEquals(counterRef, restored.properties().get(counter)); assertEquals(menuRef, restored.properties().get(menu));
+            applyEventCommand(fixture, new ResetProperty(fieldId, counter));
+            applyEventCommand(fixture, new SetProperty(fieldId, menu, new PropertyValue.NullValue()));
+            var after = awaitReady(fixture.mutations()).document().orElseThrow().root();
+            assertFalse(after.properties().containsKey(counter)); assertEquals(new PropertyValue.NullValue(), after.properties().get(menu));
+            assertEquals(maximum, after.properties().get(new PropertyName("maxLength")));
+            assertEquals(changed, after.properties().get(new PropertyName("onChanged")));
+            assertTrue(new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8).contains("contextMenuBuilder: null"));
+            applyEventCommand(fixture, new ResetProperty(fieldId, menu));
+            String reset = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertFalse(reset.contains("buildCounter:")); assertFalse(reset.contains("contextMenuBuilder:")); assertTrue(reset.endsWith(functions));
+            applyEventCommand(fixture, new SetProperty(fieldId, counter, counterRef));
+            applyEventCommand(fixture, new SetProperty(fieldId, menu, menuRef));
+            byte[] retained = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var invalid = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(fieldId, counter, new PropertyValue.CallbackValue("bad")), "Invalid counter representation").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, invalid.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            fixture.mutations().setAnalyzerFactoryForTests((dart, request) -> completedAnalysis(
+                    rejectedDiagnosticAnalysis(request, "builder_rejection", "TextField builder rejected")));
+            var wrong = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "wrongBuilder", Optional.empty(),
+                    PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(fieldId, menu, wrong), "Rejected menu builder").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(retained, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(saved.dartBytes(), Files.readAllBytes(fixture.dartPath()));
+            assertArrayEquals(saved.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+        }
+    }
+
+    @Test
+    void listViewItemExtentBuilderSaveReopenConflictResetAndHistoryPreserveChildren() throws Exception {
+        StableId listId = StableId.random(); var builder = new PropertyName("itemExtentBuilder"); var fixed = new PropertyName("itemExtent");
+        var extent = new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(48));
+        var changed = new PropertyValue.CallbackValue("_listChildChanged");
+        var field = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.material.TextField"),
+                Map.of(new PropertyName("onChanged"), changed), Map.of());
+        var label = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.Text"),
+                Map.of(new PropertyName("data"), new PropertyValue.StringValue("Keep child order")), Map.of());
+        var children = Map.<SlotName, WidgetSlot>of(new SlotName("children"), new WidgetSlot.ListSlot(List.of(field, label)));
+        var list = new WidgetNode(listId, new WidgetTypeId("flutter.widgets.ListView"),
+                Map.of(fixed, extent, new PropertyName("reverse"), new PropertyValue.BooleanValue(true)), children);
+        var provisional = new DesignerDocument(DOCUMENT_ID, descriptor("0".repeat(64), "0".repeat(64)), list);
+        var first = new DartRegionGenerator().generate(provisional, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        var exact = new DesignerDocument(DOCUMENT_ID, descriptor(first.imports().normalizedSha256(), first.build().normalizedSha256()), list);
+        var generated = new DartRegionGenerator().generate(exact, BuiltInWidgetCatalog.getDefault()).generated().orElseThrow();
+        String userImport = "import 'package:flutter/rendering.dart' as ext; // Keep this user import.\n";
+        String functions = "\ndouble? _listExtent(int index, ext.SliverLayoutDimensions dimensions) {\n"
+                + "  // User-owned extent body: Привіт. Null is only out of range.\n"
+                + "  return index >= 2 ? null : 40.0 + index * 8.0;\n}\n"
+                + "void _listChildChanged(String value) { /* Preserve this child event. */ }\n";
+        var codec = new FdDocumentCodec();
+        var initial = new ExactPair((userImport + source(generated) + functions).getBytes(StandardCharsets.UTF_8), codec.encode(exact).copyBytes());
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.empty(), "_listExtent", Optional.empty(),
+                PropertyValue.DartObjectReferenceValue.Access.REFERENCE, Optional.empty());
+        ExactPair savedReference;
+        try (MutationFixture fixture = fixture("list_extent_builder_lifecycle", initial)) {
+            var before = awaitReady(fixture.mutations()).document().orElseThrow();
+            byte[] beforeLive = fixture.editor().liveSnapshot().markerBearingUtf8(); byte[] beforeFd = codec.encode(before).copyBytes();
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(listId, builder, reference), "Builder conflicts with fixed item extent").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(beforeLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(beforeFd, codec.encode(awaitReady(fixture.mutations()).document().orElseThrow()).copyBytes());
+            assertArrayEquals(initial.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(initial.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(children, awaitReady(fixture.mutations()).document().orElseThrow().root().slots());
+            applyEventCommand(fixture, new ResetProperty(listId, fixed));
+            applyEventCommand(fixture, new SetProperty(listId, builder, reference));
+            byte[] created = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] createdFd = codec.encode(awaitReady(fixture.mutations()).document().orElseThrow()).copyBytes();
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations());
+            var undone = awaitReady(fixture.mutations()).document().orElseThrow().root();
+            assertFalse(undone.properties().containsKey(builder)); assertFalse(undone.properties().containsKey(fixed)); assertEquals(children, undone.slots());
+            onEdt(history::redo); awaitReady(fixture.mutations());
+            assertArrayEquals(created, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(createdFd, codec.encode(awaitReady(fixture.mutations()).document().orElseThrow()).copyBytes());
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            savedReference = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+            assertArrayEquals(created, savedReference.dartBytes());
+            assertTrue(new String(savedReference.dartBytes(), StandardCharsets.UTF_8).startsWith(userImport));
+            assertTrue(new String(savedReference.dartBytes(), StandardCharsets.UTF_8).endsWith(functions));
+        }
+        ExactPair savedNullAndFixed;
+        try (MutationFixture fixture = fixture("list_extent_builder_reopened", savedReference)) {
+            var restored = fixture.ready().document().orElseThrow().root(); assertEquals(reference, restored.properties().get(builder)); assertEquals(children, restored.slots());
+            assertEquals(new PropertyValue.BooleanValue(true), restored.properties().get(new PropertyName("reverse")));
+            byte[] beforeLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            byte[] beforeFd = codec.encode(awaitReady(fixture.mutations()).document().orElseThrow()).copyBytes();
+            var rejected = fixture.mutations().submit(awaitReady(fixture.mutations()).token().orElseThrow(),
+                    new SetProperty(listId, fixed, extent), "Fixed item extent conflicts with builder").get(10, TimeUnit.SECONDS);
+            assertEquals(FlutterDesignerMutationController.Outcome.REJECTED, rejected.outcome());
+            assertArrayEquals(beforeLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(beforeFd, codec.encode(awaitReady(fixture.mutations()).document().orElseThrow()).copyBytes());
+            assertArrayEquals(savedReference.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(savedReference.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            assertEquals(children, awaitReady(fixture.mutations()).document().orElseThrow().root().slots());
+            applyEventCommand(fixture, new SetProperty(listId, builder, new PropertyValue.NullValue()));
+            applyEventCommand(fixture, new SetProperty(listId, fixed, extent));
+            var nullable = awaitReady(fixture.mutations()).document().orElseThrow().root();
+            assertEquals(new PropertyValue.NullValue(), nullable.properties().get(builder)); assertEquals(extent, nullable.properties().get(fixed)); assertEquals(children, nullable.slots());
+            String live = new String(fixture.editor().liveSnapshot().markerBearingUtf8(), StandardCharsets.UTF_8);
+            assertTrue(live.contains("itemExtentBuilder: null")); assertTrue(live.endsWith(functions));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            savedNullAndFixed = new ExactPair(Files.readAllBytes(fixture.dartPath()), Files.readAllBytes(fixture.fdPath()));
+        }
+        try (MutationFixture fixture = fixture("list_extent_null_reopened", savedNullAndFixed)) {
+            var restored = fixture.ready().document().orElseThrow().root();
+            assertEquals(new PropertyValue.NullValue(), restored.properties().get(builder)); assertEquals(extent, restored.properties().get(fixed)); assertEquals(children, restored.slots());
+            byte[] nullableLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            applyEventCommand(fixture, new ResetProperty(listId, builder));
+            byte[] resetLive = fixture.editor().liveSnapshot().markerBearingUtf8();
+            var afterReset = awaitReady(fixture.mutations()).document().orElseThrow().root();
+            assertFalse(afterReset.properties().containsKey(builder)); assertEquals(extent, afterReset.properties().get(fixed)); assertEquals(children, afterReset.slots());
+            var history = fixture.dataObject().getCombinedUndoRedo();
+            onEdt(history::undo); awaitReady(fixture.mutations()); assertArrayEquals(nullableLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertEquals(new PropertyValue.NullValue(), awaitReady(fixture.mutations()).document().orElseThrow().root().properties().get(builder));
+            onEdt(history::redo); awaitReady(fixture.mutations()); assertArrayEquals(resetLive, fixture.editor().liveSnapshot().markerBearingUtf8());
+            assertArrayEquals(savedNullAndFixed.dartBytes(), Files.readAllBytes(fixture.dartPath())); assertArrayEquals(savedNullAndFixed.fdBytes(), Files.readAllBytes(fixture.fdPath()));
+            fixture.dataObject().getCookie(SaveCookie.class).save(); awaitReady(fixture.mutations());
+            assertArrayEquals(resetLive, Files.readAllBytes(fixture.dartPath()));
+            String reset = new String(resetLive, StandardCharsets.UTF_8); assertFalse(reset.contains("itemExtentBuilder:")); assertTrue(reset.startsWith(userImport)); assertTrue(reset.endsWith(functions));
+            assertEquals(children, awaitReady(fixture.mutations()).document().orElseThrow().root().slots());
+        }
+    }
+
+    private static void insertEventBody(MutationFixture fixture, String statement) throws Exception {
+        onEdt(() -> {
+            String text = fixture.document().getText(0, fixture.document().getLength());
+            int offset = text.indexOf("// TODO: Handle onDrawerChanged.");
+            assertTrue(offset >= 0);
+            fixture.document().insertString(offset, statement + "\n    ", null);
+        });
+    }
+
+    private static void applyEventCommand(MutationFixture fixture, DesignerCommand command) throws Exception {
+        var ready = awaitReady(fixture.mutations());
+        var result = fixture.mutations().submit(ready.token().orElseThrow(), command,
+                "Scaffold event integration").get(10, TimeUnit.SECONDS);
+        assertEquals(FlutterDesignerMutationController.Outcome.APPLIED, result.outcome(), result::reason);
+        awaitReady(fixture.mutations());
+    }
+
     private MutationFixture fixture(String name) throws Exception {
         return fixture(name, exactPair());
     }
@@ -18444,6 +20357,9 @@ class FlutterDesignerMutationControllerIntegrationTest {
             Files.writeString(core.resolve(typeName.toLowerCase(java.util.Locale.ROOT) + ".dart"),
                     "class " + typeName + " {}\n", StandardCharsets.UTF_8);
         }
+        // Duration evidence requires the exact existing SDK core file, not a generic framework target.
+        Files.writeString(core.resolve("duration.dart"),
+                "class Duration { const Duration({int microseconds = 0}); }\n", StandardCharsets.UTF_8);
         return new FakeSdk(
                 flutterRoot.toRealPath(),
                 dartExecutable.toRealPath(),
@@ -19581,7 +21497,8 @@ class FlutterDesignerMutationControllerIntegrationTest {
             return probe.expectedTargetRoot().resolve("bin/cache/dart-sdk/lib/core")
                     .resolve(probe.expectedSymbolName().toLowerCase(java.util.Locale.ROOT) + ".dart");
         }
-        return probe.expectedLibraryUri().startsWith("package:flutter/") ? flutterTarget : request.dartFile();
+        return probe.expectedLibraryUri().startsWith("package:flutter/")
+                || probe.expectedLibraryUri().equals("dart:ui") ? flutterTarget : request.dartFile();
     }
 
     private static DartCandidateAnalysisResult rejectedDiagnosticAnalysis(

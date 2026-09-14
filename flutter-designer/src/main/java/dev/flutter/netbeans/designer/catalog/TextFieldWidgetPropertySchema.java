@@ -12,15 +12,18 @@ import java.util.Optional;
  * Reviewed Designer projection of the stable scalar {@code TextField}
  * constructor surface in Flutter 3.44.8.
  *
- * <p>Controller, focus, formatter, decoration, style, builder, and other
+ * <p>Controller, focus, formatter, decoration, style and other
  * owner-managed graph values are deliberately outside this projection. The
  * flattened radius and scroll-padding leaves remain independently editable;
- * validation and Dart generation reassemble them into their Flutter values.</p>
+ * validation and Dart generation reassemble them into their Flutter values.
+ * Counter and context-menu builders use nullable typed project references.</p>
  */
 public final class TextFieldWidgetPropertySchema {
     public static final WidgetTypeId TEXT_FIELD_TYPE =
             new WidgetTypeId("flutter.material.TextField");
-    public static final int CONSTRUCTOR_PROPERTY_COUNT = 54;
+    public static final int CONSTRUCTOR_PROPERTY_COUNT = 56;
+    public static final String INPUT_COUNTER_BUILDER_TYPE = "InputCounterWidgetBuilder?";
+    public static final String CONTEXT_MENU_BUILDER_TYPE = "EditableTextContextMenuBuilder?";
 
     public enum Group {
         INPUT("textFieldInput", "Input",
@@ -34,7 +37,9 @@ public final class TextFieldWidgetPropertySchema {
         CALLBACKS("textFieldCallbacks", "Callbacks",
                 "Named handlers invoked for editing and pointer events."),
         RESTORATION("textFieldRestoration", "Restoration",
-                "Stable restoration metadata for framework-owned field state.");
+                "Stable restoration metadata for framework-owned field state."),
+        BUILDERS("textFieldBuilders", "Builders",
+                "Typed counter and context-menu builders; project code is not executed in Canvas.");
 
         private final String setName;
         private final String displayName;
@@ -108,7 +113,7 @@ public final class TextFieldWidgetPropertySchema {
         return find(name).map(value -> value.target() != Target.DIRECT).orElse(false);
     }
 
-    /** Returns the 54 reviewed leaves in pinned Flutter constructor order. */
+    /** Returns the 56 reviewed leaves, retaining all original persisted orders. */
     public static Map<String, Definition> definitions() {
         LinkedHashMap<String, Definition> values = new LinkedHashMap<>();
         int order = 0;
@@ -233,6 +238,10 @@ public final class TextFieldWidgetPropertySchema {
                 "Explicitly enable or disable inline platform predictions.", order++);
         add(values, "canRequestFocus", Group.BEHAVIOR, "Can request focus",
                 "Whether the runtime field may request primary focus.", order++);
+        add(values, "buildCounter", Group.BUILDERS, "Counter builder",
+                "Nullable InputCounterWidgetBuilder project reference or explicit null. Omission/null uses the default counter; a callback returning null hides the counter and its Semantics. Required named parameters are currentLength, maxLength (int?) and isFocused. Project code never runs in Canvas.", order++);
+        add(values, "contextMenuBuilder", Group.BUILDERS, "Context menu builder",
+                "Nullable EditableTextContextMenuBuilder project reference or explicit null. Omission uses the SDK menu; explicit null disables it. A non-null callback receives BuildContext and EditableTextState and returns a non-null Widget. Project code never runs in Canvas.", order++);
 
         if (values.size() != CONSTRUCTOR_PROPERTY_COUNT || order != CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(

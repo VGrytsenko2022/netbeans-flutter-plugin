@@ -27,6 +27,9 @@ public final class PropertyValueFormatter {
             case PropertyValue.IntegerValue integerValue -> integerValue.value().toString();
             case PropertyValue.DoubleValue doubleValue -> number(doubleValue.value());
             case PropertyValue.EnumValue enumValue -> enumValue.type() + '.' + enumValue.value();
+            case PropertyValue.PointerDeviceKindSetValue devices -> devices.values().stream()
+                    .map(device -> "PointerDeviceKind." + device.wireName())
+                    .collect(java.util.stream.Collectors.joining(", ", "<PointerDeviceKind>{", "}"));
             case PropertyValue.ColorValue colorValue -> colorValue.wireArgb();
             case PropertyValue.EdgeInsetsValue edgeInsets -> "left=" + number(edgeInsets.left())
                     + ", top=" + number(edgeInsets.top())

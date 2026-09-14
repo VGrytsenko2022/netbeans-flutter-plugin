@@ -28,7 +28,7 @@ public final class WidgetDefinition {
      * legitimately expose more than 256 independently resettable leaves; the
      * bound remains deliberately finite so contributed catalogs cannot turn a
      * validation pass into an unbounded allocation.
-     * Persisted values, validation and atomic edits retain independent 512 limits.
+     * Persisted values and validation permit 1024 properties per widget; atomic edits retain their independent 512 limit.
      */
     public static final int MAX_PROPERTIES = 1024;
     public static final int MAX_SLOTS = 128;

@@ -8,6 +8,7 @@ import dev.flutter.netbeans.designer.command.DesignerCommandSession;
 import dev.flutter.netbeans.designer.command.DesignerCommandSessionResult;
 import dev.flutter.netbeans.designer.command.DesignerCommandStatus;
 import dev.flutter.netbeans.designer.command.DesignerRevisionPersistenceKind;
+import dev.flutter.netbeans.designer.command.DesignerSourceRestage;
 import dev.flutter.netbeans.designer.pair.PreparedDesignerPair;
 import dev.flutter.netbeans.designer.source.DartSourceIntegrityResult;
 import dev.flutter.netbeans.designer.source.DartThreeWayIntegrityResult;
@@ -50,6 +51,7 @@ final class DesignerCommandSessionOrchestrator
     private PendingCommandLease activePendingTransition;
     private DurableSaveLease activeDurableSave;
     private SourceAnchorLease activeSourceAnchor;
+    private SourceRestageLease activeSourceRestage;
     private boolean operationRunning;
     private boolean closeRequested;
     private boolean closed;
@@ -446,6 +448,32 @@ final class DesignerCommandSessionOrchestrator
         return lease;
     }
 
+    /** Pins observed Source edits above an exact current physical pair, without a semantic Undo edge. */
+    SourceRestageLease beginSourceRestage(DesignerCommandRevision expectedRevision,
+            PreparedDesignerPair expectedPhysicalPair, byte[] observedDart) {
+        Objects.requireNonNull(expectedRevision, "expectedRevision");
+        Objects.requireNonNull(expectedPhysicalPair, "expectedPhysicalPair");
+        Objects.requireNonNull(observedDart, "observedDart");
+        SourceRestageLease lease;
+        synchronized (monitor) {
+            requireOpenLocked();
+            if (session.current() != expectedRevision) {
+                throw new StaleRevisionException("The selected Designer revision changed before Source restaging.");
+            }
+            beginOperationLocked();
+            try {
+                DesignerSourceRestage restage = session.prepareSourceRestage(expectedPhysicalPair, observedDart);
+                lease = new SourceRestageLease(this, session, restage);
+                activeSourceRestage = lease;
+            } catch (RuntimeException | Error failure) {
+                operationRunning = false;
+                throw failure;
+            }
+        }
+        fireChangeSafely();
+        return lease;
+    }
+
     @Override
     public boolean canUndo() {
         synchronized (monitor) {
@@ -516,7 +544,7 @@ final class DesignerCommandSessionOrchestrator
                 return;
             }
             if (activePendingTransition != null || activeDurableSave != null
-                    || activeSourceAnchor != null) {
+                    || activeSourceAnchor != null || activeSourceRestage != null) {
                 closeRequested = true;
                 return;
             }
@@ -1177,6 +1205,71 @@ final class DesignerCommandSessionOrchestrator
         }
     }
 
+    private void requireActiveSourceRestageLocked(SourceRestageLease lease) {
+        if (lease.owner != this || activeSourceRestage != lease || !operationRunning || closed
+                || lease.resolution != LeaseResolution.ACTIVE || session != lease.sessionIdentity
+                || session.current() != lease.restage.revision()) {
+            throw new IllegalStateException("The Source restage lease no longer owns its exact logical revision.");
+        }
+    }
+
+    private DeferredLeaseEffects adoptSourceRestage(SourceRestageLease lease,
+            PairSaveEvidence evidence, CloseAwareStagedPeerCommit peerCommitNoThrow, boolean allowPendingClose) {
+        Objects.requireNonNull(evidence, "evidence");
+        Objects.requireNonNull(peerCommitNoThrow, "peerCommitNoThrow");
+        boolean closeBinding;
+        synchronized (monitor) {
+            requireActiveSourceRestageLocked(lease);
+            if (closeRequested && !allowPendingClose) {
+                throw new IllegalStateException("The Designer is closing; Source restaging was not admitted.");
+            }
+            if (evidence.preparedPairIdentity() != lease.preparedPair()
+                    || evidence.analysisIdentity().status() != dev.flutter.netbeans.dart.DartCandidateAnalysisStatus.PASSED
+                    || !Arrays.equals(evidence.candidateDartBytes(), lease.physicalRevision().dartCandidateBytes())
+                    || !Arrays.equals(evidence.liveCandidateIdentity().markerBearingUtf8(), evidence.candidateDartBytes())) {
+                throw new IllegalArgumentException("Source restaging requires exact successful analyzer/live-candidate evidence.");
+            }
+            peerCommitNoThrow.commit(closeRequested);
+            session = lease.acceptedSession;
+            lease.resolution = LeaseResolution.ADOPTED;
+            activeSourceRestage = null;
+            operationRunning = false;
+            closeBinding = finishDeferredCloseLocked();
+        }
+        return new DeferredLeaseEffects(this, closeBinding);
+    }
+
+    private DeferredLeaseEffects abortSourceRestage(SourceRestageLease lease) {
+        synchronized (monitor) {
+            if (lease.resolution != LeaseResolution.ACTIVE) return DeferredLeaseEffects.none();
+            requireActiveSourceRestageLocked(lease);
+            lease.resolution = LeaseResolution.ABORTED;
+            activeSourceRestage = null;
+            operationRunning = false;
+            return new DeferredLeaseEffects(this, finishDeferredCloseLocked());
+        }
+    }
+
+    private DeferredLeaseEffects invalidateSourceRestage(SourceRestageLease lease) {
+        synchronized (monitor) {
+            if (lease.resolution == LeaseResolution.INVALIDATED) return DeferredLeaseEffects.none();
+            if (lease.resolution == LeaseResolution.ADOPTED) {
+                if (lease.owner != this || session != lease.acceptedSession || operationRunning) {
+                    throw new IllegalStateException("The accepted Source restage no longer owns its exact session.");
+                }
+            } else {
+                requireActiveSourceRestageLocked(lease);
+            }
+            lease.resolution = LeaseResolution.INVALIDATED;
+            activeSourceRestage = null;
+            operationRunning = false;
+            closeRequested = false;
+            boolean closeBinding = !closed;
+            closed = true;
+            return new DeferredLeaseEffects(this, closeBinding);
+        }
+    }
+
     private boolean finishDeferredCloseLocked() {
         if (!closeRequested) {
             return false;
@@ -1641,6 +1734,52 @@ final class DesignerCommandSessionOrchestrator
      * clone-safe evidence; this type performs no I/O and grants no write
      * authority.
      */
+    static final class SourceRestageLease implements AutoCloseable {
+        private final DesignerCommandSessionOrchestrator owner;
+        private final DesignerCommandSession sessionIdentity;
+        private final DesignerSourceRestage restage;
+        private final DesignerCommandSession acceptedSession;
+        private LeaseResolution resolution = LeaseResolution.ACTIVE;
+
+        private SourceRestageLease(DesignerCommandSessionOrchestrator owner, DesignerCommandSession session,
+                DesignerSourceRestage restage) {
+            this.owner = owner;
+            this.sessionIdentity = session;
+            this.restage = restage;
+            this.acceptedSession = session.acceptSourceRestage(restage);
+            if (acceptedSession.current() != session.current()
+                    || acceptedSession.cursor() != session.cursor()
+                    || acceptedSession.revisionCount() != session.revisionCount()) {
+                throw new IllegalArgumentException("A Source restage must not create or replace a semantic revision.");
+            }
+        }
+        DesignerCommandSessionOrchestrator owner() { return owner; }
+        DesignerCommandRevision revision() { return restage.revision(); }
+        DesignerCommandRevision physicalRevision() { return restage.physicalRevision(); }
+        PreparedDesignerPair preparedPair() { return restage.preparedPair(); }
+        PreparedDesignerPair predecessorPair() { return restage.predecessorPair(); }
+        long maxRetainedPairBytes() { return sessionIdentity.limits().maxRetainedPairBytes(); }
+        WidgetCatalog catalogIdentity() { return sessionIdentity.catalog(); }
+        boolean ownsExactActiveRevision() {
+            synchronized (owner.monitor) {
+                return owner.activeSourceRestage == this && resolution == LeaseResolution.ACTIVE
+                        && owner.operationRunning && !owner.closed && owner.session == sessionIdentity
+                        && owner.session.current() == revision();
+            }
+        }
+        DeferredLeaseEffects adoptAnalyzedDeferredEffects(PairSaveEvidence evidence, Runnable peerCommitNoThrow) {
+            Objects.requireNonNull(peerCommitNoThrow);
+            return owner.adoptSourceRestage(this, evidence, closing -> peerCommitNoThrow.run(), false);
+        }
+        DeferredLeaseEffects adoptAnalyzedCloseAwareDeferredEffects(PairSaveEvidence evidence,
+                CloseAwareStagedPeerCommit peerCommitNoThrow) {
+            return owner.adoptSourceRestage(this, evidence, peerCommitNoThrow, true);
+        }
+        DeferredLeaseEffects abortDeferredEffects() { return owner.abortSourceRestage(this); }
+        DeferredLeaseEffects invalidateDeferredEffects() { return owner.invalidateSourceRestage(this); }
+        @Override public void close() { abortDeferredEffects().publish(); }
+    }
+
     static final class DurableSaveLease implements AutoCloseable {
         private final DesignerCommandSessionOrchestrator owner;
         private final DesignerCommandSession sessionIdentity;

@@ -148,7 +148,7 @@ final class FlutterImagePropertyEditorComponents {
     private static final class ImageProviderPanel
             extends FlutterPropertyEditorComponents.CommitOnValidPanel {
         private static final String BASE_DESCRIPTION =
-                "Edits required Image.image with a declared Flutter asset and "
+                "Edits a required image provider with a declared Flutter asset and "
                 + "typed AssetImage, ExactAssetImage, or ResizeImage settings.";
         private final FlutterImageProviderEditorComponent providerEditor;
 
@@ -164,11 +164,12 @@ final class FlutterImagePropertyEditorComponents {
             setLayout(new BorderLayout());
             setName("flutter.image.imageProvider.custom");
             getAccessibleContext().setAccessibleName("Image image-provider editor");
-            getAccessibleContext().setAccessibleDescription(BASE_DESCRIPTION);
+            getAccessibleContext().setAccessibleDescription(binding.definition().name().value().equals("image")
+                    ? "Edits required Image.image. " + BASE_DESCRIPTION : BASE_DESCRIPTION);
 
             providerEditor = new FlutterImageProviderEditorComponent(
                     assetChoices(environment),
-                    "Image.image",
+                    binding.definition().name().value().equals("image") ? "Image.image" : "Image provider: " + binding.definition().name().value(),
                     FlutterImageProviderEditorComponent.DIRECT_PREFIX,
                     FlutterImageProviderEditorComponent.EmptySelectionPolicy
                             .PRESERVE_INITIAL_UNRESOLVED,
@@ -176,7 +177,7 @@ final class FlutterImagePropertyEditorComponents {
             PropertyValue.ImageProviderValue initial = initialValue().explicitValue()
                     .map(PropertyValue.ImageProviderValue.class::cast)
                     .orElseThrow(() -> new IllegalArgumentException(
-                    "Required Image.image has no explicit ImageProvider value."));
+                    "Required " + binding.definition().name().value() + " has no explicit ImageProvider value."));
             providerEditor.populate(initial);
             JScrollPane scroll = new JScrollPane(providerEditor);
             scroll.setBorder(null);

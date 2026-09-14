@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -85,6 +86,124 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
 
     @TempDir
     Path temporaryDirectory;
+
+    @Test
+    void tooltipWrapToolbarPreservesEarlierActionsAndRechecksUnavailableInvocation() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY); var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_TOOLTIP_ACTION_KEY); assertNotNull(wrap); assertEquals("Wrap with Tooltip", wrap.getValue(Action.NAME)); assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation()); JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance).map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with Tooltip", button.getAccessibleContext().getAccessibleName()); assertEquals(FlutterDesignerMultiViewDesign.WRAP_TOOLTIP_ACTION_KEY, button.getName());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test")); assertFalse(wrap.isEnabled()); assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+            for (String key : List.of(FlutterDesignerMultiViewDesign.WRAP_NOTIFICATION_LISTENER_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_FOCUS_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_MOUSE_REGION_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY)) {
+                Action earlier = visual.getActionMap().get(key); assertNotNull(earlier); assertNotSame(wrap, earlier); assertFalse(earlier.isEnabled());
+            }
+        });
+    }
+
+    @Test
+    void notificationWrapToolbarPreservesEarlierActionsAndRechecksUnavailableInvocation() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_NOTIFICATION_LISTENER_ACTION_KEY);
+            assertNotNull(wrap); assertEquals("Wrap with NotificationListener", wrap.getValue(Action.NAME)); assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation());
+            JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with NotificationListener", button.getAccessibleContext().getAccessibleName());
+            assertEquals(FlutterDesignerMultiViewDesign.WRAP_NOTIFICATION_LISTENER_ACTION_KEY, button.getName());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test"));
+            assertFalse(wrap.isEnabled()); assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+            for (String key : List.of(FlutterDesignerMultiViewDesign.WRAP_FOCUS_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_MOUSE_REGION_ACTION_KEY,
+                    FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY)) {
+                Action earlier = visual.getActionMap().get(key); assertNotNull(earlier); assertNotSame(wrap, earlier); assertFalse(earlier.isEnabled());
+            }
+        });
+    }
+
+    @Test
+    void focusWrapToolbarPreservesEarlierActionsAndRechecksUnavailableInvocation() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_FOCUS_ACTION_KEY);
+            assertNotNull(wrap); assertEquals("Wrap with Focus", wrap.getValue(Action.NAME)); assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation());
+            JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with Focus", button.getAccessibleContext().getAccessibleName());
+            assertEquals(FlutterDesignerMultiViewDesign.WRAP_FOCUS_ACTION_KEY, button.getName());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test"));
+            assertFalse(wrap.isEnabled()); assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+            for (String key : List.of(FlutterDesignerMultiViewDesign.WRAP_MOUSE_REGION_ACTION_KEY,
+                    FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY, FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY)) {
+                Action earlier = visual.getActionMap().get(key); assertNotNull(earlier); assertNotSame(wrap, earlier); assertFalse(earlier.isEnabled());
+            }
+        });
+    }
+
+    @Test
+    void mouseRegionWrapToolbarKeepsBothEarlierActionsAndRejectsUnavailableInvocation() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_MOUSE_REGION_ACTION_KEY);
+            Action listener = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY);
+            Action gesture = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY);
+            assertNotNull(wrap); assertNotNull(listener); assertNotNull(gesture);
+            assertFalse(wrap == listener || wrap == gesture);
+            assertEquals("Wrap with MouseRegion", wrap.getValue(Action.NAME)); assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation());
+            JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with MouseRegion", button.getAccessibleContext().getAccessibleName());
+            assertEquals(FlutterDesignerMultiViewDesign.WRAP_MOUSE_REGION_ACTION_KEY, button.getName());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test"));
+            assertFalse(wrap.isEnabled()); assertFalse(listener.isEnabled()); assertFalse(gesture.isEnabled());
+            assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+        });
+    }
+
+    @Test
+    void listenerWrapToolbarPreservesTheGestureActionAndRechecksDisabledInvocation() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY);
+            Action gesture = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY);
+            assertNotNull(wrap); assertNotNull(gesture); assertFalse(wrap == gesture);
+            assertEquals("Wrap with Listener", wrap.getValue(Action.NAME)); assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation());
+            JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with Listener", button.getAccessibleContext().getAccessibleName());
+            assertEquals(FlutterDesignerMultiViewDesign.WRAP_LISTENER_ACTION_KEY, button.getName());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test"));
+            assertFalse(wrap.isEnabled()); assertFalse(gesture.isEnabled());
+            assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+        });
+    }
+
+    @Test
+    void gestureWrapToolbarActionIsNamedAndUnavailableWithoutAnExactWritableSelection() throws Exception {
+        SwingUtilities.invokeAndWait(() -> {
+            var design = new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            var visual = assertInstanceOf(JComponent.class, design.getVisualRepresentation());
+            Action wrap = visual.getActionMap().get(FlutterDesignerMultiViewDesign.WRAP_GESTURE_DETECTOR_ACTION_KEY);
+            assertNotNull(wrap);
+            assertEquals("Wrap with GestureDetector", wrap.getValue(Action.NAME));
+            assertFalse(wrap.isEnabled());
+            var toolbar = assertInstanceOf(JToolBar.class, design.getToolbarRepresentation());
+            JButton button = java.util.Arrays.stream(toolbar.getComponents()).filter(JButton.class::isInstance)
+                    .map(JButton.class::cast).filter(value -> value.getAction() == wrap).findFirst().orElseThrow();
+            assertEquals("Wrap with GestureDetector", button.getAccessibleContext().getAccessibleName());
+            assertFalse(button.isEnabled());
+            wrap.actionPerformed(new ActionEvent(button, ActionEvent.ACTION_PERFORMED, "test"));
+            assertFalse(wrap.isEnabled(), "Direct programmatic invocation must also recheck admission.");
+            assertSame(Node.EMPTY, design.getExplorerManager().getRootContext());
+        });
+    }
 
     @Test
     void distinguishesSwingControlsFromTheNativeCanvasFocusSubtree() {
@@ -518,6 +637,68 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
     }
 
     @Test
+    void exposesOrientationControlOnlyForMobileAndTabletPreviews()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JToolBar toolbar = assertInstanceOf(
+                    JToolBar.class, design.getToolbarRepresentation());
+            JButton rotate = findNamedOrNull(
+                    toolbar, JButton.class, "Rotate Flutter Canvas preview");
+            assertNotNull(rotate, "The preview orientation control must be discoverable");
+            assertTrue(rotate.isEnabled(),
+                    "The default mobile preview must allow orientation switching");
+            assertTrue(rotate.getToolTipText().contains("landscape"));
+            rotate.doClick();
+            assertTrue(rotate.getToolTipText().contains("portrait"),
+                    "The control must advertise the opposite orientation after rotation");
+
+            JComboBox<?> previewSelector = findByType(toolbar, JComboBox.class);
+            previewSelector.setSelectedIndex(4); // Windows Desktop
+            assertFalse(rotate.isEnabled(),
+                    "Desktop previews must not expose device orientation switching");
+            previewSelector.setSelectedIndex(0); // Android Phone
+            assertTrue(rotate.isEnabled(),
+                    "Mobile previews must restore orientation switching");
+        });
+    }
+
+    @Test
+    void presentsRotateAndWrapperActionsAsIconOnlyToolbarButtons()
+            throws Exception {
+        onEdt(() -> {
+            FlutterDesignerMultiViewDesign design =
+                    new FlutterDesignerMultiViewDesign(Lookup.EMPTY);
+            JToolBar toolbar = assertInstanceOf(
+                    JToolBar.class, design.getToolbarRepresentation());
+            for (String accessibleName : List.of(
+                    "Rotate Flutter Canvas preview",
+                    "Wrap with GestureDetector",
+                    "Wrap with Listener",
+                    "Wrap with MouseRegion",
+                    "Wrap with Focus",
+                    "Wrap with NotificationListener",
+                    "Wrap with Tooltip")) {
+                JButton button = findNamedOrNull(
+                        toolbar, JButton.class, accessibleName);
+                assertNotNull(button, "Missing toolbar action: " + accessibleName);
+                assertNull(button.getText(),
+                        "Toolbar action must not render its long action name: "
+                        + accessibleName);
+                assertTrue(button.getHideActionText(),
+                        "Toolbar action must be configured as icon-only: "
+                        + accessibleName);
+                if (accessibleName.startsWith("Rotate ")) {
+                    assertTrue(button.getToolTipText().startsWith("Rotate preview to "));
+                } else {
+                    assertEquals(accessibleName, button.getToolTipText());
+                }
+            }
+        });
+    }
+
+    @Test
     void rejectsDisabledOrNonFocusableRetainedSwingTargets() {
         JPanel designRoot = new JPanel();
         JPanel toolbar = new JPanel();
@@ -773,6 +954,28 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.RadioGroup",
                     "flutter.material.ListTile",
                     "flutter.material.CheckboxListTile",
+                    "flutter.material.SwitchListTile",
+                    "flutter.material.RadioListTile",
+                    "flutter.material.ExpansionTile",
+                    "flutter.material.Tooltip",
+                    "flutter.material.TooltipVisibility",
+                    "flutter.material.TooltipTheme",
+                    "flutter.material.MenuItemButton",
+                    "flutter.material.MenuAnchor",
+                    "flutter.material.SubmenuButton",
+                    "flutter.material.MenuBar",
+                    "flutter.material.NavigationBar",
+                    "flutter.material.NavigationRail",
+                    "flutter.material.NavigationDrawer",
+                    "flutter.material.Drawer",
+                    "flutter.material.BottomAppBar",
+                    "flutter.material.BottomNavigationBar",
+                    "flutter.material.Material",
+                    "flutter.material.Scrollbar",
+                    "flutter.material.SliverAppBar",
+                    "flutter.material.SliverAppBar.medium",
+                    "flutter.material.SliverAppBar.large",
+            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon",
                     "flutter.widgets.Column",
                     "flutter.widgets.Row",
                     "flutter.widgets.Wrap",
@@ -801,23 +1004,54 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.SizedOverflowBox",
                     "flutter.widgets.Transform",
                     "flutter.widgets.RotatedBox",
+                    "flutter.widgets.PreferredSize",
                     "flutter.widgets.ListBody",
                     "flutter.widgets.OverflowBar",
-                    "flutter.widgets.SafeArea",
+                    "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition",
                     "flutter.widgets.ListView",
                     dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema
                             .GRID_VIEW_COUNT_TYPE.value(),
+                    dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema
+                            .GRID_VIEW_EXTENT_TYPE.value(),
                     dev.flutter.netbeans.designer.catalog
                             .SingleChildScrollViewWidgetPropertySchema
                             .SINGLE_CHILD_SCROLL_VIEW_TYPE.value(),
+                    dev.flutter.netbeans.designer.catalog
+                            .PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.value(),
+                    dev.flutter.netbeans.designer.catalog
+                            .ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE.value(),
+                    dev.flutter.netbeans.designer.catalog
+                            .CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE.value(),
+                    dev.flutter.netbeans.designer.catalog
+                            .SliverToBoxAdapterWidgetPropertySchema.SLIVER_TO_BOX_ADAPTER_TYPE.value(),
+                    "flutter.widgets.SliverList",
+                    "flutter.widgets.SliverGrid",
+                    "flutter.widgets.SliverGrid.extent",
+                "flutter.widgets.SliverList.builder",
+                "flutter.widgets.SliverList.separated",
+                "flutter.widgets.SliverList.delegate",
+                "flutter.widgets.SliverGrid.builder",
+                "flutter.widgets.SliverGrid.list",
+                "flutter.widgets.SliverGrid.delegate",
+                "flutter.widgets.SliverPadding",
+                "flutter.widgets.SliverFillRemaining",
+                "flutter.widgets.SliverFillViewport", "flutter.widgets.SliverFillViewport.delegate", "flutter.widgets.SliverFixedExtentList", "flutter.widgets.SliverFixedExtentList.builder", "flutter.widgets.SliverFixedExtentList.delegate", "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverPrototypeExtentList.delegate",
+                "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.SliverVariedExtentList.delegate", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverCrossAxisExpanded", "flutter.widgets.SliverConstrainedCrossAxis", "flutter.widgets.SliverOpacity", "flutter.widgets.SliverIgnorePointer", "flutter.widgets.SliverOffstage", "flutter.widgets.SliverVisibility", "flutter.widgets.SliverVisibility.maintain", "flutter.widgets.SliverSafeArea", "flutter.widgets.SliverAnimatedOpacity",
+                    "flutter.widgets.SliverLayoutBuilder",
+                    "flutter.widgets.SliverPersistentHeader",
+                    "flutter.widgets.SliverResizingHeader",
+                    "flutter.widgets.PinnedHeaderSliver",
+                    "flutter.widgets.SliverFloatingHeader",
+                    "flutter.widgets.DeviceOrientationBuilder.sliver", "flutter.widgets.ListenableBuilder.sliver", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.ValueListenableBuilder.sliver", "flutter.widgets.TweenAnimationBuilder.sliver", "flutter.widgets.SliverFadeTransition",
                     "flutter.widgets.Text",
                     "flutter.widgets.Icon",
                     "flutter.widgets.Image",
                     "flutter.widgets.ColoredBox",
-                    "flutter.widgets.Placeholder",
-                    "flutter.widgets.Directionality",
-                    "flutter.widgets.DecoratedBox",
-                    "flutter.widgets.ClipRect",
+                     "flutter.widgets.Placeholder",
+                     "flutter.widgets.Directionality",
+                     "flutter.widgets.DecoratedBox",
+                     "flutter.widgets.Builder",
+                     "flutter.widgets.ClipRect",
                     "flutter.widgets.ClipOval",
                     "flutter.widgets.ClipRRect",
                     "flutter.widgets.ClipPath",
@@ -833,12 +1067,19 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.DefaultSelectionStyle",
                     "flutter.widgets.IconTheme",
                     "flutter.widgets.ImageIcon",
+                    "flutter.widgets.DefaultTextStyle",
+                    "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
                     "flutter.widgets.ExcludeSemantics",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",
                     "flutter.widgets.IndexedSemantics",
                     "flutter.widgets.ExcludeFocus",
-                    "flutter.widgets.ExcludeFocusTraversal"),
+                    "flutter.widgets.ExcludeFocusTraversal",
+                    "flutter.widgets.GestureDetector",
+                    "flutter.widgets.Listener",
+                    "flutter.widgets.MouseRegion",
+                    "flutter.widgets.Focus",
+                    "flutter.widgets.NotificationListener"),
                     java.util.Arrays.stream(paletteRoot.getChildren().getNodes(true))
                             .flatMap(category -> java.util.Arrays.stream(
                                     category.getChildren().getNodes(true)))
@@ -1052,6 +1293,18 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                 () -> { allocations.incrementAndGet(); return expectedId; });
         assertEquals(expectedId, replacement.id()); assertEquals(definition.typeId(), replacement.type());
         assertEquals(Map.of(new PropertyName("variant"), new PropertyValue.StringValue("material")), replacement.properties()); assertTrue(replacement.slots().isEmpty()); assertEquals(1, allocations.get());
+    }
+
+    @Test
+    void expansionTileReplacementPrototypeLeavesRequiredTitleForAtomicWrapAndNeverInventsExpandedChildren() {
+        var definition = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.ExpansionTile")).orElseThrow();
+        var expectedId = StableId.parse("dabc453b-e6cc-4e45-87e9-48e77436f859"); var allocations = new AtomicInteger();
+        var prototype = FlutterDesignerMultiViewDesign.createSlotReplacementPrototype(definition, FlutterImageAssetChoices.empty(), () -> { allocations.incrementAndGet(); return expectedId; });
+        assertEquals(expectedId, prototype.id()); assertEquals(definition.typeId(), prototype.type()); assertEquals(1, allocations.get()); assertTrue(prototype.properties().isEmpty());
+        assertEquals(5, prototype.slots().size());
+        for (String slot : List.of("title", "leading", "subtitle", "trailing")) assertTrue(((dev.flutter.netbeans.designer.model.WidgetSlot.SingleSlot) prototype.slots().get(new dev.flutter.netbeans.designer.model.SlotName(slot))).child().isEmpty());
+        assertTrue(((dev.flutter.netbeans.designer.model.WidgetSlot.ListSlot) prototype.slots().get(new dev.flutter.netbeans.designer.model.SlotName("children"))).children().isEmpty());
+        assertEquals("title", dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition).orElseThrow().name().value());
     }
 
     @Test
@@ -2391,12 +2644,12 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
             FdDecodeResult.UnsupportedNewer future = assertInstanceOf(
                     FdDecodeResult.UnsupportedNewer.class,
                     codec.decode(("{\"format\":\"netbeans-flutter-designer\","
-                            + "\"schemaVersion\":14}")
+                            + "\"schemaVersion\":17}")
                             .getBytes(StandardCharsets.UTF_8)));
             publish(design, new FlutterDesignerDocumentState.UnsupportedNewer(future));
             assertEquals("Flutter Designer model opened read-only.",
                     status.getAccessibleContext().getAccessibleDescription());
-            assertEquals("Schema version 14 is newer than supported version 13.",
+            assertEquals("Schema version 17 is newer than supported version 16.",
                     detail.getAccessibleContext().getAccessibleDescription());
             assertFalse(progress.isVisible());
 

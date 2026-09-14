@@ -42,7 +42,7 @@ class ListViewWidgetPropertySchemaTest {
                         "addSemanticIndexes", "scrollCacheExtent",
                         "semanticChildCount", "dragStartBehavior",
                         "keyboardDismissBehavior", "restorationId",
-                        "clipBehavior", "hitTestBehavior"),
+                        "clipBehavior", "hitTestBehavior", "itemExtentBuilder"),
                 definition.properties().stream()
                         .map(property -> property.name().value()).toList());
         assertEquals(ListViewWidgetPropertySchema.definitions().keySet().stream().toList(),

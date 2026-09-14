@@ -28,6 +28,7 @@ public enum PropertyValueKind {
     BORDER_RADIUS("borderRadius"),
     SHAPE_BORDER_CLIPPER("shapeBorderClipper"),
     BOX_DECORATION("boxDecoration"),
+    POINTER_DEVICE_KIND_SET("pointerDeviceKindSet"),
     NULL("null");
 
     private final String wireName;

@@ -101,7 +101,7 @@ public class TextButtonPropertyContractTest {
             assertThrows(IllegalArgumentException.class, () -> editor.setAsText("() => rawCode()"));
         }
         var old = BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.material.ElevatedButton")).orElseThrow();
-        assertEquals(286, old.properties().size());
+        assertEquals(288, old.properties().size());
         var callback = FlutterTypedPropertyEditors.binding(old.properties().stream().filter(p -> p.name().value().equals("onPressed")).findFirst().orElseThrow()).orElseThrow();
         assertEquals(FlutterTypedPropertyEditors.EditorKind.CALLBACK, callback.editorKind());
         for (String type : List.of("flutter.material.ElevatedButton", "flutter.material.RefreshIndicator")) {

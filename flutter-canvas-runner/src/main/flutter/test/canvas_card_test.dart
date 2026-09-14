@@ -99,7 +99,7 @@ void main() {
         );
       }
       expect(reviewedLines.length, runtimeLines.length);
-      expect(canvasModelProtocolVersion, 18);
+      expect(canvasModelProtocolVersion, 19);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), false);
       expect(canvasWidgetTraitsForType(_type), isEmpty);
       expect(canvasDropSlotsForWidgetType(_type).single.slotName, 'child');

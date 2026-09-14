@@ -8,6 +8,8 @@ import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetCatalog;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetPlacementRules;
@@ -449,7 +451,7 @@ public final class FlutterDesignerWidgetMovePlanner {
         int remaining = childCount(modelSlot) - 1;
         int minimum = sourceSlot.name().value().equals("child") && (FilledButtonWidgetPropertySchema.requiresChild(sourceParent.node())
                 || FloatingActionButtonWidgetPropertySchema.requiresChild(sourceParent.node()))
-                || sourceSlot.name().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()))
+                || sourceSlot.name().value().equals("subtitle") && (ListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()) || CheckboxListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()) || SwitchListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()) || RadioListTileWidgetPropertySchema.requiresSubtitle(sourceParent.node()))
                 ? 1 : sourceSlot.minChildren();
         if (remaining < minimum) {
             return rejected(

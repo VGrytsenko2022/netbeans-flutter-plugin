@@ -13,15 +13,17 @@ import java.util.Optional;
  * Reviewed Designer projection of the static {@code ListView} constructor
  * surface in Flutter 3.44.8.
  *
- * <p>Controller-owned state, builders, {@code prototypeItem}, and the
+ * <p>Controller-owned state, dynamic-child constructors, {@code prototypeItem}, and the
  * deprecated {@code cacheExtent} are deliberately excluded. The Designer's
  * numeric {@code scrollCacheExtent} is emitted through the current
- * {@code ScrollCacheExtent.pixels} value object.</p>
+ * {@code ScrollCacheExtent.pixels} value object. The static constructor's
+ * item-extent builder uses a nullable typed project reference.</p>
  */
 public final class ListViewWidgetPropertySchema {
     public static final WidgetTypeId LIST_VIEW_TYPE =
             new WidgetTypeId("flutter.widgets.ListView");
-    public static final int CONSTRUCTOR_PROPERTY_COUNT = 17;
+    public static final int CONSTRUCTOR_PROPERTY_COUNT = 18;
+    public static final String ITEM_EXTENT_BUILDER_TYPE = "ItemExtentBuilder?";
     public static final int SLOT_COUNT = 1;
     public static final List<String> PHYSICS_PRESETS = List.of(
             "alwaysScrollable",
@@ -35,7 +37,7 @@ public final class ListViewWidgetPropertySchema {
         SCROLLING("listViewScrolling", "Scrolling",
                 "Axis, direction, primary-controller policy, physics, and drag behavior."),
         LAYOUT("listViewLayout", "Layout",
-                "Shrink wrapping, padding, fixed item extent, and clipping."),
+                "Shrink wrapping, padding, fixed or callback-driven item extent, and clipping."),
         CACHING("listViewCaching", "Caching and children",
                 "Child lifecycle, repaint boundaries, semantic indexes, and cache extent."),
         SEMANTICS("listViewSemantics", "Semantics",
@@ -107,7 +109,7 @@ public final class ListViewWidgetPropertySchema {
         return find(name).map(value -> value.target() != Target.DIRECT).orElse(false);
     }
 
-    /** Returns the seventeen reviewed leaves in constructor argument order. */
+    /** Returns eighteen reviewed leaves while retaining the original argument orders. */
     public static Map<String, Definition> definitions() {
         LinkedHashMap<String, Definition> values = new LinkedHashMap<>();
         int order = 0;
@@ -126,7 +128,7 @@ public final class ListViewWidgetPropertySchema {
         add(values, "padding", Group.LAYOUT, "Padding",
                 "Non-negative insets around the ordered child list.", order++);
         add(values, "itemExtent", Group.LAYOUT, "Item extent",
-                "Finite non-negative logical-pixel extent forced on every child.", order++);
+                "Finite non-negative logical-pixel extent forced on every child. Cannot be combined with an item extent builder reference; reset one explicitly.", order++);
         add(values, "addAutomaticKeepAlives", Group.CACHING, "Automatic keep-alives",
                 "Whether the child delegate wraps children in AutomaticKeepAlive widgets.",
                 order++);
@@ -151,6 +153,8 @@ public final class ListViewWidgetPropertySchema {
                 "How content outside the viewport is clipped.", order++);
         add(values, "hitTestBehavior", Group.SEMANTICS, "Hit-test behavior",
                 "Whether the scrollable is opaque or translucent to pointer hit testing.", order++);
+        add(values, "itemExtentBuilder", Group.LAYOUT, "Item extent builder",
+                "Nullable ItemExtentBuilder project reference or explicit null. Receives the child index and SliverLayoutDimensions; provide a valid double extent for every actual child and null for an out-of-range index. A null result does not request default sizing or truncate existing children. An omitted/null callback uses normal child sizing, or itemExtent when configured. A reference cannot coexist with itemExtent, even when its callback may be null; reset itemExtent or set this builder to explicit null. Project code never runs in Canvas.", order++);
         if (values.size() != CONSTRUCTOR_PROPERTY_COUNT) {
             throw new ExceptionInInitializerError(
                     "ListView schema must expose exactly " + CONSTRUCTOR_PROPERTY_COUNT

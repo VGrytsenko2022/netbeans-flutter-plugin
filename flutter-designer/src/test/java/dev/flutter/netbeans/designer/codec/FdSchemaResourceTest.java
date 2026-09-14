@@ -336,7 +336,6 @@ class FdSchemaResourceTest {
         try (InputStream input = FdSchemas.openV13()) { packaged = input.readAllBytes(); }
         assertArrayEquals(Files.readAllBytes(findRepositoryFile(
                 Path.of("docs", "flutter-designer", "fd-v13.schema.json"))), packaged);
-        assertArrayEquals(packaged, loadCurrentSchema());
         String schema = new String(packaged, StandardCharsets.UTF_8);
         assertFalse(schema.contains("\r"));
         assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:13"));
@@ -345,6 +344,64 @@ class FdSchemaResourceTest {
         for (String shape : java.util.List.of("roundedRectangle", "beveledRectangle", "continuousRectangle",
                 "roundedSuperellipse", "circle", "stadium")) { assertTrue(schema.contains(shape)); }
         assertFalse(new String(loadPackagedV12Schema(), StandardCharsets.UTF_8).contains("shapeBorderClipperValue"));
+    }
+
+    @Test
+    void packagesCanonicalV14StateBindingsWithoutChangingFrozenV13() throws IOException {
+        byte[] packaged;
+        try (InputStream input = FdSchemas.openV14()) { packaged = input.readAllBytes(); }
+        assertArrayEquals(Files.readAllBytes(findRepositoryFile(
+                Path.of("docs", "flutter-designer", "fd-v14.schema.json"))), packaged);
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:14"));
+        assertTrue(schema.contains("\"const\": 14"));
+        assertTrue(schema.contains("\"stateBinding\""));
+        assertTrue(schema.contains("\"previousOnChanged\""));
+        assertTrue(schema.contains("\"referenceType\""));
+        assertTrue(schema.contains("\"nullableReference\""));
+        try (InputStream input = FdSchemas.openV13()) {
+            assertFalse(new String(input.readAllBytes(), StandardCharsets.UTF_8).contains("stateBinding"));
+        }
+    }
+
+    @Test
+    void packagesCanonicalV15StateProjectionsWithoutChangingFrozenV14() throws IOException {
+        byte[] packaged;
+        try (InputStream input = FdSchemas.openV15()) { packaged = input.readAllBytes(); }
+        assertArrayEquals(Files.readAllBytes(findRepositoryFile(
+                Path.of("docs", "flutter-designer", "fd-v15.schema.json"))), packaged);
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:15"));
+        assertTrue(schema.contains("\"const\": 15"));
+        assertTrue(schema.contains("\"propertyBindings\""));
+        assertTrue(schema.contains("\"comparisonValue\""));
+        assertTrue(schema.contains("\"textController\""));
+        try (InputStream input = FdSchemas.openV14()) {
+            assertFalse(new String(input.readAllBytes(), StandardCharsets.UTF_8).contains("propertyBindings"));
+        }
+    }
+
+    @Test
+    void packagesCanonicalV16PointerDeviceSetsWithoutChangingFrozenSchemas() throws IOException {
+        byte[] packaged;
+        try (InputStream input = FdSchemas.openV16()) { packaged = input.readAllBytes(); }
+        assertArrayEquals(Files.readAllBytes(findRepositoryFile(
+                Path.of("docs", "flutter-designer", "fd-v16.schema.json"))), packaged);
+        assertArrayEquals(packaged, loadCurrentSchema());
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:16"));
+        assertTrue(schema.contains("\"const\": 16"));
+        assertTrue(schema.contains("\"pointerDeviceKindSetValue\""));
+        assertTrue(schema.contains("\"uniqueItems\": true"));
+        for (String kind : java.util.List.of("touch", "mouse", "stylus", "invertedStylus", "trackpad", "unknown")) {
+            assertTrue(schema.contains("\"" + kind + "\""));
+        }
+        try (InputStream input = FdSchemas.openV15()) {
+            assertFalse(new String(input.readAllBytes(), StandardCharsets.UTF_8).contains("pointerDeviceKindSet"));
+        }
     }
 
     private static byte[] loadPackagedV1Schema() throws IOException {

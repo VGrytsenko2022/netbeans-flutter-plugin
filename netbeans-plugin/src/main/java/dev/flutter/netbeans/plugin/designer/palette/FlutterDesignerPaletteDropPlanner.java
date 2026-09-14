@@ -467,7 +467,7 @@ public final class FlutterDesignerPaletteDropPlanner {
                     + concreteMessage(invalidDefinition) + '.');
         }
         return new Wrapped(new WrapWidget(
-                target.id(), wrapper, WidgetPlacementRules.requiredAnyWidgetWrapperSlot(sourceDefinition).orElseThrow().name(), 0));
+                target.id(), wrapper, WidgetPlacementRules.requiredWrapperSlot(sourceDefinition).orElseThrow().name(), 0));
     }
 
     private static Optional<WidgetNode> existingChild(
@@ -493,7 +493,7 @@ public final class FlutterDesignerPaletteDropPlanner {
             WidgetDefinition wrapperDefinition,
             WidgetNode target) {
         Optional<SlotDefinition> childSlotLookup =
-                WidgetPlacementRules.requiredAnyWidgetWrapperSlot(wrapperDefinition);
+                WidgetPlacementRules.requiredWrapperSlot(wrapperDefinition);
         if (childSlotLookup.isEmpty()) {
             return Optional.of(rejected(
                     RejectionCode.CATALOG_DEFINITION_MISMATCH,

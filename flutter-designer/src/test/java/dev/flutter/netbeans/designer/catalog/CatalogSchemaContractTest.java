@@ -17,7 +17,7 @@ class CatalogSchemaContractTest {
                 "themeToken",
                 "paint", "shadowList", "fontFeatureList", "fontVariationList",
                 "alignmentGeometry", "offset", "size", "boxConstraints", "matrix4", "imageProvider",
-                "borderRadius", "shapeBorderClipper", "boxDecoration", "null"),
+                "borderRadius", "shapeBorderClipper", "boxDecoration", "pointerDeviceKindSet", "null"),
                 List.of(PropertyValueKind.values()).stream().map(PropertyValueKind::wireName).toList());
     }
 

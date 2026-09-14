@@ -16,7 +16,13 @@ public class RadioGroupPropertyContractTest {
 
     @Test void fourStableCellsAndRequiredChildKeepExactTypedEditsAndResets() throws Exception {
         var initial = prototype(); var commands = new ArrayList<DesignerCommand>(); var node = node(initial, commands); var sets = node.getPropertySets();
-        assertEquals(4, DEF.properties().size()); assertEquals(3, sets.length); assertTrue(DEF.constConstructor());
+        assertEquals(4, DEF.properties().size()); assertTrue(DEF.constConstructor());
+        assertEquals(Set.of(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME, RadioGroupWidgetPropertySchema.Group.BEHAVIOR.setName(),
+                FlutterWidgetPropertiesNode.SLOTS_SET_NAME, FlutterWidgetPropertiesNode.EVENTS_SET_NAME),
+                Arrays.stream(sets).map(Node.PropertySet::getName).collect(java.util.stream.Collectors.toSet()));
+        assertEquals(4, sets.length);
+        var eventRows = Arrays.stream(sets).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
+        assertEquals(List.of("onChanged"), Arrays.stream(eventRows.getProperties()).map(Node.Property::getName).toList());
         assertEquals(Map.of(p("valueType"), new PropertyValue.StringValue("String"), p("onChanged"), new PropertyValue.StringValue("noop")), initial.properties());
         assertEquals("child", WidgetPlacementRules.requiredAnyWidgetWrapperSlot(DEF).orElseThrow().name().value());
         assertEquals(1, DEF.slots().getFirst().minChildren());

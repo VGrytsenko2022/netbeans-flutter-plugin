@@ -14,6 +14,11 @@ import dev.flutter.netbeans.designer.catalog.DecoratedBoxWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.DirectionalityWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ExcludeSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IgnorePointerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GestureDetectorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListenerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MouseRegionWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.FocusWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.AbsorbPointerWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BlockSemanticsWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedSemanticsWidgetPropertySchema;
@@ -30,6 +35,7 @@ import dev.flutter.netbeans.designer.catalog.VerticalDividerWidgetPropertySchema
 import dev.flutter.netbeans.designer.catalog.CardWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CheckboxListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SwitchListTileWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.BadgeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.CircleAvatarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.LinearProgressIndicatorWidgetPropertySchema;
@@ -38,6 +44,18 @@ import dev.flutter.netbeans.designer.catalog.RefreshProgressIndicatorWidgetPrope
 import dev.flutter.netbeans.designer.catalog.RefreshIndicatorWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ElevatedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuItemButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuAnchorWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SubmenuButtonWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MenuBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationRailWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.NavigationDrawerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DrawerWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BottomAppBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BottomNavigationBarWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.MaterialWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ScrollbarWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.OutlinedButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FilledButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconButtonWidgetPropertySchema;
@@ -46,6 +64,11 @@ import dev.flutter.netbeans.designer.catalog.SwitchWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RangeSliderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.RadioListTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipVisibilityWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.TooltipThemeWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.RadioGroupWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.FloatingActionButtonWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ContainerWidgetPropertySchema;
@@ -55,18 +78,30 @@ import dev.flutter.netbeans.designer.catalog.SafeAreaWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SlotDefinition;
 import dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.TextWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.AnimatedDefaultTextStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextStyleWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.DefaultTextStyleTransitionWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IconWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.GridViewCountWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.GridViewExtentWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.IndexedStackWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.PlaceholderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.SingleChildScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PageViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.ListWheelScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.CustomScrollViewWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.SliverChildrenWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.PreferredSizeWidgetPropertySchema;
+import dev.flutter.netbeans.designer.catalog.BuilderWidgetPropertySchema;
 import dev.flutter.netbeans.designer.catalog.WidgetDefinition;
 import dev.flutter.netbeans.designer.catalog.WidgetCapability;
 import dev.flutter.netbeans.designer.command.DesignerCommand;
 import dev.flutter.netbeans.designer.command.PatchProperties;
 import dev.flutter.netbeans.designer.command.ResetProperty;
 import dev.flutter.netbeans.designer.command.SetProperty;
+import dev.flutter.netbeans.designer.events.WidgetEventCatalog;
+import dev.flutter.netbeans.designer.events.WidgetEventDescriptor;
 import dev.flutter.netbeans.designer.model.PropertyName;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.ColorSource;
@@ -99,7 +134,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     public static final String IDENTITY_SET_NAME = "identity";
     public static final String PROPERTIES_SET_NAME = Sheet.PROPERTIES;
     public static final String SLOTS_SET_NAME = "slots";
-    public static final String GENERAL_TAB_NAME = "General";
+    public static final String EVENTS_SET_NAME = "events";
+    public static final String GENERAL_TAB_NAME = "Properties";
+    public static final String EVENTS_TAB_NAME = "Events";
     public static final String SLOTS_TAB_NAME = "Slots";
     static final String TAB_NAME_ATTRIBUTE = "tabName";
     public static final String STABLE_ID_PROPERTY_NAME = "stableId";
@@ -206,7 +243,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     private final boolean slotMutationProjection;
     private final WidgetNode widget;
     private final WidgetDefinition definition;
+    private final java.util.List<WidgetEventDescriptor> events;
     private volatile Presentation presentation;
+    private volatile FlutterWidgetEventsContext eventsContext;
 
     private record Presentation(
             WidgetNode widget,
@@ -345,6 +384,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         this.slotMutationProjection = slotMutationHandler != null;
         this.widget = widget;
         this.definition = definition;
+        this.events = WidgetEventCatalog.eventsFor(definition).stream()
+                .filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).toList();
         this.presentation = new Presentation(
                 widget,
                 definition,
@@ -421,6 +462,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
 
         Presentation previousPresentation = presentation;
+        // An open event editor belongs to exactly one revision. The owner
+        // installs new operation authority after refreshing the stable node.
+        eventsContext = null;
         WidgetNode previousWidget = previousPresentation.widget();
         Presentation nextPresentation = new Presentation(
                 nextWidget,
@@ -451,7 +495,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         for (PropertyDefinition property : definition.properties()) {
             PropertyValue previous = previousWidget.properties().get(property.name());
             PropertyValue next = nextWidget.properties().get(property.name());
-            if (!Objects.equals(previous, next)) {
+            if (!Objects.equals(previous, next)
+                    || inactiveFocusProperty(previousWidget, property.name()) != inactiveFocusProperty(nextWidget, property.name())
+                    || inactiveSwitchTileProperty(previousWidget, property.name()) != inactiveSwitchTileProperty(nextWidget, property.name())
+                    || inactiveRadioTileProperty(previousWidget, property.name()) != inactiveRadioTileProperty(nextWidget, property.name())
+                    || requiredExternalFocusNode(previousWidget, property.name()) != requiredExternalFocusNode(nextWidget, property.name())
+                    || isNotificationCallback(nextWidget, property.name()) && !Objects.equals(
+                            previousWidget.properties().get(new PropertyName("notificationType")), nextWidget.properties().get(new PropertyName("notificationType")))
+                    || !Objects.equals(previousWidget.propertyBindings().get(property.name()), nextWidget.propertyBindings().get(property.name()))
+                    || !previousWidget.stateBinding().equals(nextWidget.stateBinding())
+                    && (dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.isBoundPreview(previousWidget, property.name())
+                    || dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.isBoundPreview(nextWidget, property.name()))) {
                 firePropertyChange(property.name().value(), null, null);
             }
         }
@@ -462,6 +516,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 firePropertyChange(slot.name().value(), null, null);
             }
         }
+        if (!Objects.equals(previousWidget.properties().get(new PropertyName("enabled")),
+                nextWidget.properties().get(new PropertyName("enabled")))) {
+            fireEventRowChanges();
+        }
+    }
+
+    /** Rebinds Events actions without replacing property sets or row identities. */
+    public void updateEventsContext(FlutterWidgetEventsContext nextContext) {
+        if (eventsContext != nextContext) {
+            eventsContext = nextContext;
+            fireEventRowChanges();
+        }
+    }
+
+    private void fireEventRowChanges() {
+        events.forEach(event -> firePropertyChange(event.propertyName().value(), null, null));
     }
 
     private void updateLookupContent(Presentation current) {
@@ -521,10 +591,79 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
         if (ScaffoldWidgetPropertySchema.SCAFFOLD_TYPE.equals(widget.type())) {
             addScaffoldPropertySets(sheet, hasSlotTab);
+        } else if (dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set = propertySet("theme", "Theme", dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            var field = dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.FIELDS.getFirst();
+            var property = definition.property(new PropertyName(field.name())).orElseThrow();
+            set.put(projectProperty(property, Optional.empty(), field.label(), field.description(), false,
+                    dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.PRESETS));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set=propertySet("animatedTheme","Theme animation",dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.DESCRIPTION);
+            assignTab(set,hasSlotTab?GENERAL_TAB_NAME:null);
+            for(var field:dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.FIELDS){
+                var property=definition.property(new PropertyName(field.name())).orElseThrow();
+                set.put(projectProperty(property,Optional.empty(),field.label(),field.description(),false,
+                    field.name().equals("curve")?ExpansionTileWidgetPropertySchema.curvePresets():field.name().equals("data")?dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.PRESETS:java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set=propertySet("animatedPhysicalModel","Physical animation",dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.DESCRIPTION);
+            assignTab(set,hasSlotTab?GENERAL_TAB_NAME:null);
+            for(var field:dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.FIELDS){
+                var property=definition.property(new PropertyName(field.name())).orElseThrow();
+                set.put(projectProperty(property,Optional.empty(),field.label(),field.description(),false,
+                    field.name().equals("curve")?ExpansionTileWidgetPropertySchema.curvePresets():java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (DefaultTextStyleWidgetPropertySchema.sharesTextProjection(widget.type())) {
+            var sets = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var property : definition.properties()) {
+                var binding = TextWidgetPropertySchema.find(property.name()).orElse(null);
+                boolean animated = AnimatedDefaultTextStyleWidgetPropertySchema.TYPE.equals(widget.type());
+                boolean transition = DefaultTextStyleTransitionWidgetPropertySchema.TYPE.equals(widget.type());
+                String key = binding == null ? (animated ? "animation" : "defaultTextStyle") : binding.group().setName();
+                var set = sets.computeIfAbsent(key, ignored -> {
+                    var created = propertySet(key, binding == null ? (animated ? "Style and animation" : "Default text style") : binding.group().displayName(),
+                            transition ? DefaultTextStyleTransitionWidgetPropertySchema.DESCRIPTION : animated ? AnimatedDefaultTextStyleWidgetPropertySchema.DESCRIPTION : DefaultTextStyleWidgetPropertySchema.description(widget.type()));
+                    assignTab(created, hasSlotTab ? GENERAL_TAB_NAME : null); return created;
+                });
+                String name = property.name().value();
+                String label = binding == null ? switch(name) {
+                    case "style" -> transition ? "Style animation" : "Style source";
+                    case "durationUs" -> "Duration (microseconds)";
+                    case "onEnd" -> "On end";
+                    case "textHeightBehavior" -> "Text height behavior";
+                    default -> "Curve";
+                } : binding.displayName();
+                set.put(projectProperty(property, Optional.empty(), label, transition ? DefaultTextStyleTransitionWidgetPropertySchema.help(property.name()) : animated ? AnimatedDefaultTextStyleWidgetPropertySchema.help(property.name()) : DefaultTextStyleWidgetPropertySchema.help(widget.type(), property.name()), false,
+                    name.equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : name.equals("style") ? java.util.List.of("local") : java.util.List.of()));
+            }
+            sets.values().forEach(sheet::put);
         } else if (TextWidgetPropertySchema.TEXT_TYPE.equals(widget.type())) {
             addTextPropertySets(sheet, hasSlotTab);
         } else if (IconWidgetPropertySchema.ICON_TYPE.equals(widget.type())) {
             addIconPropertySets(sheet, hasSlotTab);
+        } else if (dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarSettingsWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set = propertySet("flexibleSpaceBarSettingsProperties", "Flexible space settings", dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarSettingsWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarSettingsWidgetPropertySchema.FIELDS) {
+                var property = definition.property(new PropertyName(field.name())).orElseThrow();
+                set.put(projectProperty(property, Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set = propertySet("flexibleSpaceBarProperties", "Flexible space", dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.FIELDS) {
+                var property = definition.property(new PropertyName(field.name())).orElseThrow();
+                set.put(projectProperty(property, Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("stretchModes") ? dev.flutter.netbeans.designer.catalog.FlexibleSpaceBarWidgetPropertySchema.STRETCH_PRESETS : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(widget.type())) {
+            addSliverAppBarPropertySets(sheet, hasSlotTab);
         } else if (AppBarWidgetPropertySchema.APP_BAR_TYPE.equals(widget.type())) {
             addAppBarPropertySets(sheet, hasSlotTab);
         } else if (ElevatedButtonWidgetPropertySchema.ELEVATED_BUTTON_TYPE.equals(
@@ -532,14 +671,50 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addElevatedButtonPropertySets(sheet, hasSlotTab);
         } else if (TextButtonWidgetPropertySchema.TEXT_BUTTON_TYPE.equals(widget.type())) {
             addTextButtonPropertySets(sheet, hasSlotTab);
-        } else if (OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(widget.type())) {
+        } else if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(widget.type())) {
+            addMenuItemButtonPropertySets(sheet, hasSlotTab);
+        } else if (MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.equals(widget.type())) {
+            addMenuAnchorPropertySets(sheet, hasSlotTab);
+        } else if (SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(widget.type())) {
+            addSubmenuButtonPropertySets(sheet, hasSlotTab);
+        } else if (MenuBarWidgetPropertySchema.MENU_BAR_TYPE.equals(widget.type())) {
+            addMenuBarPropertySets(sheet, hasSlotTab);
+        } else if (NavigationBarWidgetPropertySchema.NAVIGATION_BAR_TYPE.equals(widget.type())) {
+            addNavigationBarPropertySets(sheet, hasSlotTab);
+        } else if (NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE.equals(widget.type())) {
+            addNavigationRailPropertySets(sheet, hasSlotTab);
+        } else if (NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE.equals(widget.type())) {
+            addNavigationDrawerPropertySets(sheet, hasSlotTab);
+        } else if (DrawerWidgetPropertySchema.DRAWER_TYPE.equals(widget.type())) {
+            addDrawerPropertySets(sheet, hasSlotTab);
+        } else if (BottomAppBarWidgetPropertySchema.BOTTOM_APP_BAR_TYPE.equals(widget.type())) {
+            addBottomAppBarPropertySets(sheet, hasSlotTab);
+        } else if (BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE.equals(widget.type())) {
+            addBottomNavigationBarPropertySets(sheet, hasSlotTab);
+      } else if (MaterialWidgetPropertySchema.MATERIAL_TYPE.equals(widget.type())) {
+          addMaterialPropertySets(sheet, hasSlotTab);
+      } else if (ScrollbarWidgetPropertySchema.SCROLLBAR_TYPE.equals(widget.type())) {
+          addScrollbarPropertySets(sheet, hasSlotTab);
+      } else if (OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(widget.type())) {
             addOutlinedButtonPropertySets(sheet, hasSlotTab);
         } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type())) {
             addIconButtonPropertySets(sheet, hasSlotTab);
         } else if (RadioWidgetPropertySchema.RADIO_TYPE.equals(widget.type())) {
             addRadioPropertySets(sheet, hasSlotTab);
+        } else if (RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(widget.type())) {
+            addRadioListTilePropertySets(sheet, hasSlotTab);
+        } else if (ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE.equals(widget.type())) {
+            addExpansionTilePropertySets(sheet, hasSlotTab);
+        } else if (TooltipWidgetPropertySchema.TOOLTIP_TYPE.equals(widget.type())) {
+            addTooltipPropertySets(sheet, hasSlotTab);
+        } else if (TooltipVisibilityWidgetPropertySchema.TOOLTIP_VISIBILITY_TYPE.equals(widget.type())) {
+            addTooltipVisibilityPropertySets(sheet, hasSlotTab);
+        } else if (TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE.equals(widget.type())) {
+            addTooltipThemePropertySets(sheet, hasSlotTab);
         } else if (CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.equals(widget.type())) {
             addCheckboxListTilePropertySets(sheet, hasSlotTab);
+        } else if (SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE.equals(widget.type())) {
+            addSwitchListTilePropertySets(sheet, hasSlotTab);
         } else if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(widget.type())) {
             addListTilePropertySets(sheet, hasSlotTab);
         } else if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) {
@@ -563,9 +738,466 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         } else if (GridViewCountWidgetPropertySchema.GRID_VIEW_COUNT_TYPE.equals(
                 widget.type())) {
             addGridViewCountPropertySets(sheet, hasSlotTab);
+        } else if (GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.equals(
+                widget.type())) {
+            addGridViewExtentPropertySets(sheet, hasSlotTab);
         } else if (SingleChildScrollViewWidgetPropertySchema
                 .SINGLE_CHILD_SCROLL_VIEW_TYPE.equals(widget.type())) {
             addSingleChildScrollViewPropertySets(sheet, hasSlotTab);
+        } else if (PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.equals(widget.type())) {
+            addPageViewPropertySets(sheet, hasSlotTab);
+        } else if (ListWheelScrollViewWidgetPropertySchema.LIST_WHEEL_SCROLL_VIEW_TYPE.equals(widget.type())) {
+            addListWheelScrollViewPropertySets(sheet, hasSlotTab);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(widget.type()).isPresent()) {
+            var kind = dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(widget.type()).orElseThrow();
+            Sheet.Set set = propertySet("sliverPrototypeExtentList", "Prototype-sized children", "Native prototype-measured list, builder or delegate.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.fields(kind)) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(), Optional.empty(),
+                        field.displayName(), dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.description(field),
+                        false, field.presets()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.find(widget.type()).isPresent()) {
+            var kind = dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.find(widget.type()).orElseThrow();
+            Sheet.Set set = propertySet("sliverFixedExtentList", "Fixed-extent children", "Native fixed-extent list, builder or delegate.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.fields(kind)) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(), Optional.empty(),
+                        field.displayName(), dev.flutter.netbeans.designer.catalog.SliverFixedExtentListWidgetPropertySchema.description(field),
+                        false, field.presets()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.find(widget.type()).isPresent()) {
+            var kind = dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.find(widget.type()).orElseThrow();
+            Sheet.Set set = propertySet("sliverVariedExtentList", "Variable-extent children", "Native variable-extent list, builder or delegate.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.fields(kind)) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(), Optional.empty(),
+                        field.displayName(), dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.description(field),
+                        false, field.presets()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.TYPES.contains(widget.type())) {
+            Sheet.Set set = propertySet("sliverFillViewport", "Viewport and children", "Native viewport-sized sliver children.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.fields(widget.type())) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        dev.flutter.netbeans.designer.catalog.SliverFillViewportWidgetPropertySchema.presets(field.name())));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.find(widget.type()).isPresent()) {
+            addDynamicSliverPropertySet(sheet, hasSlotTab);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverPaddingWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverPadding", "Sliver padding", "Insets and optional nested sliver.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("padding")).orElseThrow(), Optional.empty(),
+                    "Padding", dev.flutter.netbeans.designer.catalog.SliverPaddingWidgetPropertySchema.DESCRIPTION));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverConstrainedCrossAxis", "Cross-axis layout", "Maximum sliver cross-axis extent.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("maxExtent")).orElseThrow(), Optional.empty(),
+                    "Max extent", dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.DESCRIPTION));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverCrossAxisExpanded", "Cross-axis layout", "Proportional sliver cross-axis allocation.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("flex")).orElseThrow(), Optional.empty(),
+                    "Flex", dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.DESCRIPTION));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.supports(widget.type())) {
+            boolean maintain = dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.MAINTAIN_TYPE.equals(widget.type());
+            Sheet.Set set = propertySet("sliverVisibility", "Visibility", dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.DESCRIPTION
+                    + (maintain ? " The maintain constructor fixes all five maintenance flags to true, including semantics and pointer interaction." : ""));
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.fields(maintain)) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var set = propertySet("sliverFloatingHeader", "Floating header", dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.FIELDS) {
+                var presets = field.name().equals("animationStyle") ? java.util.List.of("noAnimation")
+                        : field.name().endsWith("Curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.<String>of();
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false, presets));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverPersistentHeader", "Persistent header",
+                    dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("layoutBuilder", "Layout builder",
+                    dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION,
+                    false, java.util.List.of("empty")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("orientationBuilder", "Orientation builder",
+                    dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.DESCRIPTION,
+                    false, java.util.List.of("empty")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type())) {
+            String description = dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.description(widget.type());
+            Sheet.Set set = propertySet("valueListenableBuilder", "Value listenable builder", description);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (String name : java.util.List.of("valueType", "nullableValueType", "valueListenable", "builder")) {
+                String label = switch (name) { case "valueType" -> "Value type"; case "nullableValueType" -> "Nullable value type";
+                    case "valueListenable" -> "Value listenable"; default -> "Builder"; };
+                set.put(projectProperty(definition.property(new PropertyName(name)).orElseThrow(),
+                        Optional.empty(), label, description, false,
+                        name.equals("valueListenable") ? java.util.List.of("constant") : name.equals("builder") ? java.util.List.of("child") : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type())) {
+            String description = dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.description(widget.type());
+            Sheet.Set set = propertySet("tweenAnimationBuilder", "Tween animation builder", description);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (String name : java.util.List.of("valueType", "nullableValueType", "tween", "builder", "durationUs", "curve", "onEnd")) {
+                String label = switch (name) { case "valueType" -> "Value type"; case "nullableValueType" -> "Nullable value type";
+                    case "tween" -> "Tween"; case "durationUs" -> "Duration (microseconds)"; case "curve" -> "Curve"; case "onEnd" -> "On end"; default -> "Builder"; };
+                set.put(projectProperty(definition.property(new PropertyName(name)).orElseThrow(),
+                        Optional.empty(), label, description, false,
+                        name.equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : name.equals("tween") ? java.util.List.of("default") : name.equals("builder") ? java.util.List.of("child") : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.supports(widget.type())) {
+            String description = dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.description(widget.type());
+            Sheet.Set set = propertySet("animatedBuilder", "Animated builder", description);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("animation")).orElseThrow(),
+                    Optional.empty(), "Animation", description, false, java.util.List.of("none")));
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", description, false, java.util.List.of("child")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.supports(widget.type())) {
+            String description = dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.description(widget.type());
+            Sheet.Set set = propertySet("listenableBuilder", "Listenable builder", description);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("listenable")).orElseThrow(),
+                    Optional.empty(), "Listenable", description, false, java.util.List.of("none")));
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", description, false, java.util.List.of("child")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.supports(widget.type())) {
+            Sheet.Set set = propertySet("deviceOrientationBuilder", "Device orientation builder",
+                    dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.description(widget.type()));
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.description(widget.type()),
+                    false, java.util.List.of("empty")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverLayoutBuilder", "Layout builder",
+                    dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("builder")).orElseThrow(),
+                    Optional.empty(), "Builder", dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.DESCRIPTION,
+                    false, java.util.List.of("empty")));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedSlide", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedScale", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(widget.type())) {
+            Sheet.Set set = propertySet("animatedPositioned", "Position and animation",
+                    dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.description(widget.type()));
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.fields(widget.type())) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets()
+                            : field.name().equals("rect") ? java.util.List.of("local") : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedSize", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedContainer", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedRotation", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedPadding", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedAlign", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedFractionallySizedBox", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedCrossFade", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().endsWith("Curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedSwitcher", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().endsWith("Curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("rotationTransition", "Animation", dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("positionedTransition", "Animation", dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("rect") ? java.util.List.of("local") : java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("decoratedBoxTransition", "Animation", dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("alignTransition", "Animation", dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Image", "Layout", "Appearance")) {
+                Sheet.Set set = propertySet("rawImage" + group, group, dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
+                sheet.put(set);
+            }
+        } else if (dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Images", "Animation", "Appearance", "Layout", "Accessibility")) {
+                Sheet.Set set = propertySet("fadeInImage" + group, group, dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, field.name().endsWith("Curve") ? dev.flutter.netbeans.designer.catalog.ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+                sheet.put(set);
+            }
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Icon", "Appearance", "Accessibility")) {
+                Sheet.Set set = propertySet("animatedIcon" + group, group, dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, field.name().equals("icon") ? dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.ICONS : java.util.List.of()));
+                sheet.put(set);
+            }
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Appearance", "Behavior", "Semantics", "Events")) {
+                Sheet.Set set = propertySet("animatedModalBarrier" + group, group, dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
+                sheet.put(set);
+            }
+        } else if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Appearance", "Behavior", "Semantics", "Events")) {
+                Sheet.Set set = propertySet("modalBarrier" + group, group, dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
+                sheet.put(set);
+            }
+        } else if (dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("matrixTransition", "Animation", dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("relativePositionedTransition", "Animation", dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("rect") ? java.util.List.of("local", "null")
+                            : field.name().equals("size") ? java.util.List.of("local") : java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sizeTransition", "Animation", dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("scaleTransition", "Animation", dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("slideTransition", "Animation", dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.supports(widget.type())) {
+            Sheet.Set set = propertySet("fadeTransition", "Animation", dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("animatedOpacity", "Animation", dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverAnimatedOpacity", "Animation", dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false,
+                        field.name().equals("curve") ? ExpansionTileWidgetPropertySchema.curvePresets() : java.util.List.of()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverSafeArea", "Safe area", dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverOffstage", "Visibility", dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverIgnorePointer", "Pointer behavior", dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverOpacity", "Transparency", dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverOpacityWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.SliverFillRemainingWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("sliverFillRemaining", "Remaining space", "Native viewport filling and overscroll behavior.");
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.SliverFillRemainingWidgetPropertySchema.FIELDS) {
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description()));
+            }
+            sheet.put(set);
+        } else if (SliverChildrenWidgetPropertySchema.TYPES.contains(widget.type())) {
+            addSliverChildrenPropertySet(sheet, hasSlotTab);
+        } else if (CustomScrollViewWidgetPropertySchema.CUSTOM_SCROLL_VIEW_TYPE.equals(widget.type())) {
+            addCustomScrollViewPropertySets(sheet, hasSlotTab);
+        } else if (PreferredSizeWidgetPropertySchema.PREFERRED_SIZE_TYPE.equals(widget.type())) {
+            addPreferredSizePropertySets(sheet, hasSlotTab);
+        } else if (BuilderWidgetPropertySchema.BUILDER_TYPE.equals(widget.type())) {
+            addBuilderPropertySets(sheet, hasSlotTab);
         } else if (ColoredBoxWidgetPropertySchema.COLORED_BOX_TYPE.equals(
                 widget.type())) {
             addColoredBoxPropertySets(sheet, hasSlotTab);
@@ -583,6 +1215,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             addDecoratedBoxPropertySets(sheet, hasSlotTab);
         } else if (IgnorePointerWidgetPropertySchema.IGNORE_POINTER_TYPE.equals(widget.type())) {
             addIgnorePointerPropertySets(sheet, hasSlotTab);
+        } else if (GestureDetectorWidgetPropertySchema.GESTURE_DETECTOR_TYPE.equals(widget.type())) {
+            addGestureDetectorPropertySets(sheet, hasSlotTab);
+        } else if (ListenerWidgetPropertySchema.LISTENER_TYPE.equals(widget.type())) {
+            addListenerPropertySets(sheet, hasSlotTab);
+        } else if (MouseRegionWidgetPropertySchema.MOUSE_REGION_TYPE.equals(widget.type())) {
+            addMouseRegionPropertySets(sheet, hasSlotTab);
+        } else if (FocusWidgetPropertySchema.FOCUS_TYPE.equals(widget.type())) {
+            addFocusPropertySets(sheet, hasSlotTab);
+        } else if (NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE.equals(widget.type())) {
+            addNotificationListenerPropertySets(sheet, hasSlotTab);
         } else if (AbsorbPointerWidgetPropertySchema.ABSORB_POINTER_TYPE.equals(widget.type())) {
             addAbsorbPointerPropertySets(sheet, hasSlotTab);
         } else if (ExcludeFocusWidgetPropertySchema.EXCLUDE_FOCUS_TYPE.equals(widget.type())) {
@@ -656,12 +1298,38 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             assignTab(properties, hasSlotTab ? GENERAL_TAB_NAME : null);
             sheet.put(properties);
         }
+        addEventsPropertySet(sheet);
         if (hasSlotTab) {
             Sheet.Set slots = createSlotsPropertySet();
             assignTab(slots, SLOTS_TAB_NAME);
             sheet.put(slots);
         }
         return sheet;
+    }
+
+    private void addEventsPropertySet(Sheet sheet) {
+        if (events.isEmpty()) return;
+        Sheet.Set eventSet = propertySet(EVENTS_SET_NAME, "Events",
+                "Typed event callback bindings. Handler bodies remain in the Dart source; each event retains its declared signature and unset behavior.");
+        for (WidgetEventDescriptor event : events) {
+            for (Node.PropertySet set : sheet.toArray()) {
+                Sheet.Set group = (Sheet.Set) set;
+                Node.Property<?> row = group.remove(event.propertyName().value());
+                if (row != null) {
+                    row.setValue("eventSignature", event.signature().toString());
+                    row.setValue("eventUnsetBehavior", event.unsetBehavior());
+                    eventSet.put(row);
+                    break;
+                }
+            }
+        }
+        for (Node.PropertySet set : sheet.toArray()) {
+            Sheet.Set group = (Sheet.Set) set;
+            if (group.getProperties().length == 0) sheet.remove(group.getName());
+            else assignTab(group, GENERAL_TAB_NAME);
+        }
+        assignTab(eventSet, EVENTS_TAB_NAME);
+        sheet.put(eventSet);
     }
 
     private static void assignTab(Sheet.Set set, String tabName) {
@@ -811,6 +1479,127 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             case WidgetSlot.SingleSlot single -> single.child().isPresent() ? 1 : 0;
             case WidgetSlot.ListSlot list -> list.children().size();
         };
+        if (dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.CHILD_DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.PinnedHeaderSliverWidgetSchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.PinnedHeaderSliverWidgetSchema.CHILD_DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverResizingHeaderWidgetSchema.slotDescription(slot.name().value());
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverPrototypeExtentListWidgetPropertySchema.find(widget.type()).isPresent()
+                && slot.name().value().equals("prototypeItem")) {
+            return "Measurement-only box widget: the SDK lays it out but does not paint it or accept input. "
+                    + "Edit it through the widget tree or Slots. Empty uses the explicit Designer SizedBox(48 x 48) preset, not null or an SDK default. "
+                    + "Add, replace, move or clear the prototype independently of visible children; content and identities are preserved.";
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverMainAxisGroupWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverMainAxisGroupWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverCrossAxisGroupWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverCrossAxisGroupWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverConstrainedCrossAxisWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverCrossAxisExpandedWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverIgnorePointerWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.supports(widget.type())) {
+            return slot.name().value().equals("replacementSliver")
+                    ? "Optional replacement Sliver, shown only when Visible=false and Maintain state=false. Empty or unset uses SliverToBoxAdapter(). Hidden/inactive branches remain editable in the tree. The maintain constructor never displays replacement."
+                    : dev.flutter.netbeans.designer.catalog.SliverVisibilityWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.description(widget.type());
+        }
+        if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.description(widget.type());
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedBuilderWidgetPropertySchema.description(widget.type());
+        }
+        if (dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.ListenableBuilderWidgetPropertySchema.description(widget.type());
+        }
+        if (dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.DeviceOrientationBuilderWidgetPropertySchema.description(widget.type());
+        }
+        if (dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.OrientationBuilderWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverLayoutBuilderWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedSlideWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedScaleWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedPhysicalModelWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedCrossFadeWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedFractionallySizedBoxWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RotationTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.SizeTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ScaleTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.SlideTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.DESCRIPTION;
+        if (DefaultTextStyleTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return DefaultTextStyleTransitionWidgetPropertySchema.DESCRIPTION;
+        if (DefaultTextStyleWidgetPropertySchema.supports(widget.type())) return DefaultTextStyleWidgetPropertySchema.description(widget.type());
+        if (AnimatedDefaultTextStyleWidgetPropertySchema.TYPE.equals(widget.type())) return AnimatedDefaultTextStyleWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(widget.type()))
+            return dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.description(widget.type());
+        if (dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedSizeWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedRotationWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.AnimatedOpacityWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverSafeAreaWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SliverOffstageWidgetPropertySchema.DESCRIPTION;
+        }
         String maximum = Integer.toString(slot.maxChildren());
         String cardinality = slot.cardinality() == SlotCardinality.SINGLE
                 ? "single-widget" : "ordered widget-list";
@@ -826,6 +1615,41 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             + "Move or clear a populated Icon before selecting Standard or Tonal; no widget is silently removed."
                     : "Child is optional for Standard and Tonal (an empty Child emits child: null), but required as Label for Icon and Tonal icon. "
                             + "Replace a required Label atomically; it cannot be removed, cleared or moved out. Constructor changes retain its stable identity.";
+        }
+        if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(widget.type())) {
+            return "Optional " + displayName(slot.name().value()) + " for MenuItemButton. Child, Leading icon and Trailing icon can independently be empty, added, moved, replaced or cleared. "
+                    + "The SDK's Child parameter is nullable despite its constructor comment. Style, shortcuts, callbacks and the other two slot identities are preserved. Occupancy: " + count + "/" + maximum + "; minimum: 0.";
+        }
+        if (SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(widget.type())) {
+            return "SubmenuButton " + displayName(slot.name().value()) + ". Child is a required nullable argument: empty emits child: null. "
+                    + "Menu children is a required list that may be empty; an empty list disables the native opener. Leading icon and Trailing icon are optional. "
+                    + "The native button opens its submenu itself; no On pressed or builder template is needed. Slot edits preserve the other slots and widget IDs.";
+        }
+        if (NavigationRailWidgetPropertySchema.NAVIGATION_RAIL_TYPE.equals(widget.type())) {
+            return switch (slot.name().value()) {
+                case "destinations" -> "Required ordered destination widget list. Flutter accepts an empty list while the rail is assembled; selectedIndex remains nullable and destination order is preserved through DnD, Save/reopen and Undo/Redo.";
+                case "leading", "trailing" -> "Optional " + displayName(slot.name().value()) + " widget for NavigationRail. It can be added, replaced, moved or cleared independently of destinations and the other edge slot.";
+                default -> "NavigationRail widget slot. Add, move, replace or clear the child atomically.";
+            };
+        }
+        if (NavigationDrawerWidgetPropertySchema.NAVIGATION_DRAWER_TYPE.equals(widget.type())) {
+            return switch (slot.name().value()) {
+                case "children" -> "Required ordered NavigationDrawer destination widget list. The model permits an empty list while the drawer is assembled; each child is emitted as a deterministic NavigationDrawerDestination in generated Dart and Canvas. Selection and order are preserved through DnD, Save/reopen and Undo/Redo.";
+                case "header", "footer" -> "Optional " + displayName(slot.name().value()) + " widget for NavigationDrawer. It can be added, replaced, moved or cleared independently of the destination list and the other edge slot.";
+                default -> "NavigationDrawer widget slot. Add, move, replace or clear the child atomically.";
+            };
+        }
+        if (DrawerWidgetPropertySchema.DRAWER_TYPE.equals(widget.type())) {
+            return "Optional Drawer child widget. It can be added, replaced, moved or cleared independently of the drawer properties. The child identity is preserved through DnD, Save/reopen and Undo/Redo.";
+        }
+        if (BottomAppBarWidgetPropertySchema.BOTTOM_APP_BAR_TYPE.equals(widget.type())) {
+            return "Optional BottomAppBar child widget. It can be added, replaced, moved or cleared independently of the bar properties. The child identity is preserved through DnD, Save/reopen and Undo/Redo.";
+        }
+        if (BottomNavigationBarWidgetPropertySchema.BOTTOM_NAVIGATION_BAR_TYPE.equals(widget.type())) {
+            return "Required ordered BottomNavigationBar item widget list. The model permits an empty list while the bar is assembled; generated Dart emits deterministic BottomNavigationBarItem entries and Canvas requires at least two items. Order and child identities are preserved through DnD, Save/reopen and Undo/Redo.";
+        }
+        if (MaterialWidgetPropertySchema.MATERIAL_TYPE.equals(widget.type())) {
+            return "Optional Material child widget. Shape and border-radius references remain application-owned; edit child membership in the Slots tab. Save/reopen and Undo/Redo preserve the exact value and child identity.";
         }
         if (isModernButton(widget)) {
             return slot.name().value().equals("icon")
@@ -891,6 +1715,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + "Local or nearer text-height behavior can override it. Flags affect text with a height multiplier; "
                     + "this wrapper does not invent a font size or height. Designer selection and editing remain available. "
                     + "Occupancy: " + count + "/" + maximum + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
+        if (TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child receiving the nearest complete TooltipThemeData. Local Tooltip properties override theme fields. "
+                    + "This theme does not merge with an outer TooltipTheme; all local leaves unset emits const TooltipThemeData(). "
+                    + "Designer IDs and stored child properties remain unchanged. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Replace the child atomically; it cannot be removed or cleared.";
+        }
+        if (TooltipVisibilityWidgetPropertySchema.TOOLTIP_VISIBILITY_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child receiving the nearest TooltipVisibility scope. False suppresses descendant Tooltip display, "
+                    + "not the child or its interaction. Tooltip annotation and overlay behavior follow the installed Flutter SDK; child accessibility remains available. A nearer true scope overrides an outer false scope. "
+                    + "Designer selection and editing remain available. Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
                     + ". Replace the child atomically; it cannot be removed or cleared.";
         }
         if (TickerModeWidgetPropertySchema.TICKER_MODE_TYPE.equals(widget.type())
@@ -1035,6 +1875,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + ". Open the custom editor to add, move, replace, or remove "
                     + "the child widget.";
         }
+        if (PreferredSizeWidgetPropertySchema.PREFERRED_SIZE_TYPE.equals(widget.type())
+                && CHILD_SLOT.equals(slot.name())) {
+            return "Required child advertised with the selected finite preferred Size to "
+                    + "PreferredSizeWidget parents such as AppBar and Scaffold. The size "
+                    + "does not constrain the child's own layout. Occupancy: " + count + "/"
+                    + maximum + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, replace, or remove the child widget.";
+        }
         if (OPACITY_TYPE.equals(widget.type())
                 && CHILD_SLOT.equals(slot.name())) {
             return "Optional child painted with the selected group opacity. "
@@ -1153,6 +2001,15 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             return "Ordered children assigned to grid tiles in exact source, paint, and "
                     + "semantic order. Cross-axis count fixes the number of columns for "
                     + "vertical scrolling or rows for horizontal scrolling. Occupancy: "
+                    + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (GridViewExtentWidgetPropertySchema.GRID_VIEW_EXTENT_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered children assigned to grid tiles in exact source, paint, and "
+                    + "semantic order. Maximum cross-axis extent determines how many tiles "
+                    + "fit in the selected axis. Occupancy: "
                     + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
@@ -1289,6 +2146,14 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + count + "/" + maximum
                     + "; minimum: " + slot.minChildren()
                     + ". Open the custom editor to add, move, reorder, or remove a widget.";
+        }
+        if (PageViewWidgetPropertySchema.PAGE_VIEW_TYPE.equals(widget.type())
+                && CHILDREN_SLOT.equals(slot.name())) {
+            return "Ordered pages displayed by the PageView viewport. Each page fills the "
+                    + "viewport and may be selected by swiping or accessibility navigation. "
+                    + "Occupancy: " + count + "/" + maximum
+                    + "; minimum: " + slot.minChildren()
+                    + ". Open the custom editor to add, move, reorder, or remove a page.";
         }
         if (OVERFLOW_BAR_TYPE.equals(widget.type())
                 && CHILDREN_SLOT.equals(slot.name())) {
@@ -2237,6 +3102,42 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addSliverAppBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<AppBarWidgetPropertySchema.Group, Sheet.Set>(AppBarWidgetPropertySchema.Group.class);
+        for (var group : AppBarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            String name = property.name().value();
+            var schema = AppBarWidgetPropertySchema.find(property.name()).orElse(null);
+            var group = schema == null ? AppBarWidgetPropertySchema.Group.BEHAVIOR : schema.group();
+            if (schema == null) {
+                group = switch (name) {
+                    case "shape" -> AppBarWidgetPropertySchema.Group.SHAPE;
+                    case "iconTheme" -> AppBarWidgetPropertySchema.Group.ICON_THEME;
+                    case "actionsIconTheme" -> AppBarWidgetPropertySchema.Group.ACTIONS_ICON_THEME;
+                    case "toolbarTextStyle" -> AppBarWidgetPropertySchema.Group.TOOLBAR_TEXT_STYLE;
+                    case "titleTextStyle" -> AppBarWidgetPropertySchema.Group.TITLE_TEXT_STYLE;
+                    case "systemOverlayStyle" -> AppBarWidgetPropertySchema.Group.SYSTEM_UI;
+                    case "collapsedHeight", "expandedHeight" -> AppBarWidgetPropertySchema.Group.LAYOUT;
+                    default -> group;
+                };
+            }
+            String label = schema == null ? name.replaceAll("([a-z])([A-Z])", "$1 $2") : schema.displayName();
+            label = Character.toUpperCase(label.charAt(0)) + label.substring(1);
+            String propertyHelp = name.equals("toolbarHeight")
+                    ? "Toolbar height in logical pixels. Unset uses the native constructor default: "
+                            + dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.toolbarDefault(widget.type())
+                            + ". "
+                    : schema == null ? "" : schema.description() + " ";
+            String help = propertyHelp + dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.DESCRIPTION;
+            groups.get(group).put(projectProperty(property, Optional.empty(), label, help,
+                    schema != null && schema.encoding() == AppBarWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    name.equals("onStretchTrigger") ? java.util.List.of("noop") : appBarStringPresets(property.name())));
+        }
+    }
+
     private void addAppBarPropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<AppBarWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(AppBarWidgetPropertySchema.Group.class);
@@ -2254,14 +3155,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             () -> new IllegalStateException(
                                     "Built-in AppBar property is missing its presentation schema: "
                                     + property.name().value()));
-            groups.get(schema.group()).put(projectProperty(
+            Node.Property<?> row = projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
                     schema.description(),
                     schema.encoding()
                             == AppBarWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
-                    appBarStringPresets(property.name())));
+                    appBarStringPresets(property.name()));
+            if (property.name().value().equals("notificationPredicate")) {
+                row.setValue(FlutterDartObjectReferenceEditorComponent.APP_BAR_PREDICATE_ATTRIBUTE, Boolean.TRUE);
+            }
+            groups.get(schema.group()).put(row);
         }
     }
 
@@ -2296,7 +3201,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             PropertyName propertyName) {
         return switch (propertyName.value()) {
             case "notificationPredicate" ->
-                java.util.List.of("default", "depthZero", "all");
+                AppBarWidgetPropertySchema.notificationPredicatePresets();
             case "shapeKind" -> java.util.List.of(
                     "roundedRectangle",
                     "stadium",
@@ -2305,6 +3210,288 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     "continuousRectangle");
             default -> java.util.List.of();
         };
+    }
+
+    private void addSubmenuButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<SubmenuButtonWidgetPropertySchema.Group, Sheet.Set>(SubmenuButtonWidgetPropertySchema.Group.class);
+        for (var group : SubmenuButtonWidgetPropertySchema.Group.values()) {
+            String label = group.displayName().startsWith("Style ") ? "Button style " + group.displayName().substring("Style ".length()) : group.displayName();
+            var set = propertySet(group.setName(), label, group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = SubmenuButtonWidgetPropertySchema.find(property.name()).orElseThrow(); String name = property.name().value();
+            String hint = name.equals("style") || SubmenuButtonWidgetPropertySchema.localStyleProperties().contains(name)
+                    ? " Button style affects the opener. Whole Button style and its 498 local leaves switch atomically within this group only; Menu style, submenu icons and all children remain unchanged. Reset restores MenuButtonTheme/SDK fallback; Undo restores the exact previous branch."
+                    : name.equals("menuStyle") || SubmenuButtonWidgetPropertySchema.menuStyleProperties().contains(name)
+                            ? " Menu style affects the popup panel. Whole Menu style and its 203 local leaves switch atomically within this group only; Button style, submenu icons and all children remain unchanged. Native panels and cursors resolve an empty state set; non-default buckets remain stored/generated without invented interactive effects. A local density axis creates VisualDensity with an omitted peer equal to zero."
+                            : name.equals("submenuIcon") || SubmenuButtonWidgetPropertySchema.submenuIconLocalProperties().contains(name)
+                                    ? " Whole Submenu icon and four local buckets switch atomically without changing either style. Configured buckets resolve Disabled, Hovered, Focused, then Default; omission skips to the next active configured bucket. Explicit null is terminal and uses MenuTheme/native arrow fallback. Material icon None creates Icon(null), an empty glyph, not null fallback. Custom widgets, colors and sizes can use a strict Widget reference."
+                                    : " The native SubmenuButton opens itself. Empty Menu children disables it; Child may be empty and is emitted as null. No Enabled, On pressed or builder-template field is invented.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint
+                    + " Project callbacks, controllers, style/layer builders and widget factories are never executed in isolated Canvas. Source bodies, slot order and child IDs are preserved.",
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST,
+                    elevatedButtonStringPresets(new PropertyName(SubmenuButtonWidgetPropertySchema.menuStyleProperties().contains(name)
+                            ? SubmenuButtonWidgetPropertySchema.menuStyleSourceName(name) : name))));
+        }
+    }
+
+    private void addMenuAnchorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<MenuAnchorWidgetPropertySchema.Group, Sheet.Set>(MenuAnchorWidgetPropertySchema.Group.class);
+        for (var group : MenuAnchorWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = MenuAnchorWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String help = name.equals("style")
+                    ? " Setting whole Menu style, including null, atomically clears all 203 local style leaves. Reset retains theme/SDK fallback; Undo restores the complete prior branch."
+                    : MenuAnchorWidgetPropertySchema.localStyleProperties().contains(name)
+                            ? " Setting a local style leaf atomically clears whole Menu style. Non-default state buckets are stored and generated but native panels and cursors resolve only the empty state set. Density changes horizontal padding only."
+                            : name.equals("builder")
+                                    ? " Create Menu Builder is an explicit source action, not a native Event. It creates a TextButton toggle using Child as label/content or Text('Menu') when empty. Interactive children are not rewired. The method remains user-editable; there is no automatic Save or navigation."
+                                    : " Child is optional; Menu children is a required list that may be empty. Use its slot editor to add, move, remove or reorder menu items. An ordinary Child does not open the menu automatically; configure Builder or a user-owned controller action.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + help
+                    + " Canvas Preview menu is isolated and transient: project builders, controllers and callbacks are never executed; source values and child IDs remain unchanged.",
+                    false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addMenuBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<MenuBarWidgetPropertySchema.Group, Sheet.Set>(MenuBarWidgetPropertySchema.Group.class);
+        for (var group : MenuBarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = MenuBarWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = name.equals("style")
+                    ? " Setting whole MenuBar style, including null, atomically clears all 203 local MenuStyle leaves. Reset restores MenuTheme/SDK fallback; Undo restores the complete prior branch."
+                    : MenuBarWidgetPropertySchema.localStyleProperties().contains(name)
+                            ? " Setting a local MenuBar style leaf atomically clears whole MenuBar style. Non-default state buckets are stored and generated but native menu-bar resolution remains SDK-owned. Density and alignment leaves are applied as one local compound."
+                            : " MenuBar children is a required list that may be empty. Add, move, remove or reorder menu entries in the Slots tab. Controller references remain application-owned and are not executed in isolated Canvas.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint + " Project controllers and style references are analyzed but never executed in isolated Canvas; child IDs and source remain unchanged.",
+                    false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addNavigationBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<NavigationBarWidgetPropertySchema.Group, Sheet.Set>(
+                NavigationBarWidgetPropertySchema.Group.class);
+        for (var group : NavigationBarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = NavigationBarWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "selectedIndex" -> " The value must stay within the destination list; the designer preserves the exact value and reports an invalid index instead of clamping it. Destinations are edited in the Slots tab and may be empty while the node is being assembled.";
+                case "onDestinationSelected" -> " This callback is represented by a typed reference, explicit null or a no-op. Project callbacks are analyzed but never executed in isolated Canvas.";
+                case "animationDurationUs" -> " Stored as exact signed microseconds; a Duration reference is also accepted. Canvas uses the value only for preview timing.";
+                case "overlayColor", "labelTextStyle", "indicatorShape" -> " Project references are retained in source and model; isolated Canvas keeps the SDK/theme fallback for these application-owned objects.";
+                default -> " NavigationBar destinations remain application-owned widgets; add and reorder them in the Slots tab. Save/reopen and Undo/Redo preserve the complete list.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint,
+                    false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addNavigationRailPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<NavigationRailWidgetPropertySchema.Group, Sheet.Set>(
+                NavigationRailWidgetPropertySchema.Group.class);
+        for (var group : NavigationRailWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = NavigationRailWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "selectedIndex" -> " The nullable index must stay within the destination list when set; invalid values are preserved and diagnosed rather than clamped. Destinations, leading and trailing widgets are edited in the Slots tab.";
+                case "onDestinationSelected" -> " This callback is represented by a typed reference, explicit null or a no-op. Project callbacks are analyzed but never executed in isolated Canvas.";
+                case "extended" -> " Flutter asserts that an extended rail uses no labels or NavigationRailLabelType.none. Conflicting values are retained and diagnosed without silent mutation.";
+                case "minExtendedWidth" -> " When minWidth is also set, Flutter requires minExtendedWidth to be at least minWidth; invalid pairs are diagnosed without clamping.";
+                case "unselectedLabelTextStyle", "selectedLabelTextStyle", "unselectedIconTheme", "selectedIconTheme", "indicatorShape" -> " Project references are retained in source and model; isolated Canvas keeps the SDK/theme fallback for these application-owned objects.";
+                default -> " NavigationRail destinations remain application-owned widgets; add and reorder them in the Slots tab. Save/reopen and Undo/Redo preserve the complete list.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint,
+                    false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addNavigationDrawerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<NavigationDrawerWidgetPropertySchema.Group, Sheet.Set>(
+                NavigationDrawerWidgetPropertySchema.Group.class);
+        for (var group : NavigationDrawerWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = NavigationDrawerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "selectedIndex" -> " The nullable index is validated against the destination list when set; invalid values are preserved and diagnosed rather than clamped. Header, footer and children are edited in the Slots tab.";
+                case "onDestinationSelected" -> " This callback is represented by a typed reference, explicit null or a no-op. Project callbacks are analyzed but never executed in isolated Canvas.";
+                case "indicatorShape" -> " Project references are retained in source and model; isolated Canvas keeps the SDK/theme fallback for this application-owned object.";
+                default -> " NavigationDrawer children remain application-owned widgets; add and reorder them in the Slots tab. Save/reopen and Undo/Redo preserve the complete list.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint, false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addDrawerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<DrawerWidgetPropertySchema.Group, Sheet.Set>(
+                DrawerWidgetPropertySchema.Group.class);
+        for (var group : DrawerWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = DrawerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "shape" -> " Project ShapeBorder references are retained in source and model; isolated Canvas keeps the Drawer theme/SDK fallback and never executes application-owned objects.";
+                case "semanticLabel" -> " Omission lets MaterialLocalizations provide the platform drawer label; an explicit string is emitted exactly.";
+                case "clipBehavior" -> " Omission preserves the SDK/theme shape-dependent clipping policy.";
+                default -> " Drawer child remains application-owned; edit it in the Slots tab. Save/reopen and Undo/Redo preserve the exact value and child identity.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint,
+                    false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addBottomAppBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<BottomAppBarWidgetPropertySchema.Group, Sheet.Set>(
+                BottomAppBarWidgetPropertySchema.Group.class);
+        for (var group : BottomAppBarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = BottomAppBarWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "shape" -> " Project NotchedShape references are retained in source and model; isolated Canvas keeps the SDK/theme rectangular fallback and never executes application-owned objects.";
+                case "clipBehavior" -> " Omission preserves the SDK default Clip.none.";
+                case "notchMargin" -> " This margin affects a notch only when a FloatingActionButton and shape are present; Canvas does not execute project NotchedShape references.";
+                default -> " BottomAppBar child remains application-owned; edit it in the Slots tab. Save/reopen and Undo/Redo preserve the exact value and child identity.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint, false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addBottomNavigationBarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<BottomNavigationBarWidgetPropertySchema.Group, Sheet.Set>(
+                BottomNavigationBarWidgetPropertySchema.Group.class);
+        for (var group : BottomNavigationBarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = BottomNavigationBarWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "currentIndex" -> " The index is retained exactly; Canvas previews item 0 when it is outside the current list and the SDK will reject that value in the generated app.";
+                case "onTap" -> " Canvas uses a no-op callback when a handler is configured; application callback code is never executed in the isolated preview.";
+                case "selectedIconTheme", "unselectedIconTheme", "selectedLabelStyle", "unselectedLabelStyle", "mouseCursor" -> " Application-owned references are retained in source and model; Canvas keeps the SDK/theme fallback and never executes them.";
+                default -> " Items remain application-owned widgets; edit order and membership in the Slots tab. Save/reopen and Undo/Redo preserve each child identity.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint, false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addMaterialPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<MaterialWidgetPropertySchema.Group, Sheet.Set>(
+                MaterialWidgetPropertySchema.Group.class);
+        for (var group : MaterialWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = MaterialWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "materialType" -> " The SDK argument is named type; the collision-free model key materialType preserves the global widget type contract.";
+                case "shape", "borderRadius" -> " Shape references are retained in source and model. Canvas omits application-owned ShapeBorder and conflicting geometry rather than executing project code.";
+                case "textStyle" -> " Project TextStyle references remain application-owned; isolated Canvas keeps the SDK/theme text style fallback.";
+                case "animationDurationUs" -> " The exact signed microsecond value is retained; Canvas converts literals to Duration without changing the source model.";
+                default -> " Material child remains application-owned; edit it in the Slots tab. Save/reopen and Undo/Redo preserve the exact value and child identity.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + hint, false, elevatedButtonStringPresets(property.name())));
+        }
+    }
+
+    private void addScrollbarPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<ScrollbarWidgetPropertySchema.Group, Sheet.Set>(
+                ScrollbarWidgetPropertySchema.Group.class);
+        for (var group : ScrollbarWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = ScrollbarWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            String hint = switch (name) {
+                case "controller", "radius", "notificationPredicate" ->
+                        " Project-owned references are retained in source and analyzed, but are not executed in the isolated Canvas preview.";
+                case "scrollbarOrientation" ->
+                        " Left/right apply to vertical scrolls and top/bottom to horizontal scrolls; an incompatible orientation is diagnosed by Flutter.";
+                case "thumbVisibility", "trackVisibility", "interactive" ->
+                        " Nullable booleans use the centered checkbox when explicit; <not set> preserves ScrollbarThemeData/platform defaults.";
+                default -> " <not set> preserves the Flutter platform/theme default. The required Child is edited in Slots; no child is fabricated.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
+                    schema.displayName(), schema.description() + hint));
+        }
+    }
+
+    private void addMenuItemButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<MenuItemButtonWidgetPropertySchema.Group, Sheet.Set>(MenuItemButtonWidgetPropertySchema.Group.class);
+        for (var group : MenuItemButtonWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = MenuItemButtonWidgetPropertySchema.find(property.name()).orElseThrow(); String name = property.name().value();
+            String hint = MenuItemButtonWidgetPropertySchema.localStyleProperties().contains(name)
+                    ? " Setting a local style leaf atomically clears whole Button style. All 498 leaves use nine state buckets; disabled is isolated. Reset preserves MenuButtonTheme/framework fallback."
+                    : name.equals("style") ? " Setting whole Button style clears all 498 local style leaves atomically. Reset does not resurrect discarded leaves; Undo restores the complete prior style."
+                    : name.startsWith("shortcut") ? " Shortcuts display a hint only; application code must register handling separately. Choose a trigger or character before modifiers; no key is invented. Setting whole Shortcut, including explicit null, clears all eight local fields. Choosing a local anchor clears whole Shortcut and the opposite anchor; Character also clears Shift and Num lock. Resetting an anchor resets the entire local shortcut, while resetting a modifier resets only that field. Compatible modifiers survive branch changes; Undo restores exact prior values."
+                    : " Child, Leading icon and Trailing icon are independently optional. There is no TextButton variant, direct icon alignment or long-press Event. Enabled controls generated activation without erasing the retained handler.";
+            if (name.equals("styleBackgroundBuilder") || name.equals("styleForegroundBuilder")) hint += " ButtonLayerBuilder returns a non-null Widget from BuildContext, Set<WidgetState> and nullable Widget child. MenuItemButton defaults clipBehavior to Clip.none; a custom layer does not silently change this explicit SDK default. Canvas cannot reproduce custom layer geometry.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description() + hint
+                    + " Project callbacks, controllers, shortcut objects and builders are analyzed but never executed in isolated Canvas. Child IDs and user Dart bodies remain unchanged.",
+                    schema.encoding() == ElevatedButtonWidgetPropertySchema.Encoding.NEWLINE_STRING_LIST, elevatedButtonStringPresets(property.name())));
+        }
     }
 
     private void addTextButtonPropertySets(Sheet sheet, boolean hasSlotTab) {
@@ -2391,6 +3578,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     + " Value, On changed and Constructor cannot be unset. Enabled is independently nullable; changing it retains the callback. "
                     + "Mixed Value enables Tristate; disabling/resetting Tristate while mixed sets Value false. Three line requires an existing Subtitle. "
                     + "Whole values and local families switch atomically; one Undo restores affected fields. No child or cursor Default is invented.", false, presets));
+        }
+    }
+
+    private void addSwitchListTilePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<SwitchListTileWidgetPropertySchema.Group, Sheet.Set>(SwitchListTileWidgetPropertySchema.Group.class);
+        for (var group : SwitchListTileWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = SwitchListTileWidgetPropertySchema.find(property.name()).orElseThrow();
+            String name = property.name().value();
+            var presets = switch (name) {
+                case "variant" -> SwitchListTileWidgetPropertySchema.variants();
+                case "shapeKind" -> SwitchListTileWidgetPropertySchema.shapeKinds();
+                case "onChanged", "onFocusChange", "onActiveThumbImageError", "onInactiveThumbImageError" -> java.util.List.of("noop");
+                default -> name.equals("mouseCursor") || SwitchListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)
+                        ? SwitchListTileWidgetPropertySchema.mouseCursorPresets()
+                        : SwitchListTileWidgetPropertySchema.thumbIconStates().stream().anyMatch(state -> SwitchListTileWidgetPropertySchema.thumbIconBucketProperties(state).getFirst().equals(name))
+                                ? java.util.List.of("icon", "inherit") : java.util.List.<String>of();
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Value, On changed and Constructor cannot be unset. Explicit null On changed disables the tile; no separate Enabled or Tristate exists. "
+                    + "Standard retains Apply Cupertino theme without emitting it; Adaptive uses the stored value. Three line requires an existing Subtitle. "
+                    + "Whole values and local families switch atomically; one Undo restores affected fields. No child or cursor Default is invented. "
+                    + "Resetting a thumb image clears only its matching error callback. Project code is analyzed but never executed in isolated Canvas.", false, presets));
         }
     }
 
@@ -2504,6 +3717,93 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addRadioListTilePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<RadioListTileWidgetPropertySchema.Group, Sheet.Set>(RadioListTileWidgetPropertySchema.Group.class);
+        for (var group : RadioListTileWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = RadioListTileWidgetPropertySchema.find(property.name()).orElseThrow(); String name = property.name().value();
+            var presets = switch (name) {
+                case "variant" -> RadioListTileWidgetPropertySchema.variants();
+                case "shapeKind" -> RadioListTileWidgetPropertySchema.shapeKinds();
+                case "onChanged", "onFocusChange" -> java.util.List.of("noop");
+                default -> name.equals("mouseCursor") || RadioListTileWidgetPropertySchema.mouseCursorStateProperties().contains(name)
+                        ? RadioListTileWidgetPropertySchema.mouseCursorPresets()
+                        : RadioWidgetPropertySchema.sideStates().stream().anyMatch(state -> RadioListTileWidgetPropertySchema.sideBucketProperties(state).getFirst().equals(name))
+                                ? java.util.List.of("border", "inherit") : java.util.List.<String>of();
+            };
+            var row = projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " The Value type dialog edits Type, nullability, Value, legacy Group value and On changed atomically; one Undo restores all five fields. "
+                    + "Modern RadioGroup is the preferred group owner. No groupRegistry property is invented. Legacy On changed omission, null and No-op remain distinct; Reset omits it. "
+                    + "Standard retains the inactive Cupertino checkmark flag; Adaptive uses its stored value. Three line requires an existing Subtitle. "
+                    + "Whole references and local families switch atomically; project code is analyzed but never executed in isolated Canvas. All three child slots remain unchanged.", false, presets);
+            if (name.equals("onChanged")) row.setValue(FlutterDartObjectReferenceEditorComponent.RADIO_TILE_CALLBACK_ATTRIBUTE, Boolean.TRUE);
+            groups.get(schema.group()).put(row);
+        }
+    }
+
+    private void addTooltipThemePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<TooltipThemeWidgetPropertySchema.Group, Sheet.Set>(TooltipThemeWidgetPropertySchema.Group.class);
+        for (var group : TooltipThemeWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = TooltipThemeWidgetPropertySchema.find(property.name()).orElseThrow();
+            groups.get(schema.group()).put(projectProperty(property, TooltipThemeWidgetPropertySchema.textStyleBinding(property.name()),
+                    schema.displayName(), schema.description()
+                            + " Choose whole Data or local leaves. A whole Data reference conflicts with every local value, including explicit null and State bindings; reset the conflicting values explicitly first. Nothing is silently cleared. "
+                            + "Within local data, Height/Constraints and whole/local Text style switch atomically. Omission and explicit null remain distinct; concrete booleans use centered checkboxes. "
+                            + "With no whole Data and all local leaves unset, const TooltipThemeData() is emitted; this is a complete nearest theme, not an outer-theme merge. Child and user source remain unchanged. "
+                            + "Project data, styles, decorations and duration references are analyzed but never executed in isolated Canvas. All three durations are constructed directly, without the pinned SDK copyWith exitDuration omission."));
+        }
+    }
+
+    private void addTooltipPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<TooltipWidgetPropertySchema.Group, Sheet.Set>(TooltipWidgetPropertySchema.Group.class);
+        for (var group : TooltipWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = TooltipWidgetPropertySchema.find(property.name()).orElseThrow(); String name = property.name().value();
+            var presets = name.equals("mouseCursor") ? DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets()
+                    : name.equals("onTriggered") ? java.util.List.of("noop") : java.util.List.<String>of();
+            groups.get(schema.group()).put(projectProperty(property, TooltipWidgetPropertySchema.textStyleBinding(property.name()),
+                    schema.displayName(), schema.description()
+                            + " Setting non-null Message or Rich message replaces its non-null peer atomically; clearing the final content is rejected. "
+                            + "Height/Constraints and whole/local Text style switch atomically. Explicit null and omission stay separate; Reset never invents replacement content. "
+                            + "Child identities and user-owned Dart bodies remain unchanged. Use Wrap with Tooltip to keep an existing control as the anchor; ordinary Add allows an empty Child. "
+                            + "Project spans, decorations, styles, durations, cursor functions, delegates and event callbacks are analyzed but never executed in isolated Canvas.", false, presets));
+        }
+    }
+
+    private void addExpansionTilePropertySets(Sheet sheet, boolean hasSlotTab) {
+        var groups = new EnumMap<ExpansionTileWidgetPropertySchema.Group, Sheet.Set>(ExpansionTileWidgetPropertySchema.Group.class);
+        for (var group : ExpansionTileWidgetPropertySchema.Group.values()) {
+            var set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (var property : definition.properties()) {
+            var schema = ExpansionTileWidgetPropertySchema.find(property.name()).orElseThrow(); String name = property.name().value();
+            var presets = switch (name) {
+                case "shapeKind", "collapsedShapeKind" -> ExpansionTileWidgetPropertySchema.shapeKinds();
+                case "expansionAnimationStyle" -> ExpansionTileWidgetPropertySchema.animationStylePresets();
+                case "expansionAnimationStyleCurve", "expansionAnimationStyleReverseCurve" -> ExpansionTileWidgetPropertySchema.curvePresets();
+                case "onExpansionChanged" -> java.util.List.of("noop");
+                default -> java.util.List.<String>of();
+            };
+            var row = projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                    + " Palette creation wraps the selected widget as required Title; expanded content belongs in Children. Leading, Subtitle and Trailing are optional. "
+                    + "Initially expanded is only a seed, not a controlled current value; changes after mounting do not command expansion. No two-way expansion State binding is invented. "
+                    + "Whole/local expanded shape, collapsed shape, density and animation families switch atomically without altering other families or child slots. "
+                    + "The pinned SDK stores but ignores AnimationStyle reverseDuration. Project controllers, curves, styles and callbacks are never executed in Canvas; source lifecycle remains user-owned.", false, presets);
+            groups.get(schema.group()).put(row);
+        }
+    }
+
     private void addCheckboxPropertySets(Sheet sheet, boolean hasSlotTab) {
         var groups = new EnumMap<CheckboxWidgetPropertySchema.Group, Sheet.Set>(CheckboxWidgetPropertySchema.Group.class);
         for (var group : CheckboxWidgetPropertySchema.Group.values()) {
@@ -2586,7 +3886,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                     "Built-in ElevatedButton property is missing its "
                                     + "presentation schema: "
                                     + property.name().value()));
-            groups.get(schema.group()).put(projectProperty(
+            Node.Property<?> row = projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
@@ -2594,7 +3894,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.encoding()
                             == ElevatedButtonWidgetPropertySchema.Encoding
                                     .NEWLINE_STRING_LIST,
-                    elevatedButtonStringPresets(property.name())));
+                    elevatedButtonStringPresets(property.name()));
+            if (ElevatedButtonWidgetPropertySchema.layerBuilderProperties().contains(property.name().value())) {
+                row.setValue(FlutterDartObjectReferenceEditorComponent.ELEVATED_BUTTON_LAYER_ATTRIBUTE, Boolean.TRUE);
+            }
+            groups.get(schema.group()).put(row);
         }
     }
 
@@ -2638,13 +3942,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                     "Built-in TextField property is missing its "
                                     + "presentation schema: "
                                     + property.name().value()));
-            groups.get(schema.group()).put(projectProperty(
+            Node.Property<?> row = projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
                     schema.description(),
                     false,
-                    textFieldStringPresets(schema)));
+                    textFieldStringPresets(schema));
+            if (property.name().value().equals("buildCounter") || property.name().value().equals("contextMenuBuilder")) {
+                row.setValue(FlutterDartObjectReferenceEditorComponent.TEXT_FIELD_BUILDER_ATTRIBUTE, Boolean.TRUE);
+            }
+            groups.get(schema.group()).put(row);
         }
     }
 
@@ -2670,13 +3978,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.target() == ListViewWidgetPropertySchema.Target.PHYSICS_PRESET
                             ? ListViewWidgetPropertySchema.PHYSICS_PRESETS
                             : java.util.List.of();
-            groups.get(schema.group()).put(projectProperty(
+            Node.Property<?> row = projectProperty(
                     property,
                     Optional.empty(),
                     schema.displayName(),
                     schema.description(),
                     false,
-                    presets));
+                    presets);
+            if (property.name().value().equals("itemExtentBuilder")) {
+                row.setValue(FlutterDartObjectReferenceEditorComponent.LIST_VIEW_EXTENT_BUILDER_ATTRIBUTE, Boolean.TRUE);
+            }
+            groups.get(schema.group()).put(row);
         }
     }
 
@@ -2712,6 +4024,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addGridViewExtentPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<GridViewExtentWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(GridViewExtentWidgetPropertySchema.Group.class);
+        for (GridViewExtentWidgetPropertySchema.Group group
+                : GridViewExtentWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(
+                    group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            GridViewExtentWidgetPropertySchema.Definition schema =
+                    GridViewExtentWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in GridView.extent property is missing its "
+                                    + "presentation schema: " + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == GridViewExtentWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? GridViewExtentWidgetPropertySchema.PHYSICS_PRESETS
+                            : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property, Optional.empty(), schema.displayName(), schema.description(),
+                    false, presets));
+        }
+    }
+
     private void addSingleChildScrollViewPropertySets(
             Sheet sheet,
             boolean hasSlotTab) {
@@ -2743,6 +4082,125 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     schema.description(),
                     false,
                     presets));
+        }
+    }
+
+    private void addPageViewPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<PageViewWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(PageViewWidgetPropertySchema.Group.class);
+        for (PageViewWidgetPropertySchema.Group group : PageViewWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            PageViewWidgetPropertySchema.Definition schema =
+                    PageViewWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException("Built-in PageView property is missing its presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == PageViewWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? PageViewWidgetPropertySchema.PHYSICS_PRESETS : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property, Optional.empty(), schema.displayName(), schema.description(), false, presets));
+        }
+    }
+
+    private void addListWheelScrollViewPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ListWheelScrollViewWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ListWheelScrollViewWidgetPropertySchema.Group.class);
+        for (ListWheelScrollViewWidgetPropertySchema.Group group
+                : ListWheelScrollViewWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            ListWheelScrollViewWidgetPropertySchema.Definition schema =
+                    ListWheelScrollViewWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException("Built-in ListWheelScrollView property is missing its presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == ListWheelScrollViewWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? ListWheelScrollViewWidgetPropertySchema.PHYSICS_PRESETS : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property, Optional.empty(), schema.displayName(), schema.description(), false, presets));
+        }
+    }
+
+    private void addDynamicSliverPropertySet(Sheet sheet, boolean hasSlotTab) {
+        var kind = dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.find(widget.type()).orElseThrow();
+        Sheet.Set set = propertySet("sliverBuilder", "Sliver builder and delegates",
+                "Typed project callbacks and delegates. Project code is preserved and never executed by isolated Canvas.");
+        assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+        for (var field : dev.flutter.netbeans.designer.catalog.SliverDynamicWidgetPropertySchema.fields(kind)) {
+            var property = definition.property(new PropertyName(field.name())).orElseThrow();
+            set.put(projectProperty(property, Optional.empty(), field.displayName(), field.description(), false, field.presets()));
+        }
+        sheet.put(set);
+    }
+
+    private void addSliverChildrenPropertySet(Sheet sheet, boolean hasSlotTab) {
+        Sheet.Set set = propertySet("sliverChildren", "Sliver children",
+                "Static sliver list or grid constructor properties.");
+        assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = SliverChildrenWidgetPropertySchema.find(widget.type(), property.name()).orElseThrow();
+            set.put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description(), false, java.util.List.of()));
+        }
+        sheet.put(set);
+    }
+
+    private void addCustomScrollViewPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<CustomScrollViewWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(CustomScrollViewWidgetPropertySchema.Group.class);
+        for (CustomScrollViewWidgetPropertySchema.Group group
+                : CustomScrollViewWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            CustomScrollViewWidgetPropertySchema.Definition schema =
+                    CustomScrollViewWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException("Built-in CustomScrollView property is missing its presentation schema: "
+                                    + property.name().value()));
+            java.util.List<String> presets = schema.target()
+                    == CustomScrollViewWidgetPropertySchema.Target.PHYSICS_PRESET
+                            ? CustomScrollViewWidgetPropertySchema.PHYSICS_PRESETS : java.util.List.of();
+            groups.get(schema.group()).put(projectProperty(
+                    property, Optional.empty(), schema.displayName(), schema.description(), false, presets));
+        }
+    }
+
+    private void addPreferredSizePropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<PreferredSizeWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(PreferredSizeWidgetPropertySchema.Group.class);
+        for (PreferredSizeWidgetPropertySchema.Group group
+                : PreferredSizeWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            PreferredSizeWidgetPropertySchema.Definition schema =
+                    PreferredSizeWidgetPropertySchema.find(property.name()).orElseThrow(
+                            () -> new IllegalStateException(
+                                    "Built-in PreferredSize property is missing its presentation schema: "
+                                            + property.name().value()));
+            groups.get(schema.group()).put(projectProperty(
+                    property,
+                    Optional.empty(),
+                    schema.displayName(),
+                    schema.description()
+                            + " The value must be finite and non-negative. Palette creation "
+                            + "starts at 100 × 56 logical pixels; Restore Default returns to that "
+                            + "creation size."));
         }
     }
 
@@ -3219,6 +4677,24 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
     }
 
+    private void addTooltipVisibilityPropertySets(Sheet sheet, boolean hasSlotTab) {
+        for (var group : TooltipVisibilityWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (PropertyDefinition property : definition.properties()) {
+                var schema = TooltipVisibilityWidgetPropertySchema.find(property.name()).orElseThrow();
+                if (schema.group() == group) {
+                    set.put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()
+                            + " Required boolean: palette creation supplies true, not an SDK default. False is valid; Visible cannot be unset or reset. "
+                            + "The nearest scope wins; a nearer true overrides an outer false (not AND). This suppresses Tooltip display, "
+                            + "not the child. Overlay dismissal and Tooltip annotations follow the installed Flutter SDK; child accessibility remains available. "
+                            + "Explicit values use the centered checkbox. State can bind this value; isolated Canvas uses the retained literal preview without executing project code."));
+                }
+            }
+            sheet.put(set);
+        }
+    }
+
     private void addTickerModePropertySets(Sheet sheet, boolean hasSlotTab) {
         EnumMap<TickerModeWidgetPropertySchema.Group, Sheet.Set> groups =
                 new EnumMap<>(TickerModeWidgetPropertySchema.Group.class);
@@ -3332,6 +4808,106 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             groups.get(schema.group()).put(projectProperty(property, Optional.empty(),
                     schema.displayName(), schema.description() + hint
                             + " Explicit true/false uses the centered checkbox; Restore Default returns to <not set>."));
+        }
+    }
+
+    private void addGestureDetectorPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<GestureDetectorWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(GestureDetectorWidgetPropertySchema.Group.class);
+        for (GestureDetectorWidgetPropertySchema.Group group : GestureDetectorWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set);
+            sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = GestureDetectorWidgetPropertySchema.find(property.name()).orElseThrow();
+            String help = schema.description()
+                    + " <not set> omits this constructor argument. Callback bodies remain in the Dart source; "
+                    + "the Events editor supports Create, Bind, Go to Handler, Rename and Disconnect. "
+                    + "Designer selection remains available; user gesture callbacks are not executed by the design-time Canvas.";
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), help));
+        }
+    }
+
+    private void addListenerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<ListenerWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(ListenerWidgetPropertySchema.Group.class);
+        for (ListenerWidgetPropertySchema.Group group : ListenerWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set); sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = ListenerWidgetPropertySchema.find(property.name()).orElseThrow();
+            String help = schema.description() + (schema.callbackType().isPresent()
+                    ? " <not set> omits the callback; explicit null is retained separately. Use Events to Create, Bind, Go to Handler, Rename or Disconnect. "
+                            + "Raw pointer events do not recognize gestures. User handlers remain in Dart source and never execute in Designer Canvas."
+                    : " <not set> uses Flutter's deferToChild default. HitTestBehavior controls runtime hit testing; Designer selection remains available.");
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), help));
+        }
+    }
+
+    private void addMouseRegionPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<MouseRegionWidgetPropertySchema.Group, Sheet.Set> groups =
+                new EnumMap<>(MouseRegionWidgetPropertySchema.Group.class);
+        for (MouseRegionWidgetPropertySchema.Group group : MouseRegionWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            groups.put(group, set); sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = MouseRegionWidgetPropertySchema.find(property.name()).orElseThrow();
+            String help = schema.description() + (schema.callbackType().isPresent()
+                    ? " <not set> omits the callback; explicit null remains distinct. Use Events to Create, Bind, Go to Handler, Rename or Disconnect. User handlers stay in Dart source and never execute in Designer Canvas."
+                    : property.name().value().equals("cursor")
+                            ? " Choose a reviewed cursor preset or an analyzer-verified MouseCursor reference. Omission uses MouseCursor.defer; null is not accepted. Project cursor code is never executed in Designer Canvas."
+                            : " <not set> preserves the Flutter constructor default. Runtime mouse hit testing is separate from Designer selection.");
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), help, false,
+                    property.name().value().equals("cursor") ? DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets() : java.util.List.of()));
+        }
+    }
+
+    private void addFocusPropertySets(Sheet sheet, boolean hasSlotTab) {
+        EnumMap<FocusWidgetPropertySchema.Group, Sheet.Set> groups = new EnumMap<>(FocusWidgetPropertySchema.Group.class);
+        for (var group : FocusWidgetPropertySchema.Group.values()) {
+            Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); groups.put(group, set); sheet.put(set);
+        }
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = FocusWidgetPropertySchema.find(property.name()).orElseThrow();
+            String help = schema.description() + switch (property.name().value()) {
+                case "variant" -> " Standard allows Flutter to allocate and own an internal FocusNode. Set a non-null typed Focus node before selecting withExternalFocusNode. Constructor switches retain inactive values; no user configuration or child is silently deleted.";
+                case "focusNode", "parentNode" -> " Project FocusNode references are hosted, not owned, by this widget. Their application owner must manage lifetime and dispose; Designer never creates or disposes a project node. External mode requires a non-null Focus node. Standard permits omission or null.";
+                case "onKeyEvent", "onKey" -> " Return KeyEventResult explicitly in Source; generated stubs throw UnimplementedError until implemented. These stored bindings are inactive in withExternalFocusNode, which reads keyboard callbacks from its FocusNode. Canvas never executes application key handlers.";
+                default -> " <not set> preserves the selected constructor's Flutter default. In withExternalFocusNode, retained node attributes are read from the project's FocusNode instead of these stored overrides. Designer Canvas never runs user handlers or takes application keyboard focus.";
+            };
+            groups.get(schema.group()).put(projectProperty(property, Optional.empty(), schema.displayName(), help, false,
+                    property.name().value().equals("variant") ? java.util.List.of("standard", "withExternalFocusNode") : java.util.List.of()));
+        }
+    }
+
+    private void addNotificationListenerPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var group = NotificationListenerWidgetPropertySchema.Group.BEHAVIOR;
+        Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+        assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null); sheet.put(set);
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = NotificationListenerWidgetPropertySchema.find(property.name()).orElseThrow();
+            set.put(projectProperty(property, Optional.empty(), schema.displayName(), schema.description()));
+        }
+    }
+
+    private void addBuilderPropertySets(Sheet sheet, boolean hasSlotTab) {
+        var group = BuilderWidgetPropertySchema.Group.BUILDER;
+        Sheet.Set set = propertySet(group.setName(), group.displayName(), group.description());
+        assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+        sheet.put(set);
+        for (PropertyDefinition property : definition.properties()) {
+            var schema = BuilderWidgetPropertySchema.find(property.name()).orElseThrow();
+            set.put(projectProperty(property, Optional.empty(), schema.displayName(),
+                    schema.description() + " The required callback is stored as a typed Dart identifier; "
+                            + "Restore Default returns to the Designer no-op preview. "
+                            + "The isolated Canvas never executes project callback bodies."));
         }
     }
 
@@ -3878,6 +5454,45 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 property, textSchema, newlineStringList, stringPresets);
     }
 
+    private static boolean inactiveFocusProperty(WidgetNode current, PropertyName property) {
+        return FocusWidgetPropertySchema.FOCUS_TYPE.equals(current.type())
+                && !FocusWidgetPropertySchema.propertyAvailable(current, property);
+    }
+
+    private static boolean inactiveSwitchTileProperty(WidgetNode current, PropertyName property) {
+        return SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE.equals(current.type())
+                && !SwitchListTileWidgetPropertySchema.propertyAvailable(current, property);
+    }
+
+    private static boolean inactiveRadioTileProperty(WidgetNode current, PropertyName property) {
+        return RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(current.type())
+                && !RadioListTileWidgetPropertySchema.propertyAvailable(current, property);
+    }
+
+    private static boolean isNotificationCallback(WidgetNode current, PropertyName property) {
+        return NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE.equals(current.type()) && property.value().equals("onNotification");
+    }
+
+    static String notificationTypeLabel(WidgetNode current) {
+        PropertyValue value = current.properties().get(new PropertyName("notificationType"));
+        if (value instanceof PropertyValue.StringValue preset) return preset.value();
+        if (value instanceof PropertyValue.DartObjectReferenceValue reference) return reference.libraryUri().map(uri -> uri + "::").orElse("") + reference.rootSymbol();
+        return "Notification";
+    }
+
+    private static boolean requiredExternalFocusNode(WidgetNode current, PropertyName property) {
+        return FocusWidgetPropertySchema.FOCUS_TYPE.equals(current.type()) && property.value().equals("focusNode")
+                && FocusWidgetPropertySchema.usesExternalNode(current);
+    }
+
+    private static FlutterTypedPropertyEditors.Binding focusEditorBinding(WidgetNode current, FlutterTypedPropertyEditors.Binding binding) {
+        if (!requiredExternalFocusNode(current, binding.definition().name())) return binding;
+        var property = binding.definition();
+        var required = new PropertyDefinition(property.name(), dev.flutter.netbeans.designer.catalog.DartParameter.named(property.parameter().order(), true),
+                java.util.List.of(new dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.DartObjectReferenceValues("FocusNode")), Optional.empty());
+        return FlutterTypedPropertyEditors.binding(required).orElseThrow();
+    }
+
     private PropertySupport.ReadWrite<FlutterPropertyCellValue> writableProperty(
             FlutterTypedPropertyEditors.Binding binding,
             PropertyValue explicitValue,
@@ -3885,6 +5500,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             String schemaDescription) {
         PropertyDefinition property = binding.definition();
         PropertyName propertyName = property.name();
+        Optional<WidgetEventDescriptor> eventDescriptor = WidgetEventCatalog.eventsFor(definition).stream()
+                .filter(WidgetEventDescriptor::supportsHandlerActions)
+                .filter(event -> event.propertyName().equals(propertyName)).findFirst();
         FlutterPropertyCellValue initial = propertyCellValue(explicitValue);
         binding.validate(initial);
         String description = propertyDescription(property, schemaDescription);
@@ -3894,6 +5512,39 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                 FlutterPropertyCellValue.class,
                 displayName,
                 description) {
+            @Override
+            public String getDisplayName() {
+                WidgetNode current = presentation.widget();
+                if (inactiveFocusProperty(current, propertyName)) return displayName + " (inactive; retained)";
+                if (inactiveSwitchTileProperty(current, propertyName)) return displayName + " (inactive; retained)";
+                if (inactiveRadioTileProperty(current, propertyName)) return displayName + " (inactive; retained)";
+                if (isNotificationCallback(current, propertyName)) return displayName + " (" + notificationTypeLabel(current) + ")";
+                if (requiredExternalFocusNode(current, propertyName)) return displayName + " (required)";
+                var dependency = current.propertyBindings().get(propertyName);
+                if (dependency != null) return displayName + " (preview; " + dependency.fieldName() + ")";
+                return dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.isBoundPreview(current, propertyName)
+                        ? displayName + " (preview; " + current.stateBinding().orElseThrow().fieldName() + ")" : displayName;
+            }
+
+            @Override
+            public String getShortDescription() {
+                WidgetNode current = presentation.widget();
+                if (inactiveFocusProperty(current, propertyName)) return "Inactive in Focus.withExternalFocusNode. This value is retained but not generated; the external FocusNode supplies this attribute. Select Standard to use the stored value again. " + description;
+                if (inactiveSwitchTileProperty(current, propertyName)) return "Inactive in SwitchListTile Standard. This value or State binding is retained but not generated. Select Adaptive to use the stored value again. Editing it does not switch constructors. " + description;
+                if (inactiveRadioTileProperty(current, propertyName)) return "Inactive in RadioListTile Standard. This value or State binding is retained but not generated. Select Adaptive to use the stored value again. Editing it does not switch constructors. " + description;
+                if (isNotificationCallback(current, propertyName)) return "Runtime callback must accept " + notificationTypeLabel(current)
+                        + " and return bool. True stops propagation; false, omission or null continues. A created universal Notification handler must be implemented in Source. " + description;
+                if (requiredExternalFocusNode(current, propertyName)) return "Required non-null FocusNode reference for Focus.withExternalFocusNode. Return to Standard before resetting this property. Its application owner controls disposal. " + description;
+                var dependency = current.propertyBindings().get(propertyName);
+                if (dependency != null) return "Canvas preview only. Runtime property reads State field " + dependency.fieldName()
+                        + " using " + dependency.transform() + "; editing this preview does not change the field in Source. " + description;
+                return dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.isBoundPreview(current, propertyName)
+                        ? "Canvas preview only. Runtime value is bound to State field "
+                                + current.stateBinding().orElseThrow().fieldName()
+                                + "; editing this preview does not change the field initializer in Source. " + description
+                        : description;
+            }
+
             @Override
             public FlutterPropertyCellValue getValue() {
                 Presentation current = presentation;
@@ -3906,14 +5557,17 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     throws IllegalAccessException {
                 if (value.radioTypeEdit().isPresent() && (!FlutterPropertyCellValue.RadioTypeEdit.supports(presentation.widget().type()) || !propertyName.value().equals("valueType")
                         || !value.radioTypeEdit().orElseThrow().widgetType().equals(presentation.widget().type()))) {
-                    throw new IllegalArgumentException("Dependent type edits are accepted only on the matching Radio/RadioGroup.valueType.");
+                    throw new IllegalArgumentException("Dependent type edits are accepted only on the matching widget valueType.");
                 }
-                FlutterPropertyCellValue accepted = binding.validate(value);
+                FlutterPropertyCellValue accepted = focusEditorBinding(presentation.widget(), binding).validate(value);
                 Presentation current = presentation;
                 FlutterPropertyCellValue currentValue = propertyCellValue(
                         current.widget().properties().get(propertyName));
                 if (currentValue.equals(accepted)) {
                     return;
+                }
+                if (eventDescriptor.isPresent() && eventsContext != null) {
+                    throw new IllegalAccessException("Use the Events editor actions to change this handler.");
                 }
                 PropertyMutationHandler currentHandler =
                         current.mutationHandler();
@@ -3933,12 +5587,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
 
             @Override
             public PropertyEditor getPropertyEditor() {
-                return binding.createEditor();
+                var currentBinding = focusEditorBinding(presentation.widget(), binding);
+                FlutterWidgetEventsContext currentEventsContext = eventsContext;
+                if (eventDescriptor.isPresent() && currentEventsContext != null) {
+                    return new FlutterWidgetEventPropertyEditor(presentation.widget(),
+                            eventDescriptor.orElseThrow(), currentEventsContext,
+                            () -> eventsContext, () -> presentation.widget(), currentBinding.createEditor());
+                }
+                if (currentEventsContext != null) {
+                    if (MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.equals(presentation.widget().type())
+                            && propertyName.value().equals("builder")) {
+                        return new FlutterMenuAnchorBuilderPropertyEditor(presentation.widget(), currentEventsContext,
+                                () -> eventsContext, () -> presentation.widget(), currentBinding.createEditor());
+                    }
+                    var stateProperty = dev.flutter.netbeans.designer.state.WidgetStatePropertyBindingCatalog.find(presentation.widget(), propertyName);
+                    if (stateProperty.isPresent()) return new FlutterWidgetStatePropertyEditor(presentation.widget(),
+                            stateProperty.orElseThrow(), currentEventsContext, () -> eventsContext,
+                            () -> presentation.widget(), currentBinding.createEditor());
+                }
+                return currentBinding.createEditor();
             }
 
             @Override
             public boolean supportsDefaultValue() {
-                return binding.optional();
+                return binding.optional() && !requiredExternalFocusNode(presentation.widget(), propertyName);
             }
 
             @Override
@@ -3950,6 +5622,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             public void restoreDefaultValue()
                     throws IllegalAccessException, InvocationTargetException {
                 Presentation current = presentation;
+                if (requiredExternalFocusNode(current.widget(), propertyName)) throw new IllegalAccessException(
+                        "Focus.withExternalFocusNode requires a non-null Focus node; select Standard before resetting it.");
                 FlutterPropertyCellValue currentValue = propertyCellValue(
                         current.widget().properties().get(propertyName));
                 if (binding.optional() && currentValue.isExplicit()) {
@@ -4026,6 +5700,32 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (currentWidget.stateBinding().isPresent() || !currentWidget.propertyBindings().isEmpty()) {
+            if (currentWidget.stateBinding().isPresent() && (SliderWidgetPropertySchema.SLIDER_TYPE.equals(currentWidget.type())
+                    || RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.equals(currentWidget.type()))
+                    && java.util.List.of("min", "max").contains(propertyName.value())
+                    && !accepted.explicitValue().equals(Optional.ofNullable(currentWidget.properties().get(propertyName)))) {
+                throw new IllegalArgumentException("Cannot edit " + propertyName.value() + ": Remove the State binding before changing Minimum or Maximum; "
+                        + "Canvas preview values do not prove the retained runtime field is inside the new bounds.");
+            }
+            var prospective = new java.util.LinkedHashMap<>(currentWidget.properties());
+            if (accepted.radioTypeEdit().isPresent()) {
+                accepted.radioTypeEdit().orElseThrow().requested().forEach((field, value) -> {
+                    if (value.isPresent()) prospective.put(new PropertyName(field), value.orElseThrow());
+                    else prospective.remove(new PropertyName(field));
+                });
+            } else if (accepted.explicitValue().isPresent()) {
+                prospective.put(propertyName, accepted.explicitValue().orElseThrow());
+            } else prospective.remove(propertyName);
+            var candidate = new WidgetNode(currentWidget.id(), currentWidget.type(), prospective,
+                    currentWidget.slots(), currentWidget.extensions(), currentWidget.stateBinding(), currentWidget.propertyBindings());
+            dev.flutter.netbeans.designer.state.WidgetStateBindingCatalog.validationError(candidate).ifPresent(reason -> {
+                throw new IllegalArgumentException("Cannot edit " + propertyName.value() + ": " + reason);
+            });
+            dev.flutter.netbeans.designer.state.WidgetStatePropertyBindingCatalog.validationError(candidate).ifPresent(reason -> {
+                throw new IllegalArgumentException("Cannot edit " + propertyName.value() + ": " + reason);
+            });
+        }
         if ((LinearProgressIndicatorWidgetPropertySchema.LINEAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type())
                 || CircularProgressIndicatorWidgetPropertySchema.CIRCULAR_PROGRESS_INDICATOR_TYPE.equals(currentWidget.type()))
                 && accepted.explicitValue().isPresent()
@@ -4056,6 +5756,24 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (CheckboxListTileWidgetPropertySchema.CHECKBOX_LIST_TILE_TYPE.equals(currentWidget.type())) {
             return checkboxListTilePropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE.equals(currentWidget.type())) {
+            return switchListTilePropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.isType(currentWidget.type())) {
+            return sliverAppBarPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(currentWidget.type())) {
+            return floatingHeaderPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (ExpansionTileWidgetPropertySchema.EXPANSION_TILE_TYPE.equals(currentWidget.type())) {
+            return expansionTilePropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (TooltipThemeWidgetPropertySchema.TOOLTIP_THEME_TYPE.equals(currentWidget.type())) {
+            return tooltipThemePropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (TooltipWidgetPropertySchema.TOOLTIP_TYPE.equals(currentWidget.type())) {
+            return tooltipPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (ListTileWidgetPropertySchema.LIST_TILE_TYPE.equals(currentWidget.type())) {
             return listTilePropertyCommand(currentWidget, propertyName, accepted);
         }
@@ -4076,6 +5794,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         if (CheckboxWidgetPropertySchema.CHECKBOX_TYPE.equals(currentWidget.type())) {
             return checkboxPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(currentWidget.type())) {
+            return menuItemButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.equals(currentWidget.type())) {
+            return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (MenuBarWidgetPropertySchema.MENU_BAR_TYPE.equals(currentWidget.type())) {
+            return iconButtonPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(currentWidget.type())) {
+            return submenuButtonPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (isModernButton(currentWidget)) {
             return modernButtonPropertyCommand(currentWidget, propertyName, accepted);
@@ -4110,6 +5840,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (ClipPathWidgetPropertySchema.CLIP_PATH_TYPE.equals(
                 currentWidget.type())) {
             return clipPathPropertyCommand(currentWidget, propertyName, accepted);
+        }
+        if (DefaultTextStyleWidgetPropertySchema.sharesTextProjection(currentWidget.type()))
+            return animatedTextStylePropertyCommand(currentWidget, propertyName, accepted);
+        if (dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(currentWidget.type()))
+            return relativePositionedTransitionPropertyCommand(currentWidget, propertyName, accepted);
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.supports(currentWidget.type())
+                || dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(currentWidget.type()))
+            return animatedPositionedPropertyCommand(currentWidget, propertyName, accepted);
+        if (dev.flutter.netbeans.designer.catalog.AnimatedContainerWidgetPropertySchema.TYPE.equals(currentWidget.type())) {
+            return animatedContainerPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (!ContainerWidgetPropertySchema.CONTAINER_TYPE.equals(
                 currentWidget.type())) {
@@ -4151,6 +5891,92 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         return patches.size() == 1
                 ? ordinaryPropertyCommand(currentWidget, propertyName, accepted)
                 : new PatchProperties(currentWidget.id(), patches);
+    }
+
+    private DesignerCommand animatedTextStylePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        boolean setting = accepted.explicitValue().isPresent();
+        if (name.value().equals("style") && (!setting || !(accepted.explicitValue().orElseThrow() instanceof PropertyValue.StringValue)))
+            widget.properties().keySet().stream().filter(AnimatedDefaultTextStyleWidgetPropertySchema::styleLeaf).forEach(resets::add);
+        if (setting && AnimatedDefaultTextStyleWidgetPropertySchema.styleLeaf(name)) {
+            if (!(widget.properties().get(new PropertyName("style")) instanceof PropertyValue.StringValue))
+                patches.add(new PatchProperties.SetPatch(new PropertyName("style"), new PropertyValue.StringValue("local")));
+            for (var pair : java.util.List.of(java.util.List.of("styleColor", "styleForeground"), java.util.List.of("styleBackgroundColor", "styleBackground")))
+                if (pair.contains(name.value())) resets.add(new PropertyName(pair.get(0).equals(name.value()) ? pair.get(1) : pair.get(0)));
+        }
+        if (setting && name.value().equals("textHeightBehavior"))
+            widget.properties().keySet().stream().filter(AnimatedDefaultTextStyleWidgetPropertySchema::heightLeaf).forEach(resets::add);
+        if (setting && AnimatedDefaultTextStyleWidgetPropertySchema.heightLeaf(name)) resets.add(new PropertyName("textHeightBehavior"));
+        resets.stream().filter(widget.properties()::containsKey).forEach(p -> patches.add(new PatchProperties.ResetPatch(p)));
+        patches.add(accepted.explicitValue().<PatchProperties.Patch>map(v -> new PatchProperties.SetPatch(name,v)).orElseGet(() -> new PatchProperties.ResetPatch(name)));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget,name,accepted) : new PatchProperties(widget.id(),patches);
+    }
+
+    private DesignerCommand relativePositionedTransitionPropertyCommand(
+            WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String mode = dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.RECT_FIELDS.contains(name.value()) ? "rect"
+            : dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.SIZE_FIELDS.contains(name.value()) ? "size" : null;
+        if (mode != null && !new PropertyValue.StringValue("local").equals(widget.properties().get(new PropertyName(mode)))) {
+            return new PatchProperties(widget.id(), java.util.List.of(
+                new PatchProperties.SetPatch(new PropertyName(mode), new PropertyValue.StringValue("local")),
+                new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow())));
+        }
+        return ordinaryPropertyCommand(widget, name, accepted);
+    }
+
+    private DesignerCommand animatedPositionedPropertyCommand(
+            WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        var props = new java.util.HashMap<>(widget.properties());
+        if (accepted.explicitValue().isPresent()) props.put(name, accepted.explicitValue().orElseThrow());
+        else props.remove(name);
+        if (dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.RECT_TYPE.equals(widget.type())
+                || dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) {
+            if (!name.value().equals("rect") && name.value().startsWith("rect")
+                    && props.get(new PropertyName("rect")) instanceof PropertyValue.DartObjectReferenceValue)
+                patches.add(new PatchProperties.SetPatch(new PropertyName("rect"), new PropertyValue.StringValue("local")));
+        } else {
+            boolean directional = dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.directional(widget.type());
+            for (var axis : java.util.List.of(java.util.List.of(directional ? "start" : "left", directional ? "end" : "right", "width"),
+                    java.util.List.of("top", "bottom", "height"))) {
+                if (axis.contains(name.value()) && axis.stream().allMatch(field ->
+                        dev.flutter.netbeans.designer.catalog.AnimatedPositionedWidgetPropertySchema.nonNull(props.get(new PropertyName(field)))))
+                    patches.add(new PatchProperties.ResetPatch(new PropertyName(name.value().equals(axis.get(2)) ? axis.get(1) : axis.get(2))));
+            }
+        }
+        patches.add(accepted.explicitValue().<PatchProperties.Patch>map(v -> new PatchProperties.SetPatch(name,v))
+                .orElseGet(() -> new PatchProperties.ResetPatch(name)));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget,name,accepted) : new PatchProperties(widget.id(),patches);
+    }
+
+    private DesignerCommand animatedContainerPropertyCommand(
+            WidgetNode currentWidget, PropertyName name, FlutterPropertyCellValue accepted) {
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        var properties = new java.util.HashMap<>(currentWidget.properties());
+        if (accepted.explicitValue().isPresent()) properties.put(name, accepted.explicitValue().orElseThrow());
+        else properties.remove(name);
+        PropertyValue value = properties.get(name);
+        boolean nonNull = value != null && !(value instanceof PropertyValue.NullValue);
+        if (nonNull && (name.equals(CONTAINER_COLOR) || name.equals(CONTAINER_DECORATION))) {
+            PropertyName other = name.equals(CONTAINER_COLOR) ? CONTAINER_DECORATION : CONTAINER_COLOR;
+            PropertyValue previous = properties.get(other);
+            if (previous != null && !(previous instanceof PropertyValue.NullValue)) {
+                patches.add(new PatchProperties.ResetPatch(other)); properties.remove(other);
+            }
+        }
+        boolean background = java.util.stream.Stream.of(CONTAINER_COLOR, CONTAINER_DECORATION)
+                .map(properties::get).anyMatch(v -> v != null && !(v instanceof PropertyValue.NullValue));
+        if (!background && properties.get(CONTAINER_CLIP) instanceof PropertyValue.EnumValue clip && !clip.value().equals("none")) {
+            if (name.equals(CONTAINER_CLIP)) {
+                patches.add(new PatchProperties.SetPatch(CONTAINER_DECORATION, emptyContainerDecoration(Optional.empty())));
+            } else {
+                patches.add(new PatchProperties.ResetPatch(CONTAINER_CLIP));
+            }
+        }
+        patches.add(accepted.explicitValue().<PatchProperties.Patch>map(v -> new PatchProperties.SetPatch(name, v))
+                .orElseGet(() -> new PatchProperties.ResetPatch(name)));
+        return patches.size() == 1 ? ordinaryPropertyCommand(currentWidget, name, accepted) : new PatchProperties(currentWidget.id(), patches);
     }
 
     private DesignerCommand circleAvatarPropertyCommand(
@@ -4261,7 +6087,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (RangeSliderWidgetPropertySchema.rangeProperties().contains(edited)) {
             var prospective = new java.util.LinkedHashMap<>(widget.properties());
             if (setting) prospective.put(name, explicit); else prospective.remove(name);
-            var candidate = new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions());
+            var candidate = new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions(), widget.stateBinding(), widget.propertyBindings());
             RangeSliderWidgetPropertySchema.rangeError(candidate).ifPresent(reason -> {
                 throw new IllegalArgumentException("Cannot edit " + edited + " on RangeSlider '" + widget.id() + "': " + reason);
             });
@@ -4288,7 +6114,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (SliderWidgetPropertySchema.rangeProperties().contains(edited)) {
             var prospective = new java.util.LinkedHashMap<>(widget.properties());
             if (setting) prospective.put(name, explicit); else prospective.remove(name);
-            var candidate = new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions());
+            var candidate = new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions(), widget.stateBinding(), widget.propertyBindings());
             SliderWidgetPropertySchema.rangeError(candidate).ifPresent(reason -> {
                 throw new IllegalArgumentException("Cannot edit " + edited + " on Slider '" + widget.id() + "': " + reason);
             });
@@ -4307,25 +6133,41 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private DesignerCommand switchPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        return switchPropertyCommand(widget, name, accepted, false);
+    }
+
+    private DesignerCommand switchListTilePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        if (edited.equals("shape") || SwitchListTileWidgetPropertySchema.builtInShapePropertyNames().contains(edited))
+            return cardPropertyCommand(widget, name, accepted);
+        if (edited.equals("isThreeLine") && accepted.explicitValue().filter(new PropertyValue.BooleanValue(true)::equals).isPresent()
+                && (!(widget.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty()))
+            throw new IllegalArgumentException("Cannot enable SwitchListTile Three line: add a widget to Subtitle first. No subtitle is created automatically.");
+        if (edited.startsWith("visualDensity") || edited.equals("mouseCursor") || SwitchListTileWidgetPropertySchema.mouseCursorStateProperties().contains(edited))
+            return checkboxListTileDensityCursorCommand(widget, name, accepted, "SwitchListTile");
+        return switchPropertyCommand(widget, name, accepted, true);
+    }
+
+    private DesignerCommand switchPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted, boolean tile) {
         String edited = name.value();
         boolean setting = accepted.explicitValue().isPresent();
         var explicit = accepted.explicitValue().orElse(null);
         var resets = new java.util.LinkedHashSet<PropertyName>();
         var sets = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
-        if (setting && edited.equals("applyCupertinoTheme")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
-        if (edited.equals("variant") && explicit instanceof PropertyValue.StringValue variant && variant.value().equals("standard"))
+        if (!tile && setting && edited.equals("applyCupertinoTheme")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
+        if (!tile && edited.equals("variant") && explicit instanceof PropertyValue.StringValue variant && variant.value().equals("standard"))
             resets.add(new PropertyName("applyCupertinoTheme"));
         for (String prefix : java.util.List.of("Active", "Inactive")) {
             String image = Character.toLowerCase(prefix.charAt(0)) + prefix.substring(1) + "ThumbImage";
             String callback = "on" + prefix + "ThumbImageError";
-            if (setting && edited.equals(callback) && !widget.properties().containsKey(new PropertyName(image)))
-                throw new IllegalArgumentException("Cannot set " + callback + " on Switch '" + widget.id()
+            if (setting && edited.equals(callback) && !(tile && explicit instanceof PropertyValue.NullValue) && !widget.properties().containsKey(new PropertyName(image)))
+                throw new IllegalArgumentException("Cannot set " + callback + " on " + (tile ? "SwitchListTile" : "Switch") + " '" + widget.id()
                         + "': set " + image + " first; an image-error callback requires its matching provider.");
             if (!setting && edited.equals(image)) resets.add(new PropertyName(callback));
         }
         var families = new java.util.LinkedHashMap<String, java.util.List<String>>();
         for (String family : SwitchWidgetPropertySchema.colorFamilies()) families.put(family, SwitchWidgetPropertySchema.colorStateProperties(family));
-        families.put("trackOutlineWidth", SwitchWidgetPropertySchema.outlineWidthStateProperties());
+        if (!tile) families.put("trackOutlineWidth", SwitchWidgetPropertySchema.outlineWidthStateProperties());
         families.put("thumbIcon", SwitchWidgetPropertySchema.thumbIconLocalProperties());
         families.forEach((family, leaves) -> {
             if (setting && edited.equals(family)) leaves.forEach(field -> resets.add(new PropertyName(field)));
@@ -4348,12 +6190,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private static Optional<String> radioTypeError(WidgetNode widget) {
+        if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type()))
+            return dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.valueTypeError(widget);
+        if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type()))
+            return dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.valueTypeError(widget);
         return RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())
-                ? RadioGroupWidgetPropertySchema.valueTypeError(widget) : RadioWidgetPropertySchema.valueTypeError(widget);
+                ? RadioGroupWidgetPropertySchema.valueTypeError(widget) : RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(widget.type())
+                        ? RadioListTileWidgetPropertySchema.valueTypeError(widget) : RadioWidgetPropertySchema.valueTypeError(widget);
     }
 
     private DesignerCommand radioPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
-        String radioFamily = RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type()) ? "RadioGroup" : "Radio";
+        boolean tile = RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE.equals(widget.type());
+        String radioFamily = dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type()) ? "TweenAnimationBuilder"
+                : dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type()) ? "ValueListenableBuilder"
+                : RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type()) ? "RadioGroup" : tile ? "RadioListTile" : "Radio";
         String edited = name.value();
         boolean setting = accepted.explicitValue().isPresent();
         var resets = new java.util.LinkedHashSet<PropertyName>();
@@ -4369,14 +6219,19 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             var patches = new java.util.ArrayList<PatchProperties.Patch>();
             draft.requested().forEach((field, value) -> {
                 var key = new PropertyName(field);
-                FlutterTypedPropertyEditors.binding(definition.properties().stream().filter(item -> item.name().equals(key)).findFirst().orElseThrow())
+                FlutterTypedPropertyEditors.binding(definition.properties().stream().filter(item -> item.name().equals(key)).findFirst().orElseThrow(), Optional.empty(), false,
+                        tile && field.equals("onChanged") ? java.util.List.of("noop")
+                                : dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type()) && field.equals("tween") ? java.util.List.of("default")
+                                : dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type()) && field.equals("builder") ? java.util.List.of("child")
+                                : dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type()) && field.equals("valueListenable") ? java.util.List.of("constant")
+                                : dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type()) && field.equals("builder") ? java.util.List.of("child") : java.util.List.of())
                         .orElseThrow().validate(new FlutterPropertyCellValue(value));
                 if (!value.equals(draft.baseline().get(field))) {
                     if (value.isPresent()) { requested.put(key, value.orElseThrow()); patches.add(new PatchProperties.SetPatch(key, value.orElseThrow())); }
                     else { requested.remove(key); patches.add(new PatchProperties.ResetPatch(key)); }
                 }
             });
-            radioTypeError(new WidgetNode(widget.id(), widget.type(), requested, widget.slots())).ifPresent(reason -> {
+            radioTypeError(new WidgetNode(widget.id(), widget.type(), requested, widget.slots(), widget.extensions(), widget.stateBinding(), widget.propertyBindings())).ifPresent(reason -> {
                 throw new IllegalArgumentException("Cannot edit " + radioFamily + " type: " + reason);
             });
             if (patches.isEmpty()) return ordinaryPropertyCommand(widget, name, FlutterPropertyCellValue.explicit(explicit));
@@ -4385,34 +6240,46 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (FlutterPropertyCellValue.RadioTypeEdit.fields(widget.type()).contains(edited)) {
             var prospective = new java.util.LinkedHashMap<>(widget.properties());
             if (setting) prospective.put(name, explicit); else prospective.remove(name);
-            radioTypeError(new WidgetNode(widget.id(), widget.type(), prospective, widget.slots())).ifPresent(reason -> {
+            radioTypeError(new WidgetNode(widget.id(), widget.type(), prospective, widget.slots(), widget.extensions(), widget.stateBinding(), widget.propertyBindings())).ifPresent(reason -> {
                 throw new IllegalArgumentException("Cannot edit " + radioFamily + " " + edited + ": " + reason + " Use the Value type dialog to change dependent values together.");
             });
         }
-        if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())) return ordinaryPropertyCommand(widget, name, accepted);
-        if (setting && edited.equals("useCupertinoCheckmarkStyle")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
-        if (edited.equals("variant") && new PropertyValue.StringValue("standard").equals(explicit)) resets.add(new PropertyName("useCupertinoCheckmarkStyle"));
+        if (RadioGroupWidgetPropertySchema.RADIO_GROUP_TYPE.equals(widget.type())
+                || dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(widget.type())
+                || dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(widget.type())) return ordinaryPropertyCommand(widget, name, accepted);
+        if (tile && (edited.equals("shape") || RadioListTileWidgetPropertySchema.builtInShapePropertyNames().contains(edited))) return cardPropertyCommand(widget, name, accepted);
+        if (tile && edited.equals("isThreeLine") && new PropertyValue.BooleanValue(true).equals(explicit)
+                && (!(widget.slots().get(new SlotName("subtitle")) instanceof WidgetSlot.SingleSlot subtitle) || subtitle.child().isEmpty()))
+            throw new IllegalArgumentException("Cannot enable RadioListTile Three line: add a widget to Subtitle first. No subtitle is created automatically.");
+        if (tile && (edited.startsWith("visualDensity") || edited.equals("mouseCursor") || RadioListTileWidgetPropertySchema.mouseCursorStateProperties().contains(edited)))
+            return checkboxListTileDensityCursorCommand(widget, name, accepted, "RadioListTile");
+        if (!tile && setting && edited.equals("useCupertinoCheckmarkStyle")) sets.put(new PropertyName("variant"), new PropertyValue.StringValue("adaptive"));
+        if (!tile && edited.equals("variant") && new PropertyValue.StringValue("standard").equals(explicit)) resets.add(new PropertyName("useCupertinoCheckmarkStyle"));
         var density = java.util.List.of("visualDensityHorizontal", "visualDensityVertical");
         if (setting && edited.equals("visualDensity")) density.forEach(field -> resets.add(new PropertyName(field)));
         else if (setting && density.contains(edited)) resets.add(new PropertyName("visualDensity"));
-        if (setting && edited.equals("innerRadius")) RadioWidgetPropertySchema.innerRadiusStateProperties().forEach(field -> resets.add(new PropertyName(field)));
-        else if (setting && RadioWidgetPropertySchema.innerRadiusStateProperties().contains(edited)) resets.add(new PropertyName("innerRadius"));
-        for (String family : java.util.List.of("fillColor", "overlayColor", "backgroundColor")) {
-            var local = RadioWidgetPropertySchema.colorStateProperties(family);
+        String radius = tile ? "radioInnerRadius" : "innerRadius";
+        var radiusStates = tile ? RadioListTileWidgetPropertySchema.innerRadiusStateProperties() : RadioWidgetPropertySchema.innerRadiusStateProperties();
+        if (setting && edited.equals(radius)) radiusStates.forEach(field -> resets.add(new PropertyName(field)));
+        else if (setting && radiusStates.contains(edited)) resets.add(new PropertyName(radius));
+        for (String family : tile ? RadioListTileWidgetPropertySchema.colorFamilies() : java.util.List.of("fillColor", "overlayColor", "backgroundColor")) {
+            var local = tile ? RadioListTileWidgetPropertySchema.colorStateProperties(family) : RadioWidgetPropertySchema.colorStateProperties(family);
             if (setting && edited.equals(family)) local.forEach(field -> resets.add(new PropertyName(field)));
             else if (setting && local.contains(edited)) resets.add(new PropertyName(family));
         }
-        if (setting && edited.equals("side")) {
-            RadioWidgetPropertySchema.sideLocalProperties().forEach(field -> resets.add(new PropertyName(field)));
-        } else if (RadioWidgetPropertySchema.sideLocalProperties().contains(edited)) {
-            if (setting) resets.add(new PropertyName("side"));
-            if (edited.equals("sideStateful") && (!setting || explicit.equals(new PropertyValue.BooleanValue(false)))) {
-                RadioWidgetPropertySchema.sideStateProperties().forEach(field -> resets.add(new PropertyName(field)));
+        String side = tile ? "radioSide" : "side";
+        var sideLocals = tile ? RadioListTileWidgetPropertySchema.sideLocalProperties() : RadioWidgetPropertySchema.sideLocalProperties();
+        if (setting && edited.equals(side)) {
+            sideLocals.forEach(field -> resets.add(new PropertyName(field)));
+        } else if (sideLocals.contains(edited)) {
+            if (setting) resets.add(new PropertyName(side));
+            if (edited.equals(side + "Stateful") && (!setting || explicit.equals(new PropertyValue.BooleanValue(false)))) {
+                (tile ? RadioListTileWidgetPropertySchema.sideStateProperties() : RadioWidgetPropertySchema.sideStateProperties()).forEach(field -> resets.add(new PropertyName(field)));
             }
             for (String state : RadioWidgetPropertySchema.sideStates()) {
-                var bucket = RadioWidgetPropertySchema.sideBucketProperties(state);
+                var bucket = tile ? RadioListTileWidgetPropertySchema.sideBucketProperties(state) : RadioWidgetPropertySchema.sideBucketProperties(state);
                 if (!setting || !bucket.contains(edited)) continue;
-                sets.put(new PropertyName("sideStateful"), new PropertyValue.BooleanValue(true));
+                sets.put(new PropertyName(side + "Stateful"), new PropertyValue.BooleanValue(true));
                 String mode = bucket.getFirst();
                 if (edited.equals(mode) && explicit.equals(new PropertyValue.StringValue("inherit"))) {
                     bucket.stream().skip(1).forEach(field -> resets.add(new PropertyName(field)));
@@ -4487,6 +6354,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (!edited.equals("visualDensity") && !edited.startsWith("visualDensity")
                 && !edited.equals("mouseCursor") && !CheckboxListTileWidgetPropertySchema.mouseCursorStateProperties().contains(edited))
             return checkboxPropertyCommand(widget, name, accepted);
+        return checkboxListTileDensityCursorCommand(widget, name, accepted, "CheckboxListTile");
+    }
+
+    private DesignerCommand checkboxListTileDensityCursorCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted, String widgetName) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
         var resets = new java.util.LinkedHashSet<PropertyName>();
         if (setting && edited.equals("visualDensity")) {
             resets.add(new PropertyName("visualDensityHorizontal")); resets.add(new PropertyName("visualDensityVertical"));
@@ -4497,10 +6369,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (local.contains(edited)) {
             if (setting) {
                 if (!edited.equals("mouseCursorDefault") && !widget.properties().containsKey(new PropertyName("mouseCursorDefault")))
-                    throw new IllegalArgumentException("Cannot set CheckboxListTile " + edited + ": set mouseCursorDefault first. No cursor is invented.");
+                    throw new IllegalArgumentException("Cannot set " + widgetName + " " + edited + ": set mouseCursorDefault first. No cursor is invented.");
                 resets.add(new PropertyName("mouseCursor"));
             } else if (edited.equals("mouseCursorDefault") && local.stream().filter(field -> !field.equals(edited)).anyMatch(field -> widget.properties().containsKey(new PropertyName(field))))
-                throw new IllegalArgumentException("Cannot reset CheckboxListTile mouseCursorDefault: reset its remaining local state entries first, or set the whole mouseCursor value.");
+                throw new IllegalArgumentException("Cannot reset " + widgetName + " mouseCursorDefault: reset its remaining local state entries first, or set the whole mouseCursor value.");
         }
         var patches = new java.util.ArrayList<PatchProperties.Patch>();
         resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
@@ -4521,6 +6393,137 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                                 && CheckboxListTileWidgetPropertySchema.shapePropertyAppliesToKind(edited, current.value())
                                         ? current.value() : CheckboxListTileWidgetPropertySchema.preferredShapeKindForProperty(edited);
                 local.stream().filter(field -> !field.equals(kindField) && !CheckboxListTileWidgetPropertySchema.shapePropertyAppliesToKind(field, kind))
+                        .forEach(field -> resets.add(new PropertyName(field)));
+                if (!edited.equals(kindField) && !new PropertyValue.StringValue(kind).equals(widget.properties().get(new PropertyName(kindField))))
+                    patches.add(new PatchProperties.SetPatch(new PropertyName(kindField), new PropertyValue.StringValue(kind)));
+            } else if (edited.equals(kindField)) local.forEach(field -> resets.add(new PropertyName(field)));
+        }
+        resets.remove(name); resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand tooltipThemePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        if (accepted.explicitValue().isPresent()) {
+            boolean whole = name.value().equals("data");
+            boolean localValues = widget.properties().keySet().stream().anyMatch(field -> !field.value().equals("data"));
+            if (whole && (localValues || !widget.propertyBindings().isEmpty())) {
+                throw new IllegalArgumentException("Cannot set TooltipTheme Data while local values or State bindings remain. Reset each local value, including explicit null, and remove local State bindings first; no values are silently cleared.");
+            }
+            if (!whole && widget.properties().containsKey(new PropertyName("data"))) {
+                throw new IllegalArgumentException("Cannot set TooltipTheme local " + name.value() + " while whole Data is configured. Reset Data first; the stored reference is not silently cleared.");
+            }
+        }
+        // Local TooltipThemeData leaves use the same reviewed inner compounds.
+        // Whole data has no matching inner-family name and remains an ordinary edit.
+        return tooltipPropertyCommand(widget, name, accepted);
+    }
+
+    private DesignerCommand tooltipPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        boolean nonNull = setting && !(accepted.explicitValue().orElseThrow() instanceof PropertyValue.NullValue);
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        if (edited.equals("message") || edited.equals("richMessage")) {
+            String peer = edited.equals("message") ? "richMessage" : "message";
+            if (!nonNull && !TooltipWidgetPropertySchema.isNonNull(widget, peer)) throw new IllegalArgumentException(
+                    "Cannot clear Tooltip " + edited + ": exactly one non-null Message or Rich message is required. Set the other content first; switching is atomic and no fallback text is invented.");
+            if (nonNull && TooltipWidgetPropertySchema.isNonNull(widget, peer)) resets.add(new PropertyName(peer));
+        }
+        if (nonNull && (edited.equals("height") || edited.equals("constraints"))) {
+            String peer = edited.equals("height") ? "constraints" : "height";
+            if (TooltipWidgetPropertySchema.isNonNull(widget, peer)) resets.add(new PropertyName(peer));
+        }
+        if (setting && edited.equals("textStyle")) TooltipWidgetPropertySchema.textStyleProperties().forEach(field -> resets.add(new PropertyName(field)));
+        else if (setting && TooltipWidgetPropertySchema.isTextStyleProperty(name)) resets.add(new PropertyName("textStyle"));
+        String opposite = setting ? switch (edited) {
+            case "textStyleForeground" -> "textStyleColor"; case "textStyleColor" -> "textStyleForeground";
+            case "textStyleBackground" -> "textStyleBackgroundColor"; case "textStyleBackgroundColor" -> "textStyleBackground";
+            default -> null;
+        } : null;
+        if (opposite != null) resets.add(new PropertyName(opposite)); resets.remove(name);
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand sliverAppBarPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        for (String whole : dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.WHOLE_TYPES.keySet()) {
+            var local = dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.localFamily(whole);
+            if (setting && edited.equals(whole)) local.forEach(n -> resets.add(new PropertyName(n)));
+            else if (setting && local.contains(edited)) resets.add(new PropertyName(whole));
+        }
+        if (setting && edited.startsWith("shape") && !edited.equals("shape")) {
+            String kind = edited.equals("shapeKind") ? ((PropertyValue.StringValue) accepted.explicitValue().orElseThrow()).value()
+                    : edited.equals("shapeCircleEccentricity") ? "circle"
+                    : widget.properties().get(new PropertyName("shapeKind")) instanceof PropertyValue.StringValue current ? current.value() : "roundedRectangle";
+            if (edited.startsWith("shapeRadius") && !java.util.Set.of("roundedRectangle", "beveledRectangle", "continuousRectangle").contains(kind)) kind = "roundedRectangle";
+            if (!edited.equals("shapeKind")) patches.add(new PatchProperties.SetPatch(new PropertyName("shapeKind"), new PropertyValue.StringValue(kind)));
+            for (String field : dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.localFamily("shape")) {
+                if (field.startsWith("shapeRadius") && !java.util.Set.of("roundedRectangle", "beveledRectangle", "continuousRectangle").contains(kind)
+                        || field.equals("shapeCircleEccentricity") && !kind.equals("circle")) resets.add(new PropertyName(field));
+            }
+        } else if (!setting && edited.equals("shapeKind")) {
+            dev.flutter.netbeans.designer.catalog.SliverAppBarWidgetPropertySchema.localFamily("shape").forEach(n -> resets.add(new PropertyName(n)));
+        }
+        if (edited.equals("snap") && accepted.explicitValue().orElse(null) instanceof PropertyValue.BooleanValue b && b.value()) {
+            patches.add(new PatchProperties.SetPatch(new PropertyName("floating"), new PropertyValue.BooleanValue(true)));
+        }
+        if (edited.equals("floating") && !(accepted.explicitValue().orElse(null) instanceof PropertyValue.BooleanValue b && b.value())) {
+            if (widget.properties().get(new PropertyName("snap")) instanceof PropertyValue.BooleanValue b && b.value())
+                patches.add(new PatchProperties.SetPatch(new PropertyName("snap"), new PropertyValue.BooleanValue(false)));
+        }
+        resets.remove(name);
+        resets.stream().filter(widget.properties()::containsKey).forEach(n -> patches.add(new PatchProperties.ResetPatch(n)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand floatingHeaderPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var local = dev.flutter.netbeans.designer.catalog.SliverFloatingHeaderWidgetPropertySchema.LOCAL_STYLE;
+        String whole = "animationStyle";
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        if (setting && edited.equals(whole)) local.forEach(field -> resets.add(new PropertyName(field)));
+        else if (setting && local.contains(edited)) resets.add(new PropertyName(whole));
+        resets.remove(name); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand expansionTilePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var family = ExpansionTileWidgetPropertySchema.shapeFamilies().contains(edited) ? Optional.of(edited) : ExpansionTileWidgetPropertySchema.shapeFamily(name);
+        if (family.isPresent()) return expansionTileShapeCommand(widget, name, accepted, family.orElseThrow());
+        var local = edited.startsWith("visualDensity") ? java.util.List.of("visualDensityHorizontal", "visualDensityVertical")
+                : ExpansionTileWidgetPropertySchema.animationStyleLocalProperties();
+        String whole = edited.startsWith("visualDensity") ? "visualDensity" : "expansionAnimationStyle";
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        if (setting && edited.equals(whole)) local.forEach(field -> resets.add(new PropertyName(field)));
+        else if (setting && local.contains(edited)) resets.add(new PropertyName(whole));
+        resets.remove(name); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand expansionTileShapeCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted, String family) {
+        String edited = name.value(); boolean setting = accepted.explicitValue().isPresent();
+        var local = ExpansionTileWidgetPropertySchema.shapeLocalProperties(family); String kindField = family + "Kind";
+        var resets = new java.util.LinkedHashSet<PropertyName>(); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        if (edited.equals(family) && setting) local.forEach(field -> resets.add(new PropertyName(field)));
+        else if (local.contains(edited)) {
+            if (setting) {
+                resets.add(new PropertyName(family));
+                String kind = edited.equals(kindField) ? ((PropertyValue.StringValue) accepted.explicitValue().orElseThrow()).value()
+                        : widget.properties().get(new PropertyName(kindField)) instanceof PropertyValue.StringValue current
+                                && ExpansionTileWidgetPropertySchema.shapePropertyAppliesToKind(edited, current.value())
+                                        ? current.value() : ExpansionTileWidgetPropertySchema.preferredShapeKindForProperty(edited);
+                local.stream().filter(field -> !field.equals(kindField) && !ExpansionTileWidgetPropertySchema.shapePropertyAppliesToKind(field, kind))
                         .forEach(field -> resets.add(new PropertyName(field)));
                 if (!edited.equals(kindField) && !new PropertyValue.StringValue(kind).equals(widget.properties().get(new PropertyName(kindField))))
                     patches.add(new PatchProperties.SetPatch(new PropertyName(kindField), new PropertyValue.StringValue(kind)));
@@ -4751,7 +6754,69 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private static boolean hasFullButtonStyle(WidgetNode node) {
-        return isModernButton(node) || IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type());
+        return isModernButton(node) || IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type())
+                || MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(node.type())
+                || SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(node.type())
+                || MenuBarWidgetPropertySchema.MENU_BAR_TYPE.equals(node.type());
+    }
+
+    private DesignerCommand submenuButtonPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value();
+        if (edited.equals("menuStyle") || SubmenuButtonWidgetPropertySchema.menuStyleProperties().contains(edited)) {
+            // Reuse the reviewed MenuStyle dependency planner in its own namespace;
+            // only its returned property patches are published on the real node.
+            var projectedValues = new java.util.LinkedHashMap<PropertyName, PropertyValue>();
+            widget.properties().forEach((key, value) -> {
+                if (key.value().equals("menuStyle")) projectedValues.put(new PropertyName("style"), value);
+                else if (SubmenuButtonWidgetPropertySchema.menuStyleProperties().contains(key.value()))
+                    projectedValues.put(new PropertyName(SubmenuButtonWidgetPropertySchema.menuStyleSourceName(key.value())), value);
+            });
+            var projection = new WidgetNode(widget.id(), MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE,
+                    projectedValues, widget.slots(), widget.extensions(), widget.stateBinding(), widget.propertyBindings());
+            var projectedName = new PropertyName(edited.equals("menuStyle") ? "style" : SubmenuButtonWidgetPropertySchema.menuStyleSourceName(edited));
+            var command = iconButtonPropertyCommand(projection, projectedName, accepted);
+            if (command instanceof SetProperty set) return new SetProperty(widget.id(), submenuMenuStyleName(set.propertyName()), set.value());
+            if (command instanceof ResetProperty reset) return new ResetProperty(widget.id(), submenuMenuStyleName(reset.propertyName()));
+            if (command instanceof PatchProperties patch) return new PatchProperties(widget.id(), patch.patches().stream().<PatchProperties.Patch>map(value ->
+                    value instanceof PatchProperties.SetPatch set ? new PatchProperties.SetPatch(submenuMenuStyleName(set.propertyName()), set.value())
+                            : new PatchProperties.ResetPatch(submenuMenuStyleName(value.propertyName()))).toList());
+            throw new IllegalStateException("Menu style planner returned an unsupported command.");
+        }
+        var iconFields = SubmenuButtonWidgetPropertySchema.submenuIconLocalProperties();
+        if (accepted.explicitValue().isPresent() && (edited.equals("submenuIcon") || iconFields.contains(edited))) {
+            var patches = new java.util.ArrayList<PatchProperties.Patch>();
+            var resets = edited.equals("submenuIcon") ? iconFields : java.util.List.of("submenuIcon");
+            resets.stream().map(PropertyName::new).filter(widget.properties()::containsKey).forEach(key -> patches.add(new PatchProperties.ResetPatch(key)));
+            patches.add(new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()));
+            return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+        }
+        return iconButtonPropertyCommand(widget, name, accepted);
+    }
+
+    private static PropertyName submenuMenuStyleName(PropertyName name) {
+        if (!name.value().startsWith("style")) throw new IllegalArgumentException("Only MenuStyle properties may be mapped into SubmenuButton.");
+        return new PropertyName("menuStyle" + name.value().substring("style".length()));
+    }
+
+    private DesignerCommand menuItemButtonPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited = name.value(); var local = MenuItemButtonWidgetPropertySchema.shortcutLocalProperties();
+        if (!edited.equals("shortcut") && !local.contains(edited)) return iconButtonPropertyCommand(widget, name, accepted);
+        boolean setting = accepted.explicitValue().isPresent(); boolean anchor = edited.equals("shortcutTrigger") || edited.equals("shortcutCharacter");
+        var resets = new java.util.LinkedHashSet<PropertyName>();
+        if (edited.equals("shortcut") && setting || anchor && !setting) local.forEach(field -> resets.add(new PropertyName(field)));
+        else if (anchor && setting) {
+            resets.add(new PropertyName("shortcut")); resets.add(new PropertyName(edited.equals("shortcutTrigger") ? "shortcutCharacter" : "shortcutTrigger"));
+            if (edited.equals("shortcutCharacter")) { resets.add(new PropertyName("shortcutShift")); resets.add(new PropertyName("shortcutNumLock")); }
+        } else if (setting) {
+            boolean single = widget.properties().containsKey(new PropertyName("shortcutTrigger"));
+            boolean character = widget.properties().containsKey(new PropertyName("shortcutCharacter"));
+            if (!single && !character) throw new IllegalArgumentException("Cannot set MenuItemButton " + edited + ": choose Shortcut trigger or Shortcut character first. No key is invented and the whole shortcut is not silently discarded.");
+            if (character && (edited.equals("shortcutShift") || edited.equals("shortcutNumLock"))) throw new IllegalArgumentException("CharacterActivator has no Shift or Num lock field. Select a Shortcut trigger first; existing character and modifiers remain unchanged.");
+        }
+        resets.remove(name); var patches = new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
+        patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
     }
 
     private DesignerCommand iconButtonPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
@@ -4793,6 +6858,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private static java.util.List<String> modernButtonStatePrefixes(WidgetNode node) {
+        if (SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(node.type())) return SubmenuButtonWidgetPropertySchema.statePrefixes();
+        if (MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.equals(node.type())) return MenuAnchorWidgetPropertySchema.statePrefixes();
+        if (MenuBarWidgetPropertySchema.MENU_BAR_TYPE.equals(node.type())) return MenuBarWidgetPropertySchema.statePrefixes();
+        if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(node.type())) return MenuItemButtonWidgetPropertySchema.statePrefixes();
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type())) return IconButtonWidgetPropertySchema.statePrefixes();
         if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.statePrefixes();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
@@ -4800,6 +6869,10 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
     }
 
     private static java.util.List<String> modernButtonLocalStyleProperties(WidgetNode node) {
+        if (SubmenuButtonWidgetPropertySchema.SUBMENU_BUTTON_TYPE.equals(node.type())) return SubmenuButtonWidgetPropertySchema.localStyleProperties();
+        if (MenuAnchorWidgetPropertySchema.MENU_ANCHOR_TYPE.equals(node.type())) return MenuAnchorWidgetPropertySchema.localStyleProperties();
+        if (MenuBarWidgetPropertySchema.MENU_BAR_TYPE.equals(node.type())) return MenuBarWidgetPropertySchema.localStyleProperties();
+        if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(node.type())) return MenuItemButtonWidgetPropertySchema.localStyleProperties();
         if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(node.type())) return IconButtonWidgetPropertySchema.localStyleProperties();
         if (FilledButtonWidgetPropertySchema.FILLED_BUTTON_TYPE.equals(node.type())) return FilledButtonWidgetPropertySchema.localStyleProperties();
         return OutlinedButtonWidgetPropertySchema.OUTLINED_BUTTON_TYPE.equals(node.type())
@@ -4959,6 +7032,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             reset = " Restore Default removes the project reference and generates onRefresh: () async {}; the required callback is not null or omitted.";
         } else if (IconButtonWidgetPropertySchema.ICON_BUTTON_TYPE.equals(widget.type()) && "onPressed".equals(property.name().value())) {
             reset = " Restore Default removes the project callback. Enabled generates a no-op onPressed when unset; disabled emits null and suppresses long press. Project callbacks are retained without execution in isolated Canvas.";
+        } else if (MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE.equals(widget.type()) && "onPressed".equals(property.name().value())) {
+            reset = " Restore Default removes only the project handler. Enabled emits a no-op when unset; disabled emits null without discarding the retained handler. No long-press callback or global shortcut registration is generated.";
         } else if (isModernButton(widget) && "onPressed".equals(property.name().value())) {
             reset = " Restore Default removes the project callback, not the required Dart argument. Enabled with no activation callbacks generates a no-op; disabled or long-press-only emits onPressed: null.";
         } else if (hasFullButtonStyle(widget) && property.name().value().endsWith("TextInherit")) {

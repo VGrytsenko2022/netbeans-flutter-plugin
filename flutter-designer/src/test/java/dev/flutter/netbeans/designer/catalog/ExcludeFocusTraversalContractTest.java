@@ -166,9 +166,9 @@ class ExcludeFocusTraversalContractTest {
             assertFalse(validator.validate(document(invalid), BuiltInWidgetCatalog.getDefault()).valid());
             assertFalse(new DartRegionGenerator().generate(document(invalid), BuiltInWidgetCatalog.getDefault()).successful());
         }
-        assertEquals(13, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(14, WidgetCatalog.API_VERSION);
-        assertEquals(18, CanvasModelPayloadCodec.VERSION);
+        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(19, CanvasModelPayloadCodec.VERSION);
     }
 
     private static void assertNoCapability(List<PropertyDefinition> properties, List<SlotDefinition> slots) {

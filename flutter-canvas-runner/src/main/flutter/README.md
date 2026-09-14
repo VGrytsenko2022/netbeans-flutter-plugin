@@ -1,5 +1,10 @@
 # netbeans_flutter_canvas_runner
 
+ImageFiltered maps blur/bounds, morphology, matrix and composition to native
+filters and respects Enabled without replacing the render object. Source filters,
+matrices, bounds and shader preview with explicit safe fallbacks; shader execution
+remains project-owned and Impeller-only. See [ImageFiltered](../../../../docs/IMAGE_FILTERED.md).
+
 ColorFiltered uses native mode/matrix/gamma/saturation filters, with all 29
 BlendModes and all 20 matrix coefficients. Source-owned ColorFilter values
 preview as identity, source Color as transparent only in the active mode.

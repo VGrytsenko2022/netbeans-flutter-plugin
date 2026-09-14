@@ -90,7 +90,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.SliverAppBar",
             "flutter.material.SliverAppBar.medium",
             "flutter.material.SliverAppBar.large",
-            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered",
+            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered",
             "flutter.widgets.GestureDetector",
             "flutter.widgets.Listener",
             "flutter.widgets.MouseRegion",
@@ -604,8 +604,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(212, CATALOG.definitions().size());
-        assertEquals(178, CATALOG.definitions().stream()
+        assertEquals(213, CATALOG.definitions().size());
+        assertEquals(179, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -634,9 +634,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "Builder", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage", "ColorFiltered"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage", "ColorFiltered", "ImageFiltered"),
                 itemLabels(categories[3]));
-        assertEquals(31, itemLabels(categories[3]).size());
+        assertEquals(32, itemLabels(categories[3]).size());
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
         assertEquals(6, itemLabels(categories[4]).size());
         assertEquals(List.of("GestureDetector", "Listener", "MouseRegion", "Focus", "NotificationListener"), itemLabels(categories[5]));
@@ -675,7 +675,7 @@ class FlutterDesignerPaletteTest {
         assertEquals(List.of(
                 "Text", "Icon", "Image", "ColoredBox", "Placeholder", "Directionality",
                 "DecoratedBox", "Builder", "ClipRect", "ClipOval", "ClipRRect", "ClipPath",
-                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage", "ColorFiltered"),
+                "ClipRSuperellipse", "PhysicalModel", "PhysicalShape", "RepaintBoundary", "IgnorePointer", "AbsorbPointer", "Visibility", "TickerMode", "DefaultTextHeightBehavior", "DefaultSelectionStyle", "IconTheme", "ImageIcon", "DefaultTextStyle", "DefaultTextStyle.merge", "ModalBarrier", "AnimatedModalBarrier", "FadeInImage", "RawImage", "ColorFiltered", "ImageFiltered"),
                 itemLabels(categories[3]));
         assertEquals(List.of("Exclude Semantics", "BlockSemantics", "MergeSemantics", "IndexedSemantics", "ExcludeFocus", "ExcludeFocusTraversal"), itemLabels(categories[4]));
 
@@ -2324,7 +2324,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(212, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(213, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

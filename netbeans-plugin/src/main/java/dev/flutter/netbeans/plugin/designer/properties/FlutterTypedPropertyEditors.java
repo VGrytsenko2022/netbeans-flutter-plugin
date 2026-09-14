@@ -274,7 +274,7 @@ final class FlutterTypedPropertyEditors {
                 && (kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4, PropertyValueKind.NULL, PropertyValueKind.DART_OBJECT_REFERENCE))
                     && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference && reference.expectedDartType().equals("Matrix4?"))
                     || kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4, PropertyValueKind.DART_OBJECT_REFERENCE))
-                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference && reference.expectedDartType().equals("TransformCallback")))) {
+                    && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference && Set.of("TransformCallback", "Float64List").contains(reference.expectedDartType())))) {
             editorKind = EditorKind.MATRIX4_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.MATRIX4))
                 && definition.constraints().stream().anyMatch(

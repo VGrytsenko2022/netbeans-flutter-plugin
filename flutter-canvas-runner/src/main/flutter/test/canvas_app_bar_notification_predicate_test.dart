@@ -31,11 +31,11 @@ void main() {
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(212),
+        hasLength(213),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7365),
+        hasLength(7382),
       );
       final start = contract.indexOf('W|flutter.material.AppBar\n');
       final section = contract.substring(

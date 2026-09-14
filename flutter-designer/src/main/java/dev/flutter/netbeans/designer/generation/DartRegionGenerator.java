@@ -339,6 +339,7 @@ public final class DartRegionGenerator {
                             new PropertyName("scrollCacheExtent"));
             requiresDartConvert |= current.node().properties().values().stream()
                     .anyMatch(DartRegionGenerator::requiresDartConvert);
+            requiresDartUi |= current.node().type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE);
             requiresDartUi |= usesEnumLibrary(
                     current.node(), definition, DART_UI_IMPORT);
             requiresDartUi |= current.node().properties().values().stream()
@@ -485,6 +486,8 @@ public final class DartRegionGenerator {
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE)
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE))
                     && Set.of("durationUs", "curve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE)
+                    && !property.name().value().equals("enabled")) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE)) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)
                     && Set.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve").contains(property.name().value())) continue;
@@ -1104,6 +1107,11 @@ public final class DartRegionGenerator {
                     occurrence("widget:" + node.id() + occurrencePrefix + "data", symbol.nameOffset(), symbol.name(), MATERIAL_IMPORT, valuePath, Optional.of(node.id())),
                     occurrence("widget:" + node.id() + occurrencePrefix + "factory", symbol.text().length()+1, factory, MATERIAL_IMPORT, valuePath, Optional.of(node.id()))))));
         }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE)) {
+            var property = definition.property(new PropertyName("imageFilter")).orElseThrow();
+            arguments.add(new ConstructorArgument(property.parameter(), "imageFilter", false,
+                    renderImageFilter(node, definition, path, context)));
+        }
         if (node.type().equals(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE)) {
             var property=definition.property(new PropertyName("colorFilter")).orElseThrow();
             String filterPath=path+"/properties/colorFilter";
@@ -1709,6 +1717,87 @@ public final class DartRegionGenerator {
         return scalar("const " + symbol.text() + "<double>(" + dartDouble(number) + ")", true, path, widgetId, context,
                 List.of(occurrence("widget:" + widgetId + ":stopped-matrix-animation", 6 + symbol.nameOffset(),
                         symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId))));
+    }
+
+    private RenderedValue renderImageFilter(WidgetNode node, WidgetDefinition definition, String nodePath, GenerationContext context) {
+        String path = nodePath + "/properties/";
+        var filter = node.properties().get(new PropertyName("imageFilter"));
+        if (filter instanceof PropertyValue.DartObjectReferenceValue reference) {
+            return renderDartObjectReference(reference, "ImageFilter", path + "imageFilter", node.id(), context);
+        }
+        String preset = ((PropertyValue.StringValue) filter).value();
+        var positional = new ArrayList<RenderedValue>();
+        var named = new LinkedHashMap<String, RenderedValue>();
+        switch (preset) {
+            case "blur", "dilate", "erode" -> {
+                for (String field : preset.equals("blur") ? List.of("sigmaX", "sigmaY") : List.of("radiusX", "radiusY")) {
+                    named.put(field, scalar(dartDouble(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.number(node, field, BigDecimal.ZERO)),
+                            true, path + field, node.id(), context, List.of()));
+                }
+                if (preset.equals("blur")) {
+                    for (String field : List.of("tileMode", "bounds")) {
+                        var value = node.properties().get(new PropertyName(field));
+                        if (value != null) named.put(field, renderProperty(value, definition.property(new PropertyName(field)).orElseThrow(),
+                                path + field, node.id(), context));
+                    }
+                    if (!node.properties().containsKey(new PropertyName("bounds"))
+                            && List.of("boundsLeft", "boundsTop", "boundsWidth", "boundsHeight").stream().anyMatch(n -> node.properties().containsKey(new PropertyName(n)))) {
+                        var values = new ArrayList<RenderedValue>();
+                        for (String field : List.of("boundsLeft", "boundsTop", "boundsWidth", "boundsHeight")) {
+                            values.add(scalar(dartDouble(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.number(node, field, BigDecimal.ZERO)),
+                                    true, path + field, node.id(), context, List.of()));
+                        }
+                        named.put("bounds", renderPositionalCompositeValues("Rect", Optional.of("fromLTWH"), values, path + "bounds", node.id(), context));
+                    }
+                }
+            }
+            case "matrix" -> {
+                var matrix = node.properties().getOrDefault(new PropertyName("matrix4"), dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.identity());
+                if (matrix instanceof PropertyValue.DartObjectReferenceValue reference) {
+                    positional.add(renderDartObjectReference(reference, "Float64List", path + "matrix4", node.id(), context));
+                } else {
+                    var symbol = context.planner().renderedSymbol("dart:typed_data", "Float64List");
+                    String values = ((PropertyValue.Matrix4Value) matrix).storage().stream().map(DartRegionGenerator::dartDouble).collect(Collectors.joining(", "));
+                    positional.add(scalar(symbol.text() + ".fromList(<double>[" + values + "])", false, path + "matrix4", node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":filter-matrix", symbol.nameOffset(), symbol.name(), symbol.libraryUri(), path + "matrix4", Optional.of(node.id())))));
+                }
+                named.put("filterQuality", renderProperty(node.properties().getOrDefault(new PropertyName("filterQuality"), new PropertyValue.EnumValue("FilterQuality", "medium")),
+                        definition.property(new PropertyName("filterQuality")).orElseThrow(), path + "filterQuality", node.id(), context));
+            }
+            case "compose" -> {
+                for (String field : List.of("inner", "outer")) {
+                    var value = node.properties().get(new PropertyName(field));
+                    named.put(field, value instanceof PropertyValue.DartObjectReferenceValue reference
+                            ? renderDartObjectReference(reference, "ImageFilter", path + field, node.id(), context)
+                            : renderImageFilterFactory("blur", List.of(), Map.of(), path + field, node.id(), context));
+                }
+            }
+            case "shader" -> positional.add(renderDartObjectReference(
+                    (PropertyValue.DartObjectReferenceValue) node.properties().get(new PropertyName("shader")),
+                    "FragmentShader", path + "shader", node.id(), context));
+            default -> throw new IllegalStateException("Unreviewed ImageFilter factory: " + preset);
+        }
+        return renderImageFilterFactory(preset, positional, named, path + "imageFilter", node.id(), context);
+    }
+
+    private RenderedValue renderImageFilterFactory(String factory, List<RenderedValue> positional,
+            Map<String, RenderedValue> named, String path, StableId widgetId, GenerationContext context) {
+        var symbol = context.planner().renderedSymbol(DART_UI_IMPORT, "ImageFilter");
+        var text = new StringBuilder(symbol.text()).append('.').append(factory).append('(');
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        occurrences.add(occurrence("widget:" + widgetId + ":image-filter:" + path, symbol.nameOffset(),
+                symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId)));
+        boolean first = true;
+        for (RenderedValue value : positional) {
+            if (!first) text.append(", ");
+            appendRendered(text, occurrences, value); first = false;
+        }
+        for (var entry : named.entrySet()) {
+            if (!first) text.append(", ");
+            text.append(entry.getKey()).append(": "); appendRendered(text, occurrences, entry.getValue()); first = false;
+        }
+        text.append(')');
+        return scalar(text.toString(), false, path, widgetId, context, occurrences);
     }
 
     private RenderedValue renderMatrixCallback(

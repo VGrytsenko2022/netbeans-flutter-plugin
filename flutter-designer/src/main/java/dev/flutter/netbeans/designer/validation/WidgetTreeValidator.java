@@ -416,6 +416,11 @@ public final class WidgetTreeValidator {
             Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String type = node.type().value();
+        if (type.equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.value())) {
+            dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.relationshipError(node)
+                    .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/shader", node.id(), message)));
+            return;
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE.value())) {
             dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.notificationTypeError(node)
                     .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/notificationType", node.id(), message)));

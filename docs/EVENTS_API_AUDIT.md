@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## ImageFiltered update (2026-09-14)
+
+ImageFiltered has no callback parameters. Its filter affects pixels while Child
+retains layout, input and semantics. Enabled changes compositing, not event
+wiring. All six factories, including source-owned composition and shader, are
+covered without inventing Events or executing project code in Canvas.
+
+Inventory: 213 definitions; 239 callables across 87 types (50 builders, ten
+delegates); native Events remain 174 rows across 60 types.
+See [ImageFiltered](IMAGE_FILTERED.md).
+
 ## ColorFiltered update (2026-09-14)
 
 ColorFiltered has no callback constructor parameters. Its filter transforms

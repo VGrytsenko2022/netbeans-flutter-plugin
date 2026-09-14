@@ -1042,6 +1042,16 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(), field.label(), field.description(), false,
                         java.util.List.of()));
             sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.equals(widget.type())) {
+            for (String group : java.util.List.of("Filter", "Blur", "Blur bounds", "Morphology", "Matrix", "Composition", "Shader")) {
+                Sheet.Set set = propertySet("imageFiltered" + group, group, dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.FIELDS)
+                    if (field.group().equals(group)) set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, field.name().equals("imageFilter")
+                                    ? dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.FILTERS : java.util.List.of()));
+                sheet.put(set);
+            }
         } else if (dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE.equals(widget.type())) {
             for (String group : java.util.List.of("Filter", "Blend", "Matrix 4 x 5", "Saturation")) {
                 Sheet.Set set=propertySet("colorFiltered"+group,group,dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.DESCRIPTION);
@@ -1567,6 +1577,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.DESCRIPTION;

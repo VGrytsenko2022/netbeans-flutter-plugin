@@ -3,7 +3,7 @@ import 'dart:convert';
 import 'dart:math' as math;
 import 'dart:ui'
     as ui
-    show BoxHeightStyle, BoxWidthStyle, SemanticsRole, CheckedState;
+    show BoxHeightStyle, BoxWidthStyle, SemanticsRole, CheckedState, ImageFilter;
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/foundation.dart' show precisionErrorTolerance, ValueListenable;
@@ -4035,6 +4035,22 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.ImageFiltered') {
+    if (node.properties['imageFilter']?.kind == 'dartObjectReferencePresence') {
+      return 'ImageFiltered ${node.id}: project-owned ImageFilter is not executed. Canvas uses zero-sigma blur.';
+    }
+    final mode = node.properties['imageFilter']?.value;
+    final fields = switch (mode) {
+      'blur' => ['bounds'],
+      'matrix' => ['matrix4'],
+      'compose' => ['inner', 'outer'],
+      'shader' => ['shader'],
+      _ => <String>[],
+    };
+    final refs = fields.where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'ImageFiltered ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses null bounds or an identity filter/matrix. Shader filters require Impeller in the running app.';
+  }
   if (node.type == 'flutter.widgets.ColorFiltered') {
     if(node.properties['colorFilter']?.kind == 'dartObjectReferencePresence') {
       return 'ColorFiltered ${node.id}: project-owned ColorFilter is not executed; preview uses an identity matrix. Inactive local drafts are preserved.';
@@ -5725,6 +5741,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
+        node.type == 'flutter.widgets.ImageFiltered' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5815,6 +5832,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
+        node.type == 'flutter.widgets.ImageFiltered' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -8991,6 +9009,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.ImageFiltered' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: ImageFiltered(imageFilter: _localImageFilter(), enabled: _boolean('enabled') ?? true, child: _single('child'))),
       'flutter.widgets.ColorFiltered' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: ColorFiltered(colorFilter:_localColorFilter(context),child:_single('child'))),
@@ -14062,6 +14083,32 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isAntiAlias: _boolean('isAntiAlias') ?? false,
       filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
     );
+  }
+
+  ui.ImageFilter _localImageFilter() {
+    switch (_string('imageFilter')) {
+      case 'blur':
+        Rect? bounds;
+        if (!node.properties.containsKey('bounds') &&
+            ['boundsLeft', 'boundsTop', 'boundsWidth', 'boundsHeight'].any(node.properties.containsKey)) {
+          bounds = Rect.fromLTWH(_number('boundsLeft') ?? 0, _number('boundsTop') ?? 0,
+              _number('boundsWidth') ?? 0, _number('boundsHeight') ?? 0);
+        }
+        final tile = _enum('tileMode');
+        return ui.ImageFilter.blur(sigmaX: _number('sigmaX') ?? 0, sigmaY: _number('sigmaY') ?? 0,
+            tileMode: tile == null ? null : TileMode.values.byName(tile), bounds: bounds);
+      case 'dilate':
+        return ui.ImageFilter.dilate(radiusX: _number('radiusX') ?? 0, radiusY: _number('radiusY') ?? 0);
+      case 'erode':
+        return ui.ImageFilter.erode(radiusX: _number('radiusX') ?? 0, radiusY: _number('radiusY') ?? 0);
+      case 'matrix':
+        return ui.ImageFilter.matrix((_matrix4('matrix4') ?? Matrix4.identity()).storage,
+            filterQuality: FilterQuality.values.byName(_enum('filterQuality') ?? 'medium'));
+      case 'compose':
+        return ui.ImageFilter.compose(inner: ui.ImageFilter.blur(), outer: ui.ImageFilter.blur());
+      default:
+        return ui.ImageFilter.blur();
+    }
   }
 
   ColorFilter _localColorFilter(BuildContext context) {

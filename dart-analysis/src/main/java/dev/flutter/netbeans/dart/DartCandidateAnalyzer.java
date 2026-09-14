@@ -694,9 +694,13 @@ public final class DartCandidateAnalyzer {
             importLine += "import 'package:flutter/foundation.dart' as " + alias + "Foundation;\n";
         }
         if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .anyMatch(probe -> Set.of("Image?", "Rect?").contains(probe.expectedDartType()))) {
+                .anyMatch(probe -> Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader").contains(probe.expectedDartType()))) {
             // RawImage's Image is dart:ui.Image, never the Flutter Widget with the same name.
             importLine += "import 'dart:ui' as " + alias + "Ui;\n";
+        }
+        if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
+                .anyMatch(probe -> probe.expectedDartType().equals("Float64List"))) {
+            importLine += "import 'dart:typed_data' as " + alias + "TypedData;\n";
         }
         boolean pointerProofTypes = typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
                 .anyMatch(DartCandidateAnalyzer::usesPointerProofType);
@@ -1186,7 +1190,8 @@ public final class DartCandidateAnalyzer {
 
     private static String qualifiedExpectedType(DartStaticTypeProbe probe, String alias, String coreAlias)
             throws AnalysisFailure {
-        if (Set.of("Image?", "Rect?").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
+        if (probe.expectedDartType().equals("Float64List")) return alias + "TypedData.Float64List";
+        if (Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
         if (probe.expectedDartType().equals("SystemUiOverlayStyle?")) return alias + "Services.SystemUiOverlayStyle?";
         if (probe.expectedDartType().equals("AsyncCallback")) return alias + "Foundation.AsyncCallback";
         if (probe.expectedDartType().equals("ValueNotifier<EdgeInsets>?")) return alias + "Foundation.ValueNotifier<" + alias + ".EdgeInsets>?";

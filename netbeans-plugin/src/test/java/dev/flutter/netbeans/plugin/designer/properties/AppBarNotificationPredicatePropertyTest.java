@@ -47,7 +47,7 @@ class AppBarNotificationPredicatePropertyTest {
         assertEquals(WidgetEventDescriptor.Kind.PREDICATE, descriptor.kind()); assertEquals("bool", descriptor.signature().returnType());
         assertEquals(List.of("ScrollNotification"), descriptor.signature().parameters().stream().map(WidgetEventDescriptor.Parameter::type).toList());
         var catalog = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(212, catalog.size()); assertEquals(7365, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(213, catalog.size()); assertEquals(7382, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
         assertEquals(239, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         assertEquals(3, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.PREDICATE).count());
         assertEquals(174, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).count());

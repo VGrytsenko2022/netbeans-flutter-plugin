@@ -7924,6 +7924,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ImageFiltered': _WidgetSpec({
+    'imageFilter': _PropertySpec({'string','dartObjectReference'}, required:true, creationDefaultFingerprint:'string:Ymx1cg',
+        stringPattern:r'(?:blur|dilate|erode|matrix|compose|shader)', dartObjectExpectedType:'ImageFilter'),
+    'enabled': _PropertySpec({'boolean'}),
+    for (final field in ['sigmaX','sigmaY','radiusX','radiusY','boundsWidth','boundsHeight','boundsLeft','boundsTop'])
+      field: _PropertySpec({'integer','double'}, numericBounds:_unboundedNumberBounds),
+    'tileMode': _PropertySpec({'enum','null'}, enumLibraryUri:_widgetsLibraryUri, enumType:'TileMode', enumValues:{'clamp','repeated','mirror','decal'}),
+    'bounds': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'Rect?'),
+    'matrix4': _PropertySpec({'matrix4','dartObjectReference'}, dartObjectExpectedType:'Float64List'),
+    'filterQuality': _PropertySpec({'enum'}, enumLibraryUri:_widgetsLibraryUri, enumType:'FilterQuality', enumValues:{'none','low','medium','high'}),
+    'inner': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilter'),
+    'outer': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilter'),
+    'shader': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'FragmentShader'),
+  }, {'child':_optionalSingleSlot}),
   'flutter.widgets.ColorFiltered': _WidgetSpec({
     'colorFilter': _PropertySpec({'string','dartObjectReference'},required:true,creationDefaultFingerprint:'string:bWF0cml4',
         stringPattern:r'(?:mode|matrix|linearToSrgbGamma|srgbToLinearGamma|saturation)',dartObjectExpectedType:'ColorFilter'),
@@ -17590,6 +17604,25 @@ P|opacity|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|repeat|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:ImageRepeat:noRepeat,repeat,repeatX,repeatY
 P|semanticLabel|string|0|-|-|string:any
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+W|flutter.widgets.ImageFiltered
+P|bounds|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:Rect?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|boundsHeight|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsLeft|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsTop|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsWidth|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|enabled|boolean|0|-|-|boolean:any
+P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none
+P|imageFilter|dartObjectReference,string|1|string:Ymx1cg|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86Ymx1cnxkaWxhdGV8ZXJvZGV8bWF0cml4fGNvbXBvc2V8c2hhZGVyKQ
+P|inner|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|matrix4|dartObjectReference,matrix4|0|-|-|dartObjectReference:dartObjectReference:v1:Float64List:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);matrix4:matrix4
+P|outer|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|radiusX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|radiusY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shader|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:FragmentShader:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|sigmaX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sigmaY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|tileMode|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TileMode:clamp,decal,mirror,repeated;null:any
+S|child|single|0|0|1|any
 W|flutter.widgets.ImageIcon
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|image|imageProvider,null|1|null|-|imageProvider:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling);null:any
@@ -18587,6 +18620,10 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.widgets.ImageFiltered' && properties['imageFilter']?.value == 'shader') {
+    _expect(properties['shader']?.kind == 'dartObjectReferencePresence',
+        'Canvas ImageFiltered shader requires a FragmentShader source: $path/properties/shader');
+  }
   if (type == 'flutter.widgets.SizeTransition') {
     bool nonNull(String name) => properties.containsKey(name) && properties[name]!.kind != 'null';
     _expect(!nonNull('axisAlignment') || !nonNull('alignment'),

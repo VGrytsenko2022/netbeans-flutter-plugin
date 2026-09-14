@@ -2559,7 +2559,12 @@ accepted architecture is documented in
     typed ColorFilter/Color sources, preserved inactive drafts, all 24 Properties,
     optional Child, native pixel tests and safe Canvas fallback.
     See [ColorFiltered](COLOR_FILTERED.md).
-  - [ ] Next palette slice: ImageFiltered (typed image filter and native painting).
+  - [x] Add ImageFiltered: all six factories, bounded blur, native morphology,
+    full 4 x 4 matrix and quality, typed inner/outer composition and FragmentShader,
+    17 Properties, Enabled checkbox, source proofs, history and native pixel tests.
+    Shader retains the SDK Impeller-only requirement.
+    See [ImageFiltered](IMAGE_FILTERED.md).
+  - [ ] Next palette slice: BackdropFilter (background filtering and grouped filters).
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

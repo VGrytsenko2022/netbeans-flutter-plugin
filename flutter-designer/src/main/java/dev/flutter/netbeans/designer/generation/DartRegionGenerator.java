@@ -485,6 +485,7 @@ public final class DartRegionGenerator {
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.TYPE)
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedAlignWidgetPropertySchema.TYPE))
                     && Set.of("durationUs", "curve").contains(property.name().value())) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE)) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)
                     && Set.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve").contains(property.name().value())) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedSwitcherWidgetPropertySchema.TYPE)
@@ -1102,6 +1103,39 @@ public final class DartRegionGenerator {
                 scalar(expression, false, valuePath, node.id(), context, List.of(
                     occurrence("widget:" + node.id() + occurrencePrefix + "data", symbol.nameOffset(), symbol.name(), MATERIAL_IMPORT, valuePath, Optional.of(node.id())),
                     occurrence("widget:" + node.id() + occurrencePrefix + "factory", symbol.text().length()+1, factory, MATERIAL_IMPORT, valuePath, Optional.of(node.id()))))));
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE)) {
+            var property=definition.property(new PropertyName("colorFilter")).orElseThrow();
+            String filterPath=path+"/properties/colorFilter";
+            var filter=node.properties().get(property.name());
+            RenderedValue rendered;
+            if(filter instanceof PropertyValue.DartObjectReferenceValue reference) {
+                rendered=renderDartObjectReference(reference,"ColorFilter",filterPath,node.id(),context);
+            } else {
+                String preset=((PropertyValue.StringValue)filter).value();
+                if(preset.equals("mode")) {
+                    var colorProperty=definition.property(new PropertyName("color")).orElseThrow();
+                    var color=node.properties().getOrDefault(colorProperty.name(),new PropertyValue.ColorValue(0));
+                    var blendProperty=definition.property(new PropertyName("blendMode")).orElseThrow();
+                    var blend=node.properties().getOrDefault(blendProperty.name(),new PropertyValue.EnumValue("BlendMode","srcOver"));
+                    rendered=renderPositionalCompositeValues("ColorFilter",Optional.of("mode"),List.of(
+                            renderProperty(color,colorProperty,path+"/properties/color",node.id(),context),
+                            renderProperty(blend,blendProperty,path+"/properties/blendMode",node.id(),context)),filterPath,node.id(),context);
+                } else if(preset.equals("matrix")) {
+                    var values=new ArrayList<BigDecimal>();
+                    for(int row=0;row<4;row++)for(int col=0;col<5;col++)
+                        values.add(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.number(node,"m"+row+col,row==col?BigDecimal.ONE:BigDecimal.ZERO));
+                    rendered=renderDecorationColorFilter(new PropertyValue.DecorationImageValue.Matrix(values),filterPath,node.id(),context);
+                } else if(preset.equals("saturation")) {
+                    rendered=renderDecorationColorFilter(new PropertyValue.DecorationImageValue.Saturation(
+                            dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.number(node,"saturation",BigDecimal.ONE)),filterPath,node.id(),context);
+                } else {
+                    rendered=renderDecorationColorFilter(preset.equals("linearToSrgbGamma")
+                            ? new PropertyValue.DecorationImageValue.LinearToSrgbGamma()
+                            : new PropertyValue.DecorationImageValue.SrgbToLinearGamma(),filterPath,node.id(),context);
+                }
+            }
+            arguments.add(new ConstructorArgument(property.parameter(),"colorFilter",false,rendered));
         }
         if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)) {
             for (String name : List.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve")) {

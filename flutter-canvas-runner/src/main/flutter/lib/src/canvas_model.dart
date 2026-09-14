@@ -7924,6 +7924,15 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ColorFiltered': _WidgetSpec({
+    'colorFilter': _PropertySpec({'string','dartObjectReference'},required:true,creationDefaultFingerprint:'string:bWF0cml4',
+        stringPattern:r'(?:mode|matrix|linearToSrgbGamma|srgbToLinearGamma|saturation)',dartObjectExpectedType:'ColorFilter'),
+    'color': _PropertySpec({'color','themeToken','dartObjectReference'},themeTokens:canvasColorSchemeThemeTokens,dartObjectExpectedType:'Color'),
+    'blendMode': _PropertySpec({'enum'},enumLibraryUri:_widgetsLibraryUri,enumType:'BlendMode',enumValues:{'clear','src','dst','srcOver','dstOver','srcIn','dstIn','srcOut','dstOut','srcATop','dstATop','xor','plus','modulate','screen','overlay','darken','lighten','colorDodge','colorBurn','hardLight','softLight','difference','exclusion','multiply','hue','saturation','color','luminosity'}),
+    for(int row=0;row<4;row++) for(int col=0;col<5;col++)
+      'm$row$col': _PropertySpec({'integer','double'},numericBounds:_unboundedNumberBounds),
+    'saturation': _PropertySpec({'integer','double'},numericBounds:_unboundedNumberBounds),
+  },{'child':_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1)}),
   'flutter.widgets.RawImage': _WidgetSpec({
     'image': _PropertySpec({'dartObjectReference','null'},dartObjectExpectedType:'Image?'),
     'debugImageLabel': _PropertySpec({'string','null'}),
@@ -17104,6 +17113,32 @@ S|child|single|0|0|1|any
 W|flutter.widgets.ClipRect
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|clipper|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:CustomClipper<Rect>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|child|single|0|0|1|any
+W|flutter.widgets.ColorFiltered
+P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|color|color,dartObjectReference,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|colorFilter|dartObjectReference,string|1|string:bWF0cml4|-|dartObjectReference:dartObjectReference:v1:ColorFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bW9kZXxtYXRyaXh8bGluZWFyVG9TcmdiR2FtbWF8c3JnYlRvTGluZWFyR2FtbWF8c2F0dXJhdGlvbik
+P|m00|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m01|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m02|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m03|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m04|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m10|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m11|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m12|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m13|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m14|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m20|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m21|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m22|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m23|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m24|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m30|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m31|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m32|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m33|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|m34|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|saturation|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
 S|child|single|0|0|1|any
 W|flutter.widgets.ColoredBox
 P|color|color,themeToken|1|color:0xFF2196F3|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim

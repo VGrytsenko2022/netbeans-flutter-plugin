@@ -1,5 +1,11 @@
 # netbeans_flutter_canvas_runner
 
+ColorFiltered uses native mode/matrix/gamma/saturation filters, with all 29
+BlendModes and all 20 matrix coefficients. Source-owned ColorFilter values
+preview as identity, source Color as transparent only in the active mode.
+Inactive drafts are never executed. Empty Child remains legal and selectable.
+See [ColorFiltered](../../../../docs/COLOR_FILTERED.md).
+
 RawImage maps all 16 painting parameters to the native renderer. Project-owned
 decoded images, nullable opacity animations and Rect center slices preview as
 null, with an explicit field-specific tooltip; no handle or executable project

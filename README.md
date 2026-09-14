@@ -11,8 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **211 admitted built-in definitions**, now including
-`RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
+Current palette milestone: **212 admitted built-in definitions**, now including
+`ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
 `MenuAnchor`, `MenuItemButton`, `SubmenuButton`, `MenuBar`, `NavigationBar`, `NavigationRail`, `TooltipTheme`, `TooltipVisibility`,
 `Tooltip`, `ExpansionTile`, both `RadioListTile` constructors, `SwitchListTile`,
@@ -27,15 +27,25 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **7,341 writable rows** (7,323 outside `Scaffold`) and
-**177 const-capable definitions**. All 211 definitions have reviewed
-Canvas/Create/DnD capability; 203 expose typed Properties and eight structural
+The current catalog has **7,365 writable rows** (7,347 outside `Scaffold`) and
+**178 const-capable definitions**. All 212 definitions have reviewed
+Canvas/Create/DnD capability; 204 expose typed Properties and eight structural
 definitions expose child-slot editors. Native Events comprise **174 rows across
 60 widget types**; all supported callables total 239 across 87 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback and one matrix transform delegate.
 Formats remain FD 16, Catalog API 15, Canvas model 19 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### ColorFiltered: child pixel filters
+
+Basic → **ColorFiltered** supports all five ColorFilter families: mode (all 29
+BlendModes), a complete 4 x 5 matrix, both gamma conversions, and saturation.
+All 24 property rows are editable; inactive drafts survive mode changes.
+A typed non-null ColorFilter source can replace the local filter. Canvas uses
+identity for project filters without executing project code. Child is optional;
+native layout, input and semantics are preserved. No native Events are invented.
+See [ColorFiltered](docs/COLOR_FILTERED.md).
 
 ### RawImage: decoded image painting
 

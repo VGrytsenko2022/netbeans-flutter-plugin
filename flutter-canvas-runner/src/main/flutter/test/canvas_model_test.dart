@@ -1754,7 +1754,7 @@ void main() {
   test('ClipRect reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.ClipRect\n');
-    final end = contract.indexOf('W|flutter.widgets.ColoredBox\n', start);
+    final end = contract.indexOf('\nW|', start) + 1;
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

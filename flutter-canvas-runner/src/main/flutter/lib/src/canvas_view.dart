@@ -4035,6 +4035,14 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.ColorFiltered') {
+    if(node.properties['colorFilter']?.kind == 'dartObjectReferencePresence') {
+      return 'ColorFiltered ${node.id}: project-owned ColorFilter is not executed; preview uses an identity matrix. Inactive local drafts are preserved.';
+    }
+    if(node.properties['colorFilter']?.value == 'mode' && node.properties['color']?.kind == 'dartObjectReferencePresence') {
+      return 'ColorFiltered ${node.id}: project-owned Color is not executed; mode preview uses transparent source color and the selected BlendMode.';
+    }
+  }
   if (node.type == 'flutter.widgets.RawImage') {
     final refs = node.properties.entries.where((entry) => entry.value.kind == 'dartObjectReferencePresence').map((entry) => entry.key).toList();
     return refs.isEmpty ? null : 'RawImage ${node.id}: project-owned ${refs.join(', ')} are not executed. '
@@ -5716,7 +5724,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.ModalBarrier' ||
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
-        node.type == 'flutter.widgets.RawImage' ||
+        node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5806,7 +5814,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.SingleChildScrollView' ||
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
-        node.type == 'flutter.widgets.RawImage' ||
+        node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -8983,6 +8991,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.ColorFiltered' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: ColorFiltered(colorFilter:_localColorFilter(context),child:_single('child'))),
       'flutter.widgets.RawImage' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '', child: _rawImage(context)),
       'flutter.widgets.FadeInImage' => _TextButtonPreview(
@@ -14051,6 +14062,21 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isAntiAlias: _boolean('isAntiAlias') ?? false,
       filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
     );
+  }
+
+  ColorFilter _localColorFilter(BuildContext context) {
+    final preset=_string('colorFilter');
+    if(preset=='mode') {
+      return ColorFilter.mode(_resolvedColor(context,'color')??Colors.transparent,_blendMode(_enum('blendMode')??'srcOver'));
+    }
+    if(preset=='linearToSrgbGamma') return const ColorFilter.linearToSrgbGamma();
+    if(preset=='srgbToLinearGamma') return const ColorFilter.srgbToLinearGamma();
+    if(preset=='saturation') return ColorFilter.saturation(_number('saturation')??1);
+    final project=node.properties['colorFilter']?.kind=='dartObjectReferencePresence';
+    return ColorFilter.matrix([
+      for(int row=0;row<4;row++) for(int col=0;col<5;col++)
+        project ? (row==col?1.0:0.0) : (_number('m$row$col')??(row==col?1.0:0.0)),
+    ]);
   }
 
   Widget _rawImage(BuildContext context) {

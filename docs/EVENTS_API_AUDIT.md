@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## ColorFiltered update (2026-09-14)
+
+ColorFiltered has no callback constructor parameters. Its filter transforms
+child pixels; layout, hit testing and semantics remain owned by the child.
+All five local filter families and strict non-null ColorFilter source overrides
+are supported. No synthetic Events or project-code execution in Canvas.
+
+Inventory: 212 definitions; 239 callables across 87 types (50 builders, ten
+delegates); native Events remain 174 rows across 60 types.
+See [ColorFiltered](COLOR_FILTERED.md).
+
 ## RawImage update (2026-09-14)
 
 All 16 constructor parameters are Properties. Decoded Image, Rect and nullable

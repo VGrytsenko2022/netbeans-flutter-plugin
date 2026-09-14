@@ -593,6 +593,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.ClipPath' ||
       'flutter.widgets.ClipRect' ||
       'flutter.widgets.ColoredBox' ||
+      'flutter.widgets.ColorFiltered' ||
       'flutter.widgets.Container' ||
       'flutter.widgets.DecoratedBox' ||
       'flutter.widgets.ExcludeSemantics' ||

@@ -26,7 +26,7 @@ class WidgetEventCatalogTest {
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(211, definitions.size());
+        assertEquals(212, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {

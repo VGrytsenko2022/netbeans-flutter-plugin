@@ -287,6 +287,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.material.AnimatedIcon", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeInImage", STATIC_EDITABLE),
             Map.entry("flutter.widgets.RawImage", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ColorFiltered", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeTransition", STATIC_EDITABLE),
@@ -1002,6 +1003,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.ColorFiltered", projection(
+                    ColorFilteredWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
             Map.entry("flutter.widgets.RawImage", projection(
                     RawImageWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of())),

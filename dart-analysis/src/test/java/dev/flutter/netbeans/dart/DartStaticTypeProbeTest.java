@@ -269,6 +269,18 @@ class DartStaticTypeProbeTest {
         for (String type : List.of("AnimatedIconData?","AnimatedIconData;exit()"))
             assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,type,"package:flutter/material.dart"));
     }
+    @Test void colorFilterRequiresExactNonNullableReviewedSdkContext() {
+        for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart")) {
+            assertEquals("ColorFilter", new DartStaticTypeProbe(10, 5, 0, 5, "ColorFilter", library).expectedDartType());
+        }
+        for (String library : List.of("package:app/fake.dart", "package:flutter/rendering.dart", "dart:core")) {
+            assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10, 5, 0, 5, "ColorFilter", library));
+        }
+        for (String type : List.of("ColorFilter?", "ColorFilter;exit()", "other.ColorFilter")) {
+            assertThrows(IllegalArgumentException.class, () -> probe(type));
+        }
+    }
+
     private static DartStaticTypeProbe probe(String type) {
         return new DartStaticTypeProbe(10, 5, 0, 5, type, "package:flutter/widgets.dart");
     }

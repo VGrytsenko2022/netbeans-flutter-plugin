@@ -102,6 +102,29 @@ class CanvasModelPayloadCodecTest {
             assertTrue(json.contains("\"" + name + "\":{\"kind\":\"dartObjectReferencePresence\"}"));
     }
 
+    @Test
+    void colorFilteredSourcesStayPrivateIncludingInactiveColorDraft() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+        var source = new PropertyValue.DartObjectReferenceValue(
+                Optional.of("package:private_app/filters.dart"), "PrivateFilters", Optional.of("privateValue"),
+                PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+        properties.put(new PropertyName("color"), source);
+        for (PropertyValue selector : List.of(new PropertyValue.StringValue("matrix"), source)) {
+            properties.put(new PropertyName("colorFilter"), selector);
+            var node = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.ColorFiltered"),
+                    properties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+            String json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+            for (String secret : List.of("private_app", "PrivateFilters", "privateValue", "filters.dart")) {
+                assertFalse(json.contains(secret), secret);
+            }
+            assertTrue(json.contains("\"color\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            if (selector == source) {
+                assertTrue(json.contains("\"colorFilter\":{\"kind\":\"dartObjectReferencePresence\"}"));
+            }
+        }
+    }
+
     private static final StableId DOCUMENT_ID = id(
             "4efb0eb1-b0f9-4809-bd3e-73f2486dd7bd");
     private static final CanvasRenderProfile PROFILE = new CanvasRenderProfile(
@@ -242,7 +265,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IconTheme",
                 "flutter.widgets.ImageIcon",
                 "flutter.widgets.DefaultTextStyle",
-                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage",
+                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",

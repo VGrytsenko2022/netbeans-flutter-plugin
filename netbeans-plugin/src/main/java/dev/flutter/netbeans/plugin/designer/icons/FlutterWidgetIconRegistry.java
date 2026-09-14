@@ -108,6 +108,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.AnimatedModalBarrier", ICON_ROOT + "animatedmodalbarrier.svg"),
             Map.entry("flutter.widgets.FadeInImage", ICON_ROOT + "fadeinimage.svg"),
             Map.entry("flutter.widgets.RawImage", ICON_ROOT + "rawimage.svg"),
+            Map.entry("flutter.widgets.ColorFiltered", ICON_ROOT + "colorfiltered.svg"),
             Map.entry("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg"),
             Map.entry("flutter.widgets.RelativePositionedTransition", ICON_ROOT + "relativepositionedtransition.svg"),
             Map.entry("flutter.widgets.ScaleTransition", ICON_ROOT + "scaletransition.svg"),

@@ -2554,7 +2554,12 @@ accepted architecture is documented in
     local/stopped or nullable live opacity, Rect? nine-patch source, native
     painting/handle ownership, Properties/save/reopen/history and safe Canvas.
     See [RawImage](RAW_IMAGE.md).
-  - [ ] Next palette slice: ColorFiltered (typed color filter and native painting).
+  - [x] Add ColorFiltered: all five ColorFilter families, all 29 BlendModes,
+    complete 4 x 5 matrix, both gamma conversions and signed saturation,
+    typed ColorFilter/Color sources, preserved inactive drafts, all 24 Properties,
+    optional Child, native pixel tests and safe Canvas fallback.
+    See [ColorFiltered](COLOR_FILTERED.md).
+  - [ ] Next palette slice: ImageFiltered (typed image filter and native painting).
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

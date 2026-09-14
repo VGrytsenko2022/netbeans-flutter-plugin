@@ -2254,6 +2254,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.Theme", ICON_ROOT + "theme.svg");
         expected.put("flutter.widgets.FadeInImage", ICON_ROOT + "fadeinimage.svg");
         expected.put("flutter.widgets.RawImage", ICON_ROOT + "rawimage.svg");
+        expected.put("flutter.widgets.ColorFiltered", ICON_ROOT + "colorfiltered.svg");
         expected.put("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg");
         expected.put("flutter.widgets.AnimatedContainer", ICON_ROOT + "animatedcontainer.svg");
         expected.put("flutter.widgets.AnimatedOpacity", ICON_ROOT + "animatedopacity.svg");

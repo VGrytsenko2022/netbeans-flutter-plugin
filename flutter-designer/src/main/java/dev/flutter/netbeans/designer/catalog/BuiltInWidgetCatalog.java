@@ -133,6 +133,7 @@ public final class BuiltInWidgetCatalog {
             animatedIcon(),
             fadeInImage(),
             rawImage(),
+            colorFiltered(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3287,6 +3288,13 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 540, "PositionedTransition"),
                 PositionedTransitionWidgetPropertySchema.properties(),
                 List.of(singleSlot("child", 5, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition colorFiltered() {
+        return widget(ColorFilteredWidgetPropertySchema.TYPE.value(), "ColorFiltered", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT), Set.of(),
+                palette("flutter.basic", 300, 310, "ColorFiltered"), ColorFilteredWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 24, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition rawImage() {

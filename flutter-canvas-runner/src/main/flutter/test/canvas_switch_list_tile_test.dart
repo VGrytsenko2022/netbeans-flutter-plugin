@@ -165,11 +165,11 @@ void main() {
       expect(schema, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(schema),
-        hasLength(211),
+        hasLength(212),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(schema),
-        hasLength(7341),
+        hasLength(7365),
       );
       final start = schema.indexOf('W|$_type\n');
       final section = schema.substring(

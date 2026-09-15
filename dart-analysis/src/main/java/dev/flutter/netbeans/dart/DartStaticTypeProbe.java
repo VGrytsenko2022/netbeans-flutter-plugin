@@ -66,7 +66,7 @@ public record DartStaticTypeProbe(
         if (expectedDartType.length() > 128
                 || !EXPECTED_TYPE.matcher(expectedDartType).matches()
                 && !SCAFFOLD_SCRIM_BUILDER_TYPE.equals(expectedDartType)
-                && !java.util.Set.of("VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "Key?", "LocalKey?", "TableBorder?", "Map<int, TableColumnWidth>?", "Size").contains(expectedDartType)) {
+                && !java.util.Set.of("VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "Key?", "LocalKey?", "TableBorder?", "Map<int, TableColumnWidth>?", "TableColumnWidth?", "WidgetStateProperty<Color?>?", "WidgetStateProperty<MouseCursor?>?", "Size").contains(expectedDartType)) {
             throw new IllegalArgumentException(
                     "expected Dart type must use a reviewed closed type form");
         }

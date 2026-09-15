@@ -22,7 +22,7 @@ public final class WidgetPlacementRules {
     private static final String ROW_TYPE = "flutter.widgets.Row";
     private static final String CHILDREN_SLOT = "children";
     private static final String FLEX_PARENT_DATA_DESTINATIONS =
-            "'flutter.widgets.Column.children' or 'flutter.widgets.Row.children'";
+            "'flutter.widgets.Column.children', 'flutter.widgets.Row.children' or 'flutter.material.DataColumn.label'";
     private static final Decision ACCEPTED =
             new Decision(true, Optional.empty(), "Placement is accepted.");
 
@@ -60,6 +60,8 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
+        if (DataTableWidgetPropertySchema.descriptor(child.typeId()))
+            return rejected(RejectionKind.ROOT_PLACEMENT,child.typeId()+" is a data-table descriptor, not a root Widget.");
         if (TableWidgetPropertySchema.ROW.equals(child.typeId()) || TableWidgetPropertySchema.CELL.equals(child.typeId()))
             return rejected(RejectionKind.ROOT_PLACEMENT, child.typeId() + " requires a direct table parent, not the root.");
         if (LayoutIdWidgetPropertySchema.TYPE.equals(child.typeId()))
@@ -99,6 +101,14 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(child, "child");
 
         String destination = parent.typeId().value() + '.' + slot.name().value();
+        if(DataTableWidgetPropertySchema.descriptor(child.typeId())) {
+            boolean valid=DataTableWidgetPropertySchema.COLUMN.equals(child.typeId())
+                    ?DataTableWidgetPropertySchema.TYPE.equals(parent.typeId())&&slot.name().value().equals("columns")
+                    :DataTableWidgetPropertySchema.row(child.typeId())
+                    ?DataTableWidgetPropertySchema.TYPE.equals(parent.typeId())&&slot.name().value().equals("rows")
+                    :DataTableWidgetPropertySchema.row(parent.typeId())&&slot.name().value().equals("cells");
+            if(!valid)return rejected(RejectionKind.DIRECT_PARENT_SLOT,child.typeId()+" is a descriptor; "+destination+" is not its native data-table slot.");
+        }
         if (TableWidgetPropertySchema.ROW.equals(child.typeId())
                 && !(TableWidgetPropertySchema.TYPE.equals(parent.typeId()) && CHILDREN_SLOT.equals(slot.name().value())))
             return rejected(RejectionKind.DIRECT_PARENT_SLOT, "TableRow is a descriptor, not a Widget; place it in Table.children.");
@@ -175,6 +185,18 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(definition, "definition");
         ArrayList<String> lines = new ArrayList<>(3);
         String type = definition.typeId().value();
+        if (DataTableWidgetPropertySchema.COLUMN.equals(definition.typeId()))
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataTable|columns");
+        if (DataTableWidgetPropertySchema.row(definition.typeId()))
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataTable|rows");
+        if (DataTableWidgetPropertySchema.cell(definition.typeId())) {
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataRow|cells");
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataRow.byIndex|cells");
+        }
+        if (DataTableWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            lines.add("R|"+type+"|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds");
+        if (DataTableWidgetPropertySchema.supports(definition.typeId()))
+            lines.add("C|"+type+"|paletteCreate|dataTable.v1|2|2");
         if (TableWidgetPropertySchema.ROW.equals(definition.typeId()))
             lines.add("R|" + type + "|directParentSlot|flutter.widgets.Table|children");
         if (TableWidgetPropertySchema.CELL.equals(definition.typeId()))
@@ -193,6 +215,7 @@ public final class WidgetPlacementRules {
                     + "|directParentSlot|flutter.widgets.Column|children");
             lines.add("R|" + type
                     + "|directParentSlot|flutter.widgets.Row|children");
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataColumn|label");
         }
         if (isSliverWidget(definition)) {
             lines.add("R|" + type + "|requiresSlotTrait|flutter.widgets.Sliver");
@@ -249,7 +272,7 @@ public final class WidgetPlacementRules {
      * Palette creation must wrap an existing compatible child atomically.
      */
     public static Optional<SlotDefinition> requiredWrapperSlot(WidgetDefinition definition) {
-        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId()) || LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
+        if (DataTableWidgetPropertySchema.descriptor(definition.typeId()) || SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId()) || LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (definition.properties().stream().anyMatch(property ->
                 property.parameter().required()
                 && property.creationDefault().isEmpty())) {
@@ -281,7 +304,8 @@ public final class WidgetPlacementRules {
             SlotDefinition slot) {
         String parentType = parent.typeId().value();
         return CHILDREN_SLOT.equals(slot.name().value())
-                && (COLUMN_TYPE.equals(parentType) || ROW_TYPE.equals(parentType));
+                && (COLUMN_TYPE.equals(parentType) || ROW_TYPE.equals(parentType))
+                || DataTableWidgetPropertySchema.COLUMN.equals(parent.typeId())&&slot.name().value().equals("label");
     }
 
     private static Decision rejected(RejectionKind kind, String reason) {

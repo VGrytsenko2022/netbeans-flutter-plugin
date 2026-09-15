@@ -4,6 +4,7 @@ package dev.flutter.netbeans.designer.command;
 public enum DesignerCommandKind {
     ADD_WIDGET,
     EDIT_TABLE_GRID,
+    EDIT_DATA_TABLE_GRID,
     REMOVE_WIDGET,
     MOVE_WIDGET,
     REPLACE_SLOT_CHILD,

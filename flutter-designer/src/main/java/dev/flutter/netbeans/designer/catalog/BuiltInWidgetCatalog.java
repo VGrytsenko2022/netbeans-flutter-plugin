@@ -148,6 +148,12 @@ public final class BuiltInWidgetCatalog {
             table(),
             tableRow(),
             tableCell(),
+            dataTable(DataTableWidgetPropertySchema.TYPE),
+            dataTable(DataTableWidgetPropertySchema.COLUMN),
+            dataTable(DataTableWidgetPropertySchema.ROW),
+            dataTable(DataTableWidgetPropertySchema.ROW_INDEX),
+            dataTable(DataTableWidgetPropertySchema.CELL),
+            dataTable(DataTableWidgetPropertySchema.EMPTY),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3311,6 +3317,27 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    static WidgetDefinition dataTable(WidgetTypeId type) {
+        boolean table=DataTableWidgetPropertySchema.TYPE.equals(type),column=DataTableWidgetPropertySchema.COLUMN.equals(type);
+        boolean row=DataTableWidgetPropertySchema.row(type),empty=DataTableWidgetPropertySchema.EMPTY.equals(type);
+        boolean indexed=DataTableWidgetPropertySchema.ROW_INDEX.equals(type);
+        String clazz=table?"DataTable":column?"DataColumn":row?"DataRow":"DataCell";
+        var slots=new ArrayList<SlotDefinition>();
+        if(table) {
+            slots.add(new SlotDefinition(new SlotName("columns"),DartParameter.named(2000,true),SlotCardinality.LIST,1,10000,new SlotAcceptance.HasTrait(DataTableWidgetPropertySchema.COLUMN_TRAIT)));
+            slots.add(listSlot("rows",2001,true,new SlotAcceptance.HasTrait(DataTableWidgetPropertySchema.ROW_TRAIT)));
+        } else if(column)slots.add(singleSlot("label",2000,true,1,ANY_WIDGET));
+        else if(row)slots.add(listSlot("cells",2000,true,new SlotAcceptance.HasTrait(DataTableWidgetPropertySchema.CELL_TRAIT)));
+        else if(!empty)slots.add(new SlotDefinition(new SlotName("child"),DartParameter.positional(0,true),SlotCardinality.SINGLE,1,1,ANY_WIDGET));
+        var properties=DataTableWidgetPropertySchema.properties(type);
+        if(DataTableWidgetPropertySchema.CELL.equals(type))properties=properties.stream().map(p->new PropertyDefinition(p.name(),
+                DartParameter.named(p.parameter().order()+1,false),p.constraints(),p.creationDefault())).toList();
+        return new WidgetDefinition(type,clazz,indexed?Optional.of("byIndex"):empty?Optional.of("empty"):Optional.empty(),
+                !table&&!indexed,MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,"package:flutter/rendering.dart","package:flutter/gestures.dart"),
+                table?Set.of():Set.of(column?DataTableWidgetPropertySchema.COLUMN_TRAIT:row?DataTableWidgetPropertySchema.ROW_TRAIT:DataTableWidgetPropertySchema.CELL_TRAIT),
+                palette("flutter.material",100,560+10*DataTableWidgetPropertySchema.TYPES.indexOf(type),clazz+(indexed?".byIndex":empty?".empty":"")),properties,slots);
     }
 
     private static WidgetDefinition table() {

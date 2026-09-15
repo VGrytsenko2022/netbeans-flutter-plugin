@@ -416,6 +416,13 @@ public final class WidgetTreeValidator {
             Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String type = node.type().value();
+        for(String family:dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamilies(node.type())) {
+            validateFontPackageDependency(node,propertiesPath,issues,family+"Package",family+"FontFamily",family+"FontFamilyFallback","DataTable "+family);
+            validateMutuallyExclusiveProperties(node,propertiesPath,issues,family+"Color",family+"Foreground","DataTable "+family);
+            validateMutuallyExclusiveProperties(node,propertiesPath,issues,family+"BackgroundColor",family+"Background","DataTable "+family);
+        }
+        dev.flutter.netbeans.designer.catalog.DataTableGrid.relationshipError(node)
+                .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.TableGrid.relationshipError(node)
                 .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.duplicateIdError(node)

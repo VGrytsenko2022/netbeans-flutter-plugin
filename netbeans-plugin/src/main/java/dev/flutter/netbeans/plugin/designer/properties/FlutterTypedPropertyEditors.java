@@ -61,7 +61,7 @@ final class FlutterTypedPropertyEditors {
         if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))
                 || kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE,PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r
-                    && Set.of("TableColumnWidth","Map<int, TableColumnWidth>?","Key?","LocalKey?").contains(r.expectedDartType()))) {
+                    && Set.of("TableColumnWidth","TableColumnWidth?","Map<int, TableColumnWidth>?","Key?","LocalKey?").contains(r.expectedDartType()))) {
             editorKind=definition.name().value().equals("key") ? EditorKind.KEY_REFERENCE : EditorKind.TABLE_WIDTH_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
             if (!presets.isEmpty()) {
@@ -75,7 +75,7 @@ final class FlutterTypedPropertyEditors {
                             ? EditorKind.NEWLINE_STRING_LIST : EditorKind.STRING);
             }
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.NULL))) {
-            editorKind = EditorKind.NULLABLE_STRING;
+            editorKind = presets.isEmpty() ? EditorKind.NULLABLE_STRING : EditorKind.STRING_PRESET;
         } else if (definition.name().value().equals("notificationType") && definition.parameter().required()
                 && kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE))
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
@@ -693,6 +693,7 @@ final class FlutterTypedPropertyEditors {
             if (binding.optional()) {
                 values.add(FlutterPropertyCellValue.NOT_SET_TEXT);
             }
+            if(binding.definition().acceptedKinds().contains(PropertyValueKind.NULL))values.add(FlutterNullableChoiceEditorComponent.NULL_TEXT);
             values.addAll(binding.stringPresets());
             tags = values.toArray(String[]::new);
         }
@@ -705,8 +706,7 @@ final class FlutterTypedPropertyEditors {
         @Override
         public String getAsText() {
             return explicitValue()
-                    .map(PropertyValue.StringValue.class::cast)
-                    .map(PropertyValue.StringValue::value)
+                    .map(v -> v instanceof PropertyValue.NullValue ? FlutterNullableChoiceEditorComponent.NULL_TEXT : ((PropertyValue.StringValue)v).value())
                     .orElseGet(this::unsetText);
         }
 
@@ -717,6 +717,10 @@ final class FlutterTypedPropertyEditors {
                 return;
             }
             String value = text.strip();
+            if(binding.definition().acceptedKinds().contains(PropertyValueKind.NULL)
+                    && (value.equals("null")||value.equals(FlutterNullableChoiceEditorComponent.NULL_TEXT))) {
+                setExplicit(new PropertyValue.NullValue());return;
+            }
             if (!binding.stringPresets().contains(value)) {
                 throw new IllegalArgumentException(
                         "Expected one of " + binding.stringPresets() + '.');

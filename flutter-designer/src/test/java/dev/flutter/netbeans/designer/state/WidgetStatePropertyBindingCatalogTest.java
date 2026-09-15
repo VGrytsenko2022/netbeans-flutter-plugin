@@ -28,14 +28,28 @@ class WidgetStatePropertyBindingCatalogTest {
                 assertFalse(descriptor.allowedTransforms().isEmpty());
             }
         }
-        assertEquals(56, widgets, "Reviewed widget-type coverage must change intentionally");
-        assertEquals(168, properties, "Reviewed runtime-field coverage must change intentionally");
+        assertEquals(59, widgets, "Reviewed widget-type coverage must change intentionally");
+        assertEquals(172, properties, "Reviewed runtime-field coverage must change intentionally");
         for (String excluded : List.of("maxLines", "minLines", "maxLength", "obscureText", "expands", "obscuringCharacter")) {
             assertTrue(WidgetStatePropertyBindingCatalog.find(widget("material.TextField"), new PropertyName(excluded)).isEmpty(), excluded);
         }
         assertTrue(WidgetStatePropertyBindingCatalog.find(widget("material.Slider"), new PropertyName("min")).isEmpty());
         assertTrue(WidgetStatePropertyBindingCatalog.find(widget("material.ElevatedButton"), new PropertyName("enabled")).isEmpty());
         assertTrue(WidgetStatePropertyBindingCatalog.find(widget("widgets.IconTheme"), new PropertyName("applyTextScaling")).isEmpty());
+    }
+
+    @Test
+    void dataTableControlledFieldsAreExplicitTypedConsumers() {
+        for (String type : List.of("material.DataRow", "material.DataRow.byIndex")) {
+            valid(type, "selected", binding(StateBinding.Type.BOOL, StatePropertyBinding.Transform.DIRECT));
+            invalid(type, "selected", binding(StateBinding.Type.NULLABLE_BOOL, StatePropertyBinding.Transform.DIRECT));
+        }
+        valid("material.DataTable", "sortAscending", binding(StateBinding.Type.BOOL, StatePropertyBinding.Transform.NOT));
+        valid("material.DataTable", "sortColumnIndex", binding(StateBinding.Type.INT, StatePropertyBinding.Transform.DIRECT));
+        valid("material.DataTable", "sortColumnIndex", binding(StateBinding.Type.NULLABLE_INT, StatePropertyBinding.Transform.DIRECT));
+        invalid("material.DataTable", "sortColumnIndex", binding(StateBinding.Type.DOUBLE, StatePropertyBinding.Transform.DIRECT));
+        assertTrue(WidgetStatePropertyBindingCatalog.find(widget("material.DataRow.byIndex"), new PropertyName("index")).isEmpty(),
+                "Row identity is not a selection state field");
     }
 
     @Test

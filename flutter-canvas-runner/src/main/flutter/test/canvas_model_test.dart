@@ -3680,6 +3680,7 @@ void main() {
         'flutter.widgets.Column|children\n'
         'R|flutter.widgets.Expanded|directParentSlot|'
         'flutter.widgets.Row|children\n'
+        'R|flutter.widgets.Expanded|directParentSlot|flutter.material.DataColumn|label\n'
         'C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child\n',
       );
     },
@@ -3870,6 +3871,7 @@ void main() {
         'flutter.widgets.Column|children\n'
         'R|flutter.widgets.Flexible|directParentSlot|'
         'flutter.widgets.Row|children\n'
+        'R|flutter.widgets.Flexible|directParentSlot|flutter.material.DataColumn|label\n'
         'C|flutter.widgets.Flexible|paletteCreate|wrapExistingChild|child\n',
       );
     },
@@ -4015,7 +4017,8 @@ void main() {
       'R|flutter.widgets.Spacer|directParentSlot|'
       'flutter.widgets.Column|children\n'
       'R|flutter.widgets.Spacer|directParentSlot|'
-      'flutter.widgets.Row|children\n',
+      'flutter.widgets.Row|children\n'
+      'R|flutter.widgets.Spacer|directParentSlot|flutter.material.DataColumn|label\n',
     );
   });
 

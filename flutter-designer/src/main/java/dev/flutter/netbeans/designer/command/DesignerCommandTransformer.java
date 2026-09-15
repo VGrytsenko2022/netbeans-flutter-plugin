@@ -65,6 +65,7 @@ final class DesignerCommandTransformer {
         SemanticResult transformed = switch (command) {
             case AddWidget add -> add(current, index, add);
             case EditTableGrid grid -> tableGrid(current,index,grid);
+            case EditDataTableGrid grid -> dataTableGrid(current,index,grid);
             case RemoveWidget remove -> remove(current, index, remove);
             case MoveWidget move -> move(current, index, move);
             case ReplaceSlotChild replace -> replaceSlotChild(
@@ -139,6 +140,22 @@ final class DesignerCommandTransformer {
         return Optional.empty();
     }
 
+    private SemanticResult dataTableGrid(DesignerDocument current,TreeIndex index,EditDataTableGrid command) {
+        var target=index.nodes().get(command.expectedTable().id());
+        if (target == null) return targetNotFound(command.expectedTable().id());
+        if (!target.node().equals(command.expectedTable()))
+            return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.STALE_SLOT_CONTENT,
+                    target.path(),Optional.of(target.node().id()),"DataTable changed while its grid editor was open; reopen the editor.");
+        try {
+            var replacement=dev.flutter.netbeans.designer.catalog.DataTableGrid.edit(target.node(),command.operation(),
+                    command.index(),command.destination(),command.seed());
+            return applied(withRoot(current,replace(current.root(),replacement.id(),replacement)));
+        } catch (IllegalArgumentException ex) {
+            return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,
+                    target.path(),Optional.of(target.node().id()),ex.getMessage());
+        }
+    }
+
     private SemanticResult tableGrid(DesignerDocument current,TreeIndex index,EditTableGrid command) {
         var target=index.nodes().get(command.expectedTable().id());
         if (target == null) return targetNotFound(command.expectedTable().id());
@@ -161,6 +178,13 @@ final class DesignerCommandTransformer {
             AddWidget command) {
         WidgetNode inserted = command.widget();
         NodeRef owner = index.nodes().get(command.destination().parentId());
+        if(owner!=null&&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(owner.node().type())
+                &&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.row(inserted.type())
+                &&command.destination().slotName().value().equals("rows")) {
+            try { inserted=dev.flutter.netbeans.designer.catalog.DataTableGrid.adaptFreshRow(inserted,owner.node()); }
+            catch(IllegalArgumentException ex){return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,
+                    owner.path(),Optional.of(owner.node().id()),ex.getMessage());}
+        }
         if (owner != null && dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(owner.node().type())
                 && dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.ROW.equals(inserted.type())
                 && command.destination().slotName().value().equals("children")
@@ -178,6 +202,39 @@ final class DesignerCommandTransformer {
                 inserted, index.ids(), "/command/widget");
         if (subtree.isPresent()) {
             return failure(subtree.orElseThrow());
+        }
+        if(owner!=null&&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(owner.node().type())
+                &&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.COLUMN.equals(inserted.type())
+                &&command.destination().slotName().value().equals("columns")) {
+            try {
+                var table=dev.flutter.netbeans.designer.catalog.DataTableGrid.edit(owner.node(),dev.flutter.netbeans.designer.catalog.TableGrid.Operation.ADD_COLUMN,
+                        command.destination().index(),0,inserted.id());
+                var columns=new ArrayList<>(dev.flutter.netbeans.designer.catalog.DataTableGrid.children(table,dev.flutter.netbeans.designer.catalog.DataTableGrid.COLUMNS));
+                columns.set(command.destination().index(),inserted);
+                table=dev.flutter.netbeans.designer.catalog.DataTableGrid.withChildren(table,dev.flutter.netbeans.designer.catalog.DataTableGrid.COLUMNS,columns);
+                return applied(withRoot(current,replace(current.root(),table.id(),table)));
+            } catch(IllegalArgumentException ex){return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,
+                    owner.path(),Optional.of(owner.node().id()),ex.getMessage());}
+        }
+        if(owner!=null&&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.row(owner.node().type())
+                &&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.cell(inserted.type())
+                &&command.destination().slotName().value().equals("cells")) {
+            var tableOwner=index.nodes().values().stream().filter(n->dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(n.node().type())
+                    &&dev.flutter.netbeans.designer.catalog.DataTableGrid.children(n.node(),dev.flutter.netbeans.designer.catalog.DataTableGrid.ROWS).stream()
+                        .anyMatch(r->r.id().equals(owner.node().id()))).findFirst().orElse(null);
+            if(tableOwner!=null)try {
+                var table=dev.flutter.netbeans.designer.catalog.DataTableGrid.edit(tableOwner.node(),dev.flutter.netbeans.designer.catalog.TableGrid.Operation.ADD_COLUMN,
+                        command.destination().index(),0,inserted.id());
+                var rows=new ArrayList<>(dev.flutter.netbeans.designer.catalog.DataTableGrid.children(table,dev.flutter.netbeans.designer.catalog.DataTableGrid.ROWS));
+                for(int r=0;r<rows.size();r++)if(rows.get(r).id().equals(owner.node().id())) {
+                    var cells=new ArrayList<>(dev.flutter.netbeans.designer.catalog.DataTableGrid.children(rows.get(r),dev.flutter.netbeans.designer.catalog.DataTableGrid.CELLS));
+                    cells.set(command.destination().index(),inserted);
+                    rows.set(r,dev.flutter.netbeans.designer.catalog.DataTableGrid.withChildren(rows.get(r),dev.flutter.netbeans.designer.catalog.DataTableGrid.CELLS,cells));
+                }
+                table=dev.flutter.netbeans.designer.catalog.DataTableGrid.withChildren(table,dev.flutter.netbeans.designer.catalog.DataTableGrid.ROWS,rows);
+                return applied(withRoot(current,replace(current.root(),table.id(),table)));
+            }catch(IllegalArgumentException ex){return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,
+                    owner.path(),Optional.of(owner.node().id()),ex.getMessage());}
         }
         Insertion insertion = insert(
                 current.root(),
@@ -243,6 +300,13 @@ final class DesignerCommandTransformer {
                         .equals(command.destination().parentId())
                 && target.parentSlot().orElseThrow()
                         .equals(command.destination().slotName());
+        if (sameParentSlot && dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.COLUMN.equals(target.node().type())) {
+            var owner = index.nodes().get(command.destination().parentId()).node();
+            var columns = dev.flutter.netbeans.designer.catalog.DataTableGrid.children(owner, dev.flutter.netbeans.designer.catalog.DataTableGrid.COLUMNS);
+            return dataTableGrid(current, index, new EditDataTableGrid(owner,
+                    dev.flutter.netbeans.designer.catalog.TableGrid.Operation.MOVE_COLUMN,
+                    columns.indexOf(target.node()), command.destination().index(), target.node().id()));
+        }
         Removal removal = remove(
                 current.root(), index, target, !sameParentSlot);
         if (removal.diagnostic().isPresent()) {

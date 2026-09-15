@@ -105,7 +105,7 @@ class JnaWindowsNativeCanvasApiTest {
                     return 144;
                 });
 
-        assertEquals(145, windows.windowDpi(0x3456L));
+        assertEquals(144, windows.windowDpi(0x3456L));
         assertEquals(0x3456L, Pointer.nativeValue(dpiWindow.get().getPointer()));
     }
 

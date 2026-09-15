@@ -705,7 +705,7 @@ public final class DartCandidateAnalyzer {
         boolean pointerProofTypes = typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
                 .anyMatch(DartCandidateAnalyzer::usesPointerProofType);
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?", "TableColumnWidth", "Map<int, TableColumnWidth>?", "TableBorder?", "FlowDelegate", "SingleChildLayoutDelegate", "MultiChildLayoutDelegate").contains(probe.expectedDartType()))) {
+                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?", "TableColumnWidth", "TableColumnWidth?", "Map<int, TableColumnWidth>?", "TableBorder?", "FlowDelegate", "SingleChildLayoutDelegate", "MultiChildLayoutDelegate").contains(probe.expectedDartType()))) {
             importLine += "import 'package:flutter/rendering.dart' as " + alias + "Rendering;\n";
         }
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
@@ -1191,6 +1191,10 @@ public final class DartCandidateAnalyzer {
     private static String qualifiedExpectedType(DartStaticTypeProbe probe, String alias, String coreAlias)
             throws AnalysisFailure {
         if (probe.expectedDartType().equals("Map<int, TableColumnWidth>?")) return coreAlias + ".Map<" + coreAlias + ".int, " + alias + "Rendering.TableColumnWidth>?";
+        if (Set.of("WidgetStateProperty<Color?>?","WidgetStateProperty<MouseCursor?>?").contains(probe.expectedDartType())) {
+            String value=probe.expectedDartType().contains("Color")?"Color":"MouseCursor";
+            return alias+".WidgetStateProperty<"+alias+"."+value+"?>?";
+        }
         if (Set.of("Key?","LocalKey?").contains(probe.expectedDartType())) return alias + "." + probe.expectedDartType();
         if (probe.expectedDartType().equals("Float64List")) return alias + "TypedData.Float64List";
         if (Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader", "Size").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
@@ -1199,7 +1203,7 @@ public final class DartCandidateAnalyzer {
         if (probe.expectedDartType().equals("ValueNotifier<EdgeInsets>?")) return alias + "Foundation.ValueNotifier<" + alias + ".EdgeInsets>?";
         if (probe.expectedDartType().equals("ValueListenable<Object>") && probe.sourceTypeOverride().isEmpty())
             return alias + "Foundation.ValueListenable<" + coreAlias + ".Object>";
-        if (usesItemExtentProofType(probe) || Set.of("ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?", "TableColumnWidth", "Map<int, TableColumnWidth>?", "TableBorder?", "FlowDelegate", "SingleChildLayoutDelegate", "MultiChildLayoutDelegate").contains(probe.expectedDartType())) {
+        if (usesItemExtentProofType(probe) || Set.of("ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?", "TableColumnWidth", "TableColumnWidth?", "Map<int, TableColumnWidth>?", "TableBorder?", "FlowDelegate", "SingleChildLayoutDelegate", "MultiChildLayoutDelegate").contains(probe.expectedDartType())) {
             return alias + "Rendering." + probe.expectedDartType();
         }
         if (probe.sourceTypeOverride().isEmpty()) {

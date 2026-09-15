@@ -44,6 +44,12 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.CheckboxListTile",
                 "flutter.material.CircleAvatar",
                 "flutter.material.CircularProgressIndicator",
+                "flutter.material.DataCell",
+                "flutter.material.DataCell.empty",
+                "flutter.material.DataColumn",
+                "flutter.material.DataRow",
+                "flutter.material.DataRow.byIndex",
+                "flutter.material.DataTable",
                 "flutter.material.Divider",
                 "flutter.material.Drawer",
                 "flutter.material.ElevatedButton",
@@ -213,18 +219,20 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(226, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(188, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(232, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(192, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(218, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(223, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
-        assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
+        assertEquals(List.of("flutter.material.DataCell.empty", "flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
                 "flutter.widgets.RepaintBoundary", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverResizingHeader", "flutter.widgets.SliverToBoxAdapter"), BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> value.properties().isEmpty()).map(value -> value.typeId().value()).toList());
         assertEquals(List.of(
                         "flutter.material.AppBar",
                         "flutter.material.BottomNavigationBar",
+                        "flutter.material.DataRow.byIndex",
+                        "flutter.material.DataTable",
                         "flutter.material.ElevatedButton",
                         "flutter.material.NavigationBar",
                         "flutter.material.NavigationDrawer",
@@ -260,10 +268,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(7495, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7704, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(7477, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7686, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -315,6 +323,12 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.RefreshIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.RefreshProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.LinearProgressIndicator", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataCell", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataCell.empty", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataColumn", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataRow", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataRow.byIndex", MATERIAL_IMPORT),
+                Map.entry("flutter.material.DataTable", MATERIAL_IMPORT),
                 Map.entry("flutter.material.Divider", MATERIAL_IMPORT),
                 Map.entry("flutter.material.VerticalDivider", MATERIAL_IMPORT),
                 Map.entry("flutter.material.ElevatedButton", MATERIAL_IMPORT),
@@ -641,6 +655,12 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.Material",
                 "flutter.material.Scrollbar",
                 "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon",
+                "flutter.material.DataTable",
+                "flutter.material.DataColumn",
+                "flutter.material.DataRow",
+                "flutter.material.DataRow.byIndex",
+                "flutter.material.DataCell",
+                "flutter.material.DataCell.empty",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -731,7 +751,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.MouseRegion",
                 "flutter.widgets.Focus",
                 "flutter.widgets.NotificationListener"), typeIds(palette));
-        assertEquals(52, palette.stream()
+        assertEquals(58, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

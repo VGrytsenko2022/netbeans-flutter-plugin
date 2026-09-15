@@ -1,5 +1,42 @@
 # Architecture Decisions
 
+## DataTable coordinated slice — 2026-09-15
+
+Admit all six Material table/descriptor forms together. DataColumn, DataRow,
+DataRow.byIndex, DataCell and DataCell.empty are structural descriptors with
+closed native slots, not ordinary Widget children. DataCell.empty is a static
+const member; DataTable and DataRow.byIndex are not const.
+
+Every row must remain rectangular. Grid edits and same-table DataColumn moves
+coordinate headers and cells in one fenced command; inserting a cell creates
+a complete column without overwriting existing cells. Local sort indices follow
+column edits. A State-owned sort index cannot be rewritten by Designer, so column
+edits require detaching that binding; ordinary row edits remain available.
+
+All constructor fields and thirteen native events are covered. Local TextStyles,
+borders, decorations, state colors/cursors and six width strategies reuse the
+shared typed editors. Non-local implementations use strict analyzer-backed
+references. The four controlled selection/sort properties consume typed State
+fields; handlers and sorting logic remain user-owned.
+
+Canvas uses native Material table layout, including its checkbox column, sort
+semantics, RTL and descriptor geometry. It never executes project factories or
+handlers. Designer instrumentation must preserve native accessibility roles;
+source-backed visuals use explicitly disclosed native fallbacks.
+
+Current catalog: 232 definitions, 7,704 property rows (7,686 outside Scaffold),
+192 const-capable definitions, 223 typed property surfaces and nine propertyless
+definitions. Native Events: 187 across 65 types; all callables: 253 across 93.
+The optional-destination matrix has 232 × 197 = 45,704 cells: 29,632 accepted
+and 16,072 rejected. State property consumers: 172 across 59 types. FD 17,
+Catalog API 16, Canvas model 20 and transport 1 remain unchanged.
+
+See [DataTable](DATA_TABLE.md) for behavior, limits, source/preview boundaries
+and verification. The unrelated DPI stub regression was corrected to expect the
+exact injected 144 return value; no native DPI implementation was changed.
+
+
+
 Status note: ADR-024 and ADR-027 supersede the earlier provisional statements that
 `PUBLIC_MUTATION_UI_ENABLED` remains `false`. Their persistence and lifecycle
 contracts remain accepted. ADR-025 records the historical Text-only and later

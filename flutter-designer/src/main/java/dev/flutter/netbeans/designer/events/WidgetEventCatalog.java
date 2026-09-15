@@ -405,6 +405,17 @@ public final class WidgetEventCatalog {
         }
         addCallable(widgets, "flutter.widgets.SliverFillViewport", "semanticIndexCallback", "SemanticIndexCallback",
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
+        add(widgets,"flutter.material.DataTable","onSelectAll","ValueSetter<bool?>",true,"void","bool?:selected");
+        add(widgets,"flutter.material.DataColumn","onSort","DataColumnSortCallback",true,"void","int:columnIndex","bool:ascending");
+        for(String row:List.of("flutter.material.DataRow","flutter.material.DataRow.byIndex")) {
+            add(widgets,row,"onSelectChanged","ValueChanged<bool?>",true,"void","bool?:selected");
+            add(widgets,row,"onLongPress","GestureLongPressCallback",false,"void");
+            add(widgets,row,"onHover","ValueChanged<bool>",false,"void","bool:hovered");
+        }
+        for(String name:List.of("onTap","onDoubleTap"))add(widgets,"flutter.material.DataCell",name,"GestureTapCallback",name.equals("onTap"),"void");
+        add(widgets,"flutter.material.DataCell","onLongPress","GestureLongPressCallback",false,"void");
+        add(widgets,"flutter.material.DataCell","onTapDown","GestureTapDownCallback",false,"void","TapDownDetails:details");
+        add(widgets,"flutter.material.DataCell","onTapCancel","GestureTapCancelCallback",false,"void");
         Map<String, Map<String, CallbackSpec>> result = new LinkedHashMap<>();
         widgets.forEach((type, values) -> result.put(type, Map.copyOf(values)));
         return Map.copyOf(result);
@@ -436,6 +447,7 @@ public final class WidgetEventCatalog {
             List<WidgetEventDescriptor.Parameter> args) {
         List<String> imports = new ArrayList<>();
         if (result.equals("Future<void>")) imports.add("dart:async");
+        if (callbackType.equals("DataColumnSortCallback")) imports.add(MATERIAL);
         if (callbackType.equals("ShaderCallback")) imports.add(WIDGETS);
         if (callbackType.equals(NotificationListenerWidgetPropertySchema.CALLBACK_TYPE) || callbackType.equals("ChildIndexGetter?")) imports.add(WIDGETS);
         if (callbackType.equals("TooltipPositionDelegate") || callbackType.equals("TooltipTriggeredCallback")) imports.add(WIDGETS);

@@ -258,7 +258,7 @@ class TextButtonContractTest {
         assertFalse(valid(new WidgetNode(base.id(), base.type(), base.properties(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))));
         for (var source : CATALOG.definitions()) {
-            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId", "flutter.widgets.TableRow", "flutter.widgets.TableCell").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
+            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId", "flutter.widgets.TableRow", "flutter.widgets.TableCell", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
             for (var slot : definition().slots()) assertEquals(allowed, WidgetPlacementRules.accepts(definition(), slot, source));
         }
         for (String name : List.of("label", "tooltip", "key", "controller", "foregroundColor", "mouseCursor")) {

@@ -61,6 +61,22 @@ Selection/comparison values are closed null, boolean, string, integer or double
 values, not arbitrary Dart expressions. Legacy Radio selection belongs to its
 RadioGroup rather than a second per-Radio state owner.
 
+## DataTable consumers
+
+DataTable.sortAscending and selected on DataRow/DataRow.byIndex accept boolean
+State fields (or the reviewed boolean transforms). DataTable.sortColumnIndex
+accepts a direct int/int? State field. Keep it null or in the current column
+range. Column edits are blocked while that binding is active: detach it, edit
+the grid, then update the State index before rebinding. Designer does not rewrite
+a user-owned State field.
+
+These are consumers, not automatic sorting/selection producers. Create or select
+native event handlers and implement setState in their editable bodies. The
+onSort handler receives (int columnIndex, bool ascending); selection handlers
+receive bool?. FD rows/columns remain a structurally edited list.
+See [DataTable](DATA_TABLE.md). The current reviewed consumer inventory is
+172 properties across 59 definition types.
+
 ## Dependent properties
 
 Reviewed properties expose **Literal / State** pages in their existing editors.

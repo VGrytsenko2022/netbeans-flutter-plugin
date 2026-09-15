@@ -1121,6 +1121,40 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
                 sheet.put(set);
             }
+        } else if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String,Sheet.Set>();
+            for (var field : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.fields(widget.type())) {
+                var set=groups.computeIfAbsent(field.group(), group -> {
+                    var result=propertySet("dataTable"+group,group,field.help());
+                    assignTab(result,hasSlotTab ? GENERAL_TAB_NAME : null); return result;
+                });
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleBinding(widget.type(),new PropertyName(field.name())),
+                        field.label(),field.help(),false,field.name().equals("border") ? java.util.List.of("all","symmetric","custom")
+                        : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamilies(widget.type()).contains(field.name())
+                            || dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamilies(widget.type()).contains(field.name()) ? java.util.List.of("local")
+                        : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.callbacks(widget.type()).containsKey(field.name()) ? java.util.List.of("noop")
+                        : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamily(widget.type(),field.name()).filter("mouseCursor"::equals).isPresent()
+                            ? dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets() : java.util.List.of()));
+            }
+            if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(widget.type())) {
+                Sheet.Set grid=propertySet("dataTableGrid","Table grid","Atomic edits retain cell identities and support Undo/Redo.");
+                assignTab(grid,hasSlotTab ? GENERAL_TAB_NAME : null);
+                grid.put(new PropertySupport.ReadWrite<dev.flutter.netbeans.designer.command.EditDataTableGrid>(
+                        "dataTableGrid",dev.flutter.netbeans.designer.command.EditDataTableGrid.class,"Rows and columns",
+                        "Add, remove or reorder complete rows/columns. Column removal deletes every cell in that column.") {
+                    @Override public boolean canWrite() { return presentation.mutationHandler()!=null; }
+                    @Override public dev.flutter.netbeans.designer.command.EditDataTableGrid getValue() { return null; }
+                    @Override public void setValue(dev.flutter.netbeans.designer.command.EditDataTableGrid value) {
+                        if (!canWrite()) throw new IllegalStateException("Table grid is read-only");
+                        if (value!=null) presentation.mutationHandler().submit(value);
+                    }
+                    @Override public java.beans.PropertyEditor getPropertyEditor() {
+                        return new FlutterDataTableGridPropertyEditor(presentation.widget());
+                    }
+                });
+                sheet.put(grid);
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) {
             var groups = new java.util.LinkedHashMap<String,Sheet.Set>();
             for (var field : dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.fields(widget.type())) {
@@ -1669,6 +1703,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION;
@@ -5814,7 +5849,30 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
-        if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(currentWidget.type())
+        if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(currentWidget.type())) {
+            var families=new java.util.ArrayList<>(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamilies(currentWidget.type()));
+            families.addAll(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamilies(currentWidget.type()));
+            var family=dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamily(currentWidget.type(),propertyName.value())
+                    .or(()->dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamily(currentWidget.type(),propertyName.value()));
+            var patches=new java.util.ArrayList<PatchProperties.Patch>();
+            if(family.isPresent()&&accepted.explicitValue().isPresent())
+                patches.add(new PatchProperties.SetPatch(new PropertyName(family.orElseThrow()),new PropertyValue.StringValue("local")));
+            if(families.contains(propertyName.value())&&!(accepted.explicitValue().orElse(null) instanceof PropertyValue.StringValue))
+                for(var name:currentWidget.properties().keySet())if(!name.equals(propertyName)&&name.value().startsWith(propertyName.value()))
+                    patches.add(new PatchProperties.ResetPatch(name));
+            if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(currentWidget.type())
+                    &&accepted.explicitValue().orElse(null)!=null&&!(accepted.explicitValue().orElseThrow() instanceof PropertyValue.NullValue)) {
+                var opposite=propertyName.value().equals("dataRowHeight")?java.util.List.of("dataRowMinHeight","dataRowMaxHeight")
+                        :java.util.List.of("dataRowMinHeight","dataRowMaxHeight").contains(propertyName.value())?java.util.List.of("dataRowHeight"):java.util.List.<String>of();
+                for(String name:opposite)if(currentWidget.properties().containsKey(new PropertyName(name)))patches.add(new PatchProperties.ResetPatch(new PropertyName(name)));
+            }
+            if(!patches.isEmpty()) {
+                patches.add(accepted.explicitValue().<PatchProperties.Patch>map(v->new PatchProperties.SetPatch(propertyName,v)).orElseGet(()->new PatchProperties.ResetPatch(propertyName)));
+                return new PatchProperties(currentWidget.id(),patches);
+            }
+        }
+        if ((dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(currentWidget.type())
+                ||dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(currentWidget.type()))
                 && propertyName.value().equals("border")) {
             var patches=new java.util.ArrayList<PatchProperties.Patch>();
             String mode=accepted.explicitValue().orElse(null) instanceof PropertyValue.StringValue v ? v.value() : "";

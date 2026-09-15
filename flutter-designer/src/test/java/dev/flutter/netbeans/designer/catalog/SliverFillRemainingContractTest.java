@@ -29,7 +29,7 @@ class SliverFillRemainingContractTest {
         assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE, WidgetPlacementRules.creationMode(d));
         for (var source : catalog.definitions()) {
             boolean rejected = WidgetPlacementRules.isSliverWidget(source) || WidgetPlacementRules.isStackPositionedWidget(source) || Set.of(
-                    "flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId", "flutter.widgets.TableRow", "flutter.widgets.TableCell").contains(source.typeId().value());
+                    "flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId", "flutter.widgets.TableRow", "flutter.widgets.TableCell", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty").contains(source.typeId().value());
             assertEquals(!rejected, WidgetPlacementRules.accepts(d, slot, source), source.typeId().value());
         }
         var padding = catalog.find(SliverPaddingWidgetPropertySchema.TYPE).orElseThrow();

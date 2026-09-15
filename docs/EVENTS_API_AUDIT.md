@@ -1,5 +1,19 @@
 # Widget events API audit
 
+## DataTable update (2026-09-15)
+
+Six definitions add 13 native event rows: DataTable.onSelectAll;
+DataColumn.onSort; onSelectChanged/onLongPress/onHover on DataRow and
+DataRow.byIndex; onTap/onLongPress/onTapDown/onDoubleTap/onTapCancel on DataCell.
+DataCell.empty has no events. Signatures include nullable boolean selection,
+two-argument sorting and TapDownDetails.
+
+Current inventory: 232 definitions, 253 supported callables across 93 types;
+187 native Events across 65 types. State property consumers also include
+DataTable sortAscending/sortColumnIndex and selected on both DataRow forms.
+Sorting and selection remain application-controlled. See [DataTable](DATA_TABLE.md).
+
+
 ## Table update (2026-09-15)
 
 Table, TableRow and TableCell add no constructor Events. Column-width strategies,

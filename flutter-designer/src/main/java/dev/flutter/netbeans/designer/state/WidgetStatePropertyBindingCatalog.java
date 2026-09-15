@@ -35,6 +35,9 @@ public final class WidgetStatePropertyBindingCatalog {
             return Optional.of(new Descriptor(property, property.value(), "double", !property.value().equals("opacity"),
                     Set.of(StatePropertyBinding.Transform.CLAMP)));
         }
+        if (property.value().equals("sortColumnIndex") && widget.type().value().equals("flutter.material.DataTable")) {
+            return Optional.of(new Descriptor(property, "sortColumnIndex", "int", true, Set.of(StatePropertyBinding.Transform.DIRECT)));
+        }
         if (property.value().equals("index") && widget.type().value().equals("flutter.widgets.IndexedStack")) {
             return Optional.of(new Descriptor(property, "index", "int", true, Set.of(StatePropertyBinding.Transform.CLAMP)));
         }
@@ -134,6 +137,9 @@ public final class WidgetStatePropertyBindingCatalog {
         add(result, "material.SubmenuButton", "useRootOverlay animated");
         add(result, "material.Badge", "isLabelVisible");
         add(result, "material.Card", "semanticContainer borderOnForeground");
+        add(result, "material.DataTable", "sortAscending");
+        add(result, "material.DataRow", "selected");
+        add(result, "material.DataRow.byIndex", "selected");
         for (String type : List.of("LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator")) {
             add(result, "material." + type, "semanticsLabel semanticsValue year2023");
         }

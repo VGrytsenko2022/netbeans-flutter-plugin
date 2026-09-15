@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WidgetEventCatalogTest {
-    private static final Set<String> TYPED_CALLABLES = Set.of("VoidCallback?", "VoidCallback", "ValueChanged<bool>",
+    private static final Set<String> TYPED_CALLABLES = Set.of("GestureTapCallback", "GestureLongPressCallback", "GestureTapDownCallback", "GestureTapCancelCallback", "DataColumnSortCallback", "ValueSetter<bool?>", "VoidCallback?", "VoidCallback", "ValueChanged<bool>",
             "ValueChanged<bool?>", "ValueChanged<Object?>", "ValueChanged<double>", "ValueChanged<RangeValues>",
             "ValueChanged<RefreshIndicatorStatus?>", "ImageErrorListener", "RefreshCallback", "AsyncCallback",
             "ScrollNotificationPredicate", "SemanticFormatterCallback", "ButtonLayerBuilder", "MenuAnchorChildBuilder", "ValueChanged<AnimationStatus>", "ValueChanged<int>",
@@ -26,7 +26,7 @@ class WidgetEventCatalogTest {
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(226, definitions.size());
+        assertEquals(232, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {
@@ -46,18 +46,18 @@ class WidgetEventCatalogTest {
                 }
             }
         }
-        assertEquals(240, callables);
-        assertEquals(88, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
+        assertEquals(253, callables);
+        assertEquals(93, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
     }
 
     @Test
     void separatesEventsBuildersPredicatesAndFormatters() {
         var all = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(widget -> WidgetEventCatalog.eventsFor(widget).stream()).toList();
-        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 174L, WidgetEventDescriptor.Kind.BUILDER, 50L,
+        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 187L, WidgetEventDescriptor.Kind.BUILDER, 50L,
                 WidgetEventDescriptor.Kind.PREDICATE, 3L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
                 all.stream().collect(Collectors.groupingBy(WidgetEventDescriptor::kind, Collectors.counting())));
-        assertEquals(60, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(65, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(widget -> WidgetEventCatalog.eventsFor(widget).stream()
                         .anyMatch(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT)).count());
         assertFalse(find("TextField", "onTapAlwaysCalled").isPresent());

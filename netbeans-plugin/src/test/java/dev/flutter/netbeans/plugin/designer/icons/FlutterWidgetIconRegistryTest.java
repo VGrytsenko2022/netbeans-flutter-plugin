@@ -2276,6 +2276,12 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Table",ICON_ROOT+"table.svg");
         expected.put("flutter.widgets.TableRow",ICON_ROOT+"tablerow.svg");
         expected.put("flutter.widgets.TableCell",ICON_ROOT+"tablecell.svg");
+        expected.put("flutter.material.DataTable",ICON_ROOT+"datatable.svg");
+        expected.put("flutter.material.DataColumn",ICON_ROOT+"datacolumn.svg");
+        expected.put("flutter.material.DataRow",ICON_ROOT+"datarow.svg");
+        expected.put("flutter.material.DataRow.byIndex",ICON_ROOT+"datarowbyindex.svg");
+        expected.put("flutter.material.DataCell",ICON_ROOT+"datacell.svg");
+        expected.put("flutter.material.DataCell.empty",ICON_ROOT+"datacellempty.svg");
         expected.put("flutter.widgets.Flow", ICON_ROOT + "flow.svg");
         expected.put("flutter.widgets.Flow.unwrapped", ICON_ROOT + "flowunwrapped.svg");
         expected.put("flutter.widgets.CustomSingleChildLayout", ICON_ROOT + "customsinglechildlayout.svg");

@@ -30,7 +30,7 @@ class PinnedHeaderSliverContractTest {
             assertEquals(0,slot.minChildren());assertEquals(1,slot.maxChildren());
             assertEquals(new SlotAcceptance.AnyWidget(),slot.acceptance());
             for(var child:catalog.definitions()) assertEquals(!WidgetPlacementRules.isSliverWidget(child)
-                    && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer","flutter.widgets.LayoutId","flutter.widgets.TableRow","flutter.widgets.TableCell").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child),
+                    && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer","flutter.widgets.LayoutId","flutter.widgets.TableRow","flutter.widgets.TableCell", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child),
                     WidgetPlacementRules.accepts(d,slot,child),child.typeId().value());
         }
         var prototype=WidgetNodePrototypeFactory.create(d,StableId.random());assertTrue(prototype.properties().isEmpty());

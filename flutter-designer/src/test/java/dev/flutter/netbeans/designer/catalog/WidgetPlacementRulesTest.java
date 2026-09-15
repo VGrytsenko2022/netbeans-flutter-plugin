@@ -119,6 +119,7 @@ class WidgetPlacementRulesTest {
         assertEquals(List.of(
                 "R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Column|children",
                 "R|flutter.widgets.Expanded|directParentSlot|flutter.widgets.Row|children",
+                "R|flutter.widgets.Expanded|directParentSlot|flutter.material.DataColumn|label",
                 "C|flutter.widgets.Expanded|paletteCreate|wrapExistingChild|child"),
                 WidgetPlacementRules.capabilityFingerprintLines(expanded));
         assertEquals(List.of(),
@@ -135,6 +136,7 @@ class WidgetPlacementRulesTest {
         assertEquals(List.of(
                 "R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Column|children",
                 "R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Row|children",
+                "R|flutter.widgets.Flexible|directParentSlot|flutter.material.DataColumn|label",
                 "C|flutter.widgets.Flexible|paletteCreate|wrapExistingChild|child"),
                 WidgetPlacementRules.capabilityFingerprintLines(flexible));
     }
@@ -171,7 +173,8 @@ class WidgetPlacementRulesTest {
         assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(spacer));
         assertEquals(List.of(
                 "R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Column|children",
-                "R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Row|children"),
+                "R|flutter.widgets.Spacer|directParentSlot|flutter.widgets.Row|children",
+                "R|flutter.widgets.Spacer|directParentSlot|flutter.material.DataColumn|label"),
                 WidgetPlacementRules.capabilityFingerprintLines(spacer));
     }
 

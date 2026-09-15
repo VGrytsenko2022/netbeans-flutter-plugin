@@ -56,7 +56,7 @@ class CanvasDropAcceptance {
   final Set<String> exactTypes;
 
   bool accepts(CanvasPaletteDragSource source) => switch (kind) {
-    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait) && source.widgetType != canvasLayoutIdWidgetTrait && source.widgetType != canvasTableRowTrait,
+    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait) && source.widgetType != canvasLayoutIdWidgetTrait && source.widgetType != canvasTableRowTrait && !isCanvasDataDescriptor(source.widgetType),
     CanvasDropAcceptanceKind.requiredTrait => source.traits.contains(
       requiredTrait,
     ),
@@ -535,6 +535,13 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SliverPrototypeExtentList' => const [canvasChildrenAppendDropSlot, canvasPrototypeItemDropSlot],
       'flutter.widgets.SliverPrototypeExtentList.builder' ||
       'flutter.widgets.SliverPrototypeExtentList.delegate' => const [canvasPrototypeItemDropSlot],
+      'flutter.material.DataTable' => const [
+        CanvasDropSlotSemantics.append(slotName:'columns',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasDataColumnType),zonePlacement:CanvasDropZonePlacement.fullNode),
+        CanvasDropSlotSemantics.append(slotName:'rows',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait('flutter.material.DataRow'),zonePlacement:CanvasDropZonePlacement.fullNode),
+      ],
+      'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex' => const [
+        CanvasDropSlotSemantics.append(slotName:'cells',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasDataCellTrait),zonePlacement:CanvasDropZonePlacement.fullNode),
+      ],
       'flutter.widgets.Table' => const [
         CanvasDropSlotSemantics.append(slotName:'children',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasTableRowTrait),zonePlacement:CanvasDropZonePlacement.fullNode),
       ],
@@ -779,6 +786,8 @@ CanvasDropSlotSemantics? canvasExistingChildWrapTargetSlot({
 }) {
   final insertionSlot = canvasDropSlotForWidgetSlot(parentWidgetType, slotName);
   final requiredChild =
+      parentWidgetType==canvasDataColumnType&&slotName=='label' ||
+      parentWidgetType=='flutter.material.DataCell'&&slotName=='child' ||
       slotName == canvasReviewedRequiredWrapperSlot(parentWidgetType) ||
       parentWidgetType == 'flutter.widgets.AnimatedCrossFade' && const {'firstChild', 'secondChild'}.contains(slotName);
   final cardinality =
@@ -807,6 +816,7 @@ bool canvasWrapperAcceptsExistingChild({
   required String childWidgetType,
 }) =>
     isCanvasPaletteWrapperWidgetType(wrapperWidgetType) &&
+    !isCanvasDataDescriptor(childWidgetType) &&
     childWidgetType != canvasTableRowTrait &&
     childWidgetType != canvasTableCellType &&
     (isCanvasSliverWidgetType(wrapperWidgetType)
@@ -824,6 +834,7 @@ bool canvasDropTargetAcceptsSource({
   required int insertionIndex,
   required CanvasPaletteDragSource source,
 }) {
+  if(!canvasDataDescriptorPlacement(source.widgetType,parentWidgetType,slotName))return false;
   if(source.widgetType==canvasTableRowTrait && !(parentWidgetType==canvasTableType&&slotName=='children')) return false;
   if(source.widgetType==canvasTableCellType && !(parentWidgetType==canvasTableRowTrait&&slotName=='children')) return false;
   if (isCanvasStackPositionedWidgetType(source.widgetType) &&
@@ -833,6 +844,9 @@ bool canvasDropTargetAcceptsSource({
     return false;
   }
   if (isCanvasFlexParentDataWidgetType(source.widgetType)) {
+    if(parentWidgetType==canvasDataColumnType&&slotName=='label') {
+      return currentChildCount==1&&insertionIndex==0;
+    }
     return slotName == 'children' &&
         (parentWidgetType == 'flutter.widgets.Row' ||
             parentWidgetType == 'flutter.widgets.Column') &&
@@ -854,6 +868,7 @@ bool canvasDropTargetAcceptsSource({
         slot.acceptsSource(source);
   }
   if (source.widgetType == canvasSpacerWidgetType &&
+      !(slotName=='label'&&parentWidgetType==canvasDataColumnType) &&
       (slotName != 'children' ||
           (parentWidgetType != 'flutter.widgets.Row' &&
               parentWidgetType != 'flutter.widgets.Column'))) {

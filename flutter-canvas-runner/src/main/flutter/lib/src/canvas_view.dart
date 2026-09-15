@@ -4038,6 +4038,9 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if(node.type==canvasDataTableType||isCanvasDataDescriptor(node.type)) {
+    final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
+  }
   if (const {'flutter.widgets.Table','flutter.widgets.TableRow','flutter.widgets.TableCell'}.contains(node.type)) {
     final refs=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
     return refs.isEmpty?null:'${node.type} ${node.id}: project-owned ${refs.join(', ')} are not executed. '
@@ -5661,8 +5664,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final coincidentTargets = <Rect, List<CanvasNode>>{};
       for (final node in _zeroSizedDesignerTargets(widget.model.root)) {
         if (!_isInPaintedSliverVisibilityBranch(widget.model.root, node.id)) continue;
-        if(node.type=='flutter.widgets.TableRow') {
-          final rect=_tableRowGlobalRect(node);
+        if(node.type=='flutter.widgets.TableRow'||isCanvasDataDescriptor(node.type)) {
+          final rect=isCanvasDataDescriptor(node.type)?_dataDescriptorGlobalRect(node):_tableRowGlobalRect(node);
           if(rect!=null) {
             final rendered=rect.shift(-surfaceRect.topLeft);
             final handle=_ignorePointerHandleRect(rendered,viewportRect);
@@ -5808,7 +5811,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || isCanvasDataDescriptor(node.type) || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5899,7 +5902,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || isCanvasDataDescriptor(node.type) || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -6233,6 +6236,45 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     });
   }
 
+  Rect? _dataDescriptorGlobalRect(CanvasNode descriptor) {
+    CanvasNode? owner;int rowIndex=-1,columnIndex=-1;
+    void visit(CanvasNode n) {
+      if(n.type==canvasDataTableType) {
+        final columns=n.slot('columns')!.children,rows=n.slot('rows')!.children;
+        final column=columns.indexWhere((c)=>c.id==descriptor.id);
+        if(column>=0){owner=n;rowIndex=0;columnIndex=column;return;}
+        for(var r=0;r<rows.length;r++) {
+          if(rows[r].id==descriptor.id){owner=n;rowIndex=r+1;return;}
+          final cell=rows[r].slot('cells')!.children.indexWhere((c)=>c.id==descriptor.id);
+          if(cell>=0){owner=n;rowIndex=r+1;columnIndex=cell;return;}
+        }
+      }
+      for (final slot in n.slots.values) {
+        for (final child in slot.children) {
+          if (owner == null) visit(child);
+        }
+      }
+    }
+    visit(widget.model.root);
+    if(owner==null)return null;
+    final render=_geometryNodeKey(owner!.id)?.currentContext?.findRenderObject();
+    RenderTable? table;
+    void find(RenderObject object) {
+      if(object is RenderTable){table=object;return;}
+      object.visitChildren((child){if(table==null)find(child);});
+    }
+    if(render==null||!render.attached)return null;find(render);
+    if(table==null||!table!.hasSize||rowIndex<0||rowIndex>=table!.rows)return null;
+    if(columnIndex<0)return _finiteTransformedRect(table!.getTransformTo(null),table!.getRowBox(rowIndex));
+    final columnCount=owner!.slot('columns')!.children.length;
+    final implicitCheckbox=table!.columns-columnCount;
+    final boxes=table!.row(rowIndex).toList();
+    final nativeColumn=columnIndex+implicitCheckbox;
+    if(nativeColumn<0||nativeColumn>=boxes.length)return null;
+    final cell=boxes[nativeColumn];
+    return _finiteGlobalRect(cell);
+  }
+
   Rect? _tableRowGlobalRect(CanvasNode row) {
     CanvasNode? owner;
     void visit(CanvasNode current) {
@@ -6338,9 +6380,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         parentNode == null ||
         surface == null ||
         surface.size.isEmpty ||
-        (parentBox == null && !isCanvasSliverWidgetType(parentNode.type))) {
+        (parentBox == null && !isCanvasSliverWidgetType(parentNode.type) && !isCanvasDataDescriptor(parentNode.type))) {
       return null;
     }
+    if(!canvasDataDescriptorPlacement(source.type,parentNode.type,slotName))return null;
     if (source.type == canvasTableRowTrait &&
         !(parentNode.type == canvasTableType && slotName == 'children')) { return null; }
     if (source.type == canvasTableCellType &&
@@ -6391,6 +6434,38 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       if (rect == null) return null;
       return CanvasDropTarget(parentWidgetId: parentWidgetId, slotName: slotName,
           insertionIndex: insertionIndex, zone: _normalizeZone(surfaceRect, rect));
+    }
+    if (isCanvasDataDescriptor(parentNode.type)) {
+      final rect = _dataDescriptorGlobalRect(parentNode);
+      final children = modelSlot?.children.where((child) => child.id != sourceWidgetId).toList() ?? <CanvasNode>[];
+      if (surfaceRect == null || rect == null || rect.isEmpty ||
+          insertionIndex < 0 || insertionIndex > children.length ||
+          _findCanvasNode(source, parentWidgetId) != null ||
+          !canvasDropTargetAcceptsSource(parentWidgetType: parentNode.type, slotName: slotName,
+              currentChildCount: children.length, insertionIndex: insertionIndex,
+              source: CanvasPaletteDragSource(token: 'move-preview', widgetType: source.type,
+                  traits: canvasDataCellTypes.contains(source.type) ? const {'flutter.material.DataCell'} : const {}))) {
+        return null;
+      }
+      if (slotKind == 'single') {
+        if (insertionIndex != 0 || children.isNotEmpty) return null;
+        return CanvasDropTarget(parentWidgetId: parentWidgetId, slotName: slotName,
+            insertionIndex: 0, zone: _normalizeZone(surfaceRect, rect));
+      }
+      // Moving one cell between rows would make both rows ragged. Only reorder
+      // within the same row; whole-column moves use the owning table.
+      if (!(modelSlot?.children.any((child) => child.id == sourceWidgetId) ?? false)) return null;
+      if (children.isEmpty) return null;
+      final before = insertionIndex < children.length;
+      final reference = _dataDescriptorGlobalRect(children[before ? insertionIndex : children.length - 1]);
+      if (reference == null) return null;
+      final rtl = _resolvedTextDirection(parentNode) == TextDirection.rtl;
+      final edge = before ? (rtl ? reference.right : reference.left) : (rtl ? reference.left : reference.right);
+      final half = math.min(_moveInsertionMarkerExtent / 2, rect.width / 2);
+      final center = edge.clamp(rect.left + half, rect.right - half);
+      return CanvasDropTarget(parentWidgetId: parentWidgetId, slotName: slotName,
+          insertionIndex: insertionIndex,
+          zone: _normalizeZone(surfaceRect, Rect.fromLTRB(center-half, rect.top, center+half, rect.bottom)));
     }
     if (parentBox == null) return null;
     final renderedParentRect = _finiteGlobalRect(parentBox);
@@ -6565,6 +6640,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         _isOverflowBarVertical(parentNode, parentBox);
     final horizontal =
         parentNode.type == 'flutter.widgets.Row' ||
+        (parentNode.type == canvasDataTableType && slotName == 'columns') ||
         parentNode.type == 'flutter.material.AppBar' ||
         _isHorizontalListBody(parentNode) ||
         _isHorizontalListView(parentNode) ||
@@ -6591,7 +6667,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         : children.length - 1;
     final referenceNode = children[referenceIndex];
     final reference = _renderBox(_geometryNodeKey(referenceNode.id));
-    final rowRect = referenceNode.type == canvasTableRowTrait
+    final rowRect = isCanvasDataDescriptor(referenceNode.type)?_dataDescriptorGlobalRect(referenceNode):referenceNode.type == canvasTableRowTrait
         ? _tableRowGlobalRect(referenceNode) : null;
     final renderedReferenceRect = rowRect != null
         ? Rect.fromPoints(parentBox.globalToLocal(rowRect.topLeft), parentBox.globalToLocal(rowRect.bottomRight))
@@ -6747,6 +6823,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           }
         }
       }
+    } else if(isCanvasFlexParentDataWidgetType(source.widgetType)&&node.type==canvasDataColumnType) {
+      final child=node.slot('label')!.children.single;
+      if(!isCanvasFlexRestrictedWidgetType(child.type)) {
+        final box=_renderBox(_geometryNodeKey(child.id));
+        final zone=box==null?null:_resolvedGlobalDropZone(box,Offset.zero&box.size,point,surfaceRect);
+        if(zone!=null) {
+          result.add(_DropCandidate(node,depth+1,zone.width*zone.height,
+          const CanvasDropSlotSemantics.wrapExistingSingle(slotName:'label',overlapPriority:6),0,zone));
+        }
+      }
     } else if (isCanvasFlexParentDataWidgetType(source.widgetType) &&
         (node.type == 'flutter.widgets.Row' ||
             node.type == 'flutter.widgets.Column')) {
@@ -6810,6 +6896,11 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
             result.add(_DropCandidate(node, depth, zone.width * zone.height,
                 dropSlot, insertionIndex, zone));
           }
+          continue;
+        }
+        if(isCanvasDataDescriptor(node.type)) {
+          final rect=_dataDescriptorGlobalRect(node);
+          if(rect!=null&&rect.contains(point))result.add(_DropCandidate(node,depth,rect.width*rect.height,dropSlot,insertionIndex,rect));
           continue;
         }
         final box = _ownsNativeMenu(node) && dropSlot.slotName == 'menuChildren'
@@ -8390,6 +8481,21 @@ class _SwitcherEntryViewState extends State<_SwitcherEntryView> {
   void dispose() { _release(); super.dispose(); }
 }
 
+String _dataTablePreviewMessage(CanvasNode root) {
+  final messages=<String>[];
+  void visit(CanvasNode n) {
+    final refs=n.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+    if(refs.isNotEmpty)messages.add('${n.type} ${n.id}: ${refs.join(', ')}');
+    for (final slot in n.slots.values) {
+      for (final child in slot.children) {
+        if (isCanvasDataDescriptor(child.type)) visit(child);
+      }
+    }
+  }
+  visit(root);
+  return messages.isEmpty?'':'Source-owned values are not executed in Canvas. Native defaults, private row keys and inert callbacks are used; sorting and selection remain controlled. ${messages.join('; ')}';
+}
+
 class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   const _CanvasNodeView({
     required this.node,
@@ -9112,6 +9218,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.material.DataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
+      'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
+          || 'flutter.material.DataCell' || 'flutter.material.DataCell.empty' =>
+          throw StateError('Data table descriptor must be rendered by its native DataTable'),
       'flutter.widgets.Table' => _TextButtonPreview(message:_customClipperPreviewUnavailableMessageForNode(node)??'',child:_table(context)),
       'flutter.widgets.TableCell' => _single('child')!,
       'flutter.widgets.TableRow' => throw StateError('TableRow is a descriptor; render it through Table'),
@@ -14222,6 +14332,78 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  bool _dataCallback(CanvasNode owner,String name)=>owner.properties[name]!=null&&owner.properties[name]!.kind!='null';
+
+  WidgetStateProperty<T?>? _dataStates<T>(CanvasNode owner,String family,T? Function(String) resolve) {
+    if(owner.properties[family]?.value!='local')return null;
+    final values=<WidgetStatesConstraint,T?>{};
+    for(final state in {..._checkboxStateLayers,WidgetState.any:'Default'}.entries) {
+      final name='$family${state.value}';
+      if(owner.properties.containsKey(name))values[state.key]=resolve(name);
+    }
+    // Even an empty local map is explicit; resolve to null in unmatched states.
+    if(values.isEmpty)values[WidgetState.any]=null;
+    return WidgetStateProperty<T?>.fromMap(values);
+  }
+
+  Widget _dataTable(BuildContext context) {
+    final columns=node.slot('columns')!.children,rows=node.slot('rows')!.children;
+    final columnValues=<DataColumn>[];
+    for(final column in columns) {
+      final own=_view(column);
+      columnValues.add(DataColumn(
+        label:_view(column.slot('label')!.children.single),
+        columnWidth:own._string('columnWidth')==null?null:canvasTableWidth(own._string('columnWidth')!),
+        tooltip:own._string('tooltip'),numeric:own._boolean('numeric')??false,
+        onSort:_dataCallback(column,'onSort')?(_,_){}:null,
+        mouseCursor:_dataStates<MouseCursor>(column,'mouseCursor',own._mouseCursor),
+        headingRowAlignment:own._enum('headingRowAlignment')==null?null:MainAxisAlignment.values.byName(own._enum('headingRowAlignment')!),
+      ));
+    }
+    final rowValues=<DataRow>[];
+    for(final row in rows) {
+      final own=_view(row);
+      rowValues.add(DataRow(
+        key:ValueKey('canvas-data-row-${row.id}'),
+        selected:own._boolean('selected')??false,
+        onSelectChanged:_dataCallback(row,'onSelectChanged')?(_){}:null,
+        onLongPress:_dataCallback(row,'onLongPress')?(){}:null,
+        onHover:_dataCallback(row,'onHover')?(_){}:null,
+        color:_dataStates<Color>(row,'color',(n)=>own._resolvedColor(context,n)),
+        mouseCursor:_dataStates<MouseCursor>(row,'mouseCursor',own._mouseCursor),
+        cells:[for(final cell in row.slot('cells')!.children)
+          if(cell.type=='flutter.material.DataCell.empty')DataCell.empty else DataCell(
+            KeyedSubtree(key:ValueKey('canvas-data-cell-${cell.id}'),child:_view(cell.slot('child')!.children.single)),
+            placeholder:_view(cell)._boolean('placeholder')??false,
+            showEditIcon:_view(cell)._boolean('showEditIcon')??false,
+            onTap:_dataCallback(cell,'onTap')?(){}:null,
+            onDoubleTap:_dataCallback(cell,'onDoubleTap')?(){}:null,
+            onLongPress:_dataCallback(cell,'onLongPress')?(){}:null,
+            onTapDown:_dataCallback(cell,'onTapDown')?(_){}:null,
+            onTapCancel:_dataCallback(cell,'onTapCancel')?(){}:null,
+          )],
+      ));
+    }
+    return DataTable(
+      columns:columnValues,rows:rowValues,
+      sortColumnIndex:_integer('sortColumnIndex'),sortAscending:_boolean('sortAscending')??true,
+      onSelectAll:_dataCallback(node,'onSelectAll')?(_){}:null,
+      decoration:_boxDecoration(context,'decoration'),
+      dataRowColor:_dataStates<Color>(node,'dataRowColor',(n)=>_resolvedColor(context,n)),
+      // ignore: deprecated_member_use
+      dataRowHeight:_number('dataRowHeight'),
+      dataRowMinHeight:_number('dataRowMinHeight'),dataRowMaxHeight:_number('dataRowMaxHeight'),
+      dataTextStyle:_string('dataTextStyle')=='local'?_textStyle(context,'dataTextStyle'):null,
+      headingRowColor:_dataStates<Color>(node,'headingRowColor',(n)=>_resolvedColor(context,n)),
+      headingRowHeight:_number('headingRowHeight'),
+      headingTextStyle:_string('headingTextStyle')=='local'?_textStyle(context,'headingTextStyle'):null,
+      horizontalMargin:_number('horizontalMargin'),columnSpacing:_number('columnSpacing'),
+      showCheckboxColumn:_boolean('showCheckboxColumn')??true,showBottomBorder:_boolean('showBottomBorder')??false,
+      dividerThickness:_number('dividerThickness'),checkboxHorizontalMargin:_number('checkboxHorizontalMargin'),
+      border:_tableBorder(context),clipBehavior:_clipBehavior()??Clip.none,
+    );
+  }
+
   Widget _table(BuildContext context) {
     final widths=node.properties['columnWidths'];
     final defaultWidth=node.properties['defaultColumnWidth'];
@@ -16752,7 +16934,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     onCommitInlineTextEdit: onCommitInlineTextEdit,
     onCancelInlineTextEdit: onCancelInlineTextEdit,
     suppressDesignerSemantics:
-        suppressDesignerSemantics ||
+        suppressDesignerSemantics || node.type==canvasDataTableType || isCanvasDataDescriptor(node.type) ||
         node.type == 'flutter.widgets.MergeSemantics' ||
         node.type == 'flutter.widgets.IndexedSemantics',
   );

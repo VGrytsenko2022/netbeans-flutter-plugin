@@ -164,6 +164,7 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("AnimatedIconData")
                         || type.equals("MenuStyle")
                         || type.equals("MenuAnchorChildBuilder")
+                        || type.equals("DataColumnSortCallback")
                         || type.equals("SemanticFormatterCallback")
                         || type.equals("ValueChanged<RangeValues>")
                         || type.equals("RangeLabels")

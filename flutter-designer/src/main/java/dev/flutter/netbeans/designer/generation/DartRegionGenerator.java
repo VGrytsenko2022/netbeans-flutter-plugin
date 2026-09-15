@@ -458,6 +458,12 @@ public final class DartRegionGenerator {
                     Optional.empty(),
                     "Validated widget type '" + node.type().value()
                     + "' disappeared from the generation catalog.")));
+        if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.EMPTY.equals(node.type())) {
+            var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"DataCell");
+            return scalar(symbol.text()+".empty",true,path,node.id(),context,List.of(
+                    occurrence("widget:"+node.id()+":data-cell-empty",symbol.nameOffset(),symbol.name(),symbol.libraryUri(),path,Optional.of(node.id())),
+                    occurrence("widget:"+node.id()+":data-cell-empty-member",symbol.text().length()+1,"empty",symbol.libraryUri(),path,Optional.of(node.id()))));
+        }
         boolean textField = node.type().equals(
                 TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE);
         boolean listView = node.type().equals(
@@ -499,6 +505,26 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(node.type())) {
+                String name=property.name().value();
+                if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamily(node.type(),name).isPresent()
+                        ||dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamily(node.type(),name).isPresent()
+                        ||dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(node.type())
+                            &&dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.synthetic(name))continue;
+                if(node.properties().get(property.name()) instanceof PropertyValue.StringValue value) {
+                    String pp=path+"/properties/"+name;
+                    if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamilies(node.type()).contains(name)
+                            ||dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamilies(node.type()).contains(name))continue;
+                    RenderedValue rendered=null;
+                    if(name.equals("key"))rendered=renderPositionalComposite("ValueKey",Optional.empty(),
+                            scalar(dartString(value.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context);
+                    else if(name.equals("columnWidth"))rendered=renderTableWidth(dev.flutter.netbeans.designer.catalog.TableColumnWidths.parse(value.value()),pp,node.id(),context,constructorBaseIndent+2);
+                    else if(name.equals("border"))rendered=renderTableBorder(node,definition,path,constructorBaseIndent+2,context,value.value());
+                    else if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.callbacks(node.type()).containsKey(name))
+                        rendered=scalar(name.equals("onSort")?"(_, __) {}":Set.of("onSelectAll","onSelectChanged","onHover","onTapDown").contains(name)?"(_) {}":"() {}",false,pp,node.id(),context);
+                    if(rendered!=null){arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));continue;}
+                }
+            }
             if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(node.type())) {
                 String name = property.name().value();
                 if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(node.type())
@@ -926,6 +952,8 @@ public final class DartRegionGenerator {
                                 : renderSlot(value, slotPath, constructorBaseIndent + 2, context)));
             }
         }
+        if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(node.type()))
+            appendDataTableArguments(node,definition,path,constructorBaseIndent+2,context,arguments);
         if (DefaultTextStyleWidgetPropertySchema.sharesTextProjection(node.type())) {
             var styleProperty = definition.property(new PropertyName("style")).orElseThrow();
             var styleValue = node.properties().get(styleProperty.name());
@@ -4378,6 +4406,35 @@ public final class DartRegionGenerator {
                 rendered = renderProperty(value, property, valuePath, node.id(), context);
             }
             arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+        }
+    }
+
+    private void appendDataTableArguments(WidgetNode node,WidgetDefinition definition,String path,
+            int indent,GenerationContext context,List<ConstructorArgument> arguments) {
+        for(String family:dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamilies(node.type())) {
+            if(!(node.properties().get(new PropertyName(family)) instanceof PropertyValue.StringValue))continue;
+            var property=definition.property(new PropertyName(family)).orElseThrow();
+            appendTextCompoundArguments(node,definition,path,indent,context,arguments,family,property.parameter().order(),
+                    name->dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamily(node.type(),name.value()).filter(family::equals)
+                            .flatMap(f->dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleBinding(node.type(),name)));
+            if(arguments.stream().noneMatch(a->a.name().equals(family)))arguments.add(new ConstructorArgument(property.parameter(),family,false,
+                    renderNamedCompositeMembers("TextStyle",Optional.empty(),List.of(),indent,path+"/properties/"+family,node.id(),context)));
+        }
+        for(String family:dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamilies(node.type())) {
+            if(!(node.properties().get(new PropertyName(family)) instanceof PropertyValue.StringValue))continue;
+            var entries=new ArrayList<ElevatedButtonStateEntry>();
+            for(String state:CheckboxWidgetPropertySchema.statePriority()) {
+                var name=new PropertyName(family+Character.toUpperCase(state.charAt(0))+state.substring(1));
+                var value=node.properties().get(name);if(value==null)continue;
+                var rendered=family.equals("mouseCursor")&&value instanceof PropertyValue.StringValue
+                        ?renderElevatedCursor(node,definition,name.value(),path,context)
+                        :renderProperty(value,definition.property(name).orElseThrow(),path+"/properties/"+name,node.id(),context);
+                entries.add(new ElevatedButtonStateEntry(state.equals("default")?"any":state,rendered));
+            }
+            // An explicitly empty local map must still resolve to null for every state, never throw on lookup.
+            if(entries.isEmpty())entries.add(new ElevatedButtonStateEntry("any",scalar("null",true,path+"/properties/"+family,node.id(),context)));
+            arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),family,false,
+                    renderCheckboxStateMap("WidgetStateProperty",family.equals("mouseCursor")?"MouseCursor":"Color",entries,path+"/properties/"+family,node.id(),context,true)));
         }
     }
 

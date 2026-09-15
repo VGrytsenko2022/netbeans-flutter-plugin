@@ -297,6 +297,12 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.COLUMN.value(), STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.ROW.value(), STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.ROW_INDEX.value(), STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.CELL.value(), STATIC_EDITABLE),
+            Map.entry(DataTableWidgetPropertySchema.EMPTY.value(), STATIC_EDITABLE),
             Map.entry("flutter.widgets.Table", STATIC_EDITABLE),
             Map.entry("flutter.widgets.TableRow", STATIC_EDITABLE),
             Map.entry("flutter.widgets.TableCell", STATIC_EDITABLE),
@@ -1018,6 +1024,24 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(DataTableWidgetPropertySchema.TYPE.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.TYPE).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("columns",traitListSlotSchema(true,1,10000,DataTableWidgetPropertySchema.COLUMN_TRAIT),"rows",traitListSlotSchema(true,0,10000,DataTableWidgetPropertySchema.ROW_TRAIT)))),
+            Map.entry(DataTableWidgetPropertySchema.COLUMN.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.COLUMN).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("label",singleSlotSchema(true,1)))),
+            Map.entry(DataTableWidgetPropertySchema.ROW.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.ROW).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("cells",traitListSlotSchema(true,0,10000,DataTableWidgetPropertySchema.CELL_TRAIT)))),
+            Map.entry(DataTableWidgetPropertySchema.ROW_INDEX.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.ROW_INDEX).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("cells",traitListSlotSchema(true,0,10000,DataTableWidgetPropertySchema.CELL_TRAIT)))),
+            Map.entry(DataTableWidgetPropertySchema.CELL.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.CELL).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("child",singleSlotSchema(true,1)))),
+            Map.entry(DataTableWidgetPropertySchema.EMPTY.value(),projection(
+                    DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.EMPTY).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of())),
             Map.entry("flutter.widgets.Table", projection(
                     TableWidgetPropertySchema.properties(TableWidgetPropertySchema.TYPE).stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),

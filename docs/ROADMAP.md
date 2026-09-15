@@ -2594,9 +2594,14 @@ accepted architecture is documented in
     strategies, typed width maps, local/source borders and decorations, all six
     alignments, keys, rectangular validation, native row geometry and atomic
     row/column editing with history. See [Table](TABLE.md).
-  - [ ] Next palette candidate: DataTable with DataColumn, DataRow and DataCell.
-    Review the complete constructor and callback surfaces against the pinned SDK
-    before admitting these structured descriptors.
+  - [x] Add DataTable with DataColumn, DataRow, DataRow.byIndex, DataCell and
+    DataCell.empty: complete constructor fields, local/typed styles and state maps,
+    all 13 native events, controlled State consumers, coordinated row/column
+    edits, native accessibility/geometry, strict source proof and save/reopen.
+    See [DataTable](DATA_TABLE.md).
+  - [ ] Next palette candidate: PaginatedDataTable and its DataTableSource
+    contract. Review the complete pinned API and isolated-preview boundary before
+    admitting pagination or source-owned dynamic rows.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

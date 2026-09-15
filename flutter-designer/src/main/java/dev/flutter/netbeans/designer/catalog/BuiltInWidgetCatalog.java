@@ -143,6 +143,8 @@ public final class BuiltInWidgetCatalog {
             customSingleChildLayout(),
             customMultiChildLayout(),
             layoutId(),
+            flow(false),
+            flow(true),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3306,6 +3308,14 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition flow(boolean unwrapped) {
+        return new WidgetDefinition(unwrapped ? FlowWidgetPropertySchema.UNWRAPPED_TYPE : FlowWidgetPropertySchema.TYPE,
+                "Flow", unwrapped ? Optional.of("unwrapped") : Optional.empty(), unwrapped,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.layout", 200, unwrapped ? 630 : 620, unwrapped ? "Flow.unwrapped" : "Flow"),
+                FlowWidgetPropertySchema.properties(), List.of(listSlot("children", 1, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition customMultiChildLayout() {

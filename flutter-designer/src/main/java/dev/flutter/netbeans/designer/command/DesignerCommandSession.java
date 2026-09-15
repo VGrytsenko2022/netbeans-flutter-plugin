@@ -423,6 +423,9 @@ public final class DesignerCommandSession {
                             + limits.maxHistoryEdits() + " undoable edits."));
         }
 
+        boolean insertFlowDelegate =
+                !dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.usesInitialDelegate(current().document().root())
+                && dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.usesInitialDelegate(semantic.document().orElseThrow().root());
         boolean insertMultiLayoutDelegate =
                 !dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.usesInitialDelegate(current().document().root())
                 && dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.usesInitialDelegate(semantic.document().orElseThrow().root());
@@ -436,6 +439,7 @@ public final class DesignerCommandSession {
         try {
             userSource = sourceProjection.rebaseOnto(
                     exactLiveEnvelope, anchor.document().source());
+            if (insertFlowDelegate) userSource = userSource.insertFlowDelegate();
             if (insertMultiLayoutDelegate) userSource = userSource.insertMultiChildLayoutDelegate();
             if (insertLayoutDelegate) userSource = userSource.insertSingleChildLayoutDelegate();
             if (insertHeaderDelegate) {
@@ -472,7 +476,7 @@ public final class DesignerCommandSession {
             }
         } catch (IllegalArgumentException invalid) {
             return unchanged(DesignerCommandStatus.CONFLICT, diagnostic(
-                    insertMultiLayoutDelegate ? DesignerCommandDiagnosticCode.MULTI_CHILD_LAYOUT_DELEGATE_REJECTED : insertLayoutDelegate ? DesignerCommandDiagnosticCode.SINGLE_CHILD_LAYOUT_DELEGATE_REJECTED : insertHeaderDelegate
+                    insertFlowDelegate ? DesignerCommandDiagnosticCode.FLOW_DELEGATE_REJECTED : insertMultiLayoutDelegate ? DesignerCommandDiagnosticCode.MULTI_CHILD_LAYOUT_DELEGATE_REJECTED : insertLayoutDelegate ? DesignerCommandDiagnosticCode.SINGLE_CHILD_LAYOUT_DELEGATE_REJECTED : insertHeaderDelegate
                             ? DesignerCommandDiagnosticCode.PERSISTENT_HEADER_DELEGATE_REJECTED
                             : command instanceof CreateMenuAnchorBuilder
                             ? DesignerCommandDiagnosticCode.MENU_ANCHOR_BUILDER_REJECTED

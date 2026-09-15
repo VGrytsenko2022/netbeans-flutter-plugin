@@ -532,6 +532,10 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SliverPrototypeExtentList' => const [canvasChildrenAppendDropSlot, canvasPrototypeItemDropSlot],
       'flutter.widgets.SliverPrototypeExtentList.builder' ||
       'flutter.widgets.SliverPrototypeExtentList.delegate' => const [canvasPrototypeItemDropSlot],
+      'flutter.widgets.Flow' || 'flutter.widgets.Flow.unwrapped' => const [
+        CanvasDropSlotSemantics.append(slotName: 'children', maximumChildren: 10000,
+          zonePlacement: CanvasDropZonePlacement.fullNode),
+      ],
       'flutter.widgets.CustomMultiChildLayout' => const [
         CanvasDropSlotSemantics.append(slotName: 'children', maximumChildren: 10000,
           acceptance: CanvasDropAcceptance.requiredTrait(canvasLayoutIdWidgetTrait),

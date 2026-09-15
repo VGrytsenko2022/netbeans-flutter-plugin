@@ -297,6 +297,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Flow", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Flow.unwrapped", STATIC_EDITABLE),
             Map.entry("flutter.widgets.LayoutId", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
@@ -1013,6 +1015,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.Flow", projection(
+                    FlowWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("children", listSlotSchema(false, 0, 10000)))),
+            Map.entry("flutter.widgets.Flow.unwrapped", projection(
+                    FlowWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("children", listSlotSchema(false, 0, 10000)))),
             Map.entry("flutter.widgets.CustomMultiChildLayout", projection(
                     CustomMultiChildLayoutWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
@@ -5042,6 +5052,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static String defaultFingerprint(PropertyValue value) {
+        if (value.equals(FlowWidgetPropertySchema.INITIAL_DELEGATE)) {
+            return "dartObjectReference:flowDelegate:starter-v1";
+        }
         if (value.equals(CustomMultiChildLayoutWidgetPropertySchema.INITIAL_DELEGATE)) {
             return "dartObjectReference:multiChildLayoutDelegate:starter-v1";
         }

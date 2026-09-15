@@ -3854,7 +3854,7 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       final start = contract.indexOf('W|flutter.widgets.Flexible\n');
-      final end = contract.indexOf('W|flutter.widgets.Focus\n', start);
+      final end = contract.indexOf('W|flutter.widgets.Flow\n', start);
       expect(start, greaterThanOrEqualTo(0));
       expect(end, greaterThan(start));
       expect(

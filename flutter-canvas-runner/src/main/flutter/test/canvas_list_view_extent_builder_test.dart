@@ -21,11 +21,11 @@ void main() {
       expect(canvasModelProtocolVersion, 20);
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(221),
+        hasLength(223),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7444),
+        hasLength(7448),
       );
       final start = contract.indexOf('W|flutter.widgets.ListView\n');
       final section = contract.substring(

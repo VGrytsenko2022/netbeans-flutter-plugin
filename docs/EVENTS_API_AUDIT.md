@@ -1,5 +1,13 @@
 # Widget events API audit
 
+## Flow update (2026-09-15)
+
+Flow and Flow.unwrapped use a required FlowDelegate object. Its getSize,
+getConstraintsForChild, paintChildren, shouldRelayout, shouldRepaint and repaint
+Listenable belong to editable Dart source, not synthetic Events. Canvas never
+executes the project delegate. Inventory: 223 definitions; 240 callables across
+88 types and 174 native Events across 60 types. See [Flow](FLOW.md).
+
 ## CustomMultiChildLayout and LayoutId update (2026-09-15)
 
 MultiChildLayoutDelegate and non-null Object IDs are typed object contracts, not

@@ -2586,9 +2586,13 @@ accepted architecture is documented in
     typed MultiChildLayoutDelegate, unique typed child IDs, editable source starter,
     child replacement/reorder/history and explicit native Canvas preview boundary.
     See [CustomMultiChildLayout and LayoutId](CUSTOM_MULTI_CHILD_LAYOUT.md).
-  - [ ] Next palette candidate: Flow with typed FlowDelegate, paint-time child
-    transforms, hit testing and explicit isolated-preview boundaries. Verify the
-    pinned SDK and safe starter lifecycle before implementation.
+  - [x] Add Flow and Flow.unwrapped: required typed FlowDelegate, all Clip values,
+    ordered ordinary children, editable source starter, paint-time transforms,
+    repaint/hit testing verification and explicit isolated-preview boundaries.
+    See [Flow](FLOW.md).
+  - [ ] Next palette candidate: Table and TableRow as one coordinated slice.
+    Review column widths, row decoration/keys, cell alignment and baseline rules
+    against the pinned SDK before admitting the structured row model.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

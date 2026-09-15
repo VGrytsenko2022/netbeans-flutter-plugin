@@ -7937,6 +7937,20 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.Flow': _WidgetSpec({
+    'delegate': _PropertySpec({'dartObjectReference'}, required: true,
+      creationDefaultFingerprint: 'dartObjectReference:flowDelegate:starter-v1',
+      dartObjectExpectedType: 'FlowDelegate'),
+    'clipBehavior': _PropertySpec({'enum'}, enumLibraryUri: _widgetsLibraryUri, enumType: 'Clip',
+      enumValues: {'none', 'hardEdge', 'antiAlias', 'antiAliasWithSaveLayer'}),
+  }, {'children': _SlotSpec(cardinality: 'list', required: false, minimumChildren: 0, maximumChildren: 10000)}),
+  'flutter.widgets.Flow.unwrapped': _WidgetSpec({
+    'delegate': _PropertySpec({'dartObjectReference'}, required: true,
+      creationDefaultFingerprint: 'dartObjectReference:flowDelegate:starter-v1',
+      dartObjectExpectedType: 'FlowDelegate'),
+    'clipBehavior': _PropertySpec({'enum'}, enumLibraryUri: _widgetsLibraryUri, enumType: 'Clip',
+      enumValues: {'none', 'hardEdge', 'antiAlias', 'antiAliasWithSaveLayer'}),
+  }, {'children': _SlotSpec(cardinality: 'list', required: false, minimumChildren: 0, maximumChildren: 10000)}),
   'flutter.widgets.CustomMultiChildLayout': _WidgetSpec({
     'delegate': _PropertySpec({'dartObjectReference'}, required: true,
       creationDefaultFingerprint: 'dartObjectReference:multiChildLayoutDelegate:starter-v1',
@@ -17558,6 +17572,14 @@ S|child|single|1|1|1|any
 R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Column|children
 R|flutter.widgets.Flexible|directParentSlot|flutter.widgets.Row|children
 C|flutter.widgets.Flexible|paletteCreate|wrapExistingChild|child
+W|flutter.widgets.Flow
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|delegate|dartObjectReference|1|dartObjectReference:flowDelegate:starter-v1|-|dartObjectReference:dartObjectReference:v1:FlowDelegate:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|children|list|0|0|10000|any
+W|flutter.widgets.Flow.unwrapped
+P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
+P|delegate|dartObjectReference|1|dartObjectReference:flowDelegate:starter-v1|-|dartObjectReference:dartObjectReference:v1:FlowDelegate:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|children|list|0|0|10000|any
 W|flutter.widgets.Focus
 P|autofocus|boolean|0|-|-|boolean:any
 P|canRequestFocus|boolean,null|0|-|-|boolean:any;null:any

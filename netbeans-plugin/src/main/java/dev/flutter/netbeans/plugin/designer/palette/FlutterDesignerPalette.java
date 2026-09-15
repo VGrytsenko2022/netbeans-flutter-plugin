@@ -615,6 +615,9 @@ public final class FlutterDesignerPalette {
             } else if (dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("CustomMultiChildLayout");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.isFlow(definition.typeId())) {
+                setDisplayName(definition.typeId().equals(dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.TYPE) ? "Flow" : "Flow.unwrapped");
+                setShortDescription(dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.DESCRIPTION);
             } else if (dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("CustomSingleChildLayout");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.DESCRIPTION);

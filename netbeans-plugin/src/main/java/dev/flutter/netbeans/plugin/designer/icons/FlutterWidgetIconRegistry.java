@@ -117,6 +117,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.CustomPaint", ICON_ROOT + "custompaint.svg"),
             Map.entry("flutter.widgets.LayoutId", ICON_ROOT + "layoutid.svg"),
             Map.entry("flutter.widgets.CustomMultiChildLayout", ICON_ROOT + "custommultichildlayout.svg"),
+            Map.entry("flutter.widgets.Flow", ICON_ROOT + "flow.svg"),
+            Map.entry("flutter.widgets.Flow.unwrapped", ICON_ROOT + "flowunwrapped.svg"),
             Map.entry("flutter.widgets.CustomSingleChildLayout", ICON_ROOT + "customsinglechildlayout.svg"),
             Map.entry("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg"),
             Map.entry("flutter.widgets.RelativePositionedTransition", ICON_ROOT + "relativepositionedtransition.svg"),

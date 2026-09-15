@@ -99,7 +99,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.PreferredSize",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
-            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId",
+            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId", "flutter.widgets.Flow", "flutter.widgets.Flow.unwrapped",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
             "flutter.widgets.GridView.extent",
@@ -235,7 +235,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.PreferredSize",
             "flutter.widgets.ListBody",
             "flutter.widgets.OverflowBar",
-            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId",
+            "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId", "flutter.widgets.Flow", "flutter.widgets.Flow.unwrapped",
             "flutter.widgets.ListView",
             "flutter.widgets.GridView",
             "flutter.widgets.GridView.extent",
@@ -325,9 +325,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(221, sources.size());
-        assertEquals(190, destinations.size());
-        assertEquals(169, destinations.stream()
+        assertEquals(223, sources.size());
+        assertEquals(192, destinations.size());
+        assertEquals(171, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -335,9 +335,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(41990, candidates);
-        assertEquals(28444, accepted);
-        assertEquals(13546, candidates - accepted);
+        assertEquals(42816, candidates);
+        assertEquals(29114, accepted);
+        assertEquals(13702, candidates - accepted);
     }
 
     @Test
@@ -2733,7 +2733,7 @@ class BuiltInWidgetCapabilityCatalogTest {
                     + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
                     property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
         }
-        assertEquals(7444, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
+        assertEquals(7448, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
                 .mapToInt(definition -> definition.properties().size()).sum());
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         int start = contract.indexOf("W|flutter.material.SwitchListTile\n");

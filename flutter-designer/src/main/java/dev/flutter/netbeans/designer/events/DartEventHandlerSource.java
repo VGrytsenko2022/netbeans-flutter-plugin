@@ -179,6 +179,43 @@ public final class DartEventHandlerSource {
                 """);
     }
 
+    /** Inserts a finite, repaint-safe starter once; all methods remain user-owned. */
+    public static byte[] insertFlowDelegate(byte[] source) {
+        return insertReviewedDelegate(source,
+                dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.DELEGATE_CLASS, """
+                // Editable Flow delegate. Designer preserves this class.
+                class _FlutterDesignerFlowDelegate extends FlowDelegate {
+                  const _FlutterDesignerFlowDelegate({super.repaint});
+                  @override
+                  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(256, 192));
+                  @override
+                  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) {
+                    final size = getSize(constraints);
+                    return BoxConstraints.loose(Size(size.width.clamp(0.0, 48.0), size.height.clamp(0.0, 48.0)));
+                  }
+                  @override
+                  void paintChildren(FlowPaintingContext context) {
+                    var x = 0.0, y = 0.0, rowHeight = 0.0;
+                    for (var i = 0; i < context.childCount; i++) {
+                      final size = context.getChildSize(i)!;
+                      if (x > 0 && x + size.width > context.size.width) {
+                        x = 0;
+                        y += rowHeight + 8;
+                        rowHeight = 0;
+                      }
+                      context.paintChild(i, transform: Matrix4.translationValues(x, y, 0));
+                      x += size.width + 8;
+                      if (size.height > rowHeight) rowHeight = size.height;
+                    }
+                  }
+                  @override
+                  bool shouldRelayout(covariant _FlutterDesignerFlowDelegate oldDelegate) => false;
+                  @override
+                  bool shouldRepaint(covariant _FlutterDesignerFlowDelegate oldDelegate) => false;
+                }
+                """);
+    }
+
     private static byte[] insertReviewedDelegate(byte[] source, String name, String declaration) {
         Lexed lex = new Lexer(decode(source)).scan();
         for (int i = 0; i < lex.tokens().size(); i++) {

@@ -4036,6 +4036,12 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped') {
+    return '${node.type} ${node.id}: project FlowDelegate code is not executed. '
+        'Canvas previews a constrained 256 by 192 area, children at most 48 by 48, '
+        'left-to-right rows with 8 pixel gaps. Custom transforms, opacity and repaint '
+        'notifications run only in the generated application.';
+  }
   if (node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId') {
     return '${node.type} ${node.id}: project delegates and IDs are not executed. '
         'Canvas uses private per-node IDs and a constrained 256 by 192 vertical-cell layout. '
@@ -5786,7 +5792,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5877,7 +5883,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -6745,10 +6751,16 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         }
         final currentChildCount = modelSlot?.children.length ?? 0;
         final insertionIndex = dropSlot.insertionIndexFor(currentChildCount);
+        // Use the same parent-data restrictions as model validation and the host.
+        // In particular, a flex wrapper over a non-Flex parent is not an append.
+        if (insertionIndex == null || !canvasDropTargetAcceptsSource(
+          parentWidgetType: node.type, slotName: dropSlot.slotName,
+          currentChildCount: currentChildCount, insertionIndex: insertionIndex,
+          source: source)) { continue; }
         if (isCanvasSliverWidgetType(node.type)) {
           final zone = isCanvasSliverAppBarType(node.type)
               ? _sliverAppBarDropZone(node, dropSlot.slotName, surfaceRect) : _sliverGlobalRect(node, surfaceRect);
-          if (insertionIndex != null && zone != null && zone.contains(point)) {
+          if (zone != null && zone.contains(point)) {
             result.add(_DropCandidate(node, depth, zone.width * zone.height,
                 dropSlot, insertionIndex, zone));
           }
@@ -6757,7 +6769,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         final box = _ownsNativeMenu(node) && dropSlot.slotName == 'menuChildren'
             ? _menuPanelBox(node.id) ?? _renderBox(_geometryNodeKey(node.id))
             : _renderBox(_geometryNodeKey(node.id));
-        if (insertionIndex != null && box != null) {
+        if (box != null) {
           if (dropSlot.zonePlacement == CanvasDropZonePlacement.existingChild) {
             continue;
           }
@@ -9054,6 +9066,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.Flow' || 'flutter.widgets.Flow.unwrapped' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: _flow()),
       'flutter.widgets.CustomMultiChildLayout' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: CustomMultiChildLayout(
@@ -14156,6 +14171,17 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _flow() {
+    // Identity belongs above instrumentation; preserve native child state on reorder.
+    final children = [for (final c in node.slot('children')?.children ?? <CanvasNode>[])
+      KeyedSubtree(key: ValueKey('canvas-flow-child-${c.id}'), child: _view(c))];
+    return node.type.endsWith('.unwrapped')
+        ? Flow.unwrapped(delegate: const _FlowPreviewDelegate(),
+            clipBehavior: _clipBehavior() ?? Clip.hardEdge, children: children)
+        : Flow(delegate: const _FlowPreviewDelegate(),
+            clipBehavior: _clipBehavior() ?? Clip.hardEdge, children: children);
+  }
+
   Widget _customPaint() {
     final size = node.properties['size']?.value;
     CustomPainter? painter(String name) => node.properties[name]?.kind == 'dartObjectReferencePresence'
@@ -17564,6 +17590,36 @@ class _MultiChildLayoutPreviewDelegate extends MultiChildLayoutDelegate {
   }
   @override
   bool shouldRelayout(covariant _MultiChildLayoutPreviewDelegate oldDelegate) => true;
+}
+
+class _FlowPreviewDelegate extends FlowDelegate {
+  const _FlowPreviewDelegate();
+  @override
+  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(256, 192));
+  @override
+  BoxConstraints getConstraintsForChild(int i, BoxConstraints constraints) {
+    final size = getSize(constraints);
+    return BoxConstraints.loose(Size(size.width.clamp(0.0, 48.0), size.height.clamp(0.0, 48.0)));
+  }
+  @override
+  void paintChildren(FlowPaintingContext context) {
+    var x = 0.0, y = 0.0, rowHeight = 0.0;
+    for (var i = 0; i < context.childCount; i++) {
+      final size = context.getChildSize(i)!;
+      if (x > 0 && x + size.width > context.size.width) {
+        x = 0;
+        y += rowHeight + 8;
+        rowHeight = 0;
+      }
+      context.paintChild(i, transform: Matrix4.translationValues(x, y, 0));
+      x += size.width + 8;
+      if (size.height > rowHeight) rowHeight = size.height;
+    }
+  }
+  @override
+  bool shouldRelayout(covariant _FlowPreviewDelegate oldDelegate) => false;
+  @override
+  bool shouldRepaint(covariant _FlowPreviewDelegate oldDelegate) => false;
 }
 
 class _SingleChildLayoutPreviewDelegate extends SingleChildLayoutDelegate {

@@ -35,7 +35,9 @@ public final class WidgetStatePropertyBindingCatalog {
             return Optional.of(new Descriptor(property, property.value(), "double", !property.value().equals("opacity"),
                     Set.of(StatePropertyBinding.Transform.CLAMP)));
         }
-        if (property.value().equals("sortColumnIndex") && widget.type().value().equals("flutter.material.DataTable")) {
+        if (widget.type().value().equals("flutter.material.PaginatedDataTable") && property.value().equals("rowsPerPage"))
+            return Optional.of(new Descriptor(property,"rowsPerPage","int",false,Set.of(StatePropertyBinding.Transform.DIRECT)));
+        if (property.value().equals("sortColumnIndex") && Set.of("flutter.material.DataTable","flutter.material.PaginatedDataTable").contains(widget.type().value())) {
             return Optional.of(new Descriptor(property, "sortColumnIndex", "int", true, Set.of(StatePropertyBinding.Transform.DIRECT)));
         }
         if (property.value().equals("index") && widget.type().value().equals("flutter.widgets.IndexedStack")) {
@@ -137,6 +139,7 @@ public final class WidgetStatePropertyBindingCatalog {
         add(result, "material.SubmenuButton", "useRootOverlay animated");
         add(result, "material.Badge", "isLabelVisible");
         add(result, "material.Card", "semanticContainer borderOnForeground");
+        add(result, "material.PaginatedDataTable", "sortAscending showCheckboxColumn showFirstLastButtons showEmptyRows");
         add(result, "material.DataTable", "sortAscending");
         add(result, "material.DataRow", "selected");
         add(result, "material.DataRow.byIndex", "selected");

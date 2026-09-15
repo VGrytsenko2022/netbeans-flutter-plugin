@@ -18,17 +18,19 @@ public final class DataTableWidgetPropertySchema {
             +"Use Rows and columns for atomic rectangular edits. Sorting and selection are controlled: callbacks do not mutate saved rows or flags. "
             +"Project callbacks, colors, cursors, widths and decorations are never executed by the isolated Canvas.";
     public record Field(String name,String label,String group,String help) {}
-    public static boolean supports(WidgetTypeId type) { return TYPES.contains(type); }
+    public static boolean supports(WidgetTypeId type) { return TYPES.contains(type)||PaginatedDataTableWidgetPropertySchema.TYPE.equals(type); }
+    public static boolean table(WidgetTypeId type) { return TYPE.equals(type)||PaginatedDataTableWidgetPropertySchema.TYPE.equals(type); }
     public static boolean row(WidgetTypeId type) { return ROW.equals(type)||ROW_INDEX.equals(type); }
     public static boolean cell(WidgetTypeId type) { return CELL.equals(type)||EMPTY.equals(type); }
-    public static boolean descriptor(WidgetTypeId type) { return supports(type)&&!TYPE.equals(type); }
+    public static boolean descriptor(WidgetTypeId type) { return supports(type)&&!table(type); }
     public static List<String> styleFamilies(WidgetTypeId type) { return TYPE.equals(type)?List.of("dataTextStyle","headingTextStyle"):List.of(); }
     public static List<String> stateFamilies(WidgetTypeId type) {
-        return TYPE.equals(type)?List.of("dataRowColor","headingRowColor"):COLUMN.equals(type)?List.of("mouseCursor"):row(type)?List.of("color","mouseCursor"):List.of();
+        return PaginatedDataTableWidgetPropertySchema.TYPE.equals(type)?List.of("headingRowColor"):TYPE.equals(type)?List.of("dataRowColor","headingRowColor"):COLUMN.equals(type)?List.of("mouseCursor"):row(type)?List.of("color","mouseCursor"):List.of();
     }
     public static Map<String,String> callbacks(WidgetTypeId type) {
         var result=new LinkedHashMap<String,String>();
-        if(TYPE.equals(type)) result.put("onSelectAll","ValueSetter<bool?>");
+        if(table(type)) result.put("onSelectAll","ValueSetter<bool?>");
+        if(PaginatedDataTableWidgetPropertySchema.TYPE.equals(type)) { result.put("onPageChanged","ValueChanged<int>");result.put("onRowsPerPageChanged","ValueChanged<int?>"); }
         if(COLUMN.equals(type)) result.put("onSort","DataColumnSortCallback");
         if(row(type)) { result.put("onSelectChanged","ValueChanged<bool?>");result.put("onLongPress","GestureLongPressCallback");result.put("onHover","ValueChanged<bool>"); }
         if(CELL.equals(type)) {
@@ -38,6 +40,7 @@ public final class DataTableWidgetPropertySchema {
         return Collections.unmodifiableMap(result);
     }
     public static List<PropertyDefinition> properties(WidgetTypeId type) {
+        if(PaginatedDataTableWidgetPropertySchema.TYPE.equals(type))return PaginatedDataTableWidgetPropertySchema.properties();
         var p=new ArrayList<PropertyDefinition>();
         if(EMPTY.equals(type)) return List.of();
         if(TYPE.equals(type)||ROW.equals(type)) add(p,"key",List.of(new PropertyValueConstraint.StringLength(0,4096),
@@ -80,7 +83,8 @@ public final class DataTableWidgetPropertySchema {
         return List.copyOf(p);
     }
     public static List<Field> fields(WidgetTypeId type) {
-        return properties(type).stream().map(p->new Field(p.name().value(),label(p.name().value()),group(type,p.name().value()),help(type,p.name().value()))).toList();
+        return properties(type).stream().map(p->new Field(p.name().value(),label(p.name().value()),group(type,p.name().value()),
+                PaginatedDataTableWidgetPropertySchema.TYPE.equals(type)?PaginatedDataTableWidgetPropertySchema.help(p.name().value()):help(type,p.name().value()))).toList();
     }
     public static Optional<String> styleFamily(WidgetTypeId type,String name) {
         return styleFamilies(type).stream().filter(f->!f.equals(name)&&name.startsWith(f)).findFirst();

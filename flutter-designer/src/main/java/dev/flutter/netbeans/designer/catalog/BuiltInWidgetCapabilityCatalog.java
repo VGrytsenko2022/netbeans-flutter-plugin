@@ -297,6 +297,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
+            Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.COLUMN.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.ROW.value(), STATIC_EDITABLE),
@@ -1024,6 +1025,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(),projection(
+                    PaginatedDataTableWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("header",singleSlotSchema(false,0),"actions",listSlotSchema(false,0,10000),
+                            "columns",traitListSlotSchema(true,1,10000,DataTableWidgetPropertySchema.COLUMN_TRAIT)))),
             Map.entry(DataTableWidgetPropertySchema.TYPE.value(),projection(
                     DataTableWidgetPropertySchema.properties(DataTableWidgetPropertySchema.TYPE).stream().collect(java.util.stream.Collectors.toMap(
                             p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),Map.of("columns",traitListSlotSchema(true,1,10000,DataTableWidgetPropertySchema.COLUMN_TRAIT),"rows",traitListSlotSchema(true,0,10000,DataTableWidgetPropertySchema.ROW_TRAIT)))),
@@ -5091,6 +5097,8 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static String defaultFingerprint(PropertyValue value) {
+        if(value.equals(PaginatedDataTableWidgetPropertySchema.INITIAL_SOURCE))
+            return "dartObjectReference:dataTableSource:starter-v1";
         if (value.equals(FlowWidgetPropertySchema.INITIAL_DELEGATE)) {
             return "dartObjectReference:flowDelegate:starter-v1";
         }

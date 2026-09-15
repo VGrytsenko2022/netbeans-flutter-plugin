@@ -28,8 +28,8 @@ class WidgetStatePropertyBindingCatalogTest {
                 assertFalse(descriptor.allowedTransforms().isEmpty());
             }
         }
-        assertEquals(59, widgets, "Reviewed widget-type coverage must change intentionally");
-        assertEquals(172, properties, "Reviewed runtime-field coverage must change intentionally");
+        assertEquals(60, widgets, "Reviewed widget-type coverage must change intentionally");
+        assertEquals(178, properties, "Reviewed runtime-field coverage must change intentionally");
         for (String excluded : List.of("maxLines", "minLines", "maxLength", "obscureText", "expands", "obscuringCharacter")) {
             assertTrue(WidgetStatePropertyBindingCatalog.find(widget("material.TextField"), new PropertyName(excluded)).isEmpty(), excluded);
         }

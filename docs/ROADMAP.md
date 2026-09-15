@@ -2599,9 +2599,13 @@ accepted architecture is documented in
     all 13 native events, controlled State consumers, coordinated row/column
     edits, native accessibility/geometry, strict source proof and save/reopen.
     See [DataTable](DATA_TABLE.md).
-  - [ ] Next palette candidate: PaginatedDataTable and its DataTableSource
-    contract. Review the complete pinned API and isolated-preview boundary before
-    admitting pagination or source-owned dynamic rows.
+  - [x] Add PaginatedDataTable: all 29 constructor arguments, 35 property rows,
+    three Events, six State consumers, native header/actions/columns, editable
+    long-lived DataTableSource scaffolding and a disclosed empty-source Canvas.
+    Source evidence, paging/notifications/lifecycle, history and save/reopen are
+    tested. See [PaginatedDataTable](PAGINATED_DATA_TABLE.md).
+  - [ ] Next palette candidate: DatePickerDialog. Audit its complete pinned API,
+    typed dates/calendar delegates and preview limits before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

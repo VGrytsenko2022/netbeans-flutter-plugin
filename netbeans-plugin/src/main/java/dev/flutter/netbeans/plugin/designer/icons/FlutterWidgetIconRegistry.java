@@ -117,6 +117,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.CustomPaint", ICON_ROOT + "custompaint.svg"),
             Map.entry("flutter.widgets.LayoutId", ICON_ROOT + "layoutid.svg"),
             Map.entry("flutter.widgets.CustomMultiChildLayout", ICON_ROOT + "custommultichildlayout.svg"),
+            Map.entry("flutter.material.PaginatedDataTable", ICON_ROOT + "paginateddatatable.svg"),
             Map.entry("flutter.material.DataTable", ICON_ROOT + "datatable.svg"),
             Map.entry("flutter.material.DataColumn", ICON_ROOT + "datacolumn.svg"),
             Map.entry("flutter.material.DataRow", ICON_ROOT + "datarow.svg"),

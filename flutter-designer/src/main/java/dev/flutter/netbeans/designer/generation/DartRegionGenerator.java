@@ -520,8 +520,9 @@ public final class DartRegionGenerator {
                             scalar(dartString(value.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context);
                     else if(name.equals("columnWidth"))rendered=renderTableWidth(dev.flutter.netbeans.designer.catalog.TableColumnWidths.parse(value.value()),pp,node.id(),context,constructorBaseIndent+2);
                     else if(name.equals("border"))rendered=renderTableBorder(node,definition,path,constructorBaseIndent+2,context,value.value());
+                    else if(name.equals("availableRowsPerPage"))rendered=scalar("const <int>["+dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.pageSizes(value.value()).stream().map(Object::toString).collect(Collectors.joining(", "))+"]",true,pp,node.id(),context);
                     else if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.callbacks(node.type()).containsKey(name))
-                        rendered=scalar(name.equals("onSort")?"(_, __) {}":Set.of("onSelectAll","onSelectChanged","onHover","onTapDown").contains(name)?"(_) {}":"() {}",false,pp,node.id(),context);
+                        rendered=scalar(name.equals("onSort")?"(_, __) {}":Set.of("onSelectAll","onSelectChanged","onHover","onTapDown","onPageChanged","onRowsPerPageChanged").contains(name)?"(_) {}":"() {}",false,pp,node.id(),context);
                     if(rendered!=null){arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));continue;}
                 }
             }
@@ -880,6 +881,10 @@ public final class DartRegionGenerator {
                     scalar("() async {}", false, path + "/properties/onRefresh", node.id(), context)));
         }
         for (SlotDefinition slot : definition.slots()) {
+            // Native actions=[] still asserts header!=null. An empty optional action slot means omission.
+            if(dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(node.type())
+                    &&slot.name().value().equals("actions")
+                    &&dev.flutter.netbeans.designer.catalog.DataTableGrid.children(node,slot.name()).isEmpty())continue;
             WidgetSlot value = node.slots().get(slot.name());
             if ((node.type().equals(dev.flutter.netbeans.designer.catalog.SliverAnimatedOpacityWidgetPropertySchema.TYPE)
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.FadeTransitionWidgetPropertySchema.SLIVER_TYPE)

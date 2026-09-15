@@ -4,6 +4,9 @@ Pinned API: Flutter 3.44.8. Material exposes six reviewed definitions together:
 DataTable, DataColumn, DataRow, DataRow.byIndex, DataCell and DataCell.empty.
 The latter five are descriptors, not standalone Widgets. They only enter their
 native columns, rows and cells slots; they cannot be roots or ordinary children.
+DataColumn also belongs to [PaginatedDataTable](PAGINATED_DATA_TABLE.md) columns.
+That widget keeps its DataRow/DataCell records in an application DataTableSource,
+not in visual FD row slots.
 
 ## Structure and editing
 

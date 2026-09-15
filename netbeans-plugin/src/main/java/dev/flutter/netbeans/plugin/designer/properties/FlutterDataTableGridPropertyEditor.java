@@ -17,7 +17,7 @@ final class FlutterDataTableGridPropertyEditor extends PropertyEditorSupport imp
     FlutterDataTableGridPropertyEditor(WidgetNode table) { this.table=table; }
     @Override public String getAsText() {
         var rows=DataTableGrid.children(table,DataTableGrid.ROWS);
-        return rows.size()+" rows × "+DataTableGrid.children(table,DataTableGrid.COLUMNS).size()+" columns";
+        return (dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(table.type()) ? "Source-owned rows; " : rows.size()+" rows × ")+DataTableGrid.children(table,DataTableGrid.COLUMNS).size()+" columns";
     }
     @Override public void setAsText(String text) { throw new IllegalArgumentException("Use the table grid editor."); }
     @Override public boolean supportsCustomEditor() { return true; }
@@ -26,13 +26,15 @@ final class FlutterDataTableGridPropertyEditor extends PropertyEditorSupport imp
         var env=environment!=null?environment:PropertyEnv.create(new java.beans.FeatureDescriptor());
         JPanel panel=new JPanel(new GridLayout(0,2,8,8)); panel.setBorder(BorderFactory.createEmptyBorder(12,12,12,12));
         panel.getAccessibleContext().setAccessibleName("Data table rows and columns");
-        JComboBox<TableGrid.Operation> operation=new JComboBox<>(TableGrid.Operation.values());
+        boolean paginated=dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(table.type());
+        JComboBox<TableGrid.Operation> operation=new JComboBox<>(java.util.Arrays.stream(TableGrid.Operation.values())
+                .filter(op -> !paginated || op.name().endsWith("COLUMN")).toArray(TableGrid.Operation[]::new));
         operation.setName("flutter.dataTableGrid.operation"); operation.getAccessibleContext().setAccessibleName("Grid operation");
         int count=DataTableGrid.children(table,DataTableGrid.ROWS).size();
         int columns=DataTableGrid.children(table,DataTableGrid.COLUMNS).size();
         // Existing larger source-authored grids must still open for removal/reorder.
         int maximum=Math.max(1000,Math.max(count,columns));
-        JSpinner index=new JSpinner(new SpinnerNumberModel(count,0,maximum,1));
+        JSpinner index=new JSpinner(new SpinnerNumberModel(paginated?columns:count,0,maximum,1));
         JSpinner destination=new JSpinner(new SpinnerNumberModel(0,0,maximum,1));
         index.setName("flutter.dataTableGrid.index"); destination.setName("flutter.dataTableGrid.destination");
         index.getAccessibleContext().setAccessibleName("Zero-based row or column index");
@@ -41,7 +43,7 @@ final class FlutterDataTableGridPropertyEditor extends PropertyEditorSupport imp
         panel.add(new JLabel(getAsText())); panel.add(new JLabel("Indices are zero-based."));
         panel.add(new JLabel("Operation:")); panel.add(operation); panel.add(new JLabel("Index:")); panel.add(index);
         panel.add(new JLabel("Move destination:")); panel.add(destination);
-        panel.add(new JLabel("Removal deletes complete rows/columns.")); panel.add(status);
+        panel.add(new JLabel(paginated?"Update source cells to match changed columns.":"Removal deletes complete rows/columns.")); panel.add(status);
         StableId seed=StableId.random();
         EditDataTableGrid[] draft=new EditDataTableGrid[1];
         Runnable validate=()->{

@@ -191,7 +191,7 @@ class RefreshIndicatorContractTest {
             assertEquals(expected, WidgetPlacementRules.accepts(definition, slot, child));
             if (expected) accepted++;
         }
-        assertEquals(168, accepted);
+        assertEquals(169, accepted);
         assertTrue(valid(node(Map.of())), "Any Widget child is legal even without scrollables; runtime then has no pull gesture");
     }
 

@@ -1136,12 +1136,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.stateFamily(widget.type(),field.name()).filter("mouseCursor"::equals).isPresent()
                             ? dev.flutter.netbeans.designer.catalog.DefaultSelectionStyleWidgetPropertySchema.mouseCursorPresets() : java.util.List.of()));
             }
-            if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(widget.type())) {
+            if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.table(widget.type())) {
                 Sheet.Set grid=propertySet("dataTableGrid","Table grid","Atomic edits retain cell identities and support Undo/Redo.");
                 assignTab(grid,hasSlotTab ? GENERAL_TAB_NAME : null);
                 grid.put(new PropertySupport.ReadWrite<dev.flutter.netbeans.designer.command.EditDataTableGrid>(
-                        "dataTableGrid",dev.flutter.netbeans.designer.command.EditDataTableGrid.class,"Rows and columns",
-                        "Add, remove or reorder complete rows/columns. Column removal deletes every cell in that column.") {
+                        "dataTableGrid",dev.flutter.netbeans.designer.command.EditDataTableGrid.class,
+                        dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(widget.type()) ? "Columns" : "Rows and columns",
+                        "Add, remove or reorder columns. PaginatedDataTable source rows are application-owned: update their cells to match column changes. DataTable column removal deletes every cell in that column.") {
                     @Override public boolean canWrite() { return presentation.mutationHandler()!=null; }
                     @Override public dev.flutter.netbeans.designer.command.EditDataTableGrid getValue() { return null; }
                     @Override public void setValue(dev.flutter.netbeans.designer.command.EditDataTableGrid value) {
@@ -1703,6 +1704,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION;
@@ -5860,7 +5862,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             if(families.contains(propertyName.value())&&!(accepted.explicitValue().orElse(null) instanceof PropertyValue.StringValue))
                 for(var name:currentWidget.properties().keySet())if(!name.equals(propertyName)&&name.value().startsWith(propertyName.value()))
                     patches.add(new PatchProperties.ResetPatch(name));
-            if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(currentWidget.type())
+            if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.table(currentWidget.type())
                     &&accepted.explicitValue().orElse(null)!=null&&!(accepted.explicitValue().orElseThrow() instanceof PropertyValue.NullValue)) {
                 var opposite=propertyName.value().equals("dataRowHeight")?java.util.List.of("dataRowMinHeight","dataRowMaxHeight")
                         :java.util.List.of("dataRowMinHeight","dataRowMaxHeight").contains(propertyName.value())?java.util.List.of("dataRowHeight"):java.util.List.<String>of();

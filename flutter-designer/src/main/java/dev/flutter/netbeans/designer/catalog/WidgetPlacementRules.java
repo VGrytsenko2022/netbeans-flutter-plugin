@@ -103,7 +103,7 @@ public final class WidgetPlacementRules {
         String destination = parent.typeId().value() + '.' + slot.name().value();
         if(DataTableWidgetPropertySchema.descriptor(child.typeId())) {
             boolean valid=DataTableWidgetPropertySchema.COLUMN.equals(child.typeId())
-                    ?DataTableWidgetPropertySchema.TYPE.equals(parent.typeId())&&slot.name().value().equals("columns")
+                    ?DataTableWidgetPropertySchema.table(parent.typeId())&&slot.name().value().equals("columns")
                     :DataTableWidgetPropertySchema.row(child.typeId())
                     ?DataTableWidgetPropertySchema.TYPE.equals(parent.typeId())&&slot.name().value().equals("rows")
                     :DataTableWidgetPropertySchema.row(parent.typeId())&&slot.name().value().equals("cells");
@@ -186,7 +186,7 @@ public final class WidgetPlacementRules {
         ArrayList<String> lines = new ArrayList<>(3);
         String type = definition.typeId().value();
         if (DataTableWidgetPropertySchema.COLUMN.equals(definition.typeId()))
-            lines.add("R|"+type+"|directParentSlot|flutter.material.DataTable|columns");
+            lines.add("R|"+type+"|directParentSlot|flutter.material.DataTable,flutter.material.PaginatedDataTable|columns");
         if (DataTableWidgetPropertySchema.row(definition.typeId()))
             lines.add("R|"+type+"|directParentSlot|flutter.material.DataTable|rows");
         if (DataTableWidgetPropertySchema.cell(definition.typeId())) {
@@ -195,6 +195,8 @@ public final class WidgetPlacementRules {
         }
         if (DataTableWidgetPropertySchema.TYPE.equals(definition.typeId()))
             lines.add("R|"+type+"|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds");
+        if (PaginatedDataTableWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            lines.add("R|"+type+"|sourceOwnedRows|nonemptyColumns|boundedSortColumn|exclusiveHeightBounds|actionsRequireHeader|pageSizes|controllerPrimary");
         if (DataTableWidgetPropertySchema.supports(definition.typeId()))
             lines.add("C|"+type+"|paletteCreate|dataTable.v1|2|2");
         if (TableWidgetPropertySchema.ROW.equals(definition.typeId()))

@@ -1,5 +1,16 @@
 # State/value bindings
 
+## PaginatedDataTable consumers (2026-09-15)
+
+Add six reviewed fields: rowsPerPage, sortColumnIndex, sortAscending,
+showCheckboxColumn, showFirstLastButtons and showEmptyRows. Page size and sort
+index use direct int/int? bindings. Application handlers must keep page size
+positive and within availableRowsPerPage while its callback is enabled; sort
+index must remain null or within the column range. Column edits reject a bound
+sort index until explicitly detached. initialFirstRowIndex is intentionally
+initial-only, not a reactive consumer. See [PaginatedDataTable](PAGINATED_DATA_TABLE.md).
+
+
 ## User workflow
 
 Create a Stateful Flutter Designer Form, select a supported control, open its

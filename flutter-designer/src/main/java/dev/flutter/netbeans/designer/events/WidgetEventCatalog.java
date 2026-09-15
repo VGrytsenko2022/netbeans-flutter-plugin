@@ -405,6 +405,9 @@ public final class WidgetEventCatalog {
         }
         addCallable(widgets, "flutter.widgets.SliverFillViewport", "semanticIndexCallback", "SemanticIndexCallback",
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
+        add(widgets,"flutter.material.PaginatedDataTable","onSelectAll","ValueSetter<bool?>",false,"void","bool?:selected");
+        add(widgets,"flutter.material.PaginatedDataTable","onPageChanged","ValueChanged<int>",true,"void","int:firstRowIndex");
+        add(widgets,"flutter.material.PaginatedDataTable","onRowsPerPageChanged","ValueChanged<int?>",false,"void","int?:rowsPerPage");
         add(widgets,"flutter.material.DataTable","onSelectAll","ValueSetter<bool?>",true,"void","bool?:selected");
         add(widgets,"flutter.material.DataColumn","onSort","DataColumnSortCallback",true,"void","int:columnIndex","bool:ascending");
         for(String row:List.of("flutter.material.DataRow","flutter.material.DataRow.byIndex")) {

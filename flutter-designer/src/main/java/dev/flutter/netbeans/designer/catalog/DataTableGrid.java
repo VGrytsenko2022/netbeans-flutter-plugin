@@ -35,6 +35,8 @@ public final class DataTableGrid {
         return new WidgetNode(id,type,Map.of(),Map.of(CELLS,new WidgetSlot.ListSlot(cells)));
     }
     public static Map<SlotName,WidgetSlot> starterSlots(WidgetTypeId type,StableId id) {
+        if(PaginatedDataTableWidgetPropertySchema.TYPE.equals(type)) return Map.of(COLUMNS,new WidgetSlot.ListSlot(
+                List.of(starterColumn(TableGrid.derived(id,"column:0")),starterColumn(TableGrid.derived(id,"column:1")))));
         if(DataTableWidgetPropertySchema.TYPE.equals(type)) return Map.of(
                 COLUMNS,new WidgetSlot.ListSlot(List.of(starterColumn(TableGrid.derived(id,"column:0")),starterColumn(TableGrid.derived(id,"column:1")))),
                 ROWS,new WidgetSlot.ListSlot(List.of(starterRow(TableGrid.derived(id,"row:0"),DataTableWidgetPropertySchema.ROW,2),
@@ -63,7 +65,9 @@ public final class DataTableGrid {
                 TableColumnWidths.parse(s.value());
             for(String family:DataTableWidgetPropertySchema.styleFamilies(node.type()))requireLocalLeaves(node,family,true);
             for(String family:DataTableWidgetPropertySchema.stateFamilies(node.type()))requireLocalLeaves(node,family,false);
-            if(!DataTableWidgetPropertySchema.TYPE.equals(node.type()))return Optional.empty();
+            if(!DataTableWidgetPropertySchema.table(node.type()))return Optional.empty();
+            var pageError=PaginatedDataTableWidgetPropertySchema.relationshipError(node);
+            if(pageError.isPresent())return pageError;
             var columns=children(node,COLUMNS);
             if(columns.isEmpty())return Optional.of("DataTable requires at least one column.");
             if(node.properties().get(new PropertyName("sortColumnIndex")) instanceof PropertyValue.IntegerValue i
@@ -108,7 +112,9 @@ public final class DataTableGrid {
         return new WidgetNode(node.id(),node.type(),properties,node.slots(),node.extensions(),node.stateBinding(),node.propertyBindings());
     }
     public static WidgetNode edit(WidgetNode table,TableGrid.Operation operation,int index,int destination,StableId seed) {
-        if(!DataTableWidgetPropertySchema.TYPE.equals(table.type()))throw new IllegalArgumentException("Rows and columns requires DataTable");
+        if(!DataTableWidgetPropertySchema.table(table.type()))throw new IllegalArgumentException("Rows and columns requires DataTable or PaginatedDataTable");
+        boolean paginated=PaginatedDataTableWidgetPropertySchema.TYPE.equals(table.type());
+        if(paginated&&operation.name().endsWith("ROW"))throw new IllegalArgumentException("PaginatedDataTable rows are owned by DataTableSource, not a visual slot.");
         relationshipError(table).ifPresent(s->{throw new IllegalArgumentException(s);});
         var rows=new ArrayList<>(children(table,ROWS));var columns=new ArrayList<>(children(table,COLUMNS));
         boolean row=operation.name().endsWith("ROW"),add=operation.name().startsWith("ADD_"),move=operation.name().startsWith("MOVE_");
@@ -143,7 +149,8 @@ public final class DataTableGrid {
                 properties.put(new PropertyName("sortColumnIndex"),new PropertyValue.IntegerValue(BigInteger.valueOf(mapped)));
             }
         }
-        return withChildren(withChildren(withProperties(table,properties),COLUMNS,columns),ROWS,rows);
+        var result=withChildren(withProperties(table,properties),COLUMNS,columns);
+        return paginated?result:withChildren(result,ROWS,rows);
     }
     private static <T> void move(List<T> values,int index,int destination){values.add(destination,values.remove(index));}
     private DataTableGrid(){}

@@ -106,6 +106,13 @@ public final class DartUserSourceProjection {
         return append(updatedEnvelope, updated, null);
     }
 
+    /** Adds the long-lived DataTableSource starter, once, outside managed regions. */
+    public DartUserSourceProjection insertDataTableSource() {
+        byte[] updated = DartEventHandlerSource.insertDataTableSource(targetSource);
+        Envelope updatedEnvelope = envelope(scan(updated, targetDescriptor));
+        return append(updatedEnvelope, updated, null);
+    }
+
     /** Adds the Flow starter; future delegate edits remain user-owned. */
     public DartUserSourceProjection insertFlowDelegate() {
         byte[] updated = DartEventHandlerSource.insertFlowDelegate(targetSource);

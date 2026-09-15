@@ -1,5 +1,20 @@
 # Architecture Decisions
 
+## PaginatedDataTable source ownership — 2026-09-15
+
+Add one native PaginatedDataTable definition with all constructor fields and
+three Events. Reuse DataColumn but do not pretend DataTableSource is a Widget
+or expose a fabricated native rows slot. Scaffold an editable empty,
+library-lifetime source once through the existing reversible user-source
+projection. Generated build references its static instance. Application code
+owns its data, ordering, notifications and disposal.
+
+Column edits preserve descriptor identities and remap only local sort indices;
+source rows are never silently rewritten. Canvas uses a disclosed empty source
+and native header/footer geometry. Strict type evidence remains mandatory.
+See [PaginatedDataTable](PAGINATED_DATA_TABLE.md).
+
+
 ## DataTable coordinated slice — 2026-09-15
 
 Admit all six Material table/descriptor forms together. DataColumn, DataRow,

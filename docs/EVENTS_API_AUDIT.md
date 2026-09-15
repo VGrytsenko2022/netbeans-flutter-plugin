@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## PaginatedDataTable update (2026-09-15)
+
+Add onSelectAll(bool?), onPageChanged(int) and onRowsPerPageChanged(int?),
+plus existing DataColumn.onSort on visual headers. All are native events.
+The current catalog has 233 definitions, 256 callables across 94 types and
+190 native Events across 66 types. Six new State property consumers bring
+that inventory to 178 fields across 60 types. DataTableSource lifecycle and
+notifyListeners are source-owned, not fabricated widget event properties.
+See [PaginatedDataTable](PAGINATED_DATA_TABLE.md).
+
+
 ## DataTable update (2026-09-15)
 
 Six definitions add 13 native event rows: DataTable.onSelectAll;

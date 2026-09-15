@@ -100,7 +100,7 @@ class FilledButtonContractTest {
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count(),
                 "Generic wrappers exclude the special Expanded and Flexible ParentData wrappers");
         // Global catalog count, including ExpansionTile's nullable dense/enableFeedback.
-        assertEquals(53, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
+        assertEquals(54, CATALOG.definitions().stream().flatMap(value -> value.properties().stream())
                 .filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN,
                         PropertyValueKind.NULL))).count());
         assertTrue(FilledButtonWidgetPropertySchema.find("clipBehavior").orElseThrow()

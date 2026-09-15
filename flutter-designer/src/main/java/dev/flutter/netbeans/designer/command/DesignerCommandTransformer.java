@@ -203,7 +203,7 @@ final class DesignerCommandTransformer {
         if (subtree.isPresent()) {
             return failure(subtree.orElseThrow());
         }
-        if(owner!=null&&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.TYPE.equals(owner.node().type())
+        if(owner!=null&&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.table(owner.node().type())
                 &&dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.COLUMN.equals(inserted.type())
                 &&command.destination().slotName().value().equals("columns")) {
             try {
@@ -260,6 +260,12 @@ final class DesignerCommandTransformer {
                     "/root",
                     Optional.of(command.widgetId()),
                     "The required designer root cannot be removed.");
+        }
+        if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.COLUMN.equals(target.node().type())) {
+            var owner=index.nodes().get(target.parentId().orElseThrow()).node();
+            if(dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(owner.type()))
+                return dataTableGrid(current,index,new EditDataTableGrid(owner,dev.flutter.netbeans.designer.catalog.TableGrid.Operation.REMOVE_COLUMN,
+                        dev.flutter.netbeans.designer.catalog.DataTableGrid.children(owner,dev.flutter.netbeans.designer.catalog.DataTableGrid.COLUMNS).indexOf(target.node()),0,StableId.random()));
         }
         Removal removal = remove(current.root(), index, target);
         if (removal.diagnostic().isPresent()) {

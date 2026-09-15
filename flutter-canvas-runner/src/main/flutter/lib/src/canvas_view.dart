@@ -4038,7 +4038,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
-  if(node.type==canvasDataTableType||isCanvasDataDescriptor(node.type)) {
+  if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
   }
   if (const {'flutter.widgets.Table','flutter.widgets.TableRow','flutter.widgets.TableCell'}.contains(node.type)) {
@@ -6239,8 +6239,8 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   Rect? _dataDescriptorGlobalRect(CanvasNode descriptor) {
     CanvasNode? owner;int rowIndex=-1,columnIndex=-1;
     void visit(CanvasNode n) {
-      if(n.type==canvasDataTableType) {
-        final columns=n.slot('columns')!.children,rows=n.slot('rows')!.children;
+      if(isCanvasDataTable(n.type)) {
+        final columns=n.slot('columns')!.children,rows=n.slot('rows')?.children??<CanvasNode>[];
         final column=columns.indexWhere((c)=>c.id==descriptor.id);
         if(column>=0){owner=n;rowIndex=0;columnIndex=column;return;}
         for(var r=0;r<rows.length;r++) {
@@ -6257,7 +6257,24 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     }
     visit(widget.model.root);
     if(owner==null)return null;
-    final render=_geometryNodeKey(owner!.id)?.currentContext?.findRenderObject();
+    final ownerContext=_geometryNodeKey(owner!.id)?.currentContext;
+    RenderObject? render=ownerContext?.findRenderObject();
+    if(owner!.type==canvasPaginatedDataTableType) {
+      // The custom header/actions may themselves contain tables. Select the native
+      // data table by its owned first-column label before looking for RenderTable.
+      final firstColumn=owner!.slot('columns')!.children.first;
+      Element? native;
+      void findDataTable(Element element) {
+        final widget=element.widget;
+        if(widget is DataTable&&widget.columns.first.label is _CanvasNodeView
+            &&(widget.columns.first.label as _CanvasNodeView).node.id==firstColumn.slot('label')!.children.single.id) {
+          native=element;return;
+        }
+        element.visitChildElements((child){if(native==null)findDataTable(child);});
+      }
+      if(ownerContext is Element)findDataTable(ownerContext);
+      render=native?.findRenderObject();
+    }
     RenderTable? table;
     void find(RenderObject object) {
       if(object is RenderTable){table=object;return;}
@@ -6640,7 +6657,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         _isOverflowBarVertical(parentNode, parentBox);
     final horizontal =
         parentNode.type == 'flutter.widgets.Row' ||
-        (parentNode.type == canvasDataTableType && slotName == 'columns') ||
+        (isCanvasDataTable(parentNode.type) && slotName == 'columns') ||
         parentNode.type == 'flutter.material.AppBar' ||
         _isHorizontalListBody(parentNode) ||
         _isHorizontalListView(parentNode) ||
@@ -8481,8 +8498,18 @@ class _SwitcherEntryViewState extends State<_SwitcherEntryView> {
   void dispose() { _release(); super.dispose(); }
 }
 
+// A process-lifetime empty source. Each preview table installs/removes its own listener.
+class _EmptyCanvasDataTableSource extends DataTableSource {
+  static final instance=_EmptyCanvasDataTableSource();
+  @override DataRow? getRow(int index)=>null;
+  @override int get rowCount=>0;
+  @override int get selectedRowCount=>0;
+  @override bool get isRowCountApproximate=>false;
+}
+
 String _dataTablePreviewMessage(CanvasNode root) {
   final messages=<String>[];
+  if(root.type==canvasPaginatedDataTableType)messages.add('DataTableSource is not executed: preview has zero data rows; source counts, loading, sorting and selection must be tested with Run/Debug.');
   void visit(CanvasNode n) {
     final refs=n.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
     if(refs.isNotEmpty)messages.add('${n.type} ${n.id}: ${refs.join(', ')}');
@@ -9218,7 +9245,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
-      'flutter.material.DataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
+      'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
           || 'flutter.material.DataCell' || 'flutter.material.DataCell.empty' =>
           throw StateError('Data table descriptor must be rendered by its native DataTable'),
@@ -14347,7 +14374,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
   }
 
   Widget _dataTable(BuildContext context) {
-    final columns=node.slot('columns')!.children,rows=node.slot('rows')!.children;
+    final columns=node.slot('columns')!.children,rows=node.slot('rows')?.children??<CanvasNode>[];
     final columnValues=<DataColumn>[];
     for(final column in columns) {
       final own=_view(column);
@@ -14383,6 +14410,39 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
             onTapCancel:_dataCallback(cell,'onTapCancel')?(){}:null,
           )],
       ));
+    }
+    if(node.type==canvasPaginatedDataTableType) {
+      if((_integer('rowsPerPage')??10)>1000) {
+        return const SizedBox(width:320,height:80,child:Center(child:Text('PaginatedDataTable: Canvas preview is limited to 1,000 rows per page. Run/Debug uses the saved page size.')));
+      }
+      final header=node.slot('header')?.children??<CanvasNode>[];
+      final actions=node.slot('actions')?.children??<CanvasNode>[];
+      return PaginatedDataTable(
+        // A changed initial index must remount the preview; app runtime retains native initial-only behavior.
+        key:ValueKey('canvas-paginated-${node.id}-${_integer('initialFirstRowIndex')}'),
+        columns:columnValues,source:_EmptyCanvasDataTableSource.instance,
+        header:header.isEmpty?null:_view(header.single),
+        actions:actions.isEmpty?null:[for(final action in actions)_view(action)],
+        sortColumnIndex:_integer('sortColumnIndex'),sortAscending:_boolean('sortAscending')??true,
+        onSelectAll:_dataCallback(node,'onSelectAll')?(_){}:null,
+        // ignore: deprecated_member_use
+        dataRowHeight:_number('dataRowHeight'),
+        dataRowMinHeight:_number('dataRowMinHeight'),dataRowMaxHeight:_number('dataRowMaxHeight'),
+        headingRowHeight:_number('headingRowHeight')??56,
+        horizontalMargin:_number('horizontalMargin')??24,columnSpacing:_number('columnSpacing')??56,
+        showCheckboxColumn:_boolean('showCheckboxColumn')??true,
+        showFirstLastButtons:_boolean('showFirstLastButtons')??false,
+        initialFirstRowIndex:_integer('initialFirstRowIndex'),
+        onPageChanged:_dataCallback(node,'onPageChanged')?(_){}:null,
+        rowsPerPage:_integer('rowsPerPage')??10,
+        availableRowsPerPage:_string('availableRowsPerPage')==null?[10,20,50,100]:canvasPageSizes(_string('availableRowsPerPage')!),
+        onRowsPerPageChanged:_dataCallback(node,'onRowsPerPageChanged')?(_){}:null,
+        dragStartBehavior:_enum('dragStartBehavior')=='down'?DragStartBehavior.down:DragStartBehavior.start,
+        arrowHeadColor:_resolvedColor(context,'arrowHeadColor'),
+        checkboxHorizontalMargin:_number('checkboxHorizontalMargin'),primary:_boolean('primary'),
+        headingRowColor:_dataStates<Color>(node,'headingRowColor',(n)=>_resolvedColor(context,n)),
+        dividerThickness:_number('dividerThickness'),showEmptyRows:_boolean('showEmptyRows')??true,
+      );
     }
     return DataTable(
       columns:columnValues,rows:rowValues,
@@ -16934,7 +16994,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     onCommitInlineTextEdit: onCommitInlineTextEdit,
     onCancelInlineTextEdit: onCancelInlineTextEdit,
     suppressDesignerSemantics:
-        suppressDesignerSemantics || node.type==canvasDataTableType || isCanvasDataDescriptor(node.type) ||
+        suppressDesignerSemantics || isCanvasDataTable(node.type) || isCanvasDataDescriptor(node.type) ||
         node.type == 'flutter.widgets.MergeSemantics' ||
         node.type == 'flutter.widgets.IndexedSemantics',
   );

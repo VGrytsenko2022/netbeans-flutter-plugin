@@ -179,6 +179,34 @@ public final class DartEventHandlerSource {
                 """);
     }
 
+    /** Empty, library-lifetime source. Insertion is reversible; subsequent source edits are never regenerated. */
+    public static byte[] insertDataTableSource(byte[] source) {
+        return insertReviewedDelegate(addImports(source,List.of("package:flutter/material.dart")),
+                dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.SOURCE_CLASS, """
+                // Editable DataTableSource. Designer preserves this class and never executes it in Canvas.
+                // This shared instance lives for the library lifetime, not one build or one table.
+                // For independent/shorter-lived tables, bind an instance owned and disposed by your State.
+                class _FlutterDesignerDataTableSource extends DataTableSource {
+                  static final instance = _FlutterDesignerDataTableSource();
+                  List<DataRow> _rows = const [];
+                  // Each row must have exactly as many cells as the table has columns.
+                  // Pass rows in sorted order; onSort does not sort them automatically.
+                  void replaceRows(List<DataRow> rows) {
+                    _rows = List<DataRow>.of(rows);
+                    notifyListeners();
+                  }
+                  @override
+                  DataRow? getRow(int index) => index >= 0 && index < _rows.length ? _rows[index] : null;
+                  @override
+                  int get rowCount => _rows.length;
+                  @override
+                  bool get isRowCountApproximate => false;
+                  @override
+                  int get selectedRowCount => _rows.where((row) => row.selected).length;
+                }
+                """);
+    }
+
     /** Inserts a finite, repaint-safe starter once; all methods remain user-owned. */
     public static byte[] insertFlowDelegate(byte[] source) {
         return insertReviewedDelegate(source,

@@ -26,7 +26,7 @@ public class DataTableContractTest {
             assertEquals(type.equals(DataTableWidgetPropertySchema.TYPE),WidgetPlacementRules.evaluateRoot(child).accepted());
             if(type.equals(DataTableWidgetPropertySchema.TYPE))continue;
             for(var parent:C.definitions())for(var slot:parent.slots()){
-                boolean expected=type.equals(DataTableWidgetPropertySchema.COLUMN)?parent.typeId().equals(DataTableWidgetPropertySchema.TYPE)&&slot.name().equals(DataTableGrid.COLUMNS):
+                boolean expected=type.equals(DataTableWidgetPropertySchema.COLUMN)?DataTableWidgetPropertySchema.table(parent.typeId())&&slot.name().equals(DataTableGrid.COLUMNS):
                         DataTableWidgetPropertySchema.row(type)?parent.typeId().equals(DataTableWidgetPropertySchema.TYPE)&&slot.name().equals(DataTableGrid.ROWS):
                         DataTableWidgetPropertySchema.row(parent.typeId())&&slot.name().equals(DataTableGrid.CELLS);
                 assertEquals(expected,WidgetPlacementRules.accepts(parent,slot,child),type+" -> "+parent.typeId()+"."+slot.name());

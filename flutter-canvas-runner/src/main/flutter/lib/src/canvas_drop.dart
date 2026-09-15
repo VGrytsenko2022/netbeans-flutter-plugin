@@ -535,6 +535,11 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SliverPrototypeExtentList' => const [canvasChildrenAppendDropSlot, canvasPrototypeItemDropSlot],
       'flutter.widgets.SliverPrototypeExtentList.builder' ||
       'flutter.widgets.SliverPrototypeExtentList.delegate' => const [canvasPrototypeItemDropSlot],
+      'flutter.material.PaginatedDataTable' => const [
+        CanvasDropSlotSemantics.emptySingle(slotName:'header'),
+        CanvasDropSlotSemantics.append(slotName:'actions',maximumChildren:10000),
+        CanvasDropSlotSemantics.append(slotName:'columns',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasDataColumnType),zonePlacement:CanvasDropZonePlacement.fullNode),
+      ],
       'flutter.material.DataTable' => const [
         CanvasDropSlotSemantics.append(slotName:'columns',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasDataColumnType),zonePlacement:CanvasDropZonePlacement.fullNode),
         CanvasDropSlotSemantics.append(slotName:'rows',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait('flutter.material.DataRow'),zonePlacement:CanvasDropZonePlacement.fullNode),

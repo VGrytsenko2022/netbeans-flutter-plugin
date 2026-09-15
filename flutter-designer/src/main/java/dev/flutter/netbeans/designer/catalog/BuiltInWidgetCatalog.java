@@ -154,6 +154,7 @@ public final class BuiltInWidgetCatalog {
             dataTable(DataTableWidgetPropertySchema.ROW_INDEX),
             dataTable(DataTableWidgetPropertySchema.CELL),
             dataTable(DataTableWidgetPropertySchema.EMPTY),
+            paginatedDataTable(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3317,6 +3318,16 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition paginatedDataTable() {
+        return widget(PaginatedDataTableWidgetPropertySchema.TYPE.value(), "PaginatedDataTable", false,
+                MATERIAL_IMPORT, List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,"package:flutter/gestures.dart"), Set.of(),
+                palette("flutter.material",100,620,"PaginatedDataTable"),PaginatedDataTableWidgetPropertySchema.properties(),
+                List.of(singleSlot("header",2000,false,0,ANY_WIDGET),
+                        listSlot("actions",2001,false,ANY_WIDGET),
+                        new SlotDefinition(new SlotName("columns"),DartParameter.named(2002,true),
+                                SlotCardinality.LIST,1,10000,new SlotAcceptance.HasTrait(DataTableWidgetPropertySchema.COLUMN_TRAIT))));
     }
 
     static WidgetDefinition dataTable(WidgetTypeId type) {

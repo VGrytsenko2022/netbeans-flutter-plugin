@@ -1,5 +1,16 @@
 # State/value bindings
 
+## CalendarDatePicker lifecycle (2026-09-15)
+
+No new controlled State consumers. Native initialDate/initialCalendarMode do not
+reset calendar state on a same-key rebuild. Change Key to recreate it; use the
+selection/month Events to update application State. initialDate is required but
+nullable: null means no selected day. Canvas intentionally remounts when the
+Designer model changes, without executing application callbacks.
+The inventory remains 178 fields across 60 types.
+See [CalendarDatePicker](CALENDAR_DATE_PICKER.md).
+
+
 ## DateRangePickerDialog lifecycle (2026-09-15)
 
 No new controlled State consumers. Initial range/mode belong to native restorable

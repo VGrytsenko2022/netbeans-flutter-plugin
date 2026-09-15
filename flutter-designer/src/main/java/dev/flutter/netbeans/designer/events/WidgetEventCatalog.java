@@ -101,6 +101,10 @@ public final class WidgetEventCatalog {
                 nullable = false;
             }
             if ((definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE) || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE))) nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
+            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE)) {
+                sdkRequired=property.parameter().required();
+                nullable=property.acceptedKinds().contains(PropertyValueKind.NULL);
+            }
             if (definition.typeId().value().equals("flutter.widgets.SliverFillViewport")) nullable = false;
             return new WidgetEventDescriptor(name, spec.type(), spec.kind(), spec.signature(),
                     property.parameter().required(), property.acceptedKinds().contains(PropertyValueKind.NULL),
@@ -123,6 +127,7 @@ public final class WidgetEventCatalog {
 
     private static String unsetBehavior(String widget, String property) {
         if ((widget.equals("ModalBarrier") || widget.equals("AnimatedModalBarrier")) && property.equals("onDismiss")) return "Unset/null uses Navigator.maybePop when Dismissible is true; otherwise the retained callback is ignored. A bound callback owns dismissal; Canvas suppresses callback, route changes and alert sounds.";
+        if (widget.equals("CalendarDatePicker") && property.equals("onDateChanged")) return "Required ValueChanged<DateTime>. Disconnect restores the explicit no-op; it never writes null or removes the required callback.";
         if (widget.equals("ShaderMask") && property.equals("shaderCallback")) return "Required Shader Function(Rect bounds). Disconnect restores the opaque-white gradient; it never writes null or removes the required callback.";
         if (widget.equals("MatrixTransition") && property.equals("onTransform")) return "Required TransformCallback or a structured fixed-matrix callback. Null/unset is not allowed; disconnect restores the identity matrix preset. Return a fresh Matrix4 from the animation value.";
         if (widget.equals("TweenAnimationBuilder") && property.equals("builder")) return "Required typed builder or Child preset; null/unset are not allowed. Match the selected box/sliver result.";
@@ -408,6 +413,10 @@ public final class WidgetEventCatalog {
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
         addCallable(widgets,"flutter.material.DateRangePickerDialog","selectableDayPredicate","SelectableDayForRangePredicate",
                 WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:day","DateTime?:selectedStartDay","DateTime?:selectedEndDay");
+        add(widgets,"flutter.material.CalendarDatePicker","onDateChanged","ValueChanged<DateTime>",true,"void","DateTime:date");
+        add(widgets,"flutter.material.CalendarDatePicker","onDisplayedMonthChanged","ValueChanged<DateTime>",false,"void","DateTime:date");
+        addCallable(widgets,"flutter.material.CalendarDatePicker","selectableDayPredicate","SelectableDayPredicate",
+                WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:date");
         add(widgets,"flutter.material.DatePickerDialog","onDatePickerModeChange","ValueChanged<DatePickerEntryMode>",true,"void","DatePickerEntryMode:mode");
         addCallable(widgets,"flutter.material.DatePickerDialog","selectableDayPredicate","SelectableDayPredicate",
                 WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:date");

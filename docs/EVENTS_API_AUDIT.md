@@ -1,5 +1,17 @@
 # Widget events API audit
 
+## CalendarDatePicker update (2026-09-15)
+
+Add onDateChanged and onDisplayedMonthChanged, both ValueChanged<DateTime>.
+The first is required/non-null and the default Event; disconnect restores no-op.
+The second is optional and reports a newly displayed month, not a route result.
+selectableDayPredicate stays in Properties with editable bool Function(DateTime)
+handler actions. Current inventory: 236 definitions, 262 callables across 97 types;
+193 native Events across 68 types, 50 builders, six predicates, two formatters and
+eleven delegates. State remains 178 consumers across 60 types.
+See [CalendarDatePicker](CALENDAR_DATE_PICKER.md).
+
+
 ## DateRangePickerDialog update (2026-09-15)
 
 Add the exact SelectableDayForRangePredicate:

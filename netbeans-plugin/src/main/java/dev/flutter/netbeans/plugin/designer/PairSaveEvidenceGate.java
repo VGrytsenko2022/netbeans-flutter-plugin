@@ -486,7 +486,7 @@ final class PairSaveEvidenceGate {
                         "analysis.symbolEvidence." + probe.id(),
                         "A pair-save symbol probe must identify a package:flutter or dart:ui URI "
                         + "or a closed current/declared project package library URI, "
-                        + "or an exact generator-owned core type, Duration, or DatePickerDialog DateTime contract.");
+                        + "or an exact generator-owned core type, Duration, or date-picker DateTime contract.");
             }
 
             Path expectedRootReal = realPath(

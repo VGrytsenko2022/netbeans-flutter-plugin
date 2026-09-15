@@ -39,7 +39,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.Badge",
                 "flutter.material.BottomAppBar",
                 "flutter.material.BottomNavigationBar",
-                "flutter.material.Card",
+                "flutter.material.CalendarDatePicker", "flutter.material.Card",
                 "flutter.material.Checkbox",
                 "flutter.material.CheckboxListTile",
                 "flutter.material.CircleAvatar",
@@ -220,11 +220,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(235, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(236, BuiltInWidgetCatalog.getDefault().definitions().size());
         assertEquals(193, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(226, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(227, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.material.DataCell.empty", "flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
                 "flutter.widgets.RepaintBoundary", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverResizingHeader", "flutter.widgets.SliverToBoxAdapter"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -232,6 +232,7 @@ class BuiltInWidgetCatalogTest {
         assertEquals(List.of(
                         "flutter.material.AppBar",
                         "flutter.material.BottomNavigationBar",
+                        "flutter.material.CalendarDatePicker",
                         "flutter.material.DataRow.byIndex",
                         "flutter.material.DataTable", "flutter.material.DatePickerDialog",
                         "flutter.material.ElevatedButton",
@@ -270,10 +271,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(7780, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7790, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(7762, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7772, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -327,7 +328,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.LinearProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataCell", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataCell.empty", MATERIAL_IMPORT),
-                Map.entry("flutter.material.PaginatedDataTable", MATERIAL_IMPORT), Map.entry("flutter.material.DatePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.DateRangePickerDialog", MATERIAL_IMPORT),
+                Map.entry("flutter.material.PaginatedDataTable", MATERIAL_IMPORT), Map.entry("flutter.material.DatePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.DateRangePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.CalendarDatePicker", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataColumn", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataRow", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataRow.byIndex", MATERIAL_IMPORT),
@@ -665,7 +666,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.DataRow",
                 "flutter.material.DataRow.byIndex",
                 "flutter.material.DataCell",
-                "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog",
+                "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -756,7 +757,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.MouseRegion",
                 "flutter.widgets.Focus",
                 "flutter.widgets.NotificationListener"), typeIds(palette));
-        assertEquals(61, palette.stream()
+        assertEquals(62, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

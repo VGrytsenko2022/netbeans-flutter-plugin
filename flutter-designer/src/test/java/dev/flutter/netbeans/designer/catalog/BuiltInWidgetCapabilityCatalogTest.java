@@ -67,7 +67,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.BottomNavigationBar",
             "flutter.material.Material",
             "flutter.material.Scrollbar",
-            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -204,7 +204,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.BottomNavigationBar",
             "flutter.material.Material",
             "flutter.material.Scrollbar",
-            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -325,7 +325,7 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(235, sources.size());
+        assertEquals(236, sources.size());
         assertEquals(203, destinations.size());
         assertEquals(174, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
@@ -335,9 +335,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(47705, candidates);
-        assertEquals(30494, accepted);
-        assertEquals(17211, candidates - accepted);
+        assertEquals(47908, candidates);
+        assertEquals(30668, accepted);
+        assertEquals(17240, candidates - accepted);
     }
 
     @Test
@@ -2736,7 +2736,7 @@ class BuiltInWidgetCapabilityCatalogTest {
                     + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
                     property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
         }
-        assertEquals(7780, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
+        assertEquals(7790, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
                 .mapToInt(definition -> definition.properties().size()).sum());
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         int start = contract.indexOf("W|flutter.material.SwitchListTile\n");

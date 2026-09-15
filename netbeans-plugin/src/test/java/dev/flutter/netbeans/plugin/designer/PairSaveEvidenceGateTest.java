@@ -79,6 +79,46 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 class PairSaveEvidenceGateTest {
+    @Test void calendarDatePickerDatesRequireExactGeneratedSpansAndTrustedCoreConstructors() throws Exception {
+        for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+            var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.CalendarDatePicker", "",
+                    Map.of(new PropertyName("onDateChanged"), new PropertyValue.StringValue("noop"),
+                           new PropertyName("firstDate"), new PropertyValue.StringValue("2000-01-01"),
+                           new PropertyName("lastDate"), new PropertyValue.StringValue("2030-12-31"),
+                           new PropertyName("initialDate"), new PropertyValue.StringValue("2024-02-29"),
+                           new PropertyName("currentDate"), new PropertyValue.StringValue("2024-02-15")));
+            var sdk = fixture.flutterLib().getParent().getParent().getParent();
+            var core = sdk.resolve(tree).resolve("date_time.dart");
+            Files.createDirectories(core.getParent()); Files.writeString(core, "class DateTime {}\n");
+            var model = new RadioFixture(fixture, sdk, core);
+            java.util.function.Function<PairCandidateAnalysisTicket, List<DartSymbolEvidence>> evidence = ticket ->
+                    radioEvidence(model, ticket).stream().map(value -> value.probe().expectedSymbolName().equals("DateTime")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget("CONSTRUCTOR", core, 0, 8, 1, 1)), true, Optional.empty()) : value).toList();
+            var ticket = radioTicket(model);
+            assertEquals(4, ticket.request().symbolProbes().stream().filter(p -> p.expectedSymbolName().equals("DateTime")).count());
+            var result = ticket.accept(analysis(ticket, evidence.apply(ticket)));
+            assertTrue(result.ready(), result.diagnostics().toString());
+            assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.live()).ready());
+            for (String mutation : List.of("kind", "file", "missing", "id", "span", "library")) {
+                var fresh = radioTicket(model);
+                var bad = evidence.apply(fresh).stream().filter(value -> !(mutation.equals("missing") && value.probe().expectedSymbolName().equals("DateTime")))
+                        .map(value -> {
+                            var original = value.probe();
+                            if (!original.expectedSymbolName().equals("DateTime")) return value;
+                            if (mutation.equals("kind") || mutation.equals("file"))
+                                return new DartSymbolEvidence(original, List.of(new DartNavigationTarget(
+                                        mutation.equals("kind") ? "CLASS" : "CONSTRUCTOR",
+                                        mutation.equals("file") ? fixture.frameworkFile() : core, 0, 8, 1, 1)), true, Optional.empty());
+                            var forged = new DartSymbolProbe(mutation.equals("id") ? original.id() + "-forged" : original.id(),
+                                    mutation.equals("span") ? original.offset()+1 : original.offset(), original.length(), original.expectedSymbolName(),
+                                    mutation.equals("library") ? "dart:io" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(), original.staticTypeProbe());
+                            return new DartSymbolEvidence(forged, value.targets(), true, Optional.empty());
+                        }).toList();
+                assertFalse(fresh.accept(analysis(fresh, bad)).ready(), mutation);
+            }
+        }
+    }
+
     @Test void datePickerDatesRequireExactGeneratedSpansAndTrustedCoreConstructors() throws Exception {
         for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
             var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.DatePickerDialog", "",
@@ -3028,7 +3068,7 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) {
-        if (widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
+        if (widgetType.equals("flutter.material.CalendarDatePicker") || widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
             return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
                     StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
                     radioProperties, Map.of()));

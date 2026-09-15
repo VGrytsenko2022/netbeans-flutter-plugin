@@ -2616,8 +2616,13 @@ accepted architecture is documented in
     editable three-argument range predicate, native Navigator results, atomic
     history/save/reopen and explicit isolated Canvas limits.
     See [DateRangePickerDialog](DATE_RANGE_PICKER_DIALOG.md).
-  - [ ] Next palette candidate: CalendarDatePicker. Audit its pinned constructor,
-    native selection/month callbacks, calendar sources and preview limits first.
+  - [x] Add CalendarDatePicker: all ten constructor arguments, nullable initial
+    selection, day/year modes, exact selection/month Events, typed date/calendar
+    sources, editable selectable-day predicate and native Key lifecycle.
+    Includes stable Properties, source/history/save/reopen and inert native Canvas.
+    See [CalendarDatePicker](CALENDAR_DATE_PICKER.md).
+  - [ ] Next palette candidate: InputDatePickerFormField. Audit the pinned
+    constructor, parse/validation callbacks, keyboard and focus lifecycle first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

@@ -99,7 +99,7 @@ final class FlutterLocalDartReferenceEditorComponent {
             var localEditor = localBinding.createEditor();
             PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) && !(initial instanceof PropertyValue.NullValue) ? initial
                     : dateRange ? new PropertyValue.StringValue("2000-01-01/2000-01-01")
-                    : date ? binding.definition().creationDefault().orElse(new PropertyValue.StringValue("2000-01-01"))
+                    : date ? binding.definition().creationDefault().filter(PropertyValue.StringValue.class::isInstance).orElse(new PropertyValue.StringValue("2000-01-01"))
                     : tableWidth ? new PropertyValue.StringValue(binding.definition().name().value().equals("columnWidths") ? "" : "flex(1)")
                     : key ? new PropertyValue.StringValue("")
                     : size ? new PropertyValue.SizeValue(BigDecimal.ZERO, BigDecimal.ZERO)

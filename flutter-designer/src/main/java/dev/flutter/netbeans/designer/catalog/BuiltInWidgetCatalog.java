@@ -157,6 +157,7 @@ public final class BuiltInWidgetCatalog {
             paginatedDataTable(),
             datePickerDialog(),
             dateRangePickerDialog(),
+            calendarDatePicker(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3328,6 +3329,12 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.material",100,630,"DatePickerDialog"),DatePickerDialogWidgetPropertySchema.properties(),
                 List.of(singleSlot("switchToInputEntryModeIcon",20,false,0,new SlotAcceptance.ExactTypes(List.of(new WidgetTypeId("flutter.widgets.Icon")))),
                         singleSlot("switchToCalendarEntryModeIcon",21,false,0,new SlotAcceptance.ExactTypes(List.of(new WidgetTypeId("flutter.widgets.Icon"))))));
+    }
+
+    private static WidgetDefinition calendarDatePicker() {
+        return widget(CalendarDatePickerWidgetPropertySchema.TYPE.value(),"CalendarDatePicker",false,
+                MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,"dart:core"),Set.of(),
+                palette("flutter.material",100,650,"CalendarDatePicker"),CalendarDatePickerWidgetPropertySchema.properties(),List.of());
     }
 
     private static WidgetDefinition dateRangePickerDialog() {

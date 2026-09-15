@@ -506,7 +506,8 @@ public final class DartRegionGenerator {
         }
         for (PropertyDefinition property : definition.properties()) {
             if ((dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
-                    || dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(node.type()))
+                    || dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
+                    || dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE.equals(node.type()))
                     && node.properties().get(property.name()) instanceof PropertyValue.StringValue text) {
                 String name=property.name().value(), pp=path+"/properties/"+name;
                 RenderedValue rendered=null;
@@ -539,7 +540,7 @@ public final class DartRegionGenerator {
                             "widget:"+node.id()+":calendar:"+name,6+symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id()))));
                 } else if(name.equals("key")) rendered=renderPositionalComposite("ValueKey",Optional.empty(),
                         scalar(dartString(text.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context);
-                else if(name.equals("onDatePickerModeChange"))rendered=scalar("(_) {}",false,pp,node.id(),context);
+                else if(Set.of("onDatePickerModeChange","onDateChanged","onDisplayedMonthChanged").contains(name))rendered=scalar("(_) {}",false,pp,node.id(),context);
                 else if(name.equals("keyboardType")){appendTextFieldKeyboardType(node,definition,path,context,arguments);continue;}
                 if(rendered!=null){arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));continue;}
             }

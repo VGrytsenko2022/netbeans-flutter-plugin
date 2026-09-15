@@ -8,6 +8,12 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class DartStaticTypeProbeTest {
+    @Test void calendarNullableDateProofRemainsAnExactClosedCoreType() {
+        assertEquals("DateTime?",probe("DateTime?").expectedDartType());
+        for(String type:List.of("DateTime??","core.DateTime?","DateTime?;exit()","UnknownNullable?"))
+            assertThrows(IllegalArgumentException.class,()->probe(type));
+    }
+
     @Test void shaderCallbackRequiresReviewedFlutterContext() {
         for (String uri : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))
             assertEquals("ShaderCallback", new DartStaticTypeProbe(10,5,0,5,"ShaderCallback",uri).expectedDartType());

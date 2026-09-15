@@ -2276,7 +2276,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.Table",ICON_ROOT+"table.svg");
         expected.put("flutter.widgets.TableRow",ICON_ROOT+"tablerow.svg");
         expected.put("flutter.widgets.TableCell",ICON_ROOT+"tablecell.svg");
-        expected.put("flutter.material.PaginatedDataTable",ICON_ROOT+"paginateddatatable.svg"); expected.put("flutter.material.DatePickerDialog",ICON_ROOT+"datepickerdialog.svg"); expected.put("flutter.material.DateRangePickerDialog",ICON_ROOT+"daterangepickerdialog.svg");
+        expected.put("flutter.material.PaginatedDataTable",ICON_ROOT+"paginateddatatable.svg"); expected.put("flutter.material.DatePickerDialog",ICON_ROOT+"datepickerdialog.svg"); expected.put("flutter.material.DateRangePickerDialog",ICON_ROOT+"daterangepickerdialog.svg"); expected.put("flutter.material.CalendarDatePicker",ICON_ROOT+"calendardatepicker.svg");
         expected.put("flutter.material.DataTable",ICON_ROOT+"datatable.svg");
         expected.put("flutter.material.DataColumn",ICON_ROOT+"datacolumn.svg");
         expected.put("flutter.material.DataRow",ICON_ROOT+"datarow.svg");

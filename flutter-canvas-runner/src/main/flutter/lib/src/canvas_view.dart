@@ -4039,6 +4039,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
+  if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
@@ -8514,6 +8515,10 @@ String _dateRangePickerPreviewMessage(CanvasNode node) =>
     'Save/OK returns DateTimeRange through Navigator in Run/Debug; cancel returns null. '
     'Project dates/ranges/calendars show a preview-unavailable placeholder; predicates are not executed and typed keyboard uses datetime. '
     'Initial range/mode are remounted only when the Designer model changes.';
+String _calendarDatePickerPreviewMessage(CanvasNode node) =>
+    'CalendarDatePicker ${node.id}: inline calendar, not a dialog. Design-only preview: pointer input and focus disabled. '
+    'Project dates/calendar delegates show an unavailable placeholder; predicates and callbacks are not executed. '
+    'Use Run/Debug for selection/month Events and native same-key state. Designer model edits remount the preview.';
 String _datePickerPreviewMessage(CanvasNode node) {
   final sources=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
   return sources.isEmpty ? 'Dialog preview: interactions and route dismissal are suppressed; use Run/Debug to select a date and receive the Navigator result.'
@@ -9259,6 +9264,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
       'flutter.material.DatePickerDialog' => _TextButtonPreview(message:_datePickerPreviewMessage(node),child:_datePickerDialog(context)),
+      'flutter.material.CalendarDatePicker' => _TextButtonPreview(message:_calendarDatePickerPreviewMessage(node),child:_calendarDatePicker(context)),
       'flutter.material.DateRangePickerDialog' => _TextButtonPreview(message:_dateRangePickerPreviewMessage(node),child:_dateRangePickerDialog(context)),
       'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
@@ -14415,6 +14421,21 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       restorationId:_string('restorationId'),
       switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToCalendarEntryModeIcon:icons['switchToCalendarEntryModeIcon'],
     ))));
+  }
+
+  Widget _calendarDatePicker(BuildContext context) {
+    if(['firstDate','lastDate','initialDate','currentDate','calendarDelegate'].any((name)=>node.properties[name]?.kind=='dartObjectReferencePresence')) {
+      return const SizedBox(width:328,height:160,child:Center(child:Text('CalendarDatePicker: project DateTime/calendar delegate preview unavailable. Run/Debug uses the saved source.')));
+    }
+    DateTime? date(String name)=>_string(name)==null?null:canvasGregorianDate(_string(name)!);
+    // Applications retain same-key native state. Model edits deliberately remount this isolated preview.
+    return KeyedSubtree(key:ValueKey(node),child:Material(type:MaterialType.transparency,
+      child:ExcludeFocus(child:AbsorbPointer(child:CalendarDatePicker(
+        initialDate:date('initialDate'),firstDate:date('firstDate')!,lastDate:date('lastDate')!,currentDate:date('currentDate'),
+        initialCalendarMode:DatePickerMode.values.byName(_enum('initialCalendarMode')??'day'),
+        onDateChanged:(_){},
+        onDisplayedMonthChanged:_dataCallback(node,'onDisplayedMonthChanged')?(_){}:null,
+      )))));
   }
 
   Widget _datePickerDialog(BuildContext context) {

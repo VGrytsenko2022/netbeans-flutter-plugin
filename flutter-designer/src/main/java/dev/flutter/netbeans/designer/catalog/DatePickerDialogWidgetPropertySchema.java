@@ -51,6 +51,10 @@ public final class DatePickerDialogWidgetPropertySchema {
     }
     public static Optional<String> relationshipError(WidgetNode node) {
         if(!TYPE.equals(node.type()))return Optional.empty();
+        return localDateRelationshipError(node);
+    }
+    /** Shared validation for native date pickers; project calendar semantics remain source-owned. */
+    public static Optional<String> localDateRelationshipError(WidgetNode node) {
         try {
             var local=new HashMap<String,LocalDate>();
             for(String name:DATES)if(node.properties().get(new PropertyName(name)) instanceof PropertyValue.StringValue s)local.put(name,date(s.value()));

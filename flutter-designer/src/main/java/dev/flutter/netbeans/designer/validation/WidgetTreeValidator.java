@@ -421,6 +421,8 @@ public final class WidgetTreeValidator {
             validateMutuallyExclusiveProperties(node,propertiesPath,issues,family+"Color",family+"Foreground","DataTable "+family);
             validateMutuallyExclusiveProperties(node,propertiesPath,issues,family+"BackgroundColor",family+"Background","DataTable "+family);
         }
+        dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.relationshipError(node)
+                .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.relationshipError(node)
                 .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.relationshipError(node)

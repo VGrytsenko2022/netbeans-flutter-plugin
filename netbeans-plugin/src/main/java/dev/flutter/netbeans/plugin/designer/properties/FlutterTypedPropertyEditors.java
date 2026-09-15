@@ -61,7 +61,7 @@ final class FlutterTypedPropertyEditors {
         if (definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r && r.expectedDartType().equals("DateTimeRange<DateTime>"))
                 && kinds.contains(PropertyValueKind.STRING)) {
             editorKind=EditorKind.DATE_RANGE_REFERENCE;
-        } else if (definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r && r.expectedDartType().equals("DateTime"))
+        } else if (definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r && Set.of("DateTime","DateTime?").contains(r.expectedDartType()))
                 && kinds.contains(PropertyValueKind.STRING)) {
             editorKind=EditorKind.DATE_REFERENCE;
         } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))

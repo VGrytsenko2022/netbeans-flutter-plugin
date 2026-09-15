@@ -168,7 +168,7 @@ class RadioGroupContractTest {
         assertEquals(CHILD, WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).orElseThrow().name());
         assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD, WidgetPlacementRules.creationMode(definition()));
         var slot = definition().slot(CHILD).orElseThrow();
-        assertEquals(176, CATALOG.definitions().stream().filter(child -> WidgetPlacementRules.accepts(definition(), slot, child)).count());
+        assertEquals(178, CATALOG.definitions().stream().filter(child -> WidgetPlacementRules.accepts(definition(), slot, child)).count());
         assertFalse(valid(new WidgetNode(prototype.id(), TYPE, prototype.properties(), Map.of())));
         assertFalse(valid(new WidgetNode(prototype.id(), TYPE, prototype.properties(),
                 Map.of(CHILD, new WidgetSlot.ListSlot(List.of(text()))))));
@@ -183,10 +183,10 @@ class RadioGroupContractTest {
     @Test
     void aggregateCountsAndBudgetsRemainExecutable() {
         var definitions = CATALOG.definitions();
-        assertEquals(240, definitions.size());
-        assertEquals(196, definitions.stream().filter(WidgetDefinition::constConstructor).count());
-        assertEquals(7858, definitions.stream().mapToInt(value -> value.properties().size()).sum());
-        assertEquals(704, definitions.stream().flatMap(value -> value.properties().stream()).filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
+        assertEquals(242, definitions.size());
+        assertEquals(198, definitions.stream().filter(WidgetDefinition::constConstructor).count());
+        assertEquals(8076, definitions.stream().mapToInt(value -> value.properties().size()).sum());
+        assertEquals(722, definitions.stream().flatMap(value -> value.properties().stream()).filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
         assertEquals(54, definitions.stream().flatMap(value -> value.properties().stream()).filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
         assertEquals(6, definitions.stream().flatMap(value -> value.properties().stream()).filter(value -> value.acceptedKinds().containsAll(Set.of(PropertyValueKind.NULL,
                 PropertyValueKind.STRING, PropertyValueKind.BOOLEAN, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.INTEGER, PropertyValueKind.DOUBLE))).count());

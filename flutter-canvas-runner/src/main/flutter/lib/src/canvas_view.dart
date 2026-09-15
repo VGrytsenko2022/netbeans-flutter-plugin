@@ -1364,7 +1364,7 @@ String _tooltipAncestorSdkTopology(CanvasNode node) {
           ? 'clipper-unavailable'
           : 'native',
     ],
-    'flutter.material.Card' || canvasDialogType => [
+    'flutter.material.Card' || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType => [
       _cardShapePreviewUnavailableMessage(node) != null,
     ],
     'flutter.widgets.RadioGroup' => [
@@ -4041,6 +4041,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
+  if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
   if(node.type==canvasTimePickerDialogType){return _timePickerDialogPreviewMessage(node);}
   if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
@@ -4842,6 +4843,14 @@ String? _linearProgressUnavailableMessage(
   return null;
 }
 
+String _alertDialogPreviewMessage(CanvasNode node) {
+  final sources=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+  return 'AlertDialog ${node.id}: actions own Events; the route owns dismissal/result. '
+    'Adaptive uses Cupertino on iOS/macOS (ignores Icon and Material styling), Material elsewhere '
+    '(ignores adaptive controllers and inset animation). '
+    '${sources.isEmpty?'':'Project sources not executed: ${sources.join(', ')}. Native defaults/theme and owned scrolling are used. '}'
+    'Lazy content requires bounded intrinsic dimensions; no modal route is created in Canvas.';
+}
 String? _dialogPreviewMessage(CanvasNode node) {
   final shape=node.type==canvasDialogType?_cardShapePreviewUnavailableMessage(node,widgetName:'Dialog'):null;
   if(shape!=null)return shape;
@@ -5926,7 +5935,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
-        node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
+        isCanvasAlertDialogType(node.type) || node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
@@ -8641,6 +8650,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.BottomNavigationBar' => _bottomNavigationBar(context),
       'flutter.material.Material' => _material(context),
       'flutter.material.Scrollbar' => _scrollbar(),
+      canvasAlertDialogType || canvasAdaptiveAlertDialogType => _TextButtonPreview(message:_alertDialogPreviewMessage(node),child:_alertDialog(context)),
       canvasDialogType || canvasFullscreenDialogType => _TextButtonPreview(message:_dialogPreviewMessage(node) ?? 'Dialog surface: child widgets own Events; showDialog/DialogRoute owns dismissal and result.',
         child:ExcludeSemantics(excluding:!const {'none','dialog','alertDialog'}.contains(_enum('semanticsRole')??'dialog'),child:_dialog(context))),
       'flutter.material.Card' => _card(context),
@@ -15819,6 +15829,51 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  Widget _alertDialog(BuildContext context) {
+    final adaptive=node.type==canvasAdaptiveAlertDialogType;
+    final cupertino=adaptive && const {TargetPlatform.iOS,TargetPlatform.macOS}.contains(Theme.of(context).platform);
+    final unavailable=cupertino?null:_cardShapePreviewUnavailableMessage(node,widgetName:'AlertDialog');
+    if(unavailable!=null) {
+      return _customClipperPreviewUnavailable(widgetName:'AlertDialog.shape',expectedType:'ShapeBorder',
+        previewLabel:'AlertDialog shape\npreview unavailable',messageOverride:unavailable);
+    }
+    EdgeInsetsGeometry? padding(String name)=>const {'edgeInsets','edgeInsetsDirectional'}.contains(node.properties[name]?.kind)?_edgeInsetsGeometry(name):null;
+    final inset=node.properties['insetPadding']?.value is CanvasEdgeInsets?_physicalEdgeInsets('insetPadding'):null;
+    if(adaptive) {
+      return AlertDialog.adaptive(key:_string('key')==null?null:ValueKey<String>(_string('key')!),
+      icon:_single('icon'),title:_single('title'),content:_single('content'),actions:node.slots.containsKey('actions')?_children('actions'):null,
+      iconPadding:padding('iconPadding'),iconColor:_resolvedColor(context,'iconColor'),
+      titlePadding:padding('titlePadding'),titleTextStyle:_textStyle(context,'titleTextStyle'),
+      contentPadding:padding('contentPadding'),contentTextStyle:_textStyle(context,'contentTextStyle'),
+      actionsPadding:padding('actionsPadding'),buttonPadding:padding('buttonPadding'),
+      actionsAlignment:_enum('actionsAlignment')==null?null:MainAxisAlignment.values.byName(_enum('actionsAlignment')!),
+      actionsOverflowAlignment:_enum('actionsOverflowAlignment')==null?null:OverflowBarAlignment.values.byName(_enum('actionsOverflowAlignment')!),
+      actionsOverflowDirection:_enum('actionsOverflowDirection')==null?null:VerticalDirection.values.byName(_enum('actionsOverflowDirection')!),
+      actionsOverflowButtonSpacing:_number('actionsOverflowButtonSpacing'),
+      backgroundColor:_resolvedColor(context,'backgroundColor'),elevation:_number('elevation'),
+      shadowColor:_resolvedColor(context,'shadowColor'),surfaceTintColor:_resolvedColor(context,'surfaceTintColor'),
+      semanticLabel:_string('semanticLabel'),clipBehavior:_clipBehavior(),shape:cupertino?null:_cardShape(context),
+      alignment:_alignmentGeometry('alignment'),constraints:_boxConstraints('constraints'),scrollable:_boolean('scrollable')??false,
+        insetPadding:inset??DialogTheme.of(context).insetPadding??const EdgeInsets.symmetric(horizontal:40,vertical:24),
+        insetAnimationDuration:Duration(microseconds:_integer('insetAnimationDurationUs')??100000),
+        insetAnimationCurve:_expansionCurves[_string('insetAnimationCurve')]??Curves.decelerate);
+    }
+    return AlertDialog(key:_string('key')==null?null:ValueKey<String>(_string('key')!),
+      icon:_single('icon'),title:_single('title'),content:_single('content'),actions:node.slots.containsKey('actions')?_children('actions'):null,
+      iconPadding:padding('iconPadding'),iconColor:_resolvedColor(context,'iconColor'),
+      titlePadding:padding('titlePadding'),titleTextStyle:_textStyle(context,'titleTextStyle'),
+      contentPadding:padding('contentPadding'),contentTextStyle:_textStyle(context,'contentTextStyle'),
+      actionsPadding:padding('actionsPadding'),buttonPadding:padding('buttonPadding'),
+      actionsAlignment:_enum('actionsAlignment')==null?null:MainAxisAlignment.values.byName(_enum('actionsAlignment')!),
+      actionsOverflowAlignment:_enum('actionsOverflowAlignment')==null?null:OverflowBarAlignment.values.byName(_enum('actionsOverflowAlignment')!),
+      actionsOverflowDirection:_enum('actionsOverflowDirection')==null?null:VerticalDirection.values.byName(_enum('actionsOverflowDirection')!),
+      actionsOverflowButtonSpacing:_number('actionsOverflowButtonSpacing'),
+      backgroundColor:_resolvedColor(context,'backgroundColor'),elevation:_number('elevation'),
+      shadowColor:_resolvedColor(context,'shadowColor'),surfaceTintColor:_resolvedColor(context,'surfaceTintColor'),
+      semanticLabel:_string('semanticLabel'),clipBehavior:_clipBehavior(),shape:cupertino?null:_cardShape(context),
+      alignment:_alignmentGeometry('alignment'),constraints:_boxConstraints('constraints'),scrollable:_boolean('scrollable')??false,insetPadding:inset);
   }
 
   Widget _dialog(BuildContext context) {

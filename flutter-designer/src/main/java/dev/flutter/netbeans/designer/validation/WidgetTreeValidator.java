@@ -903,6 +903,15 @@ public final class WidgetTreeValidator {
             validateMutuallyExclusiveProperties(node, propertiesPath, issues, "extendedTextStyleBackgroundColor", "extendedTextStyleBackground", "FloatingActionButton extendedTextStyle");
             return;
         }
+        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())) {
+            validateCardShape(node, propertiesPath, issues);
+            for (String family : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamilies()) {
+                validateListTileWholeLocal(node, propertiesPath, issues, family, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.localStyleProperties(family));
+                validateFontPackageDependency(node, propertiesPath, issues, family+"Package", family+"FontFamily", family+"FontFamilyFallback", "AlertDialog "+family);
+                validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"Color", family+"Foreground", "AlertDialog "+family);
+                validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", "AlertDialog "+family);
+            }
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.value())) {
             validateCardShape(node, propertiesPath, issues, "shape", "Dialog shape");
             return;

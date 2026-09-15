@@ -72,6 +72,11 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r
                     && Set.of("TableColumnWidth","TableColumnWidth?","Map<int, TableColumnWidth>?","Key?","LocalKey?").contains(r.expectedDartType()))) {
             editorKind=definition.name().value().equals("key") ? EditorKind.KEY_REFERENCE : EditorKind.TABLE_WIDTH_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE,PropertyValueKind.NULL)))
+                && definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r
+                    && Set.of("String","String?").contains(r.expectedDartType()))) {
+            editorKind=EditorKind.STRING_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
             if (!presets.isEmpty()) {
                 editorKind = EditorKind.STRING_PRESET;
@@ -357,6 +362,7 @@ final class FlutterTypedPropertyEditors {
         TIME_REFERENCE, DATE_RANGE_REFERENCE, DATE_REFERENCE,
         TABLE_WIDTH_REFERENCE,
         KEY_REFERENCE,
+        STRING_REFERENCE,
         STRING,
         STRING_PRESET,
         NULLABLE_STRING,
@@ -548,7 +554,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
-                case TIME_REFERENCE, DATE_RANGE_REFERENCE, DATE_REFERENCE, TABLE_WIDTH_REFERENCE, KEY_REFERENCE, PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
+                case TIME_REFERENCE, DATE_RANGE_REFERENCE, DATE_REFERENCE, TABLE_WIDTH_REFERENCE, KEY_REFERENCE, STRING_REFERENCE, PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
                         GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
                         MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
                         DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->

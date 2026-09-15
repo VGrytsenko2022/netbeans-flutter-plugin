@@ -2636,8 +2636,12 @@ accepted architecture is documented in
     43 curves, 33 semantics roles, exact typed source proof and native Canvas.
     Route behavior stays separate; context-dependent semantic subtrees are
     explicitly excluded only in isolated preview. See [Dialog](DIALOG.md).
-  - [ ] Next palette candidate: AlertDialog (standard and adaptive constructors).
-    Audit constraints, insets, semantics, theme defaults and route ownership first.
+  - [x] Add AlertDialog and AlertDialog.adaptive: all 28 / 32 native arguments,
+    107 / 111 property rows, four slots, complete local text styles and shapes,
+    nullable typed sources and native Material/Cupertino preview.
+    See [AlertDialog](ALERT_DIALOG.md).
+  - [ ] Next palette candidate: SimpleDialog and SimpleDialogOption.
+    Audit option events, route results, intrinsic layout and theme defaults first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

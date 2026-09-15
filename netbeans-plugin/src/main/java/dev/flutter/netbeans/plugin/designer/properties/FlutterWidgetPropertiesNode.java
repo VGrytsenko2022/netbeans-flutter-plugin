@@ -1166,6 +1166,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("alertDialog" + group, group, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(field.name()),
+                        dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.help(name),
+                        false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1797,6 +1812,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.DESCRIPTION;
@@ -6105,6 +6121,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
             return badgePropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type())) {
+            return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
+        }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())
                 || dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.equals(currentWidget.type())) {
             return cardPropertyCommand(currentWidget, propertyName, accepted);
@@ -6819,6 +6838,31 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         resets.remove(name); resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
         patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
         return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand alertDialogPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited=name.value();
+        if (edited.equals("shape") || CardWidgetPropertySchema.builtInShapePropertyNames().contains(edited))
+            return cardPropertyCommand(widget,name,accepted);
+        boolean setting=accepted.explicitValue().isPresent();
+        var resets=new java.util.LinkedHashSet<PropertyName>();
+        for (String family : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamilies()) {
+            var local=dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.localStyleProperties(family);
+            if (setting && edited.equals(family)) local.forEach(n -> resets.add(new PropertyName(n)));
+            if (setting && local.contains(edited)) {
+                resets.add(new PropertyName(family));
+                String opposite=switch(edited.substring(family.length())) {
+                    case "Foreground" -> "Color"; case "Color" -> "Foreground";
+                    case "Background" -> "BackgroundColor"; case "BackgroundColor" -> "Background"; default -> null;
+                };
+                if (opposite!=null) resets.add(new PropertyName(family+opposite));
+            }
+        }
+        resets.remove(name);
+        var patches=new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(n -> patches.add(new PatchProperties.ResetPatch(n)));
+        patches.add(setting ? new PatchProperties.SetPatch(name,accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
+        return new PatchProperties(widget.id(),patches);
     }
 
     private DesignerCommand listTilePropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {

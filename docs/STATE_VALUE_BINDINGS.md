@@ -1,5 +1,9 @@
 # State/value bindings
 
+## AlertDialog — 2026-09-15
+
+AlertDialog and its adaptive constructor add no controlled State bindings: the inventory remains 178 consumers across 60 types. Local ValueKey changes replace the native dialog subtree. A source-backed ScrollController belongs to application lifecycle; Canvas does not evaluate it. Adaptive Cupertino owns scrolling; Material ignores the two controller arguments.
+
 ## Dialog and Dialog.fullscreen lifecycle (2026-09-15)
 
 Both constructors are stateless surfaces. Property changes rebuild normally;

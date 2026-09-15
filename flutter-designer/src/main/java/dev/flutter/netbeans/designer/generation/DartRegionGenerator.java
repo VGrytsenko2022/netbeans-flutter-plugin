@@ -505,10 +505,11 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
-            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type())) {
+            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 var value = node.properties().get(property.name());
-                if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)) continue;
+                if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)
+                        || dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamily(property.name()).isPresent()) continue;
                 RenderedValue rendered = null;
                 if (name.equals("key") && value instanceof PropertyValue.StringValue text)
                     rendered = renderPositionalComposite("ValueKey", Optional.empty(),
@@ -1061,8 +1062,16 @@ public final class DartRegionGenerator {
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
         }
+        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())) {
+            for (String family : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamilies())
+                appendTextCompoundArguments(node, definition, path, constructorBaseIndent + 2, context, arguments, family,
+                        definition.property(new PropertyName(family)).orElseThrow().parameter().order(),
+                        name -> dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamily(name)
+                                .filter(family::equals).flatMap(ignored -> dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(name)));
+        }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
                 || node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE)
+                || dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
                 || node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
                 || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
@@ -1613,6 +1622,10 @@ public final class DartRegionGenerator {
                         path + "/properties/variant", Optional.of(node.id())));
                 constructor += ".adaptive";
             }
+        } else if (node.type().equals(dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.ADAPTIVE_TYPE)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":alertDialogAdaptive", constructor.length() + 1,
+                    "adaptive", MATERIAL_IMPORT, path, Optional.of(node.id())));
+            constructor += ".adaptive";
         } else if (node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.FULLSCREEN_TYPE)) {
             constructorOccurrences.add(occurrence("widget:" + node.id() + ":dialogFullscreen", constructor.length() + 1,
                     "fullscreen", renderedClass.libraryUri(), path, Optional.of(node.id())));

@@ -62,8 +62,8 @@ class ListViewItemExtentBuilderPropertyTest {
         assertDoesNotThrow(() -> binding().validate(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())));
         for (var invalid : List.of(new PropertyValue.CallbackValue("_extent"), new PropertyValue.StringValue("(index, dimensions) => null")))
             assertThrows(IllegalArgumentException.class, () -> binding().validate(FlutterPropertyCellValue.explicit(invalid)));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(240, catalog.size());
-        assertEquals(7858, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(242, catalog.size());
+        assertEquals(8076, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
         assertEquals(266, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         // Current audited callable inventory includes all admitted sliver builders.
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());

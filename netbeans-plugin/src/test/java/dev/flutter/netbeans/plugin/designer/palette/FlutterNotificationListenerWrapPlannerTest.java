@@ -105,7 +105,7 @@ class FlutterNotificationListenerWrapPlannerTest {
                     parent.typeId().value() + "." + slot.name().value() + ": " + plan);
             checked++;
         }
-        assertEquals(207, checked);
+        assertEquals(215, checked);
     }
 
     private static WidgetNode destinationPrototype(dev.flutter.netbeans.designer.catalog.WidgetDefinition definition, SlotName destination) {

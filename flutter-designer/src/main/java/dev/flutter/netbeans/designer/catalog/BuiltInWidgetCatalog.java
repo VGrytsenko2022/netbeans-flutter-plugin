@@ -162,6 +162,8 @@ public final class BuiltInWidgetCatalog {
             timePickerDialog(),
             dialog(false),
             dialog(true),
+            alertDialog(false),
+            alertDialog(true),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -462,7 +464,7 @@ public final class BuiltInWidgetCatalog {
         return order;
     }
 
-    private static int appendTextStyleProperties(
+    static int appendTextStyleProperties(
             List<PropertyDefinition> properties,
             String prefix,
             int order) {
@@ -3330,6 +3332,16 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition alertDialog(boolean adaptive) {
+        int order = adaptive ? 111 : 107;
+        return widget((adaptive ? AlertDialogWidgetPropertySchema.ADAPTIVE_TYPE : AlertDialogWidgetPropertySchema.TYPE).value(),
+                "AlertDialog", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:ui", "dart:core"), Set.of(),
+                palette("flutter.material",100,adaptive ? 710 : 700,adaptive ? "AlertDialog.adaptive" : "AlertDialog"),
+                AlertDialogWidgetPropertySchema.properties(adaptive),
+                List.of(singleSlot("icon",order,false,0,ANY_WIDGET), singleSlot("title",order+1,false,0,ANY_WIDGET),
+                        singleSlot("content",order+2,false,0,ANY_WIDGET), listSlot("actions",order+3,false,ANY_WIDGET)));
     }
 
     private static WidgetDefinition dialog(boolean fullscreen) {

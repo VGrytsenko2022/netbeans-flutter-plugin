@@ -1,5 +1,9 @@
 # Widget events API audit
 
+## AlertDialog — 2026-09-15
+
+AlertDialog and AlertDialog.adaptive have no native callback parameters. Icon, Title, Content and Actions are widget slots; their descendants own Events. showDialog/showAdaptiveDialog and Navigator own cancellation and result delivery. The 242-definition catalog still has 196 native Event rows across 70 types and 266 callable rows across 99 types.
+
 ## Dialog and Dialog.fullscreen update (2026-09-15)
 
 All native arguments are implemented, but neither constructor declares a callback.

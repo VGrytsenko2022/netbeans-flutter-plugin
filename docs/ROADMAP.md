@@ -2621,8 +2621,13 @@ accepted architecture is documented in
     sources, editable selectable-day predicate and native Key lifecycle.
     Includes stable Properties, source/history/save/reopen and inert native Canvas.
     See [CalendarDatePicker](CALENDAR_DATE_PICKER.md).
-  - [ ] Next palette candidate: InputDatePickerFormField. Audit the pinned
-    constructor, parse/validation callbacks, keyboard and focus lifecycle first.
+  - [x] Add InputDatePickerFormField: all 16 constructor arguments, strict local
+    dates and typed calendar/predicate sources, submit/save Events, validation
+    labels, all keyboard presets, autofocus and caller-owned FocusNode.
+    Includes stable editors, exact history/save/reopen and isolated native Canvas.
+    See [InputDatePickerFormField](INPUT_DATE_PICKER_FORM_FIELD.md).
+  - [ ] Next palette candidate: TimePickerDialog. Audit the pinned constructor,
+    TimeOfDay editing, entry modes, route results and restoration first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

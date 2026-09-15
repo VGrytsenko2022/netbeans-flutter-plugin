@@ -1,5 +1,15 @@
 # Widget events API audit
 
+## InputDatePickerFormField update (2026-09-15)
+
+Add optional onDateSubmitted and onDateSaved, both ValueChanged<DateTime>.
+Submitted is the default Event; Saved requires surrounding FormState.save().
+Invalid/empty input never invokes either callback, even with acceptEmptyDate.
+selectableDayPredicate remains an editable predicate in Properties, not Events.
+237 definitions; 265 callables across 98 types: 195 Events across 69 types,
+50 builders, seven predicates, two formatters and eleven delegates.
+See [InputDatePickerFormField](INPUT_DATE_PICKER_FORM_FIELD.md).
+
 ## CalendarDatePicker update (2026-09-15)
 
 Add onDateChanged and onDisplayedMonthChanged, both ValueChanged<DateTime>.

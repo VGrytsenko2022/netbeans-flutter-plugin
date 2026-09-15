@@ -47,11 +47,11 @@ class AppBarNotificationPredicatePropertyTest {
         assertEquals(WidgetEventDescriptor.Kind.PREDICATE, descriptor.kind()); assertEquals("bool", descriptor.signature().returnType());
         assertEquals(List.of("ScrollNotification"), descriptor.signature().parameters().stream().map(WidgetEventDescriptor.Parameter::type).toList());
         var catalog = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(236, catalog.size()); assertEquals(7790, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(262, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
-        assertEquals(6, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.PREDICATE).count());
-        assertEquals(193, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).count());
-        assertEquals(97, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
+        assertEquals(237, catalog.size()); assertEquals(7806, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(265, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        assertEquals(7, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.PREDICATE).count());
+        assertEquals(195, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        assertEquals(98, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
         assertEquals(Set.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE), DEFINITION.property(PREDICATE).orElseThrow().acceptedKinds());
         assertEquals("ScrollNotificationPredicate", AppBarWidgetPropertySchema.NOTIFICATION_PREDICATE_TYPE);
         assertEquals(List.of("default", "depthZero", "all"), binding().stringPresets());

@@ -423,6 +423,8 @@ public final class WidgetTreeValidator {
         }
         dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.relationshipError(node)
                 .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
+        dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.relationshipError(node)
+                .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.relationshipError(node)
                 .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath, node.id(), message)));
         dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.relationshipError(node)

@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(236, javaTypes.size(),
+        assertEquals(237, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "

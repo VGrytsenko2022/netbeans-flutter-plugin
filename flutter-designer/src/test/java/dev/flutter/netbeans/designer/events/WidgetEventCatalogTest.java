@@ -26,7 +26,7 @@ class WidgetEventCatalogTest {
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(236, definitions.size());
+        assertEquals(237, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {
@@ -46,18 +46,18 @@ class WidgetEventCatalogTest {
                 }
             }
         }
-        assertEquals(262, callables);
-        assertEquals(97, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
+        assertEquals(265, callables);
+        assertEquals(98, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
     }
 
     @Test
     void separatesEventsBuildersPredicatesAndFormatters() {
         var all = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(widget -> WidgetEventCatalog.eventsFor(widget).stream()).toList();
-        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 193L, WidgetEventDescriptor.Kind.BUILDER, 50L,
-                WidgetEventDescriptor.Kind.PREDICATE, 6L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
+        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 195L, WidgetEventDescriptor.Kind.BUILDER, 50L,
+                WidgetEventDescriptor.Kind.PREDICATE, 7L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
                 all.stream().collect(Collectors.groupingBy(WidgetEventDescriptor::kind, Collectors.counting())));
-        assertEquals(68, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(69, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(widget -> WidgetEventCatalog.eventsFor(widget).stream()
                         .anyMatch(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT)).count());
         assertFalse(find("TextField", "onTapAlwaysCalled").isPresent());

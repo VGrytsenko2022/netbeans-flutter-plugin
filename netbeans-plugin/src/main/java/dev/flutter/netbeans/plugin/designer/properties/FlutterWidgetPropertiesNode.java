@@ -1151,6 +1151,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("inputDatePickerFormField" + group, group, dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, Optional.empty(),
+                        dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.help(name),
+                        false, dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1751,6 +1766,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.DESCRIPTION;

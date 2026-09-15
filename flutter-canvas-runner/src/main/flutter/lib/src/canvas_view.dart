@@ -4040,6 +4040,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   }
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
+  if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
   if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
@@ -8515,6 +8516,11 @@ String _dateRangePickerPreviewMessage(CanvasNode node) =>
     'Save/OK returns DateTimeRange through Navigator in Run/Debug; cancel returns null. '
     'Project dates/ranges/calendars show a preview-unavailable placeholder; predicates are not executed and typed keyboard uses datetime. '
     'Initial range/mode are remounted only when the Designer model changes.';
+String _inputDatePickerFormFieldPreviewMessage(CanvasNode node) =>
+    'InputDatePickerFormField ${node.id}: design-only date text field; editing, autofocus and focus are disabled. '
+    'Project dates/calendar delegates show an unavailable placeholder; predicates, focus nodes and callbacks are not executed. '
+    'Typed keyboard sources use datetime in preview. Use Run/Debug for submit, Form.save, locale parsing and validation. '
+    'acceptEmptyDate allows empty validation but does not emit null. Designer model edits remount the preview.';
 String _calendarDatePickerPreviewMessage(CanvasNode node) =>
     'CalendarDatePicker ${node.id}: inline calendar, not a dialog. Design-only preview: pointer input and focus disabled. '
     'Project dates/calendar delegates show an unavailable placeholder; predicates and callbacks are not executed. '
@@ -9265,6 +9271,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Image' => _image(context),
       'flutter.material.DatePickerDialog' => _TextButtonPreview(message:_datePickerPreviewMessage(node),child:_datePickerDialog(context)),
       'flutter.material.CalendarDatePicker' => _TextButtonPreview(message:_calendarDatePickerPreviewMessage(node),child:_calendarDatePicker(context)),
+      'flutter.material.InputDatePickerFormField' => _TextButtonPreview(message:_inputDatePickerFormFieldPreviewMessage(node),child:_inputDatePickerFormField(context)),
       'flutter.material.DateRangePickerDialog' => _TextButtonPreview(message:_dateRangePickerPreviewMessage(node),child:_dateRangePickerDialog(context)),
       'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
@@ -14421,6 +14428,23 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       restorationId:_string('restorationId'),
       switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToCalendarEntryModeIcon:icons['switchToCalendarEntryModeIcon'],
     ))));
+  }
+
+  Widget _inputDatePickerFormField(BuildContext context) {
+    if(['firstDate','lastDate','initialDate','calendarDelegate'].any((name)=>node.properties[name]?.kind=='dartObjectReferencePresence')) {
+      return const SizedBox(width:328,height:80,child:Center(child:Text('InputDatePickerFormField: project DateTime/calendar delegate preview unavailable. Run/Debug uses the saved source.')));
+    }
+    DateTime? date(String name)=>_string(name)==null?null:canvasGregorianDate(_string(name)!);
+    return KeyedSubtree(key:ValueKey(node),child:Material(type:MaterialType.transparency,
+      child:ExcludeFocus(child:AbsorbPointer(child:InputDatePickerFormField(
+        initialDate:date('initialDate'),firstDate:date('firstDate')!,lastDate:date('lastDate')!,
+        onDateSubmitted:_dataCallback(node,'onDateSubmitted')?(_){}:null,
+        onDateSaved:_dataCallback(node,'onDateSaved')?(_){}:null,
+        errorFormatText:_string('errorFormatText'),errorInvalidText:_string('errorInvalidText'),
+        fieldHintText:_string('fieldHintText'),fieldLabelText:_string('fieldLabelText'),
+        keyboardType:node.properties['keyboardType']?.kind=='dartObjectReferencePresence'?null:_textInputType(),
+        acceptEmptyDate:_boolean('acceptEmptyDate')??false,autofocus:false,
+      )))));
   }
 
   Widget _calendarDatePicker(BuildContext context) {

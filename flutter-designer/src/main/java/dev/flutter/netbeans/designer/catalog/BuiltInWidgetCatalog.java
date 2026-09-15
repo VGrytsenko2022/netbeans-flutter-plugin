@@ -158,6 +158,7 @@ public final class BuiltInWidgetCatalog {
             datePickerDialog(),
             dateRangePickerDialog(),
             calendarDatePicker(),
+            inputDatePickerFormField(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3335,6 +3336,12 @@ public final class BuiltInWidgetCatalog {
         return widget(CalendarDatePickerWidgetPropertySchema.TYPE.value(),"CalendarDatePicker",false,
                 MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,"dart:core"),Set.of(),
                 palette("flutter.material",100,650,"CalendarDatePicker"),CalendarDatePickerWidgetPropertySchema.properties(),List.of());
+    }
+
+    private static WidgetDefinition inputDatePickerFormField() {
+        return widget(InputDatePickerFormFieldWidgetPropertySchema.TYPE.value(),"InputDatePickerFormField",false,
+                MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,"package:flutter/services.dart","dart:core"),Set.of(),
+                palette("flutter.material",100,660,"InputDatePickerFormField"),InputDatePickerFormFieldWidgetPropertySchema.properties(),List.of());
     }
 
     private static WidgetDefinition dateRangePickerDialog() {

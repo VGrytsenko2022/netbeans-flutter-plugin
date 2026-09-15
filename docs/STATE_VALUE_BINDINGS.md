@@ -1,5 +1,16 @@
 # State/value bindings
 
+## InputDatePickerFormField lifecycle (2026-09-15)
+
+No new controlled State consumers: the widget owns its private controller and
+has no public onChanged/controller/value parameters. Unlike CalendarDatePicker,
+a changed initialDate updates text on the next frame for the same Key; unchanged
+initialDate retains typed text. Null clears the input. Use submit/save Events
+and typed DateTime sources for application integration. External FocusNodes
+remain caller-owned and must be disposed by the application, not the widget.
+Canvas never evaluates project state or steals focus. State stays at 178 fields
+across 60 types. See [InputDatePickerFormField](INPUT_DATE_PICKER_FORM_FIELD.md).
+
 ## CalendarDatePicker lifecycle (2026-09-15)
 
 No new controlled State consumers. Native initialDate/initialCalendarMode do not

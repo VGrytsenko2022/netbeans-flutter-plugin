@@ -197,7 +197,7 @@ public final class WidgetPlacementRules {
             lines.add("R|"+type+"|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds");
         if (DateRangePickerDialogWidgetPropertySchema.TYPE.equals(definition.typeId()))
             lines.add("R|"+type+"|gregorianDates:v1:0001..9999|range:v1:start/end|orderedInclusiveBounds|initialRangeInBounds|sourceCalendarOwnsRelations");
-        if (DatePickerDialogWidgetPropertySchema.TYPE.equals(definition.typeId()) || CalendarDatePickerWidgetPropertySchema.TYPE.equals(definition.typeId()))
+        if (DatePickerDialogWidgetPropertySchema.TYPE.equals(definition.typeId()) || CalendarDatePickerWidgetPropertySchema.TYPE.equals(definition.typeId()) || InputDatePickerFormFieldWidgetPropertySchema.TYPE.equals(definition.typeId()))
             lines.add("R|"+type+"|gregorianDates:v1:0001..9999|orderedInclusiveBounds|initialInRange|sourceCalendarOwnsRelations");
         if (PaginatedDataTableWidgetPropertySchema.TYPE.equals(definition.typeId()))
             lines.add("R|"+type+"|sourceOwnedRows|nonemptyColumns|boundedSortColumn|exclusiveHeightBounds|actionsRequireHeader|pageSizes|controllerPrimary");

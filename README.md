@@ -11,8 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **236 admitted built-in definitions**, now including
-`CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
+Current palette milestone: **237 admitted built-in definitions**, now including
+`InputDatePickerFormField`, `CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
 `DataTable`, `DataColumn`, `DataRow`, `DataRow.byIndex`, `DataCell`, `DataCell.empty`, `Table`, `TableRow`, `TableCell`, `Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
 `MenuAnchor`, `MenuItemButton`, `SubmenuButton`, `MenuBar`, `NavigationBar`, `NavigationRail`, `TooltipTheme`, `TooltipVisibility`,
@@ -28,15 +28,23 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **7,790 writable rows** (7,772 outside `Scaffold`) and
-**193 const-capable definitions**. All 236 definitions have reviewed
-Canvas/Create/DnD capability; 227 expose typed Properties and nine are
-propertyless/structural definitions. Native Events comprise **193 rows across
-68 widget types**; all supported callables total 262 across 97 widget types,
+The current catalog has **7,806 writable rows** (7,788 outside `Scaffold`) and
+**193 const-capable definitions**. All 237 definitions have reviewed
+Canvas/Create/DnD capability; 228 expose typed Properties and nine are
+propertyless/structural definitions. Native Events comprise **195 rows across
+69 widget types**; all supported callables total 265 across 98 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback, one matrix transform delegate and one shader computation delegate.
 Formats are FD 17, Catalog API 16, Canvas model 20 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### InputDatePickerFormField: date input, validation and form Events
+
+All 16 constructor arguments, locale-aware parsing, inclusive bounds, custom
+calendar/predicate sources, all keyboard presets and application-owned focus.
+Submit and Form.save are distinct Events. Empty validation never emits null;
+changed initialDate updates same-key native text. Canvas isolates project code.
+See [InputDatePickerFormField](docs/INPUT_DATE_PICKER_FORM_FIELD.md).
 
 ### CalendarDatePicker: inline calendar and native Events
 

@@ -101,7 +101,7 @@ public final class WidgetEventCatalog {
                 nullable = false;
             }
             if ((definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE) || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE))) nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
-            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE)) {
+            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE) || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.TYPE)) {
                 sdkRequired=property.parameter().required();
                 nullable=property.acceptedKinds().contains(PropertyValueKind.NULL);
             }
@@ -413,6 +413,10 @@ public final class WidgetEventCatalog {
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
         addCallable(widgets,"flutter.material.DateRangePickerDialog","selectableDayPredicate","SelectableDayForRangePredicate",
                 WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:day","DateTime?:selectedStartDay","DateTime?:selectedEndDay");
+        add(widgets,"flutter.material.InputDatePickerFormField","onDateSubmitted","ValueChanged<DateTime>",true,"void","DateTime:date");
+        add(widgets,"flutter.material.InputDatePickerFormField","onDateSaved","ValueChanged<DateTime>",false,"void","DateTime:date");
+        addCallable(widgets,"flutter.material.InputDatePickerFormField","selectableDayPredicate","SelectableDayPredicate",
+                WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:date");
         add(widgets,"flutter.material.CalendarDatePicker","onDateChanged","ValueChanged<DateTime>",true,"void","DateTime:date");
         add(widgets,"flutter.material.CalendarDatePicker","onDisplayedMonthChanged","ValueChanged<DateTime>",false,"void","DateTime:date");
         addCallable(widgets,"flutter.material.CalendarDatePicker","selectableDayPredicate","SelectableDayPredicate",

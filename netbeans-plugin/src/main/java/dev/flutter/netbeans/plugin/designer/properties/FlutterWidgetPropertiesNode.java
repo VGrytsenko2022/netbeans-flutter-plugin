@@ -1136,6 +1136,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("dateRangePickerDialog" + group, group, dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, Optional.empty(),
+                        dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.help(name),
+                        false, dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) {
             var groups = new java.util.LinkedHashMap<String,Sheet.Set>();
             for (var field : dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.fields(widget.type())) {
@@ -1720,6 +1735,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PaginatedDataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.DESCRIPTION;

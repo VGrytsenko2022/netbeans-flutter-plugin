@@ -90,7 +90,7 @@ class FlutterDesignerPaletteTest {
             "flutter.material.SliverAppBar",
             "flutter.material.SliverAppBar.medium",
             "flutter.material.SliverAppBar.large",
-            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask", "flutter.widgets.CustomPaint",
+            "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask", "flutter.widgets.CustomPaint",
             "flutter.widgets.GestureDetector",
             "flutter.widgets.Listener",
             "flutter.widgets.MouseRegion",
@@ -604,8 +604,8 @@ class FlutterDesignerPaletteTest {
         PaletteController controller = FlutterDesignerPalette.create(CATALOG, ignored -> true);
         Node[] categories = root(controller).getChildren().getNodes(true);
 
-        assertEquals(234, CATALOG.definitions().size());
-        assertEquals(192, CATALOG.definitions().stream()
+        assertEquals(235, CATALOG.definitions().size());
+        assertEquals(193, CATALOG.definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
 
@@ -616,9 +616,9 @@ class FlutterDesignerPaletteTest {
         assertEquals(
                 List.of("Material", "Layout", "Scrolling", "Basic", "Accessibility", "Interaction"),
                 Arrays.stream(categories).map(Node::getDisplayName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon", "DataTable", "DataColumn", "DataRow", "DataRow.byIndex", "DataCell", "DataCell.empty", "PaginatedDataTable", "DatePickerDialog"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon", "DataTable", "DataColumn", "DataRow", "DataRow.byIndex", "DataCell", "DataCell.empty", "PaginatedDataTable", "DatePickerDialog", "DateRangePickerDialog"),
                 itemLabels(categories[0]));
-        assertEquals(60, itemLabels(categories[0]).size());
+        assertEquals(61, itemLabels(categories[0]).size());
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
                 "Container", "Opacity", "Align", "FractionallySizedBox", "FittedBox",
@@ -660,7 +660,7 @@ class FlutterDesignerPaletteTest {
                 List.of("flutter.material", "flutter.layout", "flutter.scrolling",
                         "flutter.basic", "flutter.accessibility", "flutter.interaction"),
                 Arrays.stream(categories).map(Node::getName).toList());
-        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon", "DataTable", "DataColumn", "DataRow", "DataRow.byIndex", "DataCell", "DataCell.empty", "PaginatedDataTable", "DatePickerDialog"),
+        assertEquals(List.of("Scaffold", "AppBar", "Elevated Button", "Text Field", "Divider", "VerticalDivider", "Card", "Badge", "CircleAvatar", "LinearProgressIndicator", "CircularProgressIndicator", "RefreshProgressIndicator", "RefreshIndicator", "TextButton", "OutlinedButton", "FilledButton", "FloatingActionButton", "IconButton", "Checkbox", "Switch", "Slider", "RangeSlider", "Radio", "RadioGroup", "ListTile", "CheckboxListTile", "SwitchListTile", "RadioListTile", "ExpansionTile", "Tooltip", "TooltipVisibility", "TooltipTheme", "MenuItemButton", "MenuAnchor", "SubmenuButton", "MenuBar", "NavigationBar", "NavigationRail", "NavigationDrawer", "Drawer", "BottomAppBar", "BottomNavigationBar", "Material", "Scrollbar", "SliverAppBar", "SliverAppBar.medium", "SliverAppBar.large", "FlexibleSpaceBar", "FlexibleSpaceBarSettings", "AnimatedTheme", "Theme", "AnimatedIcon", "DataTable", "DataColumn", "DataRow", "DataRow.byIndex", "DataCell", "DataCell.empty", "PaginatedDataTable", "DatePickerDialog", "DateRangePickerDialog"),
                 itemLabels(categories[0]));
         assertEquals(List.of(
                 "Column", "Row", "Wrap", "Padding", "Center", "SizedBox", "AspectRatio",
@@ -2324,7 +2324,7 @@ class FlutterDesignerPaletteTest {
         }
 
         assertEquals(CANVAS_WIDGETS, nodeIcons.keySet());
-        assertEquals(234, Set.copyOf(nodeIcons.values()).size(),
+        assertEquals(235, Set.copyOf(nodeIcons.values()).size(),
                 "palette items must not share a generic widget icon");
     }
 

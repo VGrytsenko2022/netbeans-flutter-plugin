@@ -6,6 +6,7 @@ import 'canvas_table_width.dart';
 
 const canvasDataTableType='flutter.material.DataTable';
 const canvasDatePickerDialogType='flutter.material.DatePickerDialog';
+const canvasDateRangePickerDialogType='flutter.material.DateRangePickerDialog';
 const canvasPaginatedDataTableType='flutter.material.PaginatedDataTable';
 bool isCanvasDataTable(String type)=>type==canvasDataTableType||type==canvasPaginatedDataTableType;
 const canvasDataColumnType='flutter.material.DataColumn';
@@ -899,6 +900,22 @@ void _validateNodeSlotRelationships(
       }
       for(final prefix in ['dataTextStyle','headingTextStyle']) {
         _validateAppBarTextStyleRelationships(properties,path:path,prefix:prefix,widgetName:'DataTable');
+      }
+    }
+  }
+  if(type==canvasDateRangePickerDialogType) {
+    final local=<String,DateTime>{};
+    for(final name in ['firstDate','lastDate','currentDate']) {
+      final value=properties[name];
+      if(value?.kind=='string')local[name]=canvasGregorianDate(value!.value as String);
+    }
+    final value=properties['initialDateRange'];
+    final range=value?.kind=='string'?canvasGregorianDateRange(value!.value as String):null;
+    if(properties['calendarDelegate']?.kind!='dartObjectReferencePresence') {
+      final first=local['firstDate'],last=local['lastDate'];
+      if(first!=null&&last!=null&&first.isAfter(last))throw FormatException('First date must not follow Last date: $path');
+      if(range!=null&&(first!=null&&range.$1.isBefore(first)||last!=null&&range.$2.isAfter(last))) {
+        throw FormatException('Initial range must lie inside inclusive bounds: $path');
       }
     }
   }
@@ -6917,6 +6934,24 @@ DateTime canvasGregorianDate(String text) {
   if(parts[0]<1||parts[0]>9999||date.year!=parts[0]||date.month!=parts[1]||date.day!=parts[2])throw const FormatException('Invalid Gregorian date; local years are 0001–9999.');
   return date;
 }
+(DateTime,DateTime) canvasGregorianDateRange(String text) {
+  if(text.length!=21||text[10]!='/')throw const FormatException('Use YYYY-MM-DD/YYYY-MM-DD.');
+  final start=canvasGregorianDate(text.substring(0,10)),end=canvasGregorianDate(text.substring(11));
+  if(start.isAfter(end))throw const FormatException('Start date must be on or before End date.');
+  return (start,end);
+}
+Map<String,_PropertySpec> _dateRangePickerDialogProperties() {
+  final shared=_datePickerDialogProperties();
+  return {
+    for(final name in ['key','firstDate','lastDate','currentDate','initialEntryMode','calendarDelegate'])name:shared[name]!,
+    'initialDateRange':_PropertySpec({'string','dartObjectReference','null'},stringPattern:'[0-9]{4}-[0-9]{2}-[0-9]{2}/[0-9]{4}-[0-9]{2}-[0-9]{2}',dartObjectExpectedType:'DateTimeRange<DateTime>'),
+    for(final name in ['helpText','cancelText','confirmText','saveText','errorInvalidRangeText','errorFormatText','errorInvalidText',
+      'fieldStartHintText','fieldEndHintText','fieldStartLabelText','fieldEndLabelText','restorationId'])
+      name:_PropertySpec({'string','null'},minimumStringLength:0,maximumStringLength:16384,explicitStringLength:true),
+    'keyboardType':_PropertySpec({'string','dartObjectReference'},stringPattern:'(?:text|multiline|number|numberSigned|numberDecimal|numberSignedDecimal|phone|datetime|emailAddress|url|visiblePassword|name|streetAddress|none|webSearch|twitter)',dartObjectExpectedType:'TextInputType'),
+    'selectableDayPredicate':_PropertySpec({'dartObjectReference','null'},dartObjectExpectedType:'SelectableDayForRangePredicate'),
+  };
+}
 Map<String,_PropertySpec> _datePickerDialogProperties() => {
   'key':_PropertySpec({'string','dartObjectReference','null'},minimumStringLength:0,maximumStringLength:4096,explicitStringLength:true,dartObjectExpectedType:'Key?'),
   for(final name in ['initialDate','firstDate','lastDate','currentDate'])name:_PropertySpec(
@@ -6957,6 +6992,9 @@ Map<String,_PropertySpec> _paginatedDataTableProperties() {
 }
 
 final _widgetSpecifications = <String, _WidgetSpec>{
+  canvasDateRangePickerDialogType:_WidgetSpec(_dateRangePickerDialogProperties(),{
+    for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon'])
+      name:_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1,acceptance:_SlotAcceptance.exactTypes({'flutter.widgets.Icon'}))}),
   canvasDatePickerDialogType:_WidgetSpec(_datePickerDialogProperties(),{
     for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon'])
       name:_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1,acceptance:_SlotAcceptance.exactTypes({'flutter.widgets.Icon'}))}),
@@ -11525,6 +11563,31 @@ P|selectableDayPredicate|dartObjectReference,null|0|-|-|dartObjectReference:dart
 S|switchToCalendarEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
 S|switchToInputEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
 R|flutter.material.DatePickerDialog|gregorianDates:v1:0001..9999|orderedInclusiveBounds|initialInRange|sourceCalendarOwnsRelations
+W|flutter.material.DateRangePickerDialog
+P|calendarDelegate|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:CalendarDelegate<DateTime>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:Z3JlZ29yaWFu
+P|cancelText|null,string|0|-|-|null:any;string:length:0:16384
+P|confirmText|null,string|0|-|-|null:any;string:length:0:16384
+P|currentDate|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|errorFormatText|null,string|0|-|-|null:any;string:length:0:16384
+P|errorInvalidRangeText|null,string|0|-|-|null:any;string:length:0:16384
+P|errorInvalidText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldEndHintText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldEndLabelText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldStartHintText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldStartLabelText|null,string|0|-|-|null:any;string:length:0:16384
+P|firstDate|dartObjectReference,string|1|string:MTkwMC0wMS0wMQ|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|helpText|null,string|0|-|-|null:any;string:length:0:16384
+P|initialDateRange|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:DateTimeRange<DateTime>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0vWzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|initialEntryMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:DatePickerEntryMode:calendar,calendarOnly,input,inputOnly
+P|key|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:Key?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:length:0:4096
+P|keyboardType|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:TextInputType:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86dGV4dHxtdWx0aWxpbmV8bnVtYmVyfG51bWJlclNpZ25lZHxudW1iZXJEZWNpbWFsfG51bWJlclNpZ25lZERlY2ltYWx8cGhvbmV8ZGF0ZXRpbWV8ZW1haWxBZGRyZXNzfHVybHx2aXNpYmxlUGFzc3dvcmR8bmFtZXxzdHJlZXRBZGRyZXNzfG5vbmV8d2ViU2VhcmNofHR3aXR0ZXIp
+P|lastDate|dartObjectReference,string|1|string:MjEwMC0xMi0zMQ|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|restorationId|null,string|0|-|-|null:any;string:length:0:16384
+P|saveText|null,string|0|-|-|null:any;string:length:0:16384
+P|selectableDayPredicate|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:SelectableDayForRangePredicate:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+S|switchToCalendarEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
+S|switchToInputEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
+R|flutter.material.DateRangePickerDialog|gregorianDates:v1:0001..9999|range:v1:start/end|orderedInclusiveBounds|initialRangeInBounds|sourceCalendarOwnsRelations
 W|flutter.material.Divider
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|endIndent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -19158,6 +19221,7 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
     }
     if(widgetType==canvasDataTableType)result.writeln('R|$widgetType|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds');
     if(widgetType==canvasDatePickerDialogType)result.writeln('R|$widgetType|gregorianDates:v1:0001..9999|orderedInclusiveBounds|initialInRange|sourceCalendarOwnsRelations');
+    if(widgetType==canvasDateRangePickerDialogType)result.writeln('R|$widgetType|gregorianDates:v1:0001..9999|range:v1:start/end|orderedInclusiveBounds|initialRangeInBounds|sourceCalendarOwnsRelations');
     if(widgetType==canvasPaginatedDataTableType)result.writeln('R|$widgetType|sourceOwnedRows|nonemptyColumns|boundedSortColumn|exclusiveHeightBounds|actionsRequireHeader|pageSizes|controllerPrimary');
     if(isCanvasDataTable(widgetType)||isCanvasDataDescriptor(widgetType))result.writeln('C|$widgetType|paletteCreate|dataTable.v1|2|2');
     if(widgetType=='flutter.widgets.TableRow') {

@@ -299,6 +299,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
             Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DatePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(DateRangePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.COLUMN.value(), STATIC_EDITABLE),
             Map.entry(DataTableWidgetPropertySchema.ROW.value(), STATIC_EDITABLE),
@@ -1028,6 +1029,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                     Map.of("child", singleSlotSchema(true, 1)))),
             Map.entry(DatePickerDialogWidgetPropertySchema.TYPE.value(),projection(
                     DatePickerDialogWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("switchToInputEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon")),
+                            "switchToCalendarEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon"))))),
+            Map.entry(DateRangePickerDialogWidgetPropertySchema.TYPE.value(),projection(
+                    DateRangePickerDialogWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("switchToInputEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon")),
                             "switchToCalendarEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon"))))),

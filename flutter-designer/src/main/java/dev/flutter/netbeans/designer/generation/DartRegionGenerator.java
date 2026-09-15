@@ -325,7 +325,7 @@ public final class DartRegionGenerator {
                             .map(PropertyName::value)
                             .anyMatch(name -> name.startsWith("systemOverlayStyle"));
             requiresServices |= (current.node().type().equals(
-                    TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE) || current.node().type().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE))
+                    TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE) || current.node().type().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE) || current.node().type().equals(dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE))
                     && current.node().properties().containsKey(
                             new PropertyName("keyboardType"));
             requiresServices |= usesEnumLibrary(
@@ -505,7 +505,8 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
-            if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
+            if ((dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
+                    || dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(node.type()))
                     && node.properties().get(property.name()) instanceof PropertyValue.StringValue text) {
                 String name=property.name().value(), pp=path+"/properties/"+name;
                 RenderedValue rendered=null;
@@ -515,6 +516,23 @@ public final class DartRegionGenerator {
                     rendered=scalar(symbol.text()+"("+date.getYear()+", "+date.getMonthValue()+", "+date.getDayOfMonth()+")",
                             false,pp,node.id(),context,List.of(occurrence("widget:"+node.id()+":date:"+name,
                             symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id()))));
+                } else if(name.equals("initialDateRange")) {
+                    var range=dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.range(text.value());
+                    var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"DateTimeRange");
+                    var dateSymbol=context.planner().renderedSymbol("dart:core","DateTime");
+                    var code=new StringBuilder(symbol.text()+"(start: ");
+                    var occurrences=new ArrayList<GeneratedDartSymbolOccurrence>();
+                    occurrences.add(occurrence("widget:"+node.id()+":date-range:"+name,
+                            symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id())));
+                    for(String endpoint:List.of("start","end")) {
+                        if(endpoint.equals("end"))code.append(", end: ");
+                        var date=endpoint.equals("start")?range.start():range.end();
+                        occurrences.add(occurrence("widget:"+node.id()+":date:"+name+":"+endpoint,
+                                code.length()+dateSymbol.nameOffset(),dateSymbol.name(),dateSymbol.libraryUri(),pp,Optional.of(node.id())));
+                        code.append(dateSymbol.text()).append("(").append(date.getYear()).append(", ").append(date.getMonthValue()).append(", ").append(date.getDayOfMonth()).append(")");
+                    }
+                    code.append(")");
+                    rendered=scalar(code.toString(),false,pp,node.id(),context,occurrences);
                 } else if(name.equals("calendarDelegate")) {
                     var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"GregorianCalendarDelegate");
                     rendered=scalar("const "+symbol.text()+"()",true,pp,node.id(),context,List.of(occurrence(

@@ -100,7 +100,7 @@ public final class WidgetEventCatalog {
                 sdkRequired = property.parameter().required();
                 nullable = false;
             }
-            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE)) nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
+            if ((definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE) || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE))) nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
             if (definition.typeId().value().equals("flutter.widgets.SliverFillViewport")) nullable = false;
             return new WidgetEventDescriptor(name, spec.type(), spec.kind(), spec.signature(),
                     property.parameter().required(), property.acceptedKinds().contains(PropertyValueKind.NULL),
@@ -406,6 +406,8 @@ public final class WidgetEventCatalog {
         }
         addCallable(widgets, "flutter.widgets.SliverFillViewport", "semanticIndexCallback", "SemanticIndexCallback",
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
+        addCallable(widgets,"flutter.material.DateRangePickerDialog","selectableDayPredicate","SelectableDayForRangePredicate",
+                WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:day","DateTime?:selectedStartDay","DateTime?:selectedEndDay");
         add(widgets,"flutter.material.DatePickerDialog","onDatePickerModeChange","ValueChanged<DatePickerEntryMode>",true,"void","DatePickerEntryMode:mode");
         addCallable(widgets,"flutter.material.DatePickerDialog","selectableDayPredicate","SelectableDayPredicate",
                 WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:date");

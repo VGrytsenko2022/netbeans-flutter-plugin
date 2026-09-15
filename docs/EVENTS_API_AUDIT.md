@@ -1,5 +1,17 @@
 # Widget events API audit
 
+## DateRangePickerDialog update (2026-09-15)
+
+Add the exact SelectableDayForRangePredicate:
+bool Function(DateTime day, DateTime? selectedStartDay, DateTime? selectedEndDay).
+It has source lifecycle actions in Properties but is not an Event. Save/OK and
+cancel complete Navigator with DateTimeRange/null; there is no constructor
+onChanged/onConfirm or mode-change callback. Current inventory: 235 definitions,
+259 callables across 96 types; 191 native Events across 67 types, 50 builders,
+five predicates, two formatters and eleven delegates. State remains unchanged.
+See [DateRangePickerDialog](DATE_RANGE_PICKER_DIALOG.md).
+
+
 ## DatePickerDialog update (2026-09-15)
 
 onDatePickerModeChange(ValueChanged<DatePickerEntryMode>) is the only native

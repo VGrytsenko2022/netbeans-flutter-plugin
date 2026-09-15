@@ -2610,8 +2610,14 @@ accepted architecture is documented in
     native mode-change Event. Preserve Navigator results, initial-only state,
     source integrity, history and isolated preview limits.
     See [DatePickerDialog](DATE_PICKER_DIALOG.md).
-  - [ ] Next palette candidate: DateRangePickerDialog. Audit its complete pinned
-    API, DateTimeRange values, custom calendars and preview limits first.
+  - [x] Add DateRangePickerDialog: all 23 native arguments, 21 typed property
+    rows, two exact Icon slots, two-field Gregorian range editor, strict
+    DateTime/DateTimeRange and custom calendar sources, all four entry modes,
+    editable three-argument range predicate, native Navigator results, atomic
+    history/save/reopen and explicit isolated Canvas limits.
+    See [DateRangePickerDialog](DATE_RANGE_PICKER_DIALOG.md).
+  - [ ] Next palette candidate: CalendarDatePicker. Audit its pinned constructor,
+    native selection/month callbacks, calendar sources and preview limits first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

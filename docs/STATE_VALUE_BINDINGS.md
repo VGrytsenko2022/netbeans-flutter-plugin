@@ -1,5 +1,13 @@
 # State/value bindings
 
+## DateRangePickerDialog lifecycle (2026-09-15)
+
+No new controlled State consumers. Initial range/mode belong to native restorable
+dialog state; await the Navigator DateTimeRange/null result to update application
+State. Typed range and calendar sources remain user-owned. The inventory stays
+at 178 fields across 60 types. See [DateRangePickerDialog](DATE_RANGE_PICKER_DIALOG.md).
+
+
 ## DatePickerDialog lifecycle (2026-09-15)
 
 No new State consumers are added. initialDate, currentDate and initial modes are

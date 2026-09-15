@@ -539,6 +539,10 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToCalendarEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
       ],
+      'flutter.material.DateRangePickerDialog' => const [
+        CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
+        CanvasDropSlotSemantics.emptySingle(slotName:'switchToCalendarEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
+      ],
       'flutter.material.PaginatedDataTable' => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'header'),
         CanvasDropSlotSemantics.append(slotName:'actions',maximumChildren:10000),

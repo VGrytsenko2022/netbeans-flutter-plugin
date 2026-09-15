@@ -55,7 +55,7 @@ final class PairSaveEvidenceGate {
     private static final Pattern SUBMENU_DURATION_PROBE_ID = Pattern.compile(
             "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:submenu-button-core-duration:hoverOpenDelayUs");
     private static final Pattern DATE_PICKER_DATE_PROBE_ID = Pattern.compile(
-            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:date:(?:initialDate|firstDate|lastDate|currentDate)");
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:date:(?:initialDate|firstDate|lastDate|currentDate|initialDateRange:(?:start|end))");
     private static final Pattern PROJECT_PACKAGE_LIBRARY_URI = Pattern.compile(
             "package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"

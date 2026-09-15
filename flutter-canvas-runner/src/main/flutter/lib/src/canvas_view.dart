@@ -4039,6 +4039,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
+  if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
   }
@@ -8508,6 +8509,11 @@ class _EmptyCanvasDataTableSource extends DataTableSource {
   @override bool get isRowCountApproximate=>false;
 }
 
+String _dateRangePickerPreviewMessage(CanvasNode node) =>
+    'DateRangePickerDialog ${node.id}: design-only preview, pointer input and autofocus disabled. '
+    'Save/OK returns DateTimeRange through Navigator in Run/Debug; cancel returns null. '
+    'Project dates/ranges/calendars show a preview-unavailable placeholder; predicates are not executed and typed keyboard uses datetime. '
+    'Initial range/mode are remounted only when the Designer model changes.';
 String _datePickerPreviewMessage(CanvasNode node) {
   final sources=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
   return sources.isEmpty ? 'Dialog preview: interactions and route dismissal are suppressed; use Run/Debug to select a date and receive the Navigator result.'
@@ -9253,6 +9259,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
       'flutter.material.DatePickerDialog' => _TextButtonPreview(message:_datePickerPreviewMessage(node),child:_datePickerDialog(context)),
+      'flutter.material.DateRangePickerDialog' => _TextButtonPreview(message:_dateRangePickerPreviewMessage(node),child:_dateRangePickerDialog(context)),
       'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
           || 'flutter.material.DataCell' || 'flutter.material.DataCell.empty' =>
@@ -14379,6 +14386,35 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     // Even an empty local map is explicit; resolve to null in unmatched states.
     if(values.isEmpty)values[WidgetState.any]=null;
     return WidgetStateProperty<T?>.fromMap(values);
+  }
+
+  Widget _dateRangePickerDialog(BuildContext context) {
+    if(['firstDate','lastDate','initialDateRange','currentDate','calendarDelegate'].any((name)=>node.properties[name]?.kind=='dartObjectReferencePresence')) {
+      return const SizedBox(width:328,height:160,child:Center(child:Text('DateRangePickerDialog: project DateTime/range/calendar delegate preview unavailable. Run/Debug uses the saved source.')));
+    }
+    final icons=<String,Icon>{};
+    for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon']) {
+      final children=node.slot(name)?.children??<CanvasNode>[];
+      if(children.isNotEmpty) {
+        final child=children.single, icon=_view(child)._icon(context,key:nodeKey(child.id));
+        if(icon is! Icon)return icon;
+        icons[name]=icon;
+      }
+    }
+    DateTime? date(String name)=>_string(name)==null?null:canvasGregorianDate(_string(name)!);
+    final range=_string('initialDateRange')==null?null:canvasGregorianDateRange(_string('initialDateRange')!);
+    return KeyedSubtree(key:ValueKey(node),child:ExcludeFocus(child:AbsorbPointer(child:DateRangePickerDialog(
+      firstDate:date('firstDate')!,lastDate:date('lastDate')!,currentDate:date('currentDate'),
+      initialDateRange:range==null?null:DateTimeRange(start:range.$1,end:range.$2),
+      initialEntryMode:DatePickerEntryMode.values.byName(_enum('initialEntryMode')??'calendar'),
+      cancelText:_string('cancelText'),confirmText:_string('confirmText'),saveText:_string('saveText'),helpText:_string('helpText'),
+      errorInvalidRangeText:_string('errorInvalidRangeText'),errorFormatText:_string('errorFormatText'),errorInvalidText:_string('errorInvalidText'),
+      fieldStartHintText:_string('fieldStartHintText'),fieldEndHintText:_string('fieldEndHintText'),
+      fieldStartLabelText:_string('fieldStartLabelText'),fieldEndLabelText:_string('fieldEndLabelText'),
+      keyboardType:node.properties['keyboardType']?.kind=='dartObjectReferencePresence'||_string('keyboardType')==null?TextInputType.datetime:(_textInputType()??TextInputType.datetime),
+      restorationId:_string('restorationId'),
+      switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToCalendarEntryModeIcon:icons['switchToCalendarEntryModeIcon'],
+    ))));
   }
 
   Widget _datePickerDialog(BuildContext context) {

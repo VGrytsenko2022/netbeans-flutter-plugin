@@ -69,9 +69,9 @@ class TextFieldBuilderPropertyTest {
         var events = Arrays.stream(node.getPropertySets()).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
         assertEquals(Set.of("onChanged", "onEditingComplete", "onSubmitted", "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside"),
                 Arrays.stream(events.getProperties()).map(Node.Property::getName).collect(java.util.stream.Collectors.toSet()));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(234, catalog.size());
-        assertEquals(7759, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(258, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(235, catalog.size());
+        assertEquals(7780, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(259, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
         assertEquals(191, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
         assertTrue(rawRow(node, ENABLED.value()).getPropertyEditor().isPaintable()); assertNull(rawRow(node, ENABLED.value()).getPropertyEditor().getTags());

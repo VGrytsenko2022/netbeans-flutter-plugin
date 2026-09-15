@@ -4038,6 +4038,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
   }
@@ -8507,6 +8508,12 @@ class _EmptyCanvasDataTableSource extends DataTableSource {
   @override bool get isRowCountApproximate=>false;
 }
 
+String _datePickerPreviewMessage(CanvasNode node) {
+  final sources=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+  return sources.isEmpty ? 'Dialog preview: interactions and route dismissal are suppressed; use Run/Debug to select a date and receive the Navigator result.'
+      : 'Project values are not executed: ${sources.join(', ')}. Project dates/calendar delegates cannot be previewed; predicates are omitted. Verify date bounds, custom calendar and route result with Run/Debug.';
+}
+
 String _dataTablePreviewMessage(CanvasNode root) {
   final messages=<String>[];
   if(root.type==canvasPaginatedDataTableType)messages.add('DataTableSource is not executed: preview has zero data rows; source counts, loading, sorting and selection must be tested with Run/Debug.');
@@ -9245,6 +9252,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.material.DatePickerDialog' => _TextButtonPreview(message:_datePickerPreviewMessage(node),child:_datePickerDialog(context)),
       'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
           || 'flutter.material.DataCell' || 'flutter.material.DataCell.empty' =>
@@ -14373,6 +14381,37 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return WidgetStateProperty<T?>.fromMap(values);
   }
 
+  Widget _datePickerDialog(BuildContext context) {
+    if(['firstDate','lastDate','initialDate','currentDate','calendarDelegate'].any((name)=>node.properties[name]?.kind=='dartObjectReferencePresence')) {
+      return const SizedBox(width:328,height:160,child:Center(child:Text('DatePickerDialog: project DateTime/calendar delegate preview unavailable. Run/Debug uses the saved source.')));
+    }
+    final icons=<String,Icon>{};
+    for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon']) {
+      final children=node.slot(name)?.children??<CanvasNode>[];
+      if(children.isNotEmpty) {
+        final child=children.single, icon=_view(child)._icon(context,key:nodeKey(child.id));
+        if(icon is! Icon)return icon;
+        icons[name]=icon;
+      }
+    }
+    DateTime? date(String name)=>_string(name)==null?null:canvasGregorianDate(_string(name)!);
+    // Initial/restoration state is native in applications; a new model must remount the preview.
+    return KeyedSubtree(key:ValueKey(node),child:ExcludeFocus(child:AbsorbPointer(child:DatePickerDialog(
+      firstDate:date('firstDate')!,lastDate:date('lastDate')!,initialDate:date('initialDate'),currentDate:date('currentDate'),
+      initialEntryMode:DatePickerEntryMode.values.byName(_enum('initialEntryMode')??'calendar'),
+      initialCalendarMode:DatePickerMode.values.byName(_enum('initialCalendarMode')??'day'),
+      cancelText:_string('cancelText'),confirmText:_string('confirmText'),helpText:_string('helpText'),
+      errorFormatText:_string('errorFormatText'),errorInvalidText:_string('errorInvalidText'),
+      fieldHintText:_string('fieldHintText'),fieldLabelText:_string('fieldLabelText'),
+      keyboardType:node.properties['keyboardType']?.kind=='dartObjectReferencePresence'?null:_textInputType(),
+      restorationId:_string('restorationId'),
+      onDatePickerModeChange:_dataCallback(node,'onDatePickerModeChange')?(_){}:null,
+      switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToCalendarEntryModeIcon:icons['switchToCalendarEntryModeIcon'],
+      insetPadding:node.properties['insetPadding']?.kind=='dartObjectReferencePresence'?const EdgeInsets.symmetric(horizontal:16,vertical:24):
+        (_edgeInsetsGeometry('insetPadding') as EdgeInsets?)??const EdgeInsets.symmetric(horizontal:16,vertical:24),
+    ))));
+  }
+
   Widget _dataTable(BuildContext context) {
     final columns=node.slot('columns')!.children,rows=node.slot('rows')?.children??<CanvasNode>[];
     final columnValues=<DataColumn>[];
@@ -16570,7 +16609,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     child: _single('child'),
   );
 
-  Widget _icon(BuildContext context) {
+  Widget _icon(BuildContext context, {Key? key}) {
     final sizeMessage = _iconButtonMountedIconMessage(node, context);
     if (sizeMessage != null) {
       return _customClipperPreviewUnavailable(
@@ -16599,6 +16638,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
           );
     return Icon(
       icon,
+      key: key,
       size: _number('size'),
       fill: _number('fill'),
       weight: _number('weight'),

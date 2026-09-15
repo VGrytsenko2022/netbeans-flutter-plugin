@@ -100,6 +100,7 @@ public final class WidgetEventCatalog {
                 sdkRequired = property.parameter().required();
                 nullable = false;
             }
+            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE)) nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
             if (definition.typeId().value().equals("flutter.widgets.SliverFillViewport")) nullable = false;
             return new WidgetEventDescriptor(name, spec.type(), spec.kind(), spec.signature(),
                     property.parameter().required(), property.acceptedKinds().contains(PropertyValueKind.NULL),
@@ -405,6 +406,9 @@ public final class WidgetEventCatalog {
         }
         addCallable(widgets, "flutter.widgets.SliverFillViewport", "semanticIndexCallback", "SemanticIndexCallback",
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
+        add(widgets,"flutter.material.DatePickerDialog","onDatePickerModeChange","ValueChanged<DatePickerEntryMode>",true,"void","DatePickerEntryMode:mode");
+        addCallable(widgets,"flutter.material.DatePickerDialog","selectableDayPredicate","SelectableDayPredicate",
+                WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:date");
         add(widgets,"flutter.material.PaginatedDataTable","onSelectAll","ValueSetter<bool?>",false,"void","bool?:selected");
         add(widgets,"flutter.material.PaginatedDataTable","onPageChanged","ValueChanged<int>",true,"void","int:firstRowIndex");
         add(widgets,"flutter.material.PaginatedDataTable","onRowsPerPageChanged","ValueChanged<int?>",false,"void","int?:rowsPerPage");
@@ -450,7 +454,7 @@ public final class WidgetEventCatalog {
             List<WidgetEventDescriptor.Parameter> args) {
         List<String> imports = new ArrayList<>();
         if (result.equals("Future<void>")) imports.add("dart:async");
-        if (callbackType.equals("DataColumnSortCallback")) imports.add(MATERIAL);
+        if (callbackType.equals("DataColumnSortCallback") || callbackType.equals("ValueChanged<DatePickerEntryMode>") || callbackType.equals("SelectableDayPredicate")) imports.add(MATERIAL);
         if (callbackType.equals("ShaderCallback")) imports.add(WIDGETS);
         if (callbackType.equals(NotificationListenerWidgetPropertySchema.CALLBACK_TYPE) || callbackType.equals("ChildIndexGetter?")) imports.add(WIDGETS);
         if (callbackType.equals("TooltipPositionDelegate") || callbackType.equals("TooltipTriggeredCallback")) imports.add(WIDGETS);

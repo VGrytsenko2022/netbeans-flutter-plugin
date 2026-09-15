@@ -1136,7 +1136,7 @@ public final class DartCandidateAnalyzer {
     }
 
     private static boolean isCoreProofType(String name) {
-        return Set.of("Object", "String", "int", "double", "num", "bool", "Type", "Duration", "List").contains(name);
+        return Set.of("Object", "String", "int", "double", "num", "bool", "Type", "Duration", "DateTime", "List").contains(name);
     }
 
     private static String proofTypeAlias(String name, String alias, String coreAlias,

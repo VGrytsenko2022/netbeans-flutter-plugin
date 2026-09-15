@@ -22,11 +22,11 @@ void main() {
       expect(canvasModelProtocolVersion, 20);
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(233),
+        hasLength(234),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7739),
+        hasLength(7759),
       );
       final start = contract.indexOf('W|flutter.material.ElevatedButton\n');
       final section = contract.substring(

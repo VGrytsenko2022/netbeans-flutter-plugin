@@ -5,6 +5,7 @@ import 'material_icon_registry.dart';
 import 'canvas_table_width.dart';
 
 const canvasDataTableType='flutter.material.DataTable';
+const canvasDatePickerDialogType='flutter.material.DatePickerDialog';
 const canvasPaginatedDataTableType='flutter.material.PaginatedDataTable';
 bool isCanvasDataTable(String type)=>type==canvasDataTableType||type==canvasPaginatedDataTableType;
 const canvasDataColumnType='flutter.material.DataColumn';
@@ -899,6 +900,18 @@ void _validateNodeSlotRelationships(
       for(final prefix in ['dataTextStyle','headingTextStyle']) {
         _validateAppBarTextStyleRelationships(properties,path:path,prefix:prefix,widgetName:'DataTable');
       }
+    }
+  }
+  if(type==canvasDatePickerDialogType) {
+    final local=<String,DateTime>{};
+    for(final name in ['firstDate','lastDate','initialDate','currentDate']) {
+      final value=properties[name];
+      if(value?.kind=='string')local[name]=canvasGregorianDate(value!.value as String);
+    }
+    if(properties['calendarDelegate']?.kind!='dartObjectReferencePresence') {
+      final first=local['firstDate'],last=local['lastDate'],initial=local['initialDate'];
+      if(first!=null&&last!=null&&first.isAfter(last))throw FormatException('First date must not follow Last date: $path');
+      if(initial!=null&&(first!=null&&initial.isBefore(first)||last!=null&&initial.isAfter(last)))throw FormatException('Initial date must lie inside inclusive bounds: $path');
     }
   }
   if(type==canvasPaginatedDataTableType) {
@@ -6898,6 +6911,29 @@ List<int> canvasPageSizes(String text) {
   return result;
 }
 
+DateTime canvasGregorianDate(String text) {
+  if(text.length!=10 || !RegExp(r'^[0-9]{4}-[0-9]{2}-[0-9]{2}$').hasMatch(text))throw const FormatException('Use Gregorian YYYY-MM-DD.');
+  final parts=text.split('-').map(int.parse).toList(), date=DateTime(int.parse(text.substring(0,4)),int.parse(text.substring(5,7)),int.parse(text.substring(8,10)));
+  if(parts[0]<1||parts[0]>9999||date.year!=parts[0]||date.month!=parts[1]||date.day!=parts[2])throw const FormatException('Invalid Gregorian date; local years are 0001–9999.');
+  return date;
+}
+Map<String,_PropertySpec> _datePickerDialogProperties() => {
+  'key':_PropertySpec({'string','dartObjectReference','null'},minimumStringLength:0,maximumStringLength:4096,explicitStringLength:true,dartObjectExpectedType:'Key?'),
+  for(final name in ['initialDate','firstDate','lastDate','currentDate'])name:_PropertySpec(
+    {'string','dartObjectReference',if(name!='firstDate'&&name!='lastDate')'null'},
+    required:name=='firstDate'||name=='lastDate',stringPattern:'[0-9]{4}-[0-9]{2}-[0-9]{2}',dartObjectExpectedType:'DateTime',
+    creationDefaultFingerprint:name=='firstDate'?'string:MTkwMC0wMS0wMQ':name=='lastDate'?'string:MjEwMC0xMi0zMQ':null),
+  'initialEntryMode':_PropertySpec({'enum'},enumLibraryUri:'package:flutter/material.dart',enumType:'DatePickerEntryMode',enumValues:{'calendar','input','calendarOnly','inputOnly'}),
+  'initialCalendarMode':_PropertySpec({'enum'},enumLibraryUri:'package:flutter/material.dart',enumType:'DatePickerMode',enumValues:{'day','year'}),
+  'selectableDayPredicate':_PropertySpec({'dartObjectReference','null'},dartObjectExpectedType:'SelectableDayPredicate'),
+  for(final name in ['cancelText','confirmText','helpText','errorFormatText','errorInvalidText','fieldHintText','fieldLabelText','restorationId'])
+    name:_PropertySpec({'string','null'},minimumStringLength:0,maximumStringLength:16384,explicitStringLength:true),
+  'keyboardType':_PropertySpec({'string','dartObjectReference','null'},stringPattern:'(?:text|multiline|number|numberSigned|numberDecimal|numberSignedDecimal|phone|datetime|emailAddress|url|visiblePassword|name|streetAddress|none|webSearch|twitter)',dartObjectExpectedType:'TextInputType'),
+  'onDatePickerModeChange':_PropertySpec({'string','dartObjectReference','null'},stringPattern:'noop',dartObjectExpectedType:'ValueChanged<DatePickerEntryMode>'),
+  'insetPadding':_PropertySpec({'edgeInsets','dartObjectReference'},edgeInsetsNonNegative:true,numericBounds:const {'edgeInsets':_NumericBounds(minimum:0)},dartObjectExpectedType:'EdgeInsets'),
+  'calendarDelegate':_PropertySpec({'string','dartObjectReference'},stringPattern:'gregorian',dartObjectExpectedType:'CalendarDelegate<DateTime>'),
+};
+
 Map<String,_PropertySpec> _paginatedDataTableProperties() {
   final shared=_dataTableProperties(canvasDataTableType);
   const names={'key','sortColumnIndex','sortAscending','onSelectAll','dataRowHeight','dataRowMinHeight','dataRowMaxHeight',
@@ -6921,6 +6957,9 @@ Map<String,_PropertySpec> _paginatedDataTableProperties() {
 }
 
 final _widgetSpecifications = <String, _WidgetSpec>{
+  canvasDatePickerDialogType:_WidgetSpec(_datePickerDialogProperties(),{
+    for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon'])
+      name:_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1,acceptance:_SlotAcceptance.exactTypes({'flutter.widgets.Icon'}))}),
   'flutter.material.PaginatedDataTable':_WidgetSpec(_paginatedDataTableProperties(),{
     'header':_optionalSingleSlot,'actions':_optionalListSlot,
     'columns':_SlotSpec(cardinality:'list',required:true,minimumChildren:1,maximumChildren:10000,acceptance:_SlotAcceptance.requiredTrait(canvasDataColumnType))}),
@@ -11462,6 +11501,30 @@ S|columns|list|1|1|10000|trait:Zmx1dHRlci5tYXRlcmlhbC5EYXRhQ29sdW1u
 S|rows|list|1|0|10000|trait:Zmx1dHRlci5tYXRlcmlhbC5EYXRhUm93
 R|flutter.material.DataTable|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds
 C|flutter.material.DataTable|paletteCreate|dataTable.v1|2|2
+W|flutter.material.DatePickerDialog
+P|calendarDelegate|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:CalendarDelegate<DateTime>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:Z3JlZ29yaWFu
+P|cancelText|null,string|0|-|-|null:any;string:length:0:16384
+P|confirmText|null,string|0|-|-|null:any;string:length:0:16384
+P|currentDate|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|errorFormatText|null,string|0|-|-|null:any;string:length:0:16384
+P|errorInvalidText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldHintText|null,string|0|-|-|null:any;string:length:0:16384
+P|fieldLabelText|null,string|0|-|-|null:any;string:length:0:16384
+P|firstDate|dartObjectReference,string|1|string:MTkwMC0wMS0wMQ|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|helpText|null,string|0|-|-|null:any;string:length:0:16384
+P|initialCalendarMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:DatePickerMode:day,year
+P|initialDate|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|initialEntryMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:DatePickerEntryMode:calendar,calendarOnly,input,inputOnly
+P|insetPadding|dartObjectReference,edgeInsets|0|-|edgeInsets:0:1:*:1|dartObjectReference:dartObjectReference:v1:EdgeInsets:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);edgeInsets:edgeInsetsPhysical:1:0:1:*:1
+P|key|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:Key?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:length:0:4096
+P|keyboardType|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:TextInputType:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:KD86dGV4dHxtdWx0aWxpbmV8bnVtYmVyfG51bWJlclNpZ25lZHxudW1iZXJEZWNpbWFsfG51bWJlclNpZ25lZERlY2ltYWx8cGhvbmV8ZGF0ZXRpbWV8ZW1haWxBZGRyZXNzfHVybHx2aXNpYmxlUGFzc3dvcmR8bmFtZXxzdHJlZXRBZGRyZXNzfG5vbmV8d2ViU2VhcmNofHR3aXR0ZXIp
+P|lastDate|dartObjectReference,string|1|string:MjEwMC0xMi0zMQ|-|dartObjectReference:dartObjectReference:v1:DateTime:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
+P|onDatePickerModeChange|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:ValueChanged<DatePickerEntryMode>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:bm9vcA
+P|restorationId|null,string|0|-|-|null:any;string:length:0:16384
+P|selectableDayPredicate|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:SelectableDayPredicate:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+S|switchToCalendarEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
+S|switchToInputEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
+R|flutter.material.DatePickerDialog|gregorianDates:v1:0001..9999|orderedInclusiveBounds|initialInRange|sourceCalendarOwnsRelations
 W|flutter.material.Divider
 P|color|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
 P|endIndent|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
@@ -19094,6 +19157,7 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
       result.writeln('R|$widgetType|directParentSlot|flutter.material.DataRow.byIndex|cells');
     }
     if(widgetType==canvasDataTableType)result.writeln('R|$widgetType|rectangularRows|nonemptyColumns|equalCellCount|boundedSortColumn|uniqueKnownRowKeys|exclusiveHeightBounds');
+    if(widgetType==canvasDatePickerDialogType)result.writeln('R|$widgetType|gregorianDates:v1:0001..9999|orderedInclusiveBounds|initialInRange|sourceCalendarOwnsRelations');
     if(widgetType==canvasPaginatedDataTableType)result.writeln('R|$widgetType|sourceOwnedRows|nonemptyColumns|boundedSortColumn|exclusiveHeightBounds|actionsRequireHeader|pageSizes|controllerPrimary');
     if(isCanvasDataTable(widgetType)||isCanvasDataDescriptor(widgetType))result.writeln('C|$widgetType|paletteCreate|dataTable.v1|2|2');
     if(widgetType=='flutter.widgets.TableRow') {

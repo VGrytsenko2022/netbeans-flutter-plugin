@@ -2604,8 +2604,14 @@ accepted architecture is documented in
     long-lived DataTableSource scaffolding and a disclosed empty-source Canvas.
     Source evidence, paging/notifications/lifecycle, history and save/reopen are
     tested. See [PaginatedDataTable](PAGINATED_DATA_TABLE.md).
-  - [ ] Next palette candidate: DatePickerDialog. Audit its complete pinned API,
-    typed dates/calendar delegates and preview limits before implementation.
+  - [x] Add DatePickerDialog: all 22 native arguments, 20 typed property rows,
+    two exact Icon slots, local/typed dates, custom CalendarDelegate sources,
+    all input/calendar modes, selectable-day predicate source actions and the
+    native mode-change Event. Preserve Navigator results, initial-only state,
+    source integrity, history and isolated preview limits.
+    See [DatePickerDialog](DATE_PICKER_DIALOG.md).
+  - [ ] Next palette candidate: DateRangePickerDialog. Audit its complete pinned
+    API, DateTimeRange values, custom calendars and preview limits first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

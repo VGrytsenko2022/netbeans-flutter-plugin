@@ -42,7 +42,8 @@ public record WidgetEventDescriptor(
 
     /** Reviewed source lifecycle actions, separate from native Events classification. */
     public boolean supportsHandlerActions() {
-        return kind == Kind.EVENT || (kind == Kind.DELEGATE && java.util.Set.of("TransformCallback", "ShaderCallback").contains(callbackType))
+        return kind == Kind.EVENT || (kind == Kind.PREDICATE && callbackType.equals("SelectableDayPredicate"))
+                || (kind == Kind.DELEGATE && java.util.Set.of("TransformCallback", "ShaderCallback").contains(callbackType))
                 || (kind == Kind.BUILDER && callbackType.equals("ImageErrorWidgetBuilder?"));
     }
 
@@ -129,6 +130,9 @@ public record WidgetEventDescriptor(
     /** The body is user-owned once inserted; non-void callbacks need an explicit implementation. */
     public String createStub(String handlerName) {
         String declaration = signature.declaration(handlerName);
+        if (callbackType.equals("SelectableDayPredicate")) {
+            return declaration + " {\n  // Customize the allowed dates; the initial date must satisfy this predicate.\n  return true;\n}";
+        }
         if (callbackType.equals("ImageErrorWidgetBuilder?")) {
             return declaration + " {\n  // TODO: Display a fallback for " + propertyName.value()
                     + ".\n  return const SizedBox.shrink();\n}";

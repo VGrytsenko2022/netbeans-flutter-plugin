@@ -1,5 +1,15 @@
 # State/value bindings
 
+## DatePickerDialog lifecycle (2026-09-15)
+
+No new State consumers are added. initialDate, currentDate and initial modes are
+native initialization/restoration inputs, not controlled fields. Selected dates
+return through the Navigator route; update application State after awaiting
+that result. Typed DateTime sources and CalendarDelegate remain editable but
+are not evaluated in Canvas. The inventory stays at 178 fields across 60 types.
+See [DatePickerDialog](DATE_PICKER_DIALOG.md).
+
+
 ## PaginatedDataTable consumers (2026-09-15)
 
 Add six reviewed fields: rowsPerPage, sortColumnIndex, sortAscending,

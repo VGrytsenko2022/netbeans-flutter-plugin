@@ -54,6 +54,8 @@ final class PairSaveEvidenceGate {
             "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:(?:sliver-animated-opacity-duration|animated-opacity-duration|animated-align-duration|animated-padding-duration|animated-slide-duration|animated-scale-duration|animated-rotation-duration|animated-container-duration|animated-size-duration|animated-size-reverse-duration|animated-positioned-duration|animated-default-text-style-duration|animated-physical-model-duration|animated-fractionally-sized-box-duration|animated-cross-fade-duration|animated-cross-fade-reverse-duration|animated-theme-duration|animated-switcher-duration|animated-switcher-reverse-duration|fade-in-image-fadeOutDurationUs|fade-in-image-fadeInDurationUs|tween-animation-duration)");
     private static final Pattern SUBMENU_DURATION_PROBE_ID = Pattern.compile(
             "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:submenu-button-core-duration:hoverOpenDelayUs");
+    private static final Pattern DATE_PICKER_DATE_PROBE_ID = Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:date:(?:initialDate|firstDate|lastDate|currentDate)");
     private static final Pattern PROJECT_PACKAGE_LIBRARY_URI = Pattern.compile(
             "package:[a-z][a-z0-9_]*/"
             + "(?:[A-Za-z0-9_-][A-Za-z0-9_.-]*/)*"
@@ -471,7 +473,8 @@ final class PairSaveEvidenceGate {
                     probe.expectedLibraryUri()) || "dart:ui".equals(probe.expectedLibraryUri());
             boolean radioCoreType = isRadioCoreTypeProbe(probe);
             boolean coreDuration = isCoreDurationProbe(probe);
-            boolean admittedCoreSymbol = radioCoreType || coreDuration;
+            boolean coreDate = isDatePickerDateProbe(probe);
+            boolean admittedCoreSymbol = radioCoreType || coreDuration || coreDate;
             boolean currentProjectLibrary = CURRENT_PROJECT_LIBRARY_URI.equals(
                     probe.expectedLibraryUri());
             boolean declaredPackageLibrary = isDeclaredPackageLibraryUri(
@@ -483,7 +486,7 @@ final class PairSaveEvidenceGate {
                         "analysis.symbolEvidence." + probe.id(),
                         "A pair-save symbol probe must identify a package:flutter or dart:ui URI "
                         + "or a closed current/declared project package library URI, "
-                        + "or an exact generator-owned Radio/ValueListenableBuilder type or ExpansionTile/Tooltip/SubmenuButton/SliverAnimatedOpacity/SliverFloatingHeader Duration dart:core contract.");
+                        + "or an exact generator-owned core type, Duration, or DatePickerDialog DateTime contract.");
             }
 
             Path expectedRootReal = realPath(
@@ -554,6 +557,13 @@ final class PairSaveEvidenceGate {
                             "analysis.symbolEvidence." + probe.id() + ".target",
                             "The Radio, RadioListTile or RadioGroup core type must resolve to its exact class in the trusted SDK Dart or sky_engine core library.");
                 }
+                if (coreDate && (targetReal == null
+                        || !"CONSTRUCTOR".equals(target.kind())
+                        || !isRadioCoreTypeTarget(trustedFlutterReal, targetReal, "DateTime"))) {
+                    add(diagnostics, PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET,
+                            "analysis.symbolEvidence." + probe.id() + ".target",
+                            "The generated DateTime constructor must resolve to the exact trusted SDK core/date_time.dart library.");
+                }
                 if (coreDuration && (targetReal == null
                         || !Set.of("CLASS", "CONSTRUCTOR").contains(target.kind())
                         || !isRadioCoreTypeTarget(trustedFlutterReal, targetReal, "Duration"))) {
@@ -605,6 +615,14 @@ final class PairSaveEvidenceGate {
     }
 
     /** Additional closed admission; the complete prepared manifest is still compared above. */
+    private static boolean isDatePickerDateProbe(DartSymbolProbe probe) {
+        return "dart:core".equals(probe.expectedLibraryUri())
+                && DATE_PICKER_DATE_PROBE_ID.matcher(probe.id()).matches()
+                && "DateTime".equals(probe.expectedSymbolName())
+                && probe.length() == "DateTime".length()
+                && probe.staticTypeProbe().isEmpty();
+    }
+
     private static boolean isCoreDurationProbe(DartSymbolProbe probe) {
         return "dart:core".equals(probe.expectedLibraryUri())
                 && (EXPANSION_DURATION_PROBE_ID.matcher(probe.id()).matches()
@@ -638,7 +656,7 @@ final class PairSaveEvidenceGate {
         for (String core : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
             try {
                 Path declared = trustedSdk.resolve(core).resolve(
-                        symbol.toLowerCase(java.util.Locale.ROOT) + ".dart").toRealPath();
+                        ("DateTime".equals(symbol) ? "date_time" : symbol.toLowerCase(java.util.Locale.ROOT)) + ".dart").toRealPath();
                 if (declared.startsWith(trustedSdk) && target.equals(declared)) return true;
             } catch (IOException unavailableCoreLibrary) {
                 // A distribution need not expose both public core-library trees.

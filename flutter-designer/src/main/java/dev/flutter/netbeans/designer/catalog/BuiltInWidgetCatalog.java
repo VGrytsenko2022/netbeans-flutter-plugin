@@ -155,6 +155,7 @@ public final class BuiltInWidgetCatalog {
             dataTable(DataTableWidgetPropertySchema.CELL),
             dataTable(DataTableWidgetPropertySchema.EMPTY),
             paginatedDataTable(),
+            datePickerDialog(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3318,6 +3319,14 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition datePickerDialog() {
+        return widget(DatePickerDialogWidgetPropertySchema.TYPE.value(),"DatePickerDialog",false,
+                MATERIAL_IMPORT,List.of(MATERIAL_IMPORT,WIDGETS_IMPORT,SERVICES_IMPORT,"dart:core"),Set.of(),
+                palette("flutter.material",100,630,"DatePickerDialog"),DatePickerDialogWidgetPropertySchema.properties(),
+                List.of(singleSlot("switchToInputEntryModeIcon",20,false,0,new SlotAcceptance.ExactTypes(List.of(new WidgetTypeId("flutter.widgets.Icon")))),
+                        singleSlot("switchToCalendarEntryModeIcon",21,false,0,new SlotAcceptance.ExactTypes(List.of(new WidgetTypeId("flutter.widgets.Icon"))))));
     }
 
     private static WidgetDefinition paginatedDataTable() {

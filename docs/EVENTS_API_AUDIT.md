@@ -1,5 +1,20 @@
 # Widget events API audit
 
+## DatePickerDialog update (2026-09-15)
+
+onDatePickerModeChange(ValueChanged<DatePickerEntryMode>) is the only native
+constructor Event. selectableDayPredicate(bool Function(DateTime)) remains a
+predicate in Properties, with reviewed create/select/navigate/rename actions
+and an initial return-true body. It is not a selected-date notification.
+Confirm/Cancel complete the Navigator route with DateTime/null; they are not
+constructor callbacks. CalendarDelegate methods remain source-owned.
+
+Current inventory: 234 definitions, 258 callables across 95 types; 191 native
+Events across 67 types, 50 builders, four predicates, two formatters and eleven
+callable delegates. The 178 State consumers across 60 types are unchanged:
+dialog dates/modes are initial-only. See [DatePickerDialog](DATE_PICKER_DIALOG.md).
+
+
 ## PaginatedDataTable update (2026-09-15)
 
 Add onSelectAll(bool?), onPageChanged(int) and onRowsPerPageChanged(int?),

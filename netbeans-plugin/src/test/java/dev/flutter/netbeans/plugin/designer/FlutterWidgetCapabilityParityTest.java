@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(233, javaTypes.size(),
+        assertEquals(234, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -141,7 +141,7 @@ class FlutterWidgetCapabilityParityTest {
                 "the packaged Dart decoder must consume Java payload v20");
 
         assertEquals(javaTypes, widgetTypes(block(
-                model, "const _widgetSpecifications", "class _NodeBudget")),
+                model, "const _widgetSpecifications", "class _NodeBudget"), false),
                 "Java Canvas gate and Dart strict decoder must be exact peers");
         assertEquals(javaTypes, widgetTypes(block(
                 view, "final sdkChild = switch (node.type)",
@@ -407,8 +407,22 @@ class FlutterWidgetCapabilityParityTest {
         return framed.substring(1);
     }
 
-    private static Set<String> widgetTypes(String source) {
-        Matcher matcher = WIDGET_TYPE.matcher(source);
+    private static Set<String> widgetTypes(String source) throws IOException {
+        return widgetTypes(source, true);
+    }
+
+    private static Set<String> widgetTypes(String source, boolean dispatch) throws IOException {
+        // Dispatch keys exclude child constraints such as Icon parameters.
+        // The model also has loop-built entries. Resolve only constants used
+        // as keys: trait constants are constraints, not widget definitions.
+        Matcher constants = Pattern.compile(
+                "\\bconst\\s+(?:String\\s+)?([A-Za-z_]\\w*)\\s*=\\s*'(flutter\\.(?:material|widgets)\\.[A-Za-z0-9.]+)'")
+                .matcher(runnerSource("lib/src/canvas_model.dart"));
+        while (constants.find()) {
+            source = source.replaceAll("\\b" + Pattern.quote(constants.group(1)) + "\\b(?=\\s*(?::|=>|\\|\\|))",
+                    Matcher.quoteReplacement("'" + constants.group(2) + "'"));
+        }
+        Matcher matcher = (dispatch ? Pattern.compile(WIDGET_TYPE.pattern() + "(?=\\s*(?:=>|\\|\\|))") : WIDGET_TYPE).matcher(source);
         HashSet<String> result = new HashSet<>();
         while (matcher.find()) {
             result.add(matcher.group(1));

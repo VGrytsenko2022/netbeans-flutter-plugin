@@ -58,7 +58,10 @@ final class FlutterTypedPropertyEditors {
         }
         Set<PropertyValueKind> kinds = definition.acceptedKinds();
         EditorKind editorKind;
-        if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))
+        if (definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r && r.expectedDartType().equals("DateTime"))
+                && kinds.contains(PropertyValueKind.STRING)) {
+            editorKind=EditorKind.DATE_REFERENCE;
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))
                 || kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE,PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r
                     && Set.of("TableColumnWidth","TableColumnWidth?","Map<int, TableColumnWidth>?","Key?","LocalKey?").contains(r.expectedDartType()))) {
@@ -176,7 +179,7 @@ final class FlutterTypedPropertyEditors {
                 || kinds.equals(EnumSet.of(PropertyValueKind.EDGE_INSETS, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.EdgeInsetsValues.class::isInstance)
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
-                        && Set.of("EdgeInsetsGeometry", "EdgeInsetsGeometry?").contains(reference.expectedDartType()))) {
+                        && Set.of("EdgeInsetsGeometry", "EdgeInsetsGeometry?", "EdgeInsets", "EdgeInsets?").contains(reference.expectedDartType()))) {
             editorKind = EditorKind.EDGE_INSETS_REFERENCE;
         } else if ((kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE))
                 || kinds.equals(EnumSet.of(PropertyValueKind.COLOR, PropertyValueKind.THEME_TOKEN, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
@@ -345,6 +348,7 @@ final class FlutterTypedPropertyEditors {
     }
 
     enum EditorKind {
+        DATE_REFERENCE,
         TABLE_WIDTH_REFERENCE,
         KEY_REFERENCE,
         STRING,
@@ -494,6 +498,8 @@ final class FlutterTypedPropertyEditors {
                 return candidate;
             }
             PropertyValue value = candidate.explicitValue().orElseThrow();
+            if (editorKind == EditorKind.DATE_REFERENCE && value instanceof PropertyValue.StringValue text)
+                dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.date(text.value());
             if (editorKind == EditorKind.TABLE_WIDTH_REFERENCE && value instanceof PropertyValue.StringValue text) {
                 if (definition.name().value().equals("columnWidths")) dev.flutter.netbeans.designer.catalog.TableColumnWidths.parseMap(text.value());
                 else dev.flutter.netbeans.designer.catalog.TableColumnWidths.parse(text.value());
@@ -532,7 +538,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
-                case TABLE_WIDTH_REFERENCE, KEY_REFERENCE, PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
+                case DATE_REFERENCE, TABLE_WIDTH_REFERENCE, KEY_REFERENCE, PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
                         GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
                         MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
                         DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->

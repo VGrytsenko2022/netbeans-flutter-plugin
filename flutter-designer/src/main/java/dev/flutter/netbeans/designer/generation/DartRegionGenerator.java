@@ -324,8 +324,8 @@ public final class DartRegionGenerator {
                     && current.node().properties().keySet().stream()
                             .map(PropertyName::value)
                             .anyMatch(name -> name.startsWith("systemOverlayStyle"));
-            requiresServices |= current.node().type().equals(
-                    TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)
+            requiresServices |= (current.node().type().equals(
+                    TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE) || current.node().type().equals(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE))
                     && current.node().properties().containsKey(
                             new PropertyName("keyboardType"));
             requiresServices |= usesEnumLibrary(
@@ -505,6 +505,26 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue text) {
+                String name=property.name().value(), pp=path+"/properties/"+name;
+                RenderedValue rendered=null;
+                if(dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.DATES.contains(name)) {
+                    var date=dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.date(text.value());
+                    var symbol=context.planner().renderedSymbol("dart:core","DateTime");
+                    rendered=scalar(symbol.text()+"("+date.getYear()+", "+date.getMonthValue()+", "+date.getDayOfMonth()+")",
+                            false,pp,node.id(),context,List.of(occurrence("widget:"+node.id()+":date:"+name,
+                            symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id()))));
+                } else if(name.equals("calendarDelegate")) {
+                    var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"GregorianCalendarDelegate");
+                    rendered=scalar("const "+symbol.text()+"()",true,pp,node.id(),context,List.of(occurrence(
+                            "widget:"+node.id()+":calendar:"+name,6+symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id()))));
+                } else if(name.equals("key")) rendered=renderPositionalComposite("ValueKey",Optional.empty(),
+                        scalar(dartString(text.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context);
+                else if(name.equals("onDatePickerModeChange"))rendered=scalar("(_) {}",false,pp,node.id(),context);
+                else if(name.equals("keyboardType")){appendTextFieldKeyboardType(node,definition,path,context,arguments);continue;}
+                if(rendered!=null){arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));continue;}
+            }
             if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.supports(node.type())) {
                 String name=property.name().value();
                 if(dev.flutter.netbeans.designer.catalog.DataTableWidgetPropertySchema.styleFamily(node.type(),name).isPresent()
@@ -9172,6 +9192,12 @@ public final class DartRegionGenerator {
             String line = "import '" + directive.uri() + '\''
                     + directive.prefix().map(prefix -> " as " + prefix).orElse("")
                     + ";\n";
+            // An explicit prefixed dart:core import disables Dart's implicit
+            // unprefixed core import for the entire library, including user code.
+            // Keep that language-provided namespace while retaining our alias.
+            if ("dart:core".equals(directive.uri()) && directive.prefix().isPresent()) {
+                line = "import 'dart:core';\n" + line;
+            }
             bytes += utf8Length(line);
             if (bytes > maximumUtf8Bytes) {
                 throw outputLimit(

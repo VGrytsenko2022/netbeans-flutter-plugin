@@ -1,0 +1,34 @@
+package dev.flutter.netbeans.plugin.designer.properties;
+import dev.flutter.netbeans.designer.catalog.*;
+import dev.flutter.netbeans.designer.model.*;
+import dev.flutter.netbeans.designer.command.*;
+import java.util.*;
+import java.math.*;
+import javax.swing.*;
+import org.openide.nodes.Children;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+class BackdropFilterPropertyContractTest {
+ @Test void all52RowsStableIncludingNullablePresetsAndKeys()throws Exception{
+  for(var type:List.of(BackdropFilterWidgetPropertySchema.TYPE,BackdropFilterWidgetPropertySchema.GROUPED,BackdropFilterWidgetPropertySchema.GROUP)) {
+  var d=BuiltInWidgetCatalog.getDefault().find(type).orElseThrow();
+  var widget=WidgetNodePrototypeFactory.create(d,StableId.random());var commands=new ArrayList<DesignerCommand>();
+  var node=new FlutterWidgetPropertiesNode(Children.LEAF,widget,d,commands::add);var sets=node.getPropertySets();
+  for(var field:d.properties()){
+   String name=field.name().value();var row=TooltipPropertyContractTest.cell(node,name);assertTrue(row.canWrite(),name);assertTrue(row.supportsDefaultValue());
+   PropertyValue value=switch(name){case "filterConfig"->new PropertyValue.StringValue("blur");case "filter"->new PropertyValue.StringValue("dilate");case "enabled","configBounded"->new PropertyValue.BooleanValue(false);case "tileMode","configTileMode"->new PropertyValue.EnumValue("TileMode","decal");case "blendMode"->new PropertyValue.EnumValue("BlendMode","src");case "filterQuality"->new PropertyValue.EnumValue("FilterQuality","high");case "matrix4"->ImageFilteredWidgetPropertySchema.identity();case "bounds","inner","outer","shader","configInner","configOuter","backdropKey","backdropGroupKey"->new PropertyValue.DartObjectReferenceValue(Optional.empty(),"projectValue",Optional.empty(),PropertyValue.DartObjectReferenceValue.Access.REFERENCE,Optional.empty());default->new PropertyValue.DoubleValue(BigDecimal.ONE);};
+   row.setValue(FlutterPropertyCellValue.explicit(value));assertEquals(new SetProperty(widget.id(),field.name(),value),commands.removeFirst());
+   var values=new LinkedHashMap<>(widget.properties());values.put(field.name(),value);widget=new WidgetNode(widget.id(),widget.type(),values,widget.slots());
+   node.refreshPresentation(widget,d,commands::add,null,null,FlutterImageAssetChoices.empty());assertSame(row,TooltipPropertyContractTest.cell(node,name));assertArrayEquals(sets,node.getPropertySets());
+   var reopened=new FlutterWidgetPropertiesNode(Children.LEAF,widget,d,commands::add);assertEquals(row.getValue(),TooltipPropertyContractTest.cell(reopened,name).getValue());
+   var editor=row.getPropertyEditor();editor.setValue(row.getValue());
+   if(name.equals("filter")||name.equals("filterConfig")){
+    var queue=new ArrayDeque<java.awt.Component>();queue.add(editor.getCustomEditor());JComboBox<?> presets=null;
+    while(!queue.isEmpty()){var v=queue.removeFirst();if(FlutterPresetDartReferenceEditorComponent.PRESET_NAME.equals(v.getName()))presets=(JComboBox<?>)v;if(v instanceof java.awt.Container c)queue.addAll(Arrays.asList(c.getComponents()));}
+    assertNotNull(presets);assertEquals(name.equals("filter")?6:3,presets.getItemCount());
+   }
+   if(name.equals("matrix4")) assertNotNull(editor.getCustomEditor());
+  }
+  }
+ }
+}

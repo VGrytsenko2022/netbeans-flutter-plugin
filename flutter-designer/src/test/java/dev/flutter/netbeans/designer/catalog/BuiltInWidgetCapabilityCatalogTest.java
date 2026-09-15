@@ -146,7 +146,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IconTheme",
             "flutter.widgets.ImageIcon",
             "flutter.widgets.DefaultTextStyle",
-            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered",
+            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.MergeSemantics",
@@ -281,7 +281,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.widgets.IconTheme",
             "flutter.widgets.ImageIcon",
             "flutter.widgets.DefaultTextStyle",
-            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered",
+            "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup",
             "flutter.widgets.ExcludeSemantics",
             "flutter.widgets.BlockSemantics",
             "flutter.widgets.IndexedSemantics",
@@ -325,9 +325,9 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(213, sources.size());
-        assertEquals(184, destinations.size());
-        assertEquals(164, destinations.stream()
+        assertEquals(216, sources.size());
+        assertEquals(186, destinations.size());
+        assertEquals(166, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
                 .count());
@@ -335,9 +335,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(39192, candidates);
-        assertEquals(26475, accepted);
-        assertEquals(12717, candidates - accepted);
+        assertEquals(40176, candidates);
+        assertEquals(27287, accepted);
+        assertEquals(12889, candidates - accepted);
     }
 
     @Test
@@ -2733,7 +2733,7 @@ class BuiltInWidgetCapabilityCatalogTest {
                     + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
                     property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
         }
-        assertEquals(7382, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
+        assertEquals(7434, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
                 .mapToInt(definition -> definition.properties().size()).sum());
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         int start = contract.indexOf("W|flutter.material.SwitchListTile\n");

@@ -10,6 +10,7 @@ import 'package:flutter/foundation.dart' show precisionErrorTolerance, ValueList
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart'
     show
+        ImageFilterConfig,
         OverflowBoxFit,
         ScrollCacheExtent,
         RenderProxyBox,
@@ -4035,6 +4036,31 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.BackdropGroup') {
+    return node.properties['backdropKey']?.kind == 'dartObjectReferencePresence'
+        ? 'BackdropGroup ${node.id}: project-owned BackdropKey is not executed. Canvas creates a local group key.' : null;
+  }
+  if (node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped') {
+    final fields = <String>['backdropGroupKey'];
+    final config = node.properties['filterConfig'];
+    if (config?.kind == 'dartObjectReferencePresence') {
+      fields.add('filterConfig');
+    } else if (config?.value == 'compose') {
+      fields.addAll(['configInner', 'configOuter']);
+    } else if (config == null || config.kind == 'null' || config.value == 'wrap') {
+      final filter = node.properties['filter'];
+      if (filter?.kind == 'dartObjectReferencePresence') {
+        fields.add('filter');
+      } else {
+        fields.addAll(switch (filter?.value) {
+          'blur' => ['bounds'], 'matrix' => ['matrix4'],
+          'compose' => ['inner','outer'], 'shader' => ['shader'], _ => <String>[],
+        });
+      }
+    }
+    final refs = fields.where((field) => node.properties[field]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : '${node.type.split('.').skip(2).join('.')} ${node.id}: project-owned ${refs.join(', ')} are not executed. Canvas uses neutral filters/matrices, null bounds and no explicit backdrop key.';
+  }
   if (node.type == 'flutter.widgets.ImageFiltered') {
     if (node.properties['imageFilter']?.kind == 'dartObjectReferencePresence') {
       return 'ImageFiltered ${node.id}: project-owned ImageFilter is not executed. Canvas uses zero-sigma blur.';
@@ -5741,7 +5767,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5832,7 +5858,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -9009,6 +9035,12 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.BackdropGroup' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: BackdropGroup(child: _single('child')!)),
+      'flutter.widgets.BackdropFilter' || 'flutter.widgets.BackdropFilter.grouped' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: _backdropFilter()),
       'flutter.widgets.ImageFiltered' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: ImageFiltered(imageFilter: _localImageFilter(), enabled: _boolean('enabled') ?? true, child: _single('child'))),
@@ -14085,8 +14117,30 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
-  ui.ImageFilter _localImageFilter() {
-    switch (_string('imageFilter')) {
+  Widget _backdropFilter() {
+    final value = node.properties['filterConfig'];
+    final hasConfig = value != null && value.kind != 'null';
+    final filter = hasConfig ? null : _localImageFilter('filter');
+    final config = hasConfig ? _localBackdropConfig() : null;
+    final blend = BlendMode.values.byName(_enum('blendMode') ?? 'srcOver');
+    final enabled = _boolean('enabled') ?? true;
+    return node.type.endsWith('.grouped')
+        ? BackdropFilter.grouped(filter: filter, filterConfig: config, blendMode: blend, enabled: enabled, child: _single('child'))
+        : BackdropFilter(filter: filter, filterConfig: config, blendMode: blend, enabled: enabled, child: _single('child'));
+  }
+
+  ImageFilterConfig _localBackdropConfig() => switch (_string('filterConfig')) {
+    'wrap' => ImageFilterConfig(_localImageFilter('filter')),
+    'blur' => ImageFilterConfig.blur(
+      sigmaX: _number('configSigmaX') ?? 0, sigmaY: _number('configSigmaY') ?? 0,
+      tileMode: TileMode.values.byName(_enum('configTileMode') ?? 'clamp'),
+      bounded: _boolean('configBounded') ?? false),
+    'compose' => const ImageFilterConfig.compose(inner: ImageFilterConfig.blur(), outer: ImageFilterConfig.blur()),
+    _ => const ImageFilterConfig.blur(),
+  };
+
+  ui.ImageFilter _localImageFilter([String field = 'imageFilter']) {
+    switch (_string(field)) {
       case 'blur':
         Rect? bounds;
         if (!node.properties.containsKey('bounds') &&

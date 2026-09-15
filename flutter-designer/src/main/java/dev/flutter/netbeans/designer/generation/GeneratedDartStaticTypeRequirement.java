@@ -50,7 +50,7 @@ public record GeneratedDartStaticTypeRequirement(
                 && !dev.flutter.netbeans.designer.catalog.ScaffoldWidgetPropertySchema.BOTTOM_SHEET_SCRIM_BUILDER_TYPE.equals(expectedDartType)
                 && !java.util.Set.of(dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE,
                         dev.flutter.netbeans.designer.catalog.TextFieldWidgetPropertySchema.CONTEXT_MENU_BUILDER_TYPE,
-                        dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "Animation<double>?").contains(expectedDartType)) {
+                        dev.flutter.netbeans.designer.catalog.ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?").contains(expectedDartType)) {
             throw new IllegalArgumentException(
                     "expected Dart type must use the closed simple/generic form");
         }

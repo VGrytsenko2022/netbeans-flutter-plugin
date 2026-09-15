@@ -6445,7 +6445,7 @@ void main() {
   test('AspectRatio reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.AspectRatio\n');
-    final end = contract.indexOf('W|flutter.widgets.Baseline\n', start);
+    final end = contract.indexOf('W|flutter.widgets.BackdropFilter\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

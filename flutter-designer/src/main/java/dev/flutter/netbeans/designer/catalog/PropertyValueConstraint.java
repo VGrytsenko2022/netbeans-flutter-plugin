@@ -409,7 +409,7 @@ public sealed interface PropertyValueConstraint permits
                     && !ScaffoldWidgetPropertySchema.BOTTOM_SHEET_SCRIM_BUILDER_TYPE.equals(expectedDartType)
                     && !Set.of(TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE,
                             TextFieldWidgetPropertySchema.CONTEXT_MENU_BUILDER_TYPE,
-                            ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "Animation<double>?").contains(expectedDartType)) {
+                            ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?").contains(expectedDartType)) {
                 throw new IllegalArgumentException(
                         "Expected Dart type must use the closed simple/generic form");
             }

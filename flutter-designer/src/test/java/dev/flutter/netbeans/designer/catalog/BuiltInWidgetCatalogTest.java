@@ -85,6 +85,9 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.Align",
                 "flutter.widgets.AlignTransition", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedBuilder", "flutter.widgets.AnimatedBuilder.sliver", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedSwitcher",
                 "flutter.widgets.AspectRatio",
+                "flutter.widgets.BackdropFilter",
+                "flutter.widgets.BackdropFilter.grouped",
+                "flutter.widgets.BackdropGroup",
                 "flutter.widgets.Baseline",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.Builder",
@@ -204,11 +207,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(213, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(179, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(216, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(181, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(205, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(208, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
                 "flutter.widgets.RepaintBoundary", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverResizingHeader", "flutter.widgets.SliverToBoxAdapter"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -224,6 +227,7 @@ class BuiltInWidgetCatalogTest {
                         "flutter.widgets.AnimatedContainer",
                         "flutter.widgets.AnimatedPadding",
                         "flutter.widgets.AnimatedPositioned.fromRect",
+                        "flutter.widgets.BackdropGroup",
                         "flutter.widgets.ConstrainedBox",
                         "flutter.widgets.Container",
                         "flutter.widgets.CustomScrollView",
@@ -248,10 +252,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(7382, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7434, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(7364, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7416, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -334,7 +338,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.DefaultTextHeightBehavior", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultTextStyle", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultTextStyle.merge", WIDGETS_IMPORT),
-                Map.entry("flutter.widgets.ScaleTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RotationTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SizeTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.PositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RelativePositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SlideTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.ImageFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.ColorFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.RawImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeInImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeTransition", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ScaleTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RotationTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SizeTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.PositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RelativePositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SlideTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.ImageFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter.grouped", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropGroup", WIDGETS_IMPORT), Map.entry("flutter.widgets.ColorFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.RawImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeInImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DecoratedBoxTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.AlignTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.MatrixTransition", WIDGETS_IMPORT),
@@ -706,7 +710,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.IconTheme",
                 "flutter.widgets.ImageIcon",
                 "flutter.widgets.DefaultTextStyle",
-                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered",
+                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -730,7 +734,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.scrolling"))
                 .count());
-        assertEquals(32, palette.stream()
+        assertEquals(35, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.basic"))
                 .count());

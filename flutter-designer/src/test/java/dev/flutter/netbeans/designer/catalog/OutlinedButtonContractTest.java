@@ -30,10 +30,10 @@ class OutlinedButtonContractTest {
             }
             assertEquals(shared.creationDefault(), property.creationDefault(), property.name().value());
         }
-        assertEquals(43, CATALOG.definitions().stream().filter(value ->
+        assertEquals(44, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
-        assertEquals(31, CATALOG.definitions().stream().filter(value ->
+        assertEquals(32, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.evaluateRoot(value).accepted()
                         && WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count(),

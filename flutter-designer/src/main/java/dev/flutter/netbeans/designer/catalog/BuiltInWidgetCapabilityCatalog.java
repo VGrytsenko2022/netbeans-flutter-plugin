@@ -289,6 +289,9 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.RawImage", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ColorFiltered", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ImageFiltered", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.BackdropFilter", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.BackdropFilter.grouped", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.BackdropGroup", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeTransition", STATIC_EDITABLE),
@@ -1004,6 +1007,15 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.BackdropFilter", projection(
+                    BackdropFilterWidgetPropertySchema.properties(new WidgetTypeId("flutter.widgets.BackdropFilter")).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
+            Map.entry("flutter.widgets.BackdropFilter.grouped", projection(
+                    BackdropFilterWidgetPropertySchema.properties(new WidgetTypeId("flutter.widgets.BackdropFilter.grouped")).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
+            Map.entry("flutter.widgets.BackdropGroup", projection(
+                    BackdropFilterWidgetPropertySchema.properties(new WidgetTypeId("flutter.widgets.BackdropGroup")).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(true,1)))),
             Map.entry("flutter.widgets.ImageFiltered", projection(
                     ImageFilteredWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),

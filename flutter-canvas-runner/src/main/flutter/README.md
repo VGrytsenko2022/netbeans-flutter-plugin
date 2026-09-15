@@ -1,5 +1,11 @@
 # netbeans_flutter_canvas_runner
 
+BackdropFilter and BackdropFilter.grouped render background filters with native
+ImageFilterConfig support; BackdropGroup shares a local key with grouped
+descendants. Bounded sampling does not clip output. Source values and explicit
+keys use described fallbacks without executing project code.
+See [BackdropFilter](../../../../docs/BACKDROP_FILTER.md).
+
 ImageFiltered maps blur/bounds, morphology, matrix and composition to native
 filters and respects Enabled without replacing the render object. Source filters,
 matrices, bounds and shader preview with explicit safe fallbacks; shader execution

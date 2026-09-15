@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## BackdropFilter and grouping update (2026-09-15)
+
+BackdropFilter, BackdropFilter.grouped and BackdropGroup expose no native
+callback parameters. Filtering, clipping, enabled state and grouping do not
+replace Child input/semantics. Config/source references are typed object
+properties, not invented Events.
+
+Inventory: 216 definitions; 239 callables across 87 types (50 builders, ten
+delegates); native Events remain 174 rows across 60 types.
+See [BackdropFilter](BACKDROP_FILTER.md).
+
 ## ImageFiltered update (2026-09-14)
 
 ImageFiltered has no callback parameters. Its filter affects pixels while Child

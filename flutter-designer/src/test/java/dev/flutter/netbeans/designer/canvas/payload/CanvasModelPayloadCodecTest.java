@@ -141,6 +141,22 @@ class CanvasModelPayloadCodecTest {
         }
     }
 
+    @Test void backdropConfigAndKeysRemainOpaqueToCanvas() throws Exception {
+        var properties = new LinkedHashMap<PropertyName, PropertyValue>();
+        for (String field : List.of("filter", "filterConfig", "configInner", "configOuter", "backdropGroupKey", "bounds", "matrix4", "inner", "outer", "shader")) {
+            properties.put(new PropertyName(field), new PropertyValue.DartObjectReferenceValue(
+                    Optional.of("package:secret/filter.dart"), "SecretFactory", Optional.of("privateFilter"),
+                    PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false)));
+        }
+        var node = new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.BackdropFilter"),
+                properties, Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()));
+        String json = new String(new CanvasModelPayloadCodec().encode(request(new DesignerDocument(DOCUMENT_ID, source(), node))), StandardCharsets.UTF_8);
+        for (String secret : List.of("secret", "SecretFactory", "privateFilter")) assertFalse(json.contains(secret), secret);
+        for (String field : List.of("filter", "filterConfig", "configInner", "configOuter", "backdropGroupKey", "bounds", "matrix4", "inner", "outer", "shader")) {
+            assertTrue(json.contains("\"" + field + "\":{\"kind\":\"dartObjectReferencePresence\"}"), field);
+        }
+    }
+
     private static final StableId DOCUMENT_ID = id(
             "4efb0eb1-b0f9-4809-bd3e-73f2486dd7bd");
     private static final CanvasRenderProfile PROFILE = new CanvasRenderProfile(
@@ -281,7 +297,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IconTheme",
                 "flutter.widgets.ImageIcon",
                 "flutter.widgets.DefaultTextStyle",
-                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered",
+                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",

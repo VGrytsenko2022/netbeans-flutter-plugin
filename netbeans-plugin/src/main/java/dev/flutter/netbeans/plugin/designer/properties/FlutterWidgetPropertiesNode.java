@@ -1042,6 +1042,20 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         Optional.empty(), field.label(), field.description(), false,
                         java.util.List.of()));
             sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(widget.type())
+                || dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP.equals(widget.type())) {
+            var fields = dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.fields(widget.type());
+            for (String group : fields.stream().map(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.Field::group).distinct().toList()) {
+                Sheet.Set set = propertySet("backdrop" + group, group, dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.DESCRIPTION);
+                assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+                for (var field : fields) if (field.group().equals(group)) {
+                    var presets = field.name().equals("filter") ? dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.FILTERS
+                            : field.name().equals("filterConfig") ? dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.CONFIGS : java.util.List.<String>of();
+                    set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                            Optional.empty(), field.label(), field.description(), false, presets));
+                }
+                sheet.put(set);
+            }
         } else if (dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.equals(widget.type())) {
             for (String group : java.util.List.of("Filter", "Blur", "Blur bounds", "Morphology", "Matrix", "Composition", "Shader")) {
                 Sheet.Set set = propertySet("imageFiltered" + group, group, dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.DESCRIPTION);
@@ -1577,6 +1591,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.PositionedTransitionWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(widget.type())) return dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP_DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RawImageWidgetPropertySchema.DESCRIPTION;

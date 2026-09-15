@@ -2564,7 +2564,12 @@ accepted architecture is documented in
     17 Properties, Enabled checkbox, source proofs, history and native pixel tests.
     Shader retains the SDK Impeller-only requirement.
     See [ImageFiltered](IMAGE_FILTERED.md).
-  - [ ] Next palette slice: BackdropFilter (background filtering and grouped filters).
+  - [x] Add BackdropFilter, BackdropFilter.grouped and BackdropGroup: six
+    ImageFilter and three ImageFilterConfig factories, bounded sampling,
+    configuration/source precedence, typed shared keys, 52 Properties,
+    native pixels/clipping/input tests and required-child group wrapping.
+    See [BackdropFilter](BACKDROP_FILTER.md).
+  - [ ] Next palette slice: ShaderMask (typed shader callback and blend modes).
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

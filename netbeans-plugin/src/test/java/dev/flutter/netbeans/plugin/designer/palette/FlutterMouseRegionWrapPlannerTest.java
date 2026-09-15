@@ -93,7 +93,7 @@ class FlutterMouseRegionWrapPlannerTest {
                     parent.typeId().value() + "." + slot.name().value() + ": " + plan);
             checked++;
         }
-        assertEquals(184, checked);
+        assertEquals(186, checked);
     }
 
     private static WidgetNode destinationPrototype(dev.flutter.netbeans.designer.catalog.WidgetDefinition definition, SlotName destination) {

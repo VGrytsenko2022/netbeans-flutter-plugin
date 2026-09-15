@@ -705,7 +705,7 @@ public final class DartCandidateAnalyzer {
         boolean pointerProofTypes = typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
                 .anyMatch(DartCandidateAnalyzer::usesPointerProofType);
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder").contains(probe.expectedDartType()))) {
+                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "ImageFilterConfig", "BackdropKey?").contains(probe.expectedDartType()))) {
             importLine += "import 'package:flutter/rendering.dart' as " + alias + "Rendering;\n";
         }
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
@@ -1197,7 +1197,7 @@ public final class DartCandidateAnalyzer {
         if (probe.expectedDartType().equals("ValueNotifier<EdgeInsets>?")) return alias + "Foundation.ValueNotifier<" + alias + ".EdgeInsets>?";
         if (probe.expectedDartType().equals("ValueListenable<Object>") && probe.sourceTypeOverride().isEmpty())
             return alias + "Foundation.ValueListenable<" + coreAlias + ".Object>";
-        if (usesItemExtentProofType(probe)) {
+        if (usesItemExtentProofType(probe) || Set.of("ImageFilterConfig", "BackdropKey?").contains(probe.expectedDartType())) {
             return alias + "Rendering." + probe.expectedDartType();
         }
         if (probe.sourceTypeOverride().isEmpty()) {

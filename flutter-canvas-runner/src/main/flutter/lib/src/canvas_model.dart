@@ -7924,6 +7924,32 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.BackdropGroup': _WidgetSpec({
+    'backdropKey': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'BackdropKey?'),
+  }, {'child':_SlotSpec(cardinality:'single', required:true, minimumChildren:1, maximumChildren:1)}),
+  for (final type in ['flutter.widgets.BackdropFilter', 'flutter.widgets.BackdropFilter.grouped'])
+    type: _WidgetSpec({
+      'filter': _PropertySpec({'string','dartObjectReference','null'}, creationDefaultFingerprint:'string:Ymx1cg',
+          stringPattern:r'(?:blur|dilate|erode|matrix|compose|shader)', dartObjectExpectedType:'ImageFilter'),
+      'enabled': _PropertySpec({'boolean'}),
+      'blendMode': _PropertySpec({'enum'},enumLibraryUri:_widgetsLibraryUri,enumType:'BlendMode',enumValues:{'clear','src','dst','srcOver','dstOver','srcIn','dstIn','srcOut','dstOut','srcATop','dstATop','xor','plus','modulate','screen','overlay','darken','lighten','colorDodge','colorBurn','hardLight','softLight','difference','exclusion','multiply','hue','saturation','color','luminosity'}),
+      for (final field in ['sigmaX','sigmaY','radiusX','radiusY','boundsWidth','boundsHeight','boundsLeft','boundsTop','configSigmaX','configSigmaY'])
+        field: _PropertySpec({'integer','double'}, numericBounds:_unboundedNumberBounds),
+      'tileMode': _PropertySpec({'enum','null'}, enumLibraryUri:_widgetsLibraryUri, enumType:'TileMode', enumValues:{'clamp','repeated','mirror','decal'}),
+      'bounds': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'Rect?'),
+      'matrix4': _PropertySpec({'matrix4','dartObjectReference'}, dartObjectExpectedType:'Float64List'),
+      'filterQuality': _PropertySpec({'enum'}, enumLibraryUri:_widgetsLibraryUri, enumType:'FilterQuality', enumValues:{'none','low','medium','high'}),
+      'inner': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilter'),
+      'outer': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilter'),
+      'shader': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'FragmentShader'),
+      'filterConfig': _PropertySpec({'string','dartObjectReference','null'},
+          stringPattern:r'(?:wrap|blur|compose)', dartObjectExpectedType:'ImageFilterConfig'),
+      'configTileMode': _PropertySpec({'enum'}, enumLibraryUri:_widgetsLibraryUri, enumType:'TileMode', enumValues:{'clamp','repeated','mirror','decal'}),
+      'configBounded': _PropertySpec({'boolean'}),
+      'configInner': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilterConfig'),
+      'configOuter': _PropertySpec({'dartObjectReference'}, dartObjectExpectedType:'ImageFilterConfig'),
+      if (type == 'flutter.widgets.BackdropFilter') 'backdropGroupKey': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'BackdropKey?'),
+    }, {'child':_optionalSingleSlot}),
   'flutter.widgets.ImageFiltered': _WidgetSpec({
     'imageFilter': _PropertySpec({'string','dartObjectReference'}, required:true, creationDefaultFingerprint:'string:Ymx1cg',
         stringPattern:r'(?:blur|dilate|erode|matrix|compose|shader)', dartObjectExpectedType:'ImageFilter'),
@@ -17092,6 +17118,65 @@ S|child|single|0|0|1|any
 W|flutter.widgets.AspectRatio
 P|aspectRatio|double|1|double:1|double:0:0:*:1|double:range:0:0:*:1
 S|child|single|0|0|1|any
+W|flutter.widgets.BackdropFilter
+P|backdropGroupKey|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:BackdropKey?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|bounds|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:Rect?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|boundsHeight|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsLeft|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsTop|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsWidth|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configBounded|boolean|0|-|-|boolean:any
+P|configInner|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|configOuter|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|configSigmaX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configSigmaY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configTileMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TileMode:clamp,decal,mirror,repeated
+P|enabled|boolean|0|-|-|boolean:any
+P|filter|dartObjectReference,null,string|0|string:Ymx1cg|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:KD86Ymx1cnxkaWxhdGV8ZXJvZGV8bWF0cml4fGNvbXBvc2V8c2hhZGVyKQ
+P|filterConfig|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:KD86d3JhcHxibHVyfGNvbXBvc2Up
+P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none
+P|inner|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|matrix4|dartObjectReference,matrix4|0|-|-|dartObjectReference:dartObjectReference:v1:Float64List:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);matrix4:matrix4
+P|outer|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|radiusX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|radiusY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shader|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:FragmentShader:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|sigmaX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sigmaY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|tileMode|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TileMode:clamp,decal,mirror,repeated;null:any
+S|child|single|0|0|1|any
+W|flutter.widgets.BackdropFilter.grouped
+P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|bounds|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:Rect?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|boundsHeight|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsLeft|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsTop|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|boundsWidth|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configBounded|boolean|0|-|-|boolean:any
+P|configInner|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|configOuter|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|configSigmaX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configSigmaY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|configTileMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TileMode:clamp,decal,mirror,repeated
+P|enabled|boolean|0|-|-|boolean:any
+P|filter|dartObjectReference,null,string|0|string:Ymx1cg|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:KD86Ymx1cnxkaWxhdGV8ZXJvZGV8bWF0cml4fGNvbXBvc2V8c2hhZGVyKQ
+P|filterConfig|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilterConfig:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:KD86d3JhcHxibHVyfGNvbXBvc2Up
+P|filterQuality|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none
+P|inner|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|matrix4|dartObjectReference,matrix4|0|-|-|dartObjectReference:dartObjectReference:v1:Float64List:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);matrix4:matrix4
+P|outer|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:ImageFilter:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|radiusX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|radiusY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shader|dartObjectReference|0|-|-|dartObjectReference:dartObjectReference:v1:FragmentShader:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+P|sigmaX|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|sigmaY|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|tileMode|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TileMode:clamp,decal,mirror,repeated;null:any
+S|child|single|0|0|1|any
+W|flutter.widgets.BackdropGroup
+P|backdropKey|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:BackdropKey?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+S|child|single|1|1|1|any
+C|flutter.widgets.BackdropGroup|paletteCreate|wrapExistingChild|child
 W|flutter.widgets.Baseline
 P|baseline|double|1|double:24|double:*:1:*:1|double:range:*:1:*:1
 P|baselineType|enum|1|enum:TextBaseline:alphabetic|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:TextBaseline:alphabetic,ideographic
@@ -18620,6 +18705,15 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.widgets.BackdropFilter' || type == 'flutter.widgets.BackdropFilter.grouped') {
+    final config = properties['filterConfig'];
+    final needsFilter = config == null || config.kind == 'null' || config.value == 'wrap';
+    final filter = properties['filter'];
+    _expect(!needsFilter || filter != null && filter.kind != 'null',
+        'Canvas BackdropFilter requires Filter or Filter config; config wrap requires Filter: $path/properties/filter');
+    _expect(!needsFilter || filter?.value != 'shader' || properties['shader']?.kind == 'dartObjectReferencePresence',
+        'Canvas BackdropFilter shader requires a FragmentShader source: $path/properties/shader');
+  }
   if (type == 'flutter.widgets.ImageFiltered' && properties['imageFilter']?.value == 'shader') {
     _expect(properties['shader']?.kind == 'dartObjectReferencePresence',
         'Canvas ImageFiltered shader requires a FragmentShader source: $path/properties/shader');

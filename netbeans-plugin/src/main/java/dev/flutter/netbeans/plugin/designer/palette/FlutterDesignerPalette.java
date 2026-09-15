@@ -609,6 +609,12 @@ public final class FlutterDesignerPalette {
             } else if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("DecoratedBoxTransition");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(definition.typeId())) {
+                setDisplayName(definition.typeId().equals(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUPED) ? "BackdropFilter.grouped" : "BackdropFilter");
+                setShortDescription(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP.equals(definition.typeId())) {
+                setDisplayName("BackdropGroup");
+                setShortDescription(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP_DESCRIPTION);
             } else if (dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("ImageFiltered");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.DESCRIPTION);

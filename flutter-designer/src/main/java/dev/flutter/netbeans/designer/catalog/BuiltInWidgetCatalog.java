@@ -135,6 +135,9 @@ public final class BuiltInWidgetCatalog {
             rawImage(),
             colorFiltered(),
             imageFiltered(),
+            backdropFilter(false),
+            backdropFilter(true),
+            backdropGroup(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3289,6 +3292,23 @@ public final class BuiltInWidgetCatalog {
                 palette("flutter.layout", 200, 540, "PositionedTransition"),
                 PositionedTransitionWidgetPropertySchema.properties(),
                 List.of(singleSlot("child", 5, true, 1, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition backdropFilter(boolean grouped) {
+        var type = grouped ? BackdropFilterWidgetPropertySchema.GROUPED : BackdropFilterWidgetPropertySchema.TYPE;
+        var properties = BackdropFilterWidgetPropertySchema.properties(type);
+        return new WidgetDefinition(type, "BackdropFilter", grouped ? Optional.of("grouped") : Optional.empty(),
+                true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
+                Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
+                properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition backdropGroup() {
+        return widget(BackdropFilterWidgetPropertySchema.GROUP.value(), "BackdropGroup", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.basic", 300, 350, "BackdropGroup"),
+                BackdropFilterWidgetPropertySchema.properties(BackdropFilterWidgetPropertySchema.GROUP),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition imageFiltered() {

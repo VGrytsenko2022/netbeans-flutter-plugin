@@ -334,12 +334,15 @@ public final class DartRegionGenerator {
                     current.node(), definition, GESTURES_IMPORT);
             requiresRendering |= usesEnumLibrary(
                     current.node(), definition, RENDERING_IMPORT);
+            requiresRendering |= dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(current.node().type())
+                    || current.node().type().equals(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUP);
             requiresRendering |= isStaticScrollView(current.node())
                     && current.node().properties().containsKey(
                             new PropertyName("scrollCacheExtent"));
             requiresDartConvert |= current.node().properties().values().stream()
                     .anyMatch(DartRegionGenerator::requiresDartConvert);
-            requiresDartUi |= current.node().type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE);
+            requiresDartUi |= current.node().type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE)
+                    || dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(current.node().type());
             requiresDartUi |= usesEnumLibrary(
                     current.node(), definition, DART_UI_IMPORT);
             requiresDartUi |= current.node().properties().values().stream()
@@ -373,6 +376,17 @@ public final class DartRegionGenerator {
     }
 
     private static boolean emittedReferenceProperty(WidgetNode node, PropertyName name) {
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE))
+            return imageFilterReferenceActive(node, name.value(), "imageFilter");
+        if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(node.type())) {
+            if (name.value().equals("backdropGroupKey")) return true;
+            var config = node.properties().get(new PropertyName("filterConfig"));
+            if (!dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.usesConfig(node))
+                return imageFilterReferenceActive(node, name.value(), "filter");
+            if (name.value().equals("filterConfig")) return true;
+            if (new PropertyValue.StringValue("compose").equals(config)) return Set.of("configInner", "configOuter").contains(name.value());
+            return new PropertyValue.StringValue("wrap").equals(config) && imageFilterReferenceActive(node, name.value(), "filter");
+        }
         if (node.type().equals(MenuItemButtonWidgetPropertySchema.MENU_ITEM_BUTTON_TYPE)
                 && node.propertyBindings().containsKey(new PropertyName("enabled"))) return true;
         if (!FocusWidgetPropertySchema.propertyAvailable(node, name) || !SwitchListTileWidgetPropertySchema.propertyAvailable(node, name)
@@ -389,6 +403,19 @@ public final class DartRegionGenerator {
                 || !new PropertyValue.BooleanValue(false).equals(
                         node.properties().get(new PropertyName("enabled")))
                 || !(name.value().equals("onPressed") || name.value().equals("onLongPress"));
+    }
+
+    private static boolean imageFilterReferenceActive(WidgetNode node, String name, String filterProperty) {
+        if (name.equals(filterProperty)) return true;
+        var filter = node.properties().get(new PropertyName(filterProperty));
+        if (!(filter instanceof PropertyValue.StringValue preset)) return false;
+        return switch (preset.value()) {
+            case "blur" -> name.equals("bounds");
+            case "matrix" -> name.equals("matrix4");
+            case "compose" -> name.equals("inner") || name.equals("outer");
+            case "shader" -> name.equals("shader");
+            default -> false;
+        };
     }
 
     private static boolean requiresDartConvert(PropertyValue value) {
@@ -488,6 +515,8 @@ public final class DartRegionGenerator {
                     && Set.of("durationUs", "curve").contains(property.name().value())) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE)
                     && !property.name().value().equals("enabled")) continue;
+            if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(node.type())
+                    && !Set.of("enabled", "blendMode", "backdropGroupKey").contains(property.name().value())) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.ColorFilteredWidgetPropertySchema.TYPE)) continue;
             if (node.type().equals(dev.flutter.netbeans.designer.catalog.FadeInImageWidgetPropertySchema.TYPE)
                     && Set.of("fadeOutDurationUs", "fadeInDurationUs", "fadeOutCurve", "fadeInCurve").contains(property.name().value())) continue;
@@ -1107,6 +1136,14 @@ public final class DartRegionGenerator {
                     occurrence("widget:" + node.id() + occurrencePrefix + "data", symbol.nameOffset(), symbol.name(), MATERIAL_IMPORT, valuePath, Optional.of(node.id())),
                     occurrence("widget:" + node.id() + occurrencePrefix + "factory", symbol.text().length()+1, factory, MATERIAL_IMPORT, valuePath, Optional.of(node.id()))))));
         }
+        if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(node.type())) {
+            boolean config = dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.usesConfig(node);
+            String name = config ? "filterConfig" : "filter";
+            var property = definition.property(new PropertyName(name)).orElseThrow();
+            arguments.add(new ConstructorArgument(property.parameter(), name, false, config
+                    ? renderBackdropFilterConfig(node, definition, path, context)
+                    : renderImageFilter(node, definition, path, context, "filter")));
+        }
         if (node.type().equals(dev.flutter.netbeans.designer.catalog.ImageFilteredWidgetPropertySchema.TYPE)) {
             var property = definition.property(new PropertyName("imageFilter")).orElseThrow();
             arguments.add(new ConstructorArgument(property.parameter(), "imageFilter", false,
@@ -1720,10 +1757,14 @@ public final class DartRegionGenerator {
     }
 
     private RenderedValue renderImageFilter(WidgetNode node, WidgetDefinition definition, String nodePath, GenerationContext context) {
+        return renderImageFilter(node, definition, nodePath, context, "imageFilter");
+    }
+
+    private RenderedValue renderImageFilter(WidgetNode node, WidgetDefinition definition, String nodePath, GenerationContext context, String filterProperty) {
         String path = nodePath + "/properties/";
-        var filter = node.properties().get(new PropertyName("imageFilter"));
+        var filter = node.properties().get(new PropertyName(filterProperty));
         if (filter instanceof PropertyValue.DartObjectReferenceValue reference) {
-            return renderDartObjectReference(reference, "ImageFilter", path + "imageFilter", node.id(), context);
+            return renderDartObjectReference(reference, "ImageFilter", path + filterProperty, node.id(), context);
         }
         String preset = ((PropertyValue.StringValue) filter).value();
         var positional = new ArrayList<RenderedValue>();
@@ -1777,7 +1818,68 @@ public final class DartRegionGenerator {
                     "FragmentShader", path + "shader", node.id(), context));
             default -> throw new IllegalStateException("Unreviewed ImageFilter factory: " + preset);
         }
-        return renderImageFilterFactory(preset, positional, named, path + "imageFilter", node.id(), context);
+        return renderImageFilterFactory(preset, positional, named, path + filterProperty, node.id(), context);
+    }
+
+    private RenderedValue renderBackdropFilterConfig(WidgetNode node, WidgetDefinition definition, String nodePath, GenerationContext context) {
+        String path = nodePath + "/properties/";
+        var config = node.properties().get(new PropertyName("filterConfig"));
+        if (config instanceof PropertyValue.DartObjectReferenceValue reference)
+            return renderDartObjectReference(reference, "ImageFilterConfig", path + "filterConfig", node.id(), context);
+        String mode = ((PropertyValue.StringValue) config).value();
+        var positional = new ArrayList<RenderedValue>();
+        var named = new LinkedHashMap<String, RenderedValue>();
+        switch (mode) {
+            case "wrap" -> positional.add(renderImageFilter(node, definition, nodePath, context, "filter"));
+            case "blur" -> {
+                for (String name : List.of("configSigmaX", "configSigmaY", "configTileMode", "configBounded")) {
+                    var value = node.properties().get(new PropertyName(name));
+                    if (value == null) continue;
+                    String parameter = switch (name) {
+                        case "configSigmaX" -> "sigmaX";
+                        case "configSigmaY" -> "sigmaY";
+                        case "configTileMode" -> "tileMode";
+                        default -> "bounded";
+                    };
+                    named.put(parameter, renderProperty(value, definition.property(new PropertyName(name)).orElseThrow(),
+                            path + name, node.id(), context));
+                }
+            }
+            case "compose" -> {
+                for (String name : List.of("configInner", "configOuter")) {
+                    var value = node.properties().get(new PropertyName(name));
+                    named.put(name.equals("configInner") ? "inner" : "outer",
+                            value instanceof PropertyValue.DartObjectReferenceValue reference
+                                    ? renderDartObjectReference(reference, "ImageFilterConfig", path + name, node.id(), context)
+                                    : renderImageFilterConfigFactory("blur", List.of(), Map.of(), path + name, node.id(), context));
+                }
+            }
+            default -> throw new IllegalStateException("Unreviewed ImageFilterConfig factory: " + mode);
+        }
+        return renderImageFilterConfigFactory(mode.equals("wrap") ? "" : mode, positional, named, path + "filterConfig", node.id(), context);
+    }
+
+    private RenderedValue renderImageFilterConfigFactory(String factory, List<RenderedValue> positional,
+            Map<String, RenderedValue> named, String path, StableId widgetId, GenerationContext context) {
+        boolean constant = positional.stream().allMatch(RenderedValue::constant) && named.values().stream().allMatch(RenderedValue::constant);
+        var symbol = context.planner().renderedSymbol("package:flutter/rendering.dart", "ImageFilterConfig");
+        var text = new StringBuilder(constant ? "const " : "").append(symbol.text());
+        if (!factory.isEmpty()) text.append('.').append(factory);
+        text.append('(');
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        occurrences.add(occurrence("widget:" + widgetId + ":image-filter-config:" + path, (constant ? 6 : 0) + symbol.nameOffset(),
+                symbol.name(), symbol.libraryUri(), path, Optional.of(widgetId)));
+        boolean first = true;
+        for (RenderedValue value : positional) {
+            if (!first) text.append(", ");
+            appendRendered(text, occurrences, value); first = false;
+        }
+        for (var entry : named.entrySet()) {
+            if (!first) text.append(", ");
+            text.append(entry.getKey()).append(": "); appendRendered(text, occurrences, entry.getValue()); first = false;
+        }
+        text.append(')');
+        return scalar(text.toString(), constant, path, widgetId, context, occurrences);
     }
 
     private RenderedValue renderImageFilterFactory(String factory, List<RenderedValue> positional,

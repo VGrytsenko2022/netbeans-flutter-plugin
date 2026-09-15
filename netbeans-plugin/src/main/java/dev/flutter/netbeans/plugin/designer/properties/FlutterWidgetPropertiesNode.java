@@ -1121,6 +1121,35 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
                 sheet.put(set);
             }
+        } else if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String,Sheet.Set>();
+            for (var field : dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.fields(widget.type())) {
+                var set=groups.computeIfAbsent(field.group(), group -> {
+                    var result=propertySet("table"+group,group,field.help());
+                    assignTab(result,hasSlotTab ? GENERAL_TAB_NAME : null); return result;
+                });
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),Optional.empty(),
+                        field.label(),field.help(),false,field.name().equals("border") ? java.util.List.of("all","symmetric","custom") : java.util.List.of()));
+            }
+            if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(widget.type())) {
+                Sheet.Set grid=propertySet("tableGrid","Table grid","Atomic edits retain cell identities and support Undo/Redo.");
+                assignTab(grid,hasSlotTab ? GENERAL_TAB_NAME : null);
+                grid.put(new PropertySupport.ReadWrite<dev.flutter.netbeans.designer.command.EditTableGrid>(
+                        "tableGrid",dev.flutter.netbeans.designer.command.EditTableGrid.class,"Rows and columns",
+                        "Add, remove or reorder complete rows/columns. Column removal deletes every cell in that column.") {
+                    @Override public boolean canWrite() { return presentation.mutationHandler()!=null; }
+                    @Override public dev.flutter.netbeans.designer.command.EditTableGrid getValue() { return null; }
+                    @Override public void setValue(dev.flutter.netbeans.designer.command.EditTableGrid value) {
+                        if (!canWrite()) throw new IllegalStateException("Table grid is read-only");
+                        if (value!=null) presentation.mutationHandler().submit(value);
+                    }
+                    @Override public java.beans.PropertyEditor getPropertyEditor() {
+                        return new FlutterTableGridPropertyEditor(presentation.widget());
+                    }
+                });
+                sheet.put(grid);
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) {
             Sheet.Set set = propertySet("layoutId", "Layout identity", dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION);
             assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -1640,6 +1669,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.isFlow(widget.type())) return dev.flutter.netbeans.designer.catalog.FlowWidgetPropertySchema.DESCRIPTION;
@@ -5784,6 +5814,22 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             WidgetNode currentWidget,
             PropertyName propertyName,
             FlutterPropertyCellValue accepted) {
+        if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(currentWidget.type())
+                && propertyName.value().equals("border")) {
+            var patches=new java.util.ArrayList<PatchProperties.Patch>();
+            String mode=accepted.explicitValue().orElse(null) instanceof PropertyValue.StringValue v ? v.value() : "";
+            for(var name:currentWidget.properties().keySet()) {
+                if (!dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.synthetic(name.value())) continue;
+                boolean keep=!mode.isEmpty() && (name.value().equals("borderRadius")
+                        || dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.activeSides(mode).stream()
+                           .anyMatch(s->name.value().startsWith("border"+dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.upper(s))));
+                if(!keep) patches.add(new PatchProperties.ResetPatch(name));
+            }
+            patches.add(accepted.explicitValue().isPresent()
+                    ? new PatchProperties.SetPatch(propertyName,accepted.explicitValue().orElseThrow())
+                    : new PatchProperties.ResetPatch(propertyName));
+            return new PatchProperties(currentWidget.id(),patches);
+        }
         if (currentWidget.stateBinding().isPresent() || !currentWidget.propertyBindings().isEmpty()) {
             if (currentWidget.stateBinding().isPresent() && (SliderWidgetPropertySchema.SLIDER_TYPE.equals(currentWidget.type())
                     || RangeSliderWidgetPropertySchema.RANGE_SLIDER_TYPE.equals(currentWidget.type()))

@@ -1,5 +1,12 @@
 # Widget events API audit
 
+## Table update (2026-09-15)
+
+Table, TableRow and TableCell add no constructor Events. Column-width strategies,
+row decorations, borders and keys are typed values/sources, not callbacks.
+Inventory: 226 definitions; supported callables remain 240 across 88 types and
+native Events remain 174 across 60 types. See [Table](TABLE.md).
+
 ## Flow update (2026-09-15)
 
 Flow and Flow.unwrapped use a required FlowDelegate object. Its getSize,

@@ -3,6 +3,7 @@ package dev.flutter.netbeans.designer.command;
 /** Stable command identities for diagnostics, telemetry and adapters. */
 public enum DesignerCommandKind {
     ADD_WIDGET,
+    EDIT_TABLE_GRID,
     REMOVE_WIDGET,
     MOVE_WIDGET,
     REPLACE_SLOT_CHILD,

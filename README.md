@@ -11,8 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **223 admitted built-in definitions**, now including
-`Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
+Current palette milestone: **226 admitted built-in definitions**, now including
+`Table`, `TableRow`, `TableCell`, `Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
 `MenuAnchor`, `MenuItemButton`, `SubmenuButton`, `MenuBar`, `NavigationBar`, `NavigationRail`, `TooltipTheme`, `TooltipVisibility`,
 `Tooltip`, `ExpansionTile`, both `RadioListTile` constructors, `SwitchListTile`,
@@ -27,15 +27,23 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **7,448 writable rows** (7,430 outside `Scaffold`) and
-**186 const-capable definitions**. All 223 definitions have reviewed
-Canvas/Create/DnD capability; 215 expose typed Properties and eight structural
+The current catalog has **7,495 writable rows** (7,477 outside `Scaffold`) and
+**188 const-capable definitions**. All 226 definitions have reviewed
+Canvas/Create/DnD capability; 218 expose typed Properties and eight structural
 definitions expose child-slot editors. Native Events comprise **174 rows across
 60 widget types**; all supported callables total 240 across 88 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback, one matrix transform delegate and one shader computation delegate.
 Formats are FD 17, Catalog API 16, Canvas model 20 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### Table: rows, columns and cell alignment
+
+Layout → **Table**, **TableRow** and **TableCell** expose native table layout,
+all six width and alignment families, row decorations, table borders and typed
+keys/sources. The Rows and columns editor changes the rectangular grid atomically
+with Undo/Redo; cell content uses ordinary child slots. Canvas renders local values
+without executing project factories. See [Table](docs/TABLE.md).
 
 ### Flow: source-owned paint-time layout
 

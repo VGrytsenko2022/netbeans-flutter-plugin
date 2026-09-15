@@ -63,9 +63,9 @@ public class SliverCrossAxisExpandedContractTest {
                 else rejected++;
             }
         }
-        assertEquals(223, catalog.definitions().size());
-        assertEquals(192, destinations); assertEquals(171, any);
-        assertEquals(42816, accepted + rejected); assertEquals(29114, accepted); assertEquals(13702, rejected);
+        assertEquals(226, catalog.definitions().size());
+        assertEquals(194, destinations); assertEquals(172, any);
+        assertEquals(43844, accepted + rejected); assertEquals(29454, accepted); assertEquals(14390, rejected);
     }
     @Test void everyParentSlotAndChildTypeRespectsParentDataPlacement() {
         var catalog = BuiltInWidgetCatalog.getDefault();

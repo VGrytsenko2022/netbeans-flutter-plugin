@@ -2273,6 +2273,9 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.BackdropFilter.grouped", ICON_ROOT + "backdropfiltergrouped.svg");
         expected.put("flutter.widgets.BackdropGroup", ICON_ROOT + "backdropgroup.svg");
         expected.put("flutter.widgets.ShaderMask", ICON_ROOT + "shadermask.svg"); expected.put("flutter.widgets.CustomPaint", ICON_ROOT + "custompaint.svg");
+        expected.put("flutter.widgets.Table",ICON_ROOT+"table.svg");
+        expected.put("flutter.widgets.TableRow",ICON_ROOT+"tablerow.svg");
+        expected.put("flutter.widgets.TableCell",ICON_ROOT+"tablecell.svg");
         expected.put("flutter.widgets.Flow", ICON_ROOT + "flow.svg");
         expected.put("flutter.widgets.Flow.unwrapped", ICON_ROOT + "flowunwrapped.svg");
         expected.put("flutter.widgets.CustomSingleChildLayout", ICON_ROOT + "customsinglechildlayout.svg");

@@ -64,6 +64,7 @@ final class DesignerCommandTransformer {
         TreeIndex index = TreeIndex.create(current.root(), limits.maxNodes());
         SemanticResult transformed = switch (command) {
             case AddWidget add -> add(current, index, add);
+            case EditTableGrid grid -> tableGrid(current,index,grid);
             case RemoveWidget remove -> remove(current, index, remove);
             case MoveWidget move -> move(current, index, move);
             case ReplaceSlotChild replace -> replaceSlotChild(
@@ -138,12 +139,43 @@ final class DesignerCommandTransformer {
         return Optional.empty();
     }
 
+    private SemanticResult tableGrid(DesignerDocument current,TreeIndex index,EditTableGrid command) {
+        var target=index.nodes().get(command.expectedTable().id());
+        if (target == null) return targetNotFound(command.expectedTable().id());
+        if (!target.node().equals(command.expectedTable()))
+            return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.STALE_SLOT_CONTENT,
+                    target.path(),Optional.of(target.node().id()),"Table changed while its grid editor was open; reopen the editor.");
+        try {
+            var replacement=dev.flutter.netbeans.designer.catalog.TableGrid.edit(target.node(),command.operation(),
+                    command.index(),command.destination(),command.seed());
+            return applied(withRoot(current,replace(current.root(),replacement.id(),replacement)));
+        } catch (IllegalArgumentException ex) {
+            return failure(DesignerCommandStatus.REJECTED,DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,
+                    target.path(),Optional.of(target.node().id()),ex.getMessage());
+        }
+    }
+
     private SemanticResult add(
             DesignerDocument current,
             TreeIndex index,
             AddWidget command) {
+        WidgetNode inserted = command.widget();
+        NodeRef owner = index.nodes().get(command.destination().parentId());
+        if (owner != null && dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(owner.node().type())
+                && dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.ROW.equals(inserted.type())
+                && command.destination().slotName().value().equals("children")
+                && inserted.equals(dev.flutter.netbeans.designer.catalog.TableGrid.starterRow(inserted.id(),2))) {
+            var rows=dev.flutter.netbeans.designer.catalog.TableGrid.children(owner.node());
+            if (!rows.isEmpty()) {
+                int columns=dev.flutter.netbeans.designer.catalog.TableGrid.children(rows.getFirst()).size();
+                if (columns < 1 || columns > 1000) return failure(DesignerCommandStatus.REJECTED,
+                        DesignerCommandDiagnosticCode.RESULT_MODEL_INVALID,owner.path(),Optional.of(owner.node().id()),
+                        "TableRow palette creation supports 1..1000 columns; this Table has " + columns + ".");
+                inserted=dev.flutter.netbeans.designer.catalog.TableGrid.starterRow(inserted.id(),columns);
+            }
+        }
         Optional<DesignerCommandDiagnostic> subtree = validateInsertedSubtree(
-                command.widget(), index.ids(), "/command/widget");
+                inserted, index.ids(), "/command/widget");
         if (subtree.isPresent()) {
             return failure(subtree.orElseThrow());
         }
@@ -151,7 +183,7 @@ final class DesignerCommandTransformer {
                 current.root(),
                 index,
                 command.destination(),
-                command.widget());
+                inserted);
         return insertion.diagnostic().map(this::failure).orElseGet(() ->
             applied(withRoot(current, insertion.root().orElseThrow())));
     }

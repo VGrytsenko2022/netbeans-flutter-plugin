@@ -200,6 +200,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.SliverVisibility.maintain",
                 "flutter.widgets.Spacer",
                 "flutter.widgets.Stack",
+                "flutter.widgets.Table", "flutter.widgets.TableCell", "flutter.widgets.TableRow",
                 "flutter.widgets.Text",
                 "flutter.widgets.TickerMode",
                 "flutter.widgets.Transform",
@@ -212,11 +213,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(223, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(186, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(226, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(188, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(215, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(218, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
                 "flutter.widgets.RepaintBoundary", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverResizingHeader", "flutter.widgets.SliverToBoxAdapter"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -254,15 +255,15 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.SliverList",
                 "flutter.widgets.SliverList.builder",
                 "flutter.widgets.SliverList.separated",
-                "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder"),
+                "flutter.widgets.SliverPrototypeExtentList", "flutter.widgets.SliverPrototypeExtentList.builder", "flutter.widgets.SliverVariedExtentList", "flutter.widgets.SliverVariedExtentList.builder", "flutter.widgets.Table"),
                 BuiltInWidgetCatalog.getDefault().definitions().stream()
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(7448, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7495, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(7430, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(7477, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -345,7 +346,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.widgets.DefaultTextHeightBehavior", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultTextStyle", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DefaultTextStyle.merge", WIDGETS_IMPORT),
-                Map.entry("flutter.widgets.ScaleTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RotationTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SizeTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.PositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RelativePositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SlideTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.ImageFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter.grouped", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropGroup", WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomSingleChildLayout", WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomMultiChildLayout", WIDGETS_IMPORT), Map.entry("flutter.widgets.LayoutId", WIDGETS_IMPORT), Map.entry("flutter.widgets.Flow", WIDGETS_IMPORT), Map.entry("flutter.widgets.Flow.unwrapped", WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomPaint", WIDGETS_IMPORT), Map.entry("flutter.widgets.ShaderMask", WIDGETS_IMPORT), Map.entry("flutter.widgets.ColorFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.RawImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeInImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeTransition", WIDGETS_IMPORT),
+                Map.entry("flutter.widgets.ScaleTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RotationTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SizeTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.PositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.RelativePositionedTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.SlideTransition", WIDGETS_IMPORT), Map.entry("flutter.widgets.ImageFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropFilter.grouped", WIDGETS_IMPORT), Map.entry("flutter.widgets.BackdropGroup", WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomSingleChildLayout", WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomMultiChildLayout", WIDGETS_IMPORT), Map.entry("flutter.widgets.LayoutId", WIDGETS_IMPORT), Map.entry("flutter.widgets.Flow", WIDGETS_IMPORT), Map.entry("flutter.widgets.Flow.unwrapped", WIDGETS_IMPORT), Map.entry("flutter.widgets.Table",WIDGETS_IMPORT), Map.entry("flutter.widgets.TableRow",WIDGETS_IMPORT), Map.entry("flutter.widgets.TableCell",WIDGETS_IMPORT), Map.entry("flutter.widgets.CustomPaint", WIDGETS_IMPORT), Map.entry("flutter.widgets.ShaderMask", WIDGETS_IMPORT), Map.entry("flutter.widgets.ColorFiltered", WIDGETS_IMPORT), Map.entry("flutter.widgets.RawImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeInImage", WIDGETS_IMPORT), Map.entry("flutter.widgets.FadeTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.DecoratedBoxTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.AlignTransition", WIDGETS_IMPORT),
                 Map.entry("flutter.widgets.MatrixTransition", WIDGETS_IMPORT),
@@ -572,6 +573,7 @@ class BuiltInWidgetCatalogTest {
                 new DartSymbolReference(SERVICES_IMPORT, "SmartQuotesType"),
                 new DartSymbolReference(WIDGETS_IMPORT, "StackFit"),
                 new DartSymbolReference(WIDGETS_IMPORT, "StrokeCap"),
+                new DartSymbolReference(WIDGETS_IMPORT, "TableCellVerticalAlignment"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextAlign"),
                 new DartSymbolReference(WIDGETS_IMPORT, "TextBaseline"),
                 new DartSymbolReference(SERVICES_IMPORT, "TextCapitalization"),
@@ -670,7 +672,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.PreferredSize",
                 "flutter.widgets.ListBody",
                 "flutter.widgets.OverflowBar",
-                "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId", "flutter.widgets.Flow", "flutter.widgets.Flow.unwrapped",
+                "flutter.widgets.SafeArea", "flutter.widgets.LayoutBuilder", "flutter.widgets.OrientationBuilder", "flutter.widgets.DeviceOrientationBuilder", "flutter.widgets.ListenableBuilder", "flutter.widgets.AnimatedBuilder", "flutter.widgets.ValueListenableBuilder", "flutter.widgets.TweenAnimationBuilder", "flutter.widgets.AnimatedOpacity", "flutter.widgets.AnimatedAlign", "flutter.widgets.AnimatedPadding", "flutter.widgets.AnimatedSlide", "flutter.widgets.AnimatedScale", "flutter.widgets.AnimatedRotation", "flutter.widgets.AnimatedContainer", "flutter.widgets.AnimatedSize", "flutter.widgets.AnimatedPositioned", "flutter.widgets.AnimatedPositioned.fromRect", "flutter.widgets.AnimatedPositionedDirectional", "flutter.widgets.AnimatedDefaultTextStyle", "flutter.widgets.AnimatedPhysicalModel", "flutter.widgets.AnimatedFractionallySizedBox", "flutter.widgets.AnimatedCrossFade", "flutter.widgets.AnimatedSwitcher", "flutter.widgets.DefaultTextStyleTransition", "flutter.widgets.FadeTransition", "flutter.widgets.SlideTransition", "flutter.widgets.ScaleTransition", "flutter.widgets.RotationTransition", "flutter.widgets.SizeTransition", "flutter.widgets.PositionedTransition", "flutter.widgets.RelativePositionedTransition", "flutter.widgets.DecoratedBoxTransition", "flutter.widgets.AlignTransition", "flutter.widgets.MatrixTransition", "flutter.widgets.CustomSingleChildLayout", "flutter.widgets.CustomMultiChildLayout", "flutter.widgets.LayoutId", "flutter.widgets.Flow", "flutter.widgets.Flow.unwrapped", "flutter.widgets.Table", "flutter.widgets.TableRow", "flutter.widgets.TableCell",
                 "flutter.widgets.ListView",
                 "flutter.widgets.GridView",
                 "flutter.widgets.GridView.extent",
@@ -733,7 +735,7 @@ class BuiltInWidgetCatalogTest {
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());
-        assertEquals(71, palette.stream()
+        assertEquals(74, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.layout"))
                 .count());

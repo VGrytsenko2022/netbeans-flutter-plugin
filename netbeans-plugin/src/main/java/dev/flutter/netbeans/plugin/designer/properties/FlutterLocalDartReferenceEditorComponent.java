@@ -63,6 +63,8 @@ final class FlutterLocalDartReferenceEditorComponent {
 
         LocalReferencePanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment);
+            boolean tableWidth = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.TABLE_WIDTH_REFERENCE;
+            boolean key = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.KEY_REFERENCE;
             boolean image = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.IMAGE_PROVIDER_REFERENCE;
             boolean radius = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BORDER_RADIUS_REFERENCE;
             boolean color = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.COLOR_REFERENCE;
@@ -76,7 +78,7 @@ final class FlutterLocalDartReferenceEditorComponent {
             boolean constraints = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_CONSTRAINTS_REFERENCE;
             boolean decoration = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_DECORATION_REFERENCE;
             boolean icon = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ICON_WIDGET_REFERENCE;
-            localMode = size ? SIZE : gradient ? GRADIENT : image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
+            localMode = tableWidth ? "Structured column widths" : key ? "String ValueKey" : size ? SIZE : gradient ? GRADIENT : image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
             var modes = new java.util.ArrayList<String>(); if (binding.optional()) modes.add(OMIT);
             if (binding.definition().acceptedKinds().contains(PropertyValueKind.NULL)) modes.add(NULL);
             modes.add(localMode); modes.add(PROJECT); mode = new JComboBox<>(modes.toArray(String[]::new));
@@ -94,6 +96,8 @@ final class FlutterLocalDartReferenceEditorComponent {
             var localBinding = FlutterTypedPropertyEditors.binding(localDefinition).orElseThrow();
             var localEditor = localBinding.createEditor();
             PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) && !(initial instanceof PropertyValue.NullValue) ? initial
+                    : tableWidth ? new PropertyValue.StringValue(binding.definition().name().value().equals("columnWidths") ? "" : "flex(1)")
+                    : key ? new PropertyValue.StringValue("")
                     : size ? new PropertyValue.SizeValue(BigDecimal.ZERO, BigDecimal.ZERO)
                     : gradient ? dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.neutral()
                     : image ? PropertyValue.ImageProviderValue.unresolved()
@@ -125,7 +129,8 @@ final class FlutterLocalDartReferenceEditorComponent {
             if (imageChoices != null) localDescriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, imageChoices);
             var localEnvironment = PropertyEnv.create(localDescriptor);
             localPanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
-                    (number ? FlutterNullableNumberEditorComponent.customEditor(localEditor, localBinding, localEnvironment)
+                    (tableWidth ? new FlutterTableWidthEditorComponent(localEditor,localBinding,localEnvironment)
+                    : number ? FlutterNullableNumberEditorComponent.customEditor(localEditor, localBinding, localEnvironment)
                     : FlutterPropertyEditorComponents.customEditor(localEditor, localBinding, localEnvironment));
             cards.add(localPanel, localMode);
             var referenceDefinition = new PropertyDefinition(binding.definition().name(), DartParameter.named(0, true),

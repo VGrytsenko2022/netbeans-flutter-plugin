@@ -499,6 +499,26 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.supports(node.type())) {
+                String name = property.name().value();
+                if (dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.TYPE.equals(node.type())
+                        && dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.synthetic(name)) continue;
+                if (node.properties().get(property.name()) instanceof PropertyValue.StringValue text
+                        && Set.of("key","columnWidths","defaultColumnWidth","border").contains(name)) {
+                    String propertyPath = path + "/properties/" + name;
+                    RenderedValue rendered = switch (name) {
+                        case "key" -> renderPositionalComposite("ValueKey",Optional.empty(),
+                                scalar(dartString(text.value(),propertyPath,node.id(),context.maxRenderedUtf8Bytes()),true,propertyPath,node.id(),context),
+                                propertyPath,node.id(),context);
+                        case "defaultColumnWidth" -> renderTableWidth(dev.flutter.netbeans.designer.catalog.TableColumnWidths.parse(text.value()),
+                                propertyPath,node.id(),context,constructorBaseIndent+2);
+                        case "columnWidths" -> renderTableWidths(text.value(),propertyPath,node.id(),context,constructorBaseIndent+2);
+                        default -> renderTableBorder(node,definition,path,constructorBaseIndent+2,context,text.value());
+                    };
+                    arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));
+                    continue;
+                }
+            }
             if ((node.type().equals(dev.flutter.netbeans.designer.catalog.AnimatedThemeWidgetPropertySchema.TYPE)
                     || node.type().equals(dev.flutter.netbeans.designer.catalog.ThemeWidgetPropertySchema.TYPE))
                     && property.name().value().equals("data") && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
@@ -7318,6 +7338,69 @@ public final class DartRegionGenerator {
         return renderNamedCompositeMembers(
                 dartClass, Optional.empty(), members, valueIndent,
                 path, widgetId, context);
+    }
+
+    private RenderedValue renderTableWidth(dev.flutter.netbeans.designer.catalog.TableColumnWidths.Width width,
+            String path,StableId id,GenerationContext context,int indent) {
+        String type = switch (width.family()) {
+            case FIXED -> "FixedColumnWidth"; case FLEX -> "FlexColumnWidth"; case FRACTION -> "FractionColumnWidth";
+            case INTRINSIC -> "IntrinsicColumnWidth"; case MIN -> "MinColumnWidth"; case MAX -> "MaxColumnWidth";
+        };
+        if (width.family() == dev.flutter.netbeans.designer.catalog.TableColumnWidths.Family.INTRINSIC) {
+            var members = width.value().isPresent() ? List.of(new CompositeMember("flex",0,
+                    scalar(dartDouble(width.value().orElseThrow()),true,path+"/flex",id,context))) : List.<CompositeMember>of();
+            return renderNamedCompositeMembers(type,Optional.empty(),members,indent,path,id,context);
+        }
+        var values = width.a().isPresent() ? List.of(
+                renderTableWidth(width.a().orElseThrow(),path+"/a",id,context,indent),
+                renderTableWidth(width.b().orElseThrow(),path+"/b",id,context,indent))
+                : List.of(scalar(dartDouble(width.value().orElseThrow()),true,path+"/value",id,context));
+        return renderPositionalCompositeValues(type,Optional.empty(),values,path,id,context);
+    }
+
+    private RenderedValue renderTableWidths(String serialized,String path,StableId id,GenerationContext context,int indent) {
+        var values=dev.flutter.netbeans.designer.catalog.TableColumnWidths.parseMap(serialized);
+        StringBuilder text=new StringBuilder("const {");
+        var occurrences=new ArrayList<GeneratedDartSymbolOccurrence>();
+        for (var entry:values.entrySet()) {
+            if (text.length()>7) text.append(", ");
+            text.append(entry.getKey()).append(": ");
+            appendRendered(text,occurrences,renderTableWidth(entry.getValue(),path+"/"+entry.getKey(),id,context,indent));
+        }
+        text.append('}');
+        return scalar(text.toString(),true,path,id,context,occurrences);
+    }
+
+    private RenderedValue renderTableBorder(WidgetNode node,WidgetDefinition definition,String path,
+            int indent,GenerationContext context,String mode) {
+        var sides=new java.util.HashSet<String>();
+        for (String side:dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.activeSides(mode)) {
+            if (mode.equals("all") || List.of("Color","Width","Style","StrokeAlign").stream().anyMatch(leaf ->
+                    node.properties().containsKey(new PropertyName("border"+
+                            dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.upper(side)+leaf)))) sides.add(side);
+        }
+        // Lower all/symmetric to the const unnamed TableBorder with exact native defaults.
+        // TableBorder.all is a factory and cannot appear in a const expression.
+        var members=new ArrayList<CompositeMember>();
+        for (String side:List.of("top","right","bottom","left","horizontalInside","verticalInside")) {
+            String key=mode.equals("all") ? "all" : mode.equals("symmetric")
+                    ? side.endsWith("Inside") ? "inside" : "outside" : side;
+            if (sides.contains(key)) {
+                // Render each reused side with its own proof path; occurrences must have unique IDs.
+                var leaves=new ArrayList<CompositeMember>();
+                for (String leaf:List.of("Color","Width","Style","StrokeAlign")) {
+                    String property="border"+dev.flutter.netbeans.designer.catalog.TableWidgetPropertySchema.upper(key)+leaf;
+                    PropertyValue literal=node.properties().get(new PropertyName(property));
+                    if (literal!=null) leaves.add(new CompositeMember(Character.toLowerCase(leaf.charAt(0))+leaf.substring(1),leaves.size(),
+                            renderProperty(literal,definition.property(new PropertyName(property)).orElseThrow(),
+                                    path+"/properties/"+property+"/"+side,node.id(),context,indent+4)));
+                }
+                members.add(new CompositeMember(side,members.size(),renderNamedCompositeMembers(
+                        "BorderSide",Optional.empty(),leaves,indent+2,path+"/properties/border/"+side,node.id(),context)));
+            }
+        }
+        addCardMember(members,node,definition,path,"borderRadius","borderRadius",6,indent+2,context);
+        return renderNamedCompositeMembers("TableBorder",Optional.empty(),members,indent,path+"/properties/border",node.id(),context);
     }
 
     private RenderedValue renderBorderSide(

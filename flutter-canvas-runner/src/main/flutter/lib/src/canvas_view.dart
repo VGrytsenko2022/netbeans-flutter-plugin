@@ -14,6 +14,7 @@ import 'package:flutter/rendering.dart'
         OverflowBoxFit,
         ScrollCacheExtent,
         RenderProxyBox,
+        RenderTable,
         RenderTransform,
         RenderPositionedBox,
         RenderSliver,
@@ -35,6 +36,7 @@ import 'package:flutter/services.dart';
 
 import 'canvas_drop.dart';
 import 'canvas_model.dart';
+import 'canvas_table_width.dart';
 import 'canvas_runtime.dart';
 
 bool _ignoreDeleteSelected() => false;
@@ -4036,6 +4038,11 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (const {'flutter.widgets.Table','flutter.widgets.TableRow','flutter.widgets.TableCell'}.contains(node.type)) {
+    final refs=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+    return refs.isEmpty?null:'${node.type} ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas uses default flex widths, no source border/decoration, and private preview keys. Generated Dart retains typed sources.';
+  }
   if (node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped') {
     return '${node.type} ${node.id}: project FlowDelegate code is not executed. '
         'Canvas previews a constrained 256 by 192 area, children at most 48 by 48, '
@@ -5654,6 +5661,15 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
       final coincidentTargets = <Rect, List<CanvasNode>>{};
       for (final node in _zeroSizedDesignerTargets(widget.model.root)) {
         if (!_isInPaintedSliverVisibilityBranch(widget.model.root, node.id)) continue;
+        if(node.type=='flutter.widgets.TableRow') {
+          final rect=_tableRowGlobalRect(node);
+          if(rect!=null) {
+            final rendered=rect.shift(-surfaceRect.topLeft);
+            final handle=_ignorePointerHandleRect(rendered,viewportRect);
+            coincidentTargets.putIfAbsent(_boundedDesignerHitRect(handle,viewportRect),()=> <CanvasNode>[]).add(node);
+          }
+          continue;
+        }
         if (isCanvasSliverWidgetType(node.type)) {
           final rect = _sliverGlobalRect(node, surfaceRect);
           if (rect != null) {
@@ -5792,7 +5808,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5883,7 +5899,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.TableRow' || node.type == 'flutter.widgets.Table' || node.type == 'flutter.widgets.TableCell' || node.type == 'flutter.widgets.Flow' || node.type == 'flutter.widgets.Flow.unwrapped' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -6217,6 +6233,28 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     });
   }
 
+  Rect? _tableRowGlobalRect(CanvasNode row) {
+    CanvasNode? owner;
+    void visit(CanvasNode current) {
+      if(current.type=='flutter.widgets.Table'&&(current.slot('children')?.children.any((n)=>n.id==row.id)??false)) owner=current;
+      if(owner==null) for(final slot in current.slots.values) { for(final child in slot.children) { visit(child); } }
+    }
+    visit(widget.model.root);
+    if(owner==null) return null;
+    final render=_geometryNodeKey(owner!.id)?.currentContext?.findRenderObject();
+    RenderTable? table;
+    void find(RenderObject current) {
+      if(current is RenderTable) { table=current; return; }
+      current.visitChildren((child){if(table==null) find(child);});
+    }
+    if(render==null||!render.attached) return null;
+    find(render);
+    if(table==null||!table!.hasSize) return null;
+    final index=owner!.slot('children')!.children.indexWhere((n)=>n.id==row.id);
+    if(index<0||index>=table!.rows) return null;
+    return _finiteTransformedRect(table!.getTransformTo(null),table!.getRowBox(index));
+  }
+
   GlobalKey _nodeKey(String id) =>
       _nodeKeys.putIfAbsent(id, () => GlobalKey(debugLabel: 'canvas-$id'));
 
@@ -6303,6 +6341,10 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         (parentBox == null && !isCanvasSliverWidgetType(parentNode.type))) {
       return null;
     }
+    if (source.type == canvasTableRowTrait &&
+        !(parentNode.type == canvasTableType && slotName == 'children')) { return null; }
+    if (source.type == canvasTableCellType &&
+        !(parentNode.type == canvasTableRowTrait && slotName == 'children')) { return null; }
     if (isCanvasStackPositionedWidgetType(source.type) &&
         !(parentNode.type == 'flutter.widgets.Stack' && slotName == 'children')) { return null; }
     if (source.type == canvasSliverCrossAxisExpandedType &&
@@ -6547,11 +6589,13 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     final referenceIndex = insertionIndex < children.length
         ? insertionIndex
         : children.length - 1;
-    final reference = _renderBox(_geometryNodeKey(children[referenceIndex].id));
-    if (reference == null) {
-      return Rect.zero;
-    }
-    final renderedReferenceRect = _finiteRectInAncestor(reference, parentBox);
+    final referenceNode = children[referenceIndex];
+    final reference = _renderBox(_geometryNodeKey(referenceNode.id));
+    final rowRect = referenceNode.type == canvasTableRowTrait
+        ? _tableRowGlobalRect(referenceNode) : null;
+    final renderedReferenceRect = rowRect != null
+        ? Rect.fromPoints(parentBox.globalToLocal(rowRect.topLeft), parentBox.globalToLocal(rowRect.bottomRight))
+        : reference == null ? null : _finiteRectInAncestor(reference, parentBox);
     if (renderedReferenceRect == null) {
       return Rect.zero;
     }
@@ -6659,7 +6703,9 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
           parentWidgetType: node.type,
           slotName: slotEntry.key,
         );
-        if ((isCanvasStackPositionedWidgetType(source.widgetType) &&
+        if ((source.widgetType == canvasTableCellType &&
+              !(node.type == canvasTableRowTrait && slotEntry.key == 'children')) ||
+            (isCanvasStackPositionedWidgetType(source.widgetType) &&
               !(node.type == 'flutter.widgets.Stack' && slotEntry.key == 'children')) ||
             (source.widgetType == canvasSliverCrossAxisExpandedType &&
               !isCanvasSliverCrossAxisExpandedDestination(node.type, slotEntry.key)) ||
@@ -9066,6 +9112,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.Table' => _TextButtonPreview(message:_customClipperPreviewUnavailableMessageForNode(node)??'',child:_table(context)),
+      'flutter.widgets.TableCell' => _single('child')!,
+      'flutter.widgets.TableRow' => throw StateError('TableRow is a descriptor; render it through Table'),
       'flutter.widgets.Flow' || 'flutter.widgets.Flow.unwrapped' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: _flow()),
@@ -9287,6 +9336,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.PositionedTransition' => _positionedTransition(instrumented),
       'flutter.widgets.RelativePositionedTransition' => _relativePositionedTransition(instrumented),
       'flutter.widgets.Transform' => _transform(instrumented),
+      'flutter.widgets.TableCell' => TableCell(verticalAlignment:_enum('verticalAlignment')==null ? null
+          : TableCellVerticalAlignment.values.byName(_enum('verticalAlignment')!),child:instrumented),
       'flutter.widgets.LayoutId' => LayoutId(id: node.id, child: instrumented),
       'flutter.widgets.Expanded' => Expanded(
         flex: _integer('flex') ?? 1,
@@ -14020,8 +14071,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     return value is CanvasOffsetValue ? Offset(value.dx, value.dy) : null;
   }
 
-  BoxDecoration? _boxDecoration(BuildContext context, String name) {
-    final value = node.properties[name]?.value;
+  BoxDecoration? _boxDecoration(BuildContext context, String name, [CanvasNode? owner]) {
+    final value = (owner ?? node).properties[name]?.value;
     if (value is! CanvasBoxDecorationValue) {
       return null;
     }
@@ -14169,6 +14220,47 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isAntiAlias: _boolean('isAntiAlias') ?? false,
       filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
     );
+  }
+
+  Widget _table(BuildContext context) {
+    final widths=node.properties['columnWidths'];
+    final defaultWidth=node.properties['defaultColumnWidth'];
+    final rows=node.slot('children')?.children??<CanvasNode>[];
+    return Table(
+      columnWidths:widths?.kind=='string'?canvasTableWidths(widths!.value as String):null,
+      defaultColumnWidth:defaultWidth?.kind=='string'?canvasTableWidth(defaultWidth!.value as String):const FlexColumnWidth(),
+      textDirection:_textDirection(),
+      defaultVerticalAlignment:TableCellVerticalAlignment.values.byName(_enum('defaultVerticalAlignment')??'top'),
+      textBaseline:_enum('textBaseline')==null?null:TextBaseline.values.byName(_enum('textBaseline')!),
+      border:_tableBorder(context),
+      children:[for(final row in rows) TableRow(
+        key:ValueKey('canvas-table-row-${row.id}'),
+        decoration:_boxDecoration(context,'decoration',row),
+        children:[for(final cell in row.slot('children')!.children)
+          KeyedSubtree(key:ValueKey('canvas-table-cell-${cell.id}'),child:_view(cell))],
+      )],
+    );
+  }
+
+  TableBorder? _tableBorder(BuildContext context) {
+    final mode=_string('border');
+    if(mode==null) return null;
+    BorderSide side(String part) {
+      final prefix='border${part[0].toUpperCase()}${part.substring(1)}';
+      if(part!='all'&&!['Color','Width','Style','StrokeAlign'].any((s)=>node.properties.containsKey('$prefix$s'))) return BorderSide.none;
+      return BorderSide(color:_resolvedColor(context,'${prefix}Color')??const Color(0xff000000),
+        width:_number('${prefix}Width')??1,style:BorderStyle.values.byName(_enum('${prefix}Style')??'solid'),
+        strokeAlign:_number('${prefix}StrokeAlign')??BorderSide.strokeAlignInside);
+    }
+    final value=node.properties['borderRadius']?.value;
+    final radius=value is CanvasPhysicalBorderRadiusValue?_borderRadius(value) as BorderRadius:BorderRadius.zero;
+    return TableBorder(
+      top:side(mode=='all'?'all':mode=='symmetric'?'outside':'top'),
+      right:side(mode=='all'?'all':mode=='symmetric'?'outside':'right'),
+      bottom:side(mode=='all'?'all':mode=='symmetric'?'outside':'bottom'),
+      left:side(mode=='all'?'all':mode=='symmetric'?'outside':'left'),
+      horizontalInside:side(mode=='all'?'all':mode=='symmetric'?'inside':'horizontalInside'),
+      verticalInside:side(mode=='all'?'all':mode=='symmetric'?'inside':'verticalInside'),borderRadius:radius);
   }
 
   Widget _flow() {

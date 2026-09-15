@@ -30,7 +30,7 @@ class OutlinedButtonContractTest {
             }
             assertEquals(shared.creationDefault(), property.creationDefault(), property.name().value());
         }
-        assertEquals(44, CATALOG.definitions().stream().filter(value ->
+        assertEquals(45, CATALOG.definitions().stream().filter(value ->
                 WidgetPlacementRules.creationMode(value)
                         == WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD).count());
         assertEquals(32, CATALOG.definitions().stream().filter(value ->
@@ -315,7 +315,7 @@ class OutlinedButtonContractTest {
         assertFalse(valid(new WidgetNode(base.id(), base.type(), base.properties(),
                 Map.of(new SlotName("child"), WidgetSlot.SingleSlot.empty()))));
         for (var source : CATALOG.definitions()) {
-            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
+            boolean allowed = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId", "flutter.widgets.TableRow", "flutter.widgets.TableCell").contains(source.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(source) && !WidgetPlacementRules.isSliverWidget(source);
             for (var slot : definition().slots()) assertEquals(allowed, WidgetPlacementRules.accepts(definition(), slot, source));
         }
         for (String name : List.of("label", "tooltip", "key", "controller", "foregroundColor", "mouseCursor")) {

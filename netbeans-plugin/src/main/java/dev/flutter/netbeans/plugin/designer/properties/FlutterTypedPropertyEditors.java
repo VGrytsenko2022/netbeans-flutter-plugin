@@ -58,7 +58,12 @@ final class FlutterTypedPropertyEditors {
         }
         Set<PropertyValueKind> kinds = definition.acceptedKinds();
         EditorKind editorKind;
-        if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
+        if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.STRING,PropertyValueKind.DART_OBJECT_REFERENCE,PropertyValueKind.NULL)))
+                && definition.constraints().stream().anyMatch(c -> c instanceof PropertyValueConstraint.DartObjectReferenceValues r
+                    && Set.of("TableColumnWidth","Map<int, TableColumnWidth>?","Key?","LocalKey?").contains(r.expectedDartType()))) {
+            editorKind=definition.name().value().equals("key") ? EditorKind.KEY_REFERENCE : EditorKind.TABLE_WIDTH_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.STRING))) {
             if (!presets.isEmpty()) {
                 editorKind = EditorKind.STRING_PRESET;
             } else {
@@ -340,6 +345,8 @@ final class FlutterTypedPropertyEditors {
     }
 
     enum EditorKind {
+        TABLE_WIDTH_REFERENCE,
+        KEY_REFERENCE,
         STRING,
         STRING_PRESET,
         NULLABLE_STRING,
@@ -487,6 +494,10 @@ final class FlutterTypedPropertyEditors {
                 return candidate;
             }
             PropertyValue value = candidate.explicitValue().orElseThrow();
+            if (editorKind == EditorKind.TABLE_WIDTH_REFERENCE && value instanceof PropertyValue.StringValue text) {
+                if (definition.name().value().equals("columnWidths")) dev.flutter.netbeans.designer.catalog.TableColumnWidths.parseMap(text.value());
+                else dev.flutter.netbeans.designer.catalog.TableColumnWidths.parse(text.value());
+            }
             if (editorKind == EditorKind.NOTIFICATION_TYPE && value instanceof PropertyValue.DartObjectReferenceValue
                     && !dev.flutter.netbeans.designer.catalog.NotificationListenerWidgetPropertySchema.isTypeReference(value)) {
                 throw invalid("Notification type must be a simple non-nullable class or typedef reference, without a member, invocation or const flag.");
@@ -521,7 +532,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_COLOR -> new ThemeColorEditor(this);
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
-                case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
+                case TABLE_WIDTH_REFERENCE, KEY_REFERENCE, PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
                         GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
                         MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
                         DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->

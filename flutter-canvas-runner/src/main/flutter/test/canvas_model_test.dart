@@ -2998,7 +2998,7 @@ void main() {
   test('Stack reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Stack\n');
-    final end = contract.indexOf('W|flutter.widgets.Text\n', start);
+    final end = contract.indexOf('W|flutter.widgets.Table\n', start);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     expect(

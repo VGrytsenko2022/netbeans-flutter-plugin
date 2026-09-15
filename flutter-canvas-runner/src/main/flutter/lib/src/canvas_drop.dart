@@ -1,6 +1,9 @@
 import 'canvas_model.dart';
 
 const canvasLayoutIdWidgetTrait = 'flutter.widgets.LayoutId';
+const canvasTableRowTrait = 'flutter.widgets.TableRow';
+const canvasTableCellType = 'flutter.widgets.TableCell';
+const canvasTableType = 'flutter.widgets.Table';
 
 /// Resolves one normalized native surface point to a semantic drop target.
 typedef CanvasDropResolver =
@@ -53,7 +56,7 @@ class CanvasDropAcceptance {
   final Set<String> exactTypes;
 
   bool accepts(CanvasPaletteDragSource source) => switch (kind) {
-    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait) && source.widgetType != canvasLayoutIdWidgetTrait,
+    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait) && source.widgetType != canvasLayoutIdWidgetTrait && source.widgetType != canvasTableRowTrait,
     CanvasDropAcceptanceKind.requiredTrait => source.traits.contains(
       requiredTrait,
     ),
@@ -532,6 +535,12 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SliverPrototypeExtentList' => const [canvasChildrenAppendDropSlot, canvasPrototypeItemDropSlot],
       'flutter.widgets.SliverPrototypeExtentList.builder' ||
       'flutter.widgets.SliverPrototypeExtentList.delegate' => const [canvasPrototypeItemDropSlot],
+      'flutter.widgets.Table' => const [
+        CanvasDropSlotSemantics.append(slotName:'children',maximumChildren:10000,acceptance:CanvasDropAcceptance.requiredTrait(canvasTableRowTrait),zonePlacement:CanvasDropZonePlacement.fullNode),
+      ],
+      'flutter.widgets.TableRow' => const [
+        canvasChildrenAppendDropSlot,
+      ],
       'flutter.widgets.Flow' || 'flutter.widgets.Flow.unwrapped' => const [
         CanvasDropSlotSemantics.append(slotName: 'children', maximumChildren: 10000,
           zonePlacement: CanvasDropZonePlacement.fullNode),
@@ -798,6 +807,8 @@ bool canvasWrapperAcceptsExistingChild({
   required String childWidgetType,
 }) =>
     isCanvasPaletteWrapperWidgetType(wrapperWidgetType) &&
+    childWidgetType != canvasTableRowTrait &&
+    childWidgetType != canvasTableCellType &&
     (isCanvasSliverWidgetType(wrapperWidgetType)
       ? isCanvasSliverWidgetType(childWidgetType) && childWidgetType != canvasSliverCrossAxisExpandedType
       : !isCanvasFlexRestrictedWidgetType(childWidgetType) &&
@@ -813,6 +824,8 @@ bool canvasDropTargetAcceptsSource({
   required int insertionIndex,
   required CanvasPaletteDragSource source,
 }) {
+  if(source.widgetType==canvasTableRowTrait && !(parentWidgetType==canvasTableType&&slotName=='children')) return false;
+  if(source.widgetType==canvasTableCellType && !(parentWidgetType==canvasTableRowTrait&&slotName=='children')) return false;
   if (isCanvasStackPositionedWidgetType(source.widgetType) &&
       !(parentWidgetType == 'flutter.widgets.Stack' && slotName == 'children')) { return false; }
   if (source.widgetType == canvasSliverCrossAxisExpandedType &&

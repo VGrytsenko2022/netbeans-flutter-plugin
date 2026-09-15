@@ -9,6 +9,7 @@ package dev.flutter.netbeans.designer.command;
  */
 public sealed interface DesignerCommand permits
         AddWidget,
+        EditTableGrid,
         RemoveWidget,
         MoveWidget,
         ReplaceSlotChild,

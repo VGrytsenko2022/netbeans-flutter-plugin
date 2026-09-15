@@ -136,6 +136,11 @@ public final class WidgetNodePrototypeFactory {
             slots.put(slot.name(), empty);
         }
 
+        if (TableWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            slots.put(TableGrid.CHILDREN,new WidgetSlot.ListSlot(List.of(
+                    TableGrid.starterRow(TableGrid.derived(id,"row:0"),2),TableGrid.starterRow(TableGrid.derived(id,"row:1"),2))));
+        if (TableWidgetPropertySchema.ROW.equals(definition.typeId()))
+            slots.put(TableGrid.CHILDREN,TableGrid.starterRow(id,2).slots().get(TableGrid.CHILDREN));
         if (LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId()))
             slots.put(new SlotName("child"),WidgetSlot.SingleSlot.of(LayoutIdWidgetPropertySchema.starterChild(id)));
         // This sliver requires a box child but cannot wrap an existing sliver.

@@ -145,6 +145,9 @@ public final class BuiltInWidgetCatalog {
             layoutId(),
             flow(false),
             flow(true),
+            table(),
+            tableRow(),
+            tableCell(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3308,6 +3311,25 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition table() {
+        return widget(TableWidgetPropertySchema.TYPE.value(), "Table", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT,MATERIAL_IMPORT,"package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.layout",200,640,"Table"),TableWidgetPropertySchema.properties(TableWidgetPropertySchema.TYPE),
+                List.of(listSlot("children",100,false,new SlotAcceptance.HasTrait(TableWidgetPropertySchema.ROW_TRAIT))));
+    }
+    private static WidgetDefinition tableRow() {
+        return widget(TableWidgetPropertySchema.ROW.value(), "TableRow", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT,MATERIAL_IMPORT,"package:flutter/rendering.dart"), Set.of(TableWidgetPropertySchema.ROW_TRAIT),
+                palette("flutter.layout",200,650,"TableRow"),TableWidgetPropertySchema.properties(TableWidgetPropertySchema.ROW),
+                List.of(listSlot("children",100,false,ANY_WIDGET)));
+    }
+    private static WidgetDefinition tableCell() {
+        return widget(TableWidgetPropertySchema.CELL.value(), "TableCell", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT,MATERIAL_IMPORT,"package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.layout",200,660,"TableCell"),TableWidgetPropertySchema.properties(TableWidgetPropertySchema.CELL),
+                List.of(singleSlot("child",100,true,1,ANY_WIDGET)));
     }
 
     private static WidgetDefinition flow(boolean unwrapped) {

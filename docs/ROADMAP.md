@@ -2590,9 +2590,13 @@ accepted architecture is documented in
     ordered ordinary children, editable source starter, paint-time transforms,
     repaint/hit testing verification and explicit isolated-preview boundaries.
     See [Flow](FLOW.md).
-  - [ ] Next palette candidate: Table and TableRow as one coordinated slice.
-    Review column widths, row decoration/keys, cell alignment and baseline rules
-    against the pinned SDK before admitting the structured row model.
+  - [x] Add Table, TableRow and TableCell as one coordinated slice: all six width
+    strategies, typed width maps, local/source borders and decorations, all six
+    alignments, keys, rectangular validation, native row geometry and atomic
+    row/column editing with history. See [Table](TABLE.md).
+  - [ ] Next palette candidate: DataTable with DataColumn, DataRow and DataCell.
+    Review the complete constructor and callback surfaces against the pinned SDK
+    before admitting these structured descriptors.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

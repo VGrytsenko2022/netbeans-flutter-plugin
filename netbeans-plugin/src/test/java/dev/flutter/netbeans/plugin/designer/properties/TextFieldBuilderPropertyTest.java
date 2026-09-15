@@ -69,8 +69,8 @@ class TextFieldBuilderPropertyTest {
         var events = Arrays.stream(node.getPropertySets()).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
         assertEquals(Set.of("onChanged", "onEditingComplete", "onSubmitted", "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside"),
                 Arrays.stream(events.getProperties()).map(Node.Property::getName).collect(java.util.stream.Collectors.toSet()));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(223, catalog.size());
-        assertEquals(7448, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(226, catalog.size());
+        assertEquals(7495, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
         assertEquals(240, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
         assertEquals(174, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());

@@ -52,7 +52,8 @@ class FlutterWidgetEventsTest {
             var rows = Arrays.stream(node.getPropertySets())
                     .filter(set -> !set.getName().equals(FlutterWidgetPropertiesNode.IDENTITY_SET_NAME)
                             && !set.getName().equals(FlutterWidgetPropertiesNode.SLOTS_SET_NAME))
-                    .flatMap(set -> Arrays.stream(set.getProperties())).map(Node.Property::getName).toList();
+                    .flatMap(set -> Arrays.stream(set.getProperties())).map(Node.Property::getName)
+                    .filter(name -> !name.equals("tableGrid")).toList();
             assertEquals(definition.properties().size(), rows.size(), definition.typeId().value());
             assertEquals(rows.size(), rows.stream().distinct().count(), definition.typeId().value());
             assertEquals(definition.properties().stream().map(property -> property.name().value()).sorted().toList(),

@@ -30,6 +30,7 @@ final class DesignerCommandPresentation {
         Objects.requireNonNull(kind, "kind");
         return switch (kind) {
             case ADD_WIDGET -> "Add Flutter Widget";
+            case EDIT_TABLE_GRID -> "Edit Flutter Table Grid";
             case REMOVE_WIDGET -> "Remove Flutter Widget";
             case MOVE_WIDGET -> "Move Flutter Widget";
             case REPLACE_SLOT_CHILD -> "Replace Flutter Slot Child";
@@ -53,6 +54,7 @@ final class DesignerCommandPresentation {
         Objects.requireNonNull(command, "command");
         return switch (command.kind()) {
             case ADD_WIDGET -> "Add Flutter widget";
+            case EDIT_TABLE_GRID -> "Edit Flutter table grid";
             case REMOVE_WIDGET -> "Remove Flutter widget";
             case MOVE_WIDGET -> "Move Flutter widget";
             case REPLACE_SLOT_CHILD -> "Replace Flutter slot child";
@@ -75,6 +77,7 @@ final class DesignerCommandPresentation {
     static String target(DesignerCommand command) {
         Objects.requireNonNull(command, "command");
         return switch (command) {
+            case dev.flutter.netbeans.designer.command.EditTableGrid grid -> grid.expectedTable().id() + " (" + grid.operation() + " at " + grid.index() + ")";
             case SetProperty set -> set.widgetId() + "." + set.propertyName();
             case ResetProperty reset ->
                 reset.widgetId() + "." + reset.propertyName();

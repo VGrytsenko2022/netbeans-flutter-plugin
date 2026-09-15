@@ -60,6 +60,8 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
+        if (TableWidgetPropertySchema.ROW.equals(child.typeId()) || TableWidgetPropertySchema.CELL.equals(child.typeId()))
+            return rejected(RejectionKind.ROOT_PLACEMENT, child.typeId() + " requires a direct table parent, not the root.");
         if (LayoutIdWidgetPropertySchema.TYPE.equals(child.typeId()))
             return rejected(RejectionKind.ROOT_PLACEMENT, "LayoutId requires direct CustomMultiChildLayout.children, not the root.");
         if (isStackPositionedWidget(child)) return rejected(RejectionKind.ROOT_PLACEMENT,
@@ -97,6 +99,13 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(child, "child");
 
         String destination = parent.typeId().value() + '.' + slot.name().value();
+        if (TableWidgetPropertySchema.ROW.equals(child.typeId())
+                && !(TableWidgetPropertySchema.TYPE.equals(parent.typeId()) && CHILDREN_SLOT.equals(slot.name().value())))
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT, "TableRow is a descriptor, not a Widget; place it in Table.children.");
+        if (TableWidgetPropertySchema.CELL.equals(child.typeId())
+                && !(TableWidgetPropertySchema.ROW.equals(parent.typeId()) && CHILDREN_SLOT.equals(slot.name().value())))
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT, "TableCell requires direct TableRow.children in Designer.");
+
         if (LayoutIdWidgetPropertySchema.TYPE.equals(child.typeId())
                 && !(CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(parent.typeId()) && CHILDREN_SLOT.equals(slot.name().value())))
             return rejected(RejectionKind.DIRECT_PARENT_SLOT, "LayoutId cannot be placed in " + destination
@@ -166,6 +175,17 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(definition, "definition");
         ArrayList<String> lines = new ArrayList<>(3);
         String type = definition.typeId().value();
+        if (TableWidgetPropertySchema.ROW.equals(definition.typeId()))
+            lines.add("R|" + type + "|directParentSlot|flutter.widgets.Table|children");
+        if (TableWidgetPropertySchema.CELL.equals(definition.typeId()))
+            lines.add("R|" + type + "|directParentSlot|flutter.widgets.TableRow|children");
+        if (TableWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            lines.add("R|" + type + "|rectangularRows|positiveEqualCellCount|uniqueRowAndCellKeys|baselineRequiresTextBaseline");
+            lines.add("R|" + type + "|columnWidths|tableColumnWidths.v1|depth8|nodes256|index9999");
+            lines.add("C|" + type + "|paletteCreate|tableGrid|2|2|48");
+        }
+        if (TableWidgetPropertySchema.ROW.equals(definition.typeId()))
+            lines.add("C|" + type + "|paletteCreate|tableRow|2|48");
         if (isStackPositionedWidget(definition))
             lines.add("R|" + type + "|directParentSlot|flutter.widgets.Stack|children");
         if (isFlexRestrictedWidget(definition)) {

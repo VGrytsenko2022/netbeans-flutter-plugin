@@ -105,7 +105,7 @@ class FlutterFocusWrapPlannerTest {
                     parent.typeId().value() + "." + slot.name().value() + ": " + plan);
             checked++;
         }
-        assertEquals(192, checked);
+        assertEquals(194, checked);
     }
 
     private static WidgetNode destinationPrototype(dev.flutter.netbeans.designer.catalog.WidgetDefinition definition, SlotName destination) {

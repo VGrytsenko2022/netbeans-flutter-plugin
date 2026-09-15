@@ -66,7 +66,7 @@ public record DartStaticTypeProbe(
         if (expectedDartType.length() > 128
                 || !EXPECTED_TYPE.matcher(expectedDartType).matches()
                 && !SCAFFOLD_SCRIM_BUILDER_TYPE.equals(expectedDartType)
-                && !java.util.Set.of("VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "Size").contains(expectedDartType)) {
+                && !java.util.Set.of("VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "Key?", "LocalKey?", "TableBorder?", "Map<int, TableColumnWidth>?", "Size").contains(expectedDartType)) {
             throw new IllegalArgumentException(
                     "expected Dart type must use a reviewed closed type form");
         }
@@ -104,7 +104,7 @@ public record DartStaticTypeProbe(
                 && !java.util.Set.of("package:flutter/widgets.dart", "package:flutter/material.dart").contains(expectedTypeLibraryUri)) {
             throw new IllegalArgumentException("Editable text menu proof requires the reviewed Flutter Widgets/Material library");
         }
-        if (java.util.Set.of("MultiChildLayoutDelegate", "FlowDelegate", "SingleChildLayoutDelegate", "CustomPainter?", "Size", "ShaderCallback", "ImageFilterConfig", "BackdropKey?", "ImageFilter", "FragmentShader", "Float64List", "ColorFilter", "Image?", "Rect?", "Animation<double>?", "ImageProvider<Object>", "ImageErrorWidgetBuilder?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "TransformCallback", "NullableIndexedWidgetBuilder", "IndexedWidgetBuilder", "SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "OrientationWidgetBuilder", "TransitionBuilder", "AnimatedCrossFadeBuilder", "AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder", "Listenable", "Tween<Object>", "ValueListenable<Object>", "ValueWidgetBuilder<Object>", "ChildIndexGetter", "ChildIndexGetter?").contains(expectedDartType)
+        if (java.util.Set.of("TableColumnWidth", "Map<int, TableColumnWidth>?", "TableBorder?", "Key?", "LocalKey?", "MultiChildLayoutDelegate", "FlowDelegate", "SingleChildLayoutDelegate", "CustomPainter?", "Size", "ShaderCallback", "ImageFilterConfig", "BackdropKey?", "ImageFilter", "FragmentShader", "Float64List", "ColorFilter", "Image?", "Rect?", "Animation<double>?", "ImageProvider<Object>", "ImageErrorWidgetBuilder?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "TransformCallback", "NullableIndexedWidgetBuilder", "IndexedWidgetBuilder", "SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "OrientationWidgetBuilder", "TransitionBuilder", "AnimatedCrossFadeBuilder", "AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder", "Listenable", "Tween<Object>", "ValueListenable<Object>", "ValueWidgetBuilder<Object>", "ChildIndexGetter", "ChildIndexGetter?").contains(expectedDartType)
                 && !java.util.Set.of("package:flutter/widgets.dart", "package:flutter/material.dart").contains(expectedTypeLibraryUri)) {
             throw new IllegalArgumentException("Layout/sliver callback proofs require reviewed Flutter Widgets/Material context");
         }

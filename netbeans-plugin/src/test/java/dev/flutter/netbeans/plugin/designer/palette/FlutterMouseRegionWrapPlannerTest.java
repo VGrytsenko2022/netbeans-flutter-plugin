@@ -87,13 +87,13 @@ class FlutterMouseRegionWrapPlannerTest {
         for (var parent : CATALOG.definitions()) for (var slot : parent.slots()) {
             if (slot.minChildren() != 0) continue;
             var prototype = destinationPrototype(parent, slot.name());
-            var plan = planner.plan(document(prototype), CATALOG, MOUSE_REGION, ROOT, slot.name(), 0, () -> WRAPPER);
+            var plan = planner.plan(document(prototype), CATALOG, MOUSE_REGION, ROOT, slot.name(), prototype.slots().get(slot.name()) instanceof WidgetSlot.ListSlot list ? list.children().size() : 0, () -> WRAPPER);
             var placement = dev.flutter.netbeans.designer.catalog.WidgetPlacementRules.evaluate(parent, slot, gesture);
             assertEquals(placement.accepted(), plan instanceof FlutterDesignerPaletteDropPlanner.Accepted,
                     parent.typeId().value() + "." + slot.name().value() + ": " + plan);
             checked++;
         }
-        assertEquals(192, checked);
+        assertEquals(194, checked);
     }
 
     private static WidgetNode destinationPrototype(dev.flutter.netbeans.designer.catalog.WidgetDefinition definition, SlotName destination) {

@@ -297,6 +297,9 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.Table", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.TableRow", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.TableCell", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Flow", STATIC_EDITABLE),
             Map.entry("flutter.widgets.Flow.unwrapped", STATIC_EDITABLE),
             Map.entry("flutter.widgets.LayoutId", STATIC_EDITABLE),
@@ -1015,6 +1018,18 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.Table", projection(
+                    TableWidgetPropertySchema.properties(TableWidgetPropertySchema.TYPE).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("children",traitListSlotSchema(false,0,10000,TableWidgetPropertySchema.ROW_TRAIT)))),
+            Map.entry("flutter.widgets.TableRow", projection(
+                    TableWidgetPropertySchema.properties(TableWidgetPropertySchema.ROW).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("children",listSlotSchema(false,0,10000)))),
+            Map.entry("flutter.widgets.TableCell", projection(
+                    TableWidgetPropertySchema.properties(TableWidgetPropertySchema.CELL).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("child",singleSlotSchema(true,1)))),
             Map.entry("flutter.widgets.Flow", projection(
                     FlowWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),

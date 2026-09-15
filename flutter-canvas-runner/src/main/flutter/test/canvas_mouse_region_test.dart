@@ -61,7 +61,7 @@ final _cursors = <String, MouseCursor>{
 
 void main() {
   test('MouseRegion exact6property3event contract retains protocol19', () {
-    expect(canvasModelProtocolVersion, 19);
+    expect(canvasModelProtocolVersion, 20);
     expect(
       canvasRuntimeWidgetSchemaContractForTesting(),
       canvasReviewedWidgetSchemaContract.trimLeft(),

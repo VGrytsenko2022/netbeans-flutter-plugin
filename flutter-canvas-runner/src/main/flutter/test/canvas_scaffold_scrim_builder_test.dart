@@ -18,7 +18,7 @@ void main() {
   test(
     'Scaffold18property contract admits exact nonnull function references without adding slots or protocols',
     () {
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
       final start = contract.indexOf('W|flutter.material.Scaffold\n');

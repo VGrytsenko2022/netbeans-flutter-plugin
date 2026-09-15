@@ -803,6 +803,9 @@ public final class DartRegionGenerator {
                                         && property.name().value().equals("onTransform")
                                         && value instanceof PropertyValue.Matrix4Value matrix
                                         ? renderMatrixCallback(matrix, propertyPath, node.id(), context)
+                                : node.type().equals(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE)
+                                        && value instanceof PropertyValue.GradientValue
+                                        ? renderShaderCallback(propertyPath, node.id(), context)
                                 : node.type().equals(dev.flutter.netbeans.designer.catalog.AlignTransitionWidgetPropertySchema.TYPE)
                                         && property.name().value().equals("alignment")
                                         && value instanceof PropertyValue.AlignmentGeometryValue
@@ -1577,6 +1580,10 @@ public final class DartRegionGenerator {
             int baseIndent,
             GenerationContext context,
             RenderedValue rendered) {
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE)
+                && node.properties().get(new PropertyName("shaderCallback")) instanceof PropertyValue.GradientValue gradient) {
+            return wrapShaderGradient(node, gradient, path, baseIndent, context, rendered);
+        }
         if (node.type().equals(TextFieldWidgetPropertySchema.TEXT_FIELD_TYPE)) {
             return wrapTextFieldConstraintGuard(
                     node, path, baseIndent, context, rendered);
@@ -1900,6 +1907,39 @@ public final class DartRegionGenerator {
         }
         text.append(')');
         return scalar(text.toString(), false, path, widgetId, context, occurrences);
+    }
+
+    private static String shaderLocal(StableId id, String suffix) {
+        return "_fdShader" + suffix + "_" + id.toString().replace("-", "");
+    }
+
+    private RenderedValue renderShaderCallback(String path, StableId id, GenerationContext context) {
+        var rect = context.planner().renderedSymbol(WIDGETS_IMPORT, "Rect");
+        return scalar("(" + rect.text() + " bounds) => " + shaderLocal(id, "Gradient")
+                + ".createShader(bounds, textDirection: " + shaderLocal(id, "Direction") + ")",
+                false, path, id, context, List.of(occurrence("widget:" + id + ":shader-bounds",
+                        1 + rect.nameOffset(), rect.name(), rect.libraryUri(), path, Optional.of(id))));
+    }
+
+    private RenderedValue wrapShaderGradient(WidgetNode node, PropertyValue.GradientValue gradient,
+            String path, int indent, GenerationContext context, RenderedValue child) {
+        var builder = context.planner().renderedSymbol(WIDGETS_IMPORT, "Builder");
+        var direction = context.planner().renderedSymbol(WIDGETS_IMPORT, "Directionality");
+        var text = new StringBuilder(builder.text()).append("(builder: (context) {\n")
+                .append(spaces(indent + 2)).append("final ").append(shaderLocal(node.id(), "Direction")).append(" = ");
+        var occurrences = new ArrayList<GeneratedDartSymbolOccurrence>();
+        occurrences.add(occurrence("widget:" + node.id() + ":shader-builder", builder.nameOffset(),
+                builder.name(), builder.libraryUri(), path, Optional.of(node.id())));
+        occurrences.add(occurrence("widget:" + node.id() + ":shader-direction", text.length() + direction.nameOffset(),
+                direction.name(), direction.libraryUri(), path, Optional.of(node.id())));
+        text.append(direction.text()).append(".maybeOf(context);\n")
+                .append(spaces(indent + 2)).append("final ").append(shaderLocal(node.id(), "Gradient")).append(" = ");
+        appendRendered(text, occurrences, renderBoxGradient(gradient.gradient(), indent + 2,
+                path + "/properties/shaderCallback/gradient", node.id(), context));
+        text.append(";\n").append(spaces(indent + 2)).append("return ");
+        appendRendered(text, occurrences, child);
+        text.append(";\n").append(spaces(indent)).append("})");
+        return scalar(text.toString(), false, path, node.id(), context, occurrences);
     }
 
     private RenderedValue renderMatrixCallback(
@@ -7753,6 +7793,8 @@ public final class DartRegionGenerator {
             case PropertyValue.PaintValue paint -> paint.color() instanceof ColorSource.Theme;
             case PropertyValue.ShadowListValue shadows -> shadows.items().stream()
                     .anyMatch(shadow -> shadow.color() instanceof ColorSource.Theme);
+            case PropertyValue.GradientValue gradient -> gradient.gradient().stops().stream()
+                    .anyMatch(stop -> stop.color() instanceof ColorSource.Theme);
             case PropertyValue.BoxDecorationValue decoration ->
                 boxDecorationRequiresMaterialTheme(decoration);
             default -> false;
@@ -8544,6 +8586,9 @@ public final class DartRegionGenerator {
                             "shape-clipper-direction", path + "/textDirection", widgetId, context))));
             return renderNamedCompositeMembers("ShapeBorderClipper", Optional.empty(), members,
                     valueIndent, path, widgetId, context);
+        }
+        if (value instanceof PropertyValue.GradientValue gradient) {
+            return renderBoxGradient(gradient.gradient(), valueIndent, path + "/gradient", widgetId, context);
         }
         if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             return renderBoxDecoration(

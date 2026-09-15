@@ -21,12 +21,12 @@ class WidgetEventCatalogTest {
             "ValueChanged<bool?>", "ValueChanged<Object?>", "ValueChanged<double>", "ValueChanged<RangeValues>",
             "ValueChanged<RefreshIndicatorStatus?>", "ImageErrorListener", "RefreshCallback", "AsyncCallback",
             "ScrollNotificationPredicate", "SemanticFormatterCallback", "ButtonLayerBuilder", "MenuAnchorChildBuilder", "ValueChanged<AnimationStatus>", "ValueChanged<int>",
-            "Widget? Function(BuildContext, Animation<double>)", "InputCounterWidgetBuilder?", "EditableTextContextMenuBuilder?", "ItemExtentBuilder?", "ItemExtentBuilder", "TooltipTriggeredCallback", "TooltipPositionDelegate", "TransformCallback", "NullableIndexedWidgetBuilder", "IndexedWidgetBuilder", "ChildIndexGetter?", "SemanticIndexCallback", "SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "OrientationWidgetBuilder", "TransitionBuilder", "AnimatedCrossFadeBuilder", "AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder", "ValueWidgetBuilder<Object>", "ImageErrorWidgetBuilder?");
+            "Widget? Function(BuildContext, Animation<double>)", "InputCounterWidgetBuilder?", "EditableTextContextMenuBuilder?", "ItemExtentBuilder?", "ItemExtentBuilder", "TooltipTriggeredCallback", "TooltipPositionDelegate", "TransformCallback", "ShaderCallback", "NullableIndexedWidgetBuilder", "IndexedWidgetBuilder", "ChildIndexGetter?", "SemanticIndexCallback", "SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "OrientationWidgetBuilder", "TransitionBuilder", "AnimatedCrossFadeBuilder", "AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder", "ValueWidgetBuilder<Object>", "ImageErrorWidgetBuilder?");
 
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(216, definitions.size());
+        assertEquals(217, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {
@@ -46,8 +46,8 @@ class WidgetEventCatalogTest {
                 }
             }
         }
-        assertEquals(239, callables);
-        assertEquals(87, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
+        assertEquals(240, callables);
+        assertEquals(88, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
     }
 
     @Test
@@ -55,7 +55,7 @@ class WidgetEventCatalogTest {
         var all = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(widget -> WidgetEventCatalog.eventsFor(widget).stream()).toList();
         assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 174L, WidgetEventDescriptor.Kind.BUILDER, 50L,
-                WidgetEventDescriptor.Kind.PREDICATE, 3L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 10L),
+                WidgetEventDescriptor.Kind.PREDICATE, 3L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
                 all.stream().collect(Collectors.groupingBy(WidgetEventDescriptor::kind, Collectors.counting())));
         assertEquals(60, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(widget -> WidgetEventCatalog.eventsFor(widget).stream()

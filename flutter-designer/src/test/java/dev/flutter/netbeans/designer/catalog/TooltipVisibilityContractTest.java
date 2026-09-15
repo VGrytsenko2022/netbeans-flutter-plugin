@@ -130,8 +130,8 @@ class TooltipVisibilityContractTest {
             assertFalse(valid(new WidgetNode(StableId.random(), TYPE, properties,
                     Map.of(CHILD, WidgetSlot.SingleSlot.of(text("Child"))))), unknown);
         }
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
     }
 
     @Test void oneRequiredBooleanStateConsumerDoesNotInventEventOrStateProducer() {

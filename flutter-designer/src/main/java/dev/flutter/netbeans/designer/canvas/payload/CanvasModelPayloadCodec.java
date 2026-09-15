@@ -43,7 +43,7 @@ import java.util.Set;
  */
 public final class CanvasModelPayloadCodec {
     public static final String FORMAT = "netbeans-flutter-canvas-model";
-    public static final int VERSION = 19;
+    public static final int VERSION = 20;
     private static final int MAX_PAYLOAD_BYTES =
             CanvasWireHandshakeLimits.MAX_MODEL_BYTES;
     private final JsonFactory jsonFactory = JsonFactory.builder().build();
@@ -398,6 +398,11 @@ public final class CanvasModelPayloadCodec {
                 json.writeObjectFieldStart("value");
                 writeImageProviderFields(json, provider, context);
                 json.writeEndObject();
+            }
+            case PropertyValue.GradientValue gradient -> {
+                json.writeStringField("kind", "gradient");
+                json.writeFieldName("gradient");
+                writeBoxGradient(json, gradient.gradient());
             }
             case PropertyValue.BorderRadiusValue borderRadius -> {
                 json.writeStringField("kind", "borderRadius");

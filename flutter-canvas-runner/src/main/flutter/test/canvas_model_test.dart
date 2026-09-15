@@ -85,11 +85,11 @@ void main() {
     }
   });
 
-  test('Canvas model protocol v19 is exact and rejects v18 payloads', () {
-    expect(canvasModelProtocolVersion, 19);
+  test('Canvas model protocol v20 is exact and rejects v19 payloads', () {
+    expect(canvasModelProtocolVersion, 20);
     expect(() => _decode(_modelJson()), returnsNormally);
 
-    final oldProtocol = _modelJson()..['protocolVersion'] = 18;
+    final oldProtocol = _modelJson()..['protocolVersion'] = 19;
     expect(() => _decode(oldProtocol), throwsFormatException);
   });
 
@@ -10716,7 +10716,7 @@ class _AbsentTestValue {
 
 Map<String, Object?> _modelJson() => {
   'format': 'netbeans-flutter-canvas-model',
-  'protocolVersion': 19,
+  'protocolVersion': 20,
   'sessionId': '80ef60ed-b108-4674-99a6-c1f3102f01ab',
   'presentationSequence': 4,
   'documentId': 'd2d37c77-8510-4bd0-9280-a72e5bc3871e',

@@ -4036,6 +4036,10 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.ShaderMask') {
+    return node.properties['shaderCallback']?.kind == 'dartObjectReferencePresence'
+        ? 'ShaderMask ${node.id}: project-owned ShaderCallback is not executed. Canvas substitutes an opaque-white shader and keeps Blend mode; this is neutral with the default modulate, not every blend mode.' : null;
+  }
   if (node.type == 'flutter.widgets.BackdropGroup') {
     return node.properties['backdropKey']?.kind == 'dartObjectReferencePresence'
         ? 'BackdropGroup ${node.id}: project-owned BackdropKey is not executed. Canvas creates a local group key.' : null;
@@ -5767,7 +5771,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5858,7 +5862,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -9035,6 +9039,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.ShaderMask' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: _shaderMask(context)),
       'flutter.widgets.BackdropGroup' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: BackdropGroup(child: _single('child')!)),
@@ -14115,6 +14122,17 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isAntiAlias: _boolean('isAntiAlias') ?? false,
       filterQuality: _filterQuality(_enum('filterQuality') ?? 'medium'),
     );
+  }
+
+  Widget _shaderMask(BuildContext context) {
+    final local = node.properties['shaderCallback']?.value;
+    final gradient = local is CanvasBoxGradientValue ? _boxGradient(context, local)
+        : const LinearGradient(colors: [Color(0xffffffff), Color(0xffffffff)]);
+    final direction = Directionality.maybeOf(context);
+    return ShaderMask(
+      shaderCallback: (bounds) => gradient.createShader(bounds, textDirection: direction),
+      blendMode: BlendMode.values.byName(_enum('blendMode') ?? 'modulate'),
+      child: _single('child'));
   }
 
   Widget _backdropFilter() {

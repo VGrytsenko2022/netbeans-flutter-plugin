@@ -86,7 +86,7 @@ void main() {
   test(
     'GestureDetector exact64property contract is independent and protocol19',
     () {
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(
         canvasRuntimeWidgetSchemaContractForTesting(),
         canvasReviewedWidgetSchemaContract.trimLeft(),

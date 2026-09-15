@@ -35,8 +35,8 @@ class SliderContractTest {
         assertEquals(Map.of(p("value"), i(0), p("variant"), s("standard"), p("enabled"), b(true)), prototype.properties());
         assertTrue(valid(prototype));
         assertTrue(WidgetPlacementRules.requiredAnyWidgetWrapperSlot(definition()).isEmpty());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
         assertEquals(1024, ValidationLimits.defaults().maxPropertiesPerWidget());
     }

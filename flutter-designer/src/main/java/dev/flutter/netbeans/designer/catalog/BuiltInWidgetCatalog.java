@@ -138,6 +138,7 @@ public final class BuiltInWidgetCatalog {
             backdropFilter(false),
             backdropFilter(true),
             backdropGroup(),
+            shaderMask(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3301,6 +3302,13 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition shaderMask() {
+        return widget(ShaderMaskWidgetPropertySchema.TYPE.value(), "ShaderMask", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.basic", 300, 360, "ShaderMask"), ShaderMaskWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition backdropGroup() {

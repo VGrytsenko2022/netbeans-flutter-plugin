@@ -40,7 +40,7 @@ void main() {
   test(
     'Exact two-property required-child contract and atomic wrapping retain protocol19',
     () {
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(
         canvasRuntimeWidgetSchemaContractForTesting(),
         canvasReviewedWidgetSchemaContract.trimLeft(),

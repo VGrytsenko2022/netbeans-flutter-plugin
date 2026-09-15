@@ -28,7 +28,7 @@ class FdV15StatePropertyBindingsCodecTest {
             var document = document(Optional.empty(), Map.of(new PropertyName("data"), binding));
             byte[] original = codec.encode(document).copyBytes();
             String json = new String(original, StandardCharsets.UTF_8);
-            assertTrue(json.contains("\"schemaVersion\": 16"));
+            assertTrue(json.contains("\"schemaVersion\": 17"));
             assertTrue(json.contains("\"propertyBindings\""));
             assertTrue(json.contains("Preview remains independent"));
             assertFalse(json.contains("setState"));
@@ -55,8 +55,8 @@ class FdV15StatePropertyBindingsCodecTest {
     void frozen14MigratesBindingsWithoutNewActionAndRetainsExactOriginalBytes() throws Exception {
         var document = document(Optional.of(new StateBinding("_state", "_changed", StateBinding.Type.BOOL)), Map.of());
         String current = new String(codec.encode(document).copyBytes(), StandardCharsets.UTF_8);
-        byte[] old = current.replace("\"schemaVersion\": 16", "\"schemaVersion\": 14")
-                .replace("fd-v16.schema.json", "fd-v14.schema.json").getBytes(StandardCharsets.UTF_8);
+        byte[] old = current.replace("\"schemaVersion\": 17", "\"schemaVersion\": 14")
+                .replace("fd-v17.schema.json", "fd-v14.schema.json").getBytes(StandardCharsets.UTF_8);
         var result = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(old));
         assertEquals(14, result.sourceSchemaVersion());
         assertTrue(result.migrated());
@@ -69,15 +69,15 @@ class FdV15StatePropertyBindingsCodecTest {
     void olderVersionsRejectNewMetadataAndTypesRatherThanSilentlyDroppingThem() throws Exception {
         String consumer = json(document(Optional.empty(), Map.of(new PropertyName("data"),
                 new StatePropertyBinding("_state", StateBinding.Type.STRING, Optional.empty(), StatePropertyBinding.Transform.DIRECT))));
-        assertInvalid(consumer.replace("\"schemaVersion\": 16", "\"schemaVersion\": 14"));
+        assertInvalid(consumer.replace("\"schemaVersion\": 17", "\"schemaVersion\": 14"));
         for (StateBinding.Type type : List.of(StateBinding.Type.STRING, StateBinding.Type.INT,
                 StateBinding.Type.NUM, StateBinding.Type.TEXT_CONTROLLER)) {
             String producer = json(document(Optional.of(new StateBinding("_state", "_changed", type)), Map.of()));
-            assertInvalid(producer.replace("\"schemaVersion\": 16", "\"schemaVersion\": 14"));
+            assertInvalid(producer.replace("\"schemaVersion\": 17", "\"schemaVersion\": 14"));
         }
         String toggle = json(document(Optional.of(new StateBinding("_state", "_changed", StateBinding.Type.BOOL,
                 Optional.empty(), Optional.empty(), StateBinding.Action.TOGGLE, Optional.empty())), Map.of()));
-        assertInvalid(toggle.replace("\"schemaVersion\": 16", "\"schemaVersion\": 14"));
+        assertInvalid(toggle.replace("\"schemaVersion\": 17", "\"schemaVersion\": 14"));
     }
 
     @Test
@@ -123,7 +123,7 @@ class FdV15StatePropertyBindingsCodecTest {
     }
     private static DesignerDocument document(Optional<StateBinding> action, Map<PropertyName, StatePropertyBinding> consumers) {
         ManagedRegion region = new ManagedRegion("A".repeat(64));
-        return new DesignerDocument(Optional.of("../fd-v16.schema.json"),
+        return new DesignerDocument(Optional.of("../fd-v17.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor("page.dart", "Page", WidgetClassKind.STATEFUL, Optional.empty(), new ManagedRegions(region, region)),
                 Optional.empty(), new WidgetNode(StableId.parse("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"),

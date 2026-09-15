@@ -33,7 +33,7 @@ void main() {
         contract.substring(start, end),
         'W|$_type\nP|blocking|boolean|0|-|-|boolean:any\nS|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(isCanvasPaletteWrapperWidgetType(_type), isFalse);
       expect(canvasWidgetTraitsForType(_type), isEmpty);

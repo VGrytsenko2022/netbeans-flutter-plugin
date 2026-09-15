@@ -40,7 +40,7 @@ class TooltipThemeContractTest {
         assertEquals("widget:" + root.id() + ":compound:TooltipThemeData:/root/properties/data", symbol.id());
         assertEquals("package:flutter/material.dart", symbol.libraryUri()); assertEquals("/root/properties/data", symbol.modelPath());
         assertTrue(symbol.staticTypeRequirement().isEmpty());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
     }
     @Test @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named = "flutter.events.sdk", matches = ".+")
     void pinnedSdkDataConstructorAndNearestReplacementMatchReviewedContract() throws Exception {

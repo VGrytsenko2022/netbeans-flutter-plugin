@@ -34,7 +34,7 @@ void main() {
         'S|child|single|1|1|1|any\n'
         'C|$_type|paletteCreate|wrapExistingChild|child\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), isTrue);
       expect(isCanvasPaletteWrapperWidgetType(_type), isTrue);

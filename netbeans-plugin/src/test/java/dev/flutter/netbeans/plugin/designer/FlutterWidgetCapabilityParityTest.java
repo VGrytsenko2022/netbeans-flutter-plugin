@@ -26,7 +26,7 @@ class FlutterWidgetCapabilityParityTest {
         Set<String> javaTypes = capabilityTypes(WidgetCapability.CANVAS);
         String model = runnerSource("lib/src/canvas_model.dart");
         String view = runnerSource("lib/src/canvas_view.dart");
-        assertEquals(216, javaTypes.size(),
+        assertEquals(217, javaTypes.size(),
                 "the reviewed Canvas source set includes Wrap, ListView, FittedBox, "
                 + "ConstrainedBox, UnconstrainedBox, LimitedBox, OverflowBox, Spacer, "
                 + "Baseline, IntrinsicHeight, IntrinsicWidth, Offstage, SizedOverflowBox, "
@@ -135,10 +135,10 @@ class FlutterWidgetCapabilityParityTest {
         assertTrue(javaTypes.contains("flutter.widgets.GestureDetector"));
         assertTrue(javaTypes.contains("flutter.widgets.Listener"));
         assertTrue(javaTypes.contains("flutter.widgets.MouseRegion"));
-        assertEquals(15, dev.flutter.netbeans.designer.catalog.WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
-        assertTrue(model.contains("const canvasModelProtocolVersion = 19;"),
-                "the packaged Dart decoder must consume Java payload v19");
+        assertEquals(16, dev.flutter.netbeans.designer.catalog.WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
+        assertTrue(model.contains("const canvasModelProtocolVersion = 20;"),
+                "the packaged Dart decoder must consume Java payload v20");
 
         assertEquals(javaTypes, widgetTypes(block(
                 model, "const _widgetSpecifications", "class _NodeBudget")),

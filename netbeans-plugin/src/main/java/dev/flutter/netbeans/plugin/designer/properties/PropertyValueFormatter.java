@@ -79,6 +79,11 @@ public final class PropertyValueFormatter {
                     ? "Identity matrix"
                     : "Custom 4×4 matrix";
             case PropertyValue.ImageProviderValue image -> imageProvider(image);
+            case PropertyValue.GradientValue gradient -> "Gradient(" + switch (gradient.gradient()) {
+                case PropertyValue.BoxDecorationValue.LinearGradient ignored -> "linear";
+                case PropertyValue.BoxDecorationValue.RadialGradient ignored -> "radial";
+                case PropertyValue.BoxDecorationValue.SweepGradient ignored -> "sweep";
+            } + ", " + gradient.gradient().stops().size() + " stops)";
             case PropertyValue.BoxDecorationValue decoration ->
                 decoration(decoration);
             case PropertyValue.BorderRadiusValue borderRadius ->

@@ -31,7 +31,7 @@ void main() {
         'P|ignoringSemantics|boolean|0|-|-|boolean:any\n'
         'S|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(canvasWidgetTraitsForType(_type), isEmpty);
       expect(isCanvasPaletteWrapperWidgetType(_type), isFalse);

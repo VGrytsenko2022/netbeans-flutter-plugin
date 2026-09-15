@@ -1,5 +1,17 @@
 # Widget events API audit
 
+## ShaderMask update (2026-09-15)
+
+ShaderCallback is a required nonnull computation delegate, Shader Function(Rect).
+It belongs to Properties, not Events. Local gradients and exact source references
+support the existing handler actions. Create/disconnect use an opaque-white
+gradient rather than throwing or passing null. Static proof uses Flutter's
+Rendering ShaderCallback alias. Nine invalid signature/type branches fail closed.
+
+Inventory: 217 definitions; 240 callables across 88 types (50 builders, eleven
+delegates). Native Events remain 174 rows across 60 types.
+See [ShaderMask](SHADER_MASK.md).
+
 ## BackdropFilter and grouping update (2026-09-15)
 
 BackdropFilter, BackdropFilter.grouped and BackdropGroup expose no native

@@ -55,8 +55,8 @@ class FdV12DartObjectReferenceValueCodecTest {
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
         String compact = json.replaceAll("\\s+", "");
 
-        assertTrue(json.contains("\"schemaVersion\": 16"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v16.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 17"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v17.schema.json\""), json);
         assertTrue(compact.contains(
                 "\"currentReference\":{\"kind\":\"dartObjectReference\","
                 + "\"libraryUri\":null,\"rootSymbol\":\"_localClipper\","
@@ -80,7 +80,7 @@ class FdV12DartObjectReferenceValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(encoded));
-        assertEquals(16, decoded.sourceSchemaVersion());
+        assertEquals(17, decoded.sourceSchemaVersion());
         assertFalse(decoded.migrated());
         assertEquals(currentReference,
                 decoded.document().root().properties().get(CURRENT_REFERENCE));
@@ -100,22 +100,22 @@ class FdV12DartObjectReferenceValueCodecTest {
                 CLIPPER, reference(Optional.empty(), "clipper", Optional.empty()))))
                 .copyBytes(), StandardCharsets.UTF_8);
         String v11WithValue = currentWithValue
-                .replace("\"schemaVersion\": 16", "\"schemaVersion\": 11")
-                .replace("../fd-v16.schema.json", "../fd-v11.schema.json");
+                .replace("\"schemaVersion\": 17", "\"schemaVersion\": 11")
+                .replace("../fd-v17.schema.json", "../fd-v11.schema.json");
         assertInvalid(v11WithValue, FdCodecDiagnosticCode.INVALID_VALUE,
                 "/root/properties/clipper/kind");
 
         String currentOmission = new String(codec.encode(document(Map.of())).copyBytes(),
                 StandardCharsets.UTF_8);
         String v11Omission = currentOmission
-                .replace("\"schemaVersion\": 16", "\"schemaVersion\": 11")
-                .replace("../fd-v16.schema.json", "../fd-v11.schema.json");
+                .replace("\"schemaVersion\": 17", "\"schemaVersion\": 11")
+                .replace("../fd-v17.schema.json", "../fd-v11.schema.json");
         FdDecodeResult.Current migrated = assertInstanceOf(
                 FdDecodeResult.Current.class,
                 codec.decode(v11Omission.getBytes(StandardCharsets.UTF_8)));
         assertEquals(11, migrated.sourceSchemaVersion());
         assertTrue(migrated.migrated());
-        assertEquals(Optional.of("../fd-v16.schema.json"),
+        assertEquals(Optional.of("../fd-v17.schema.json"),
                 migrated.document().schemaReference());
         assertFalse(migrated.document().root().properties().containsKey(CLIPPER));
     }
@@ -234,7 +234,7 @@ class FdV12DartObjectReferenceValueCodecTest {
             Map<PropertyName, PropertyValue> properties) {
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v16.schema.json"),
+                Optional.of("../fd-v17.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "clip_rrect_page.dart", "ClipRRectPage",
@@ -251,9 +251,9 @@ class FdV12DartObjectReferenceValueCodecTest {
     private static String propertyDocument(String value) {
         return """
                 {
-                  "$schema": "../fd-v16.schema.json",
+                  "$schema": "../fd-v17.schema.json",
                   "format": "netbeans-flutter-designer",
-                  "schemaVersion": 16,
+                  "schemaVersion": 17,
                   "documentId": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
                   "source": {
                     "dartFile": "clip_rrect_page.dart",

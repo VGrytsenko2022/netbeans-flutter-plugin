@@ -54,8 +54,8 @@ class MenuBarContractTest {
         assertTrue(source.contains("children: []"), source);
         assertFalse(source.contains("onPressed:"), source);
         assertFalse(definition.property(p("enabled")).isPresent());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 

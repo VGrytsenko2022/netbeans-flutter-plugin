@@ -31,7 +31,7 @@ void main() {
         contract.substring(start, end),
         'W|$_type\nP|excluding|boolean|0|-|-|boolean:any\nS|child|single|1|1|1|any\nC|$_type|paletteCreate|wrapExistingChild|child\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), isTrue);
       expect(isCanvasPaletteWrapperWidgetType(_type), isTrue);

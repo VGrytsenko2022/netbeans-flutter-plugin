@@ -147,11 +147,11 @@ void main() {
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(216),
+        hasLength(217),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7434),
+        hasLength(7436),
       );
       final start = contract.indexOf('W|$_type\n');
       final section = contract.substring(
@@ -167,7 +167,7 @@ void main() {
         sha256Hex(utf8.encode(section)),
         '24a8679187526de33d4b59d72414a4f9d9d911323b20f1b2ab809ed751c227e6',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       expect(canvasReviewedRequiredWrapperSlot(_type), 'child');
       expect(

@@ -98,7 +98,7 @@ final class FlutterContainerPropertyEditorComponents {
             case ALIGNMENT_GEOMETRY -> new AlignmentPanel(editor, binding, environment);
             case BOX_CONSTRAINTS -> new ConstraintsPanel(editor, binding, environment);
             case MATRIX4 -> new MatrixPanel(editor, binding, environment);
-            case BOX_DECORATION -> new DecorationPanel(editor, binding, environment);
+            case GRADIENT, BOX_DECORATION -> new DecorationPanel(editor, binding, environment);
             case BORDER_RADIUS -> new BorderRadiusPanel(editor, binding, environment);
             default -> throw new IllegalStateException(
                     "No Container structured editor for " + binding.editorKind());
@@ -956,10 +956,12 @@ final class FlutterContainerPropertyEditorComponents {
         private final ArrayList<StableId> gradientIds = new ArrayList<>();
         private boolean preparingCommit;
         private int currentBorderBasis;
+        private final boolean gradientOnly;
 
         DecorationPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding,
                 PropertyEnv environment) {
             super(editor, binding, environment);
+            gradientOnly = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.GRADIENT;
             assetChoices = assetChoices(environment);
             imageProviderEditor = new FlutterImageProviderEditorComponent(
                     assetChoices,
@@ -990,17 +992,29 @@ final class FlutterContainerPropertyEditorComponents {
             tabs.getAccessibleContext().setAccessibleName("BoxDecoration sections");
             tabs.getAccessibleContext().setAccessibleDescription(
                     "Fill, image, border, radius, ordered shadows, and gradient settings.");
-            tabs.addTab("Fill", fillPanel());
-            tabs.addTab("Image", imagePanel());
-            tabs.addTab("Border", borderPanel());
-            tabs.addTab("Radius", radiusPanel());
-            tabs.addTab("Shadows", shadowPanel());
+            if (!gradientOnly) {
+                tabs.addTab("Fill", fillPanel());
+                tabs.addTab("Image", imagePanel());
+                tabs.addTab("Border", borderPanel());
+                tabs.addTab("Radius", radiusPanel());
+                tabs.addTab("Shadows", shadowPanel());
+            } else {
+                gradientType.removeItem("None");
+                setName("flutter.gradient.custom");
+                getAccessibleContext().setAccessibleName("Gradient shader editor");
+                getAccessibleContext().setAccessibleDescription("Edit ordered colors and stops, linear/radial/sweep geometry, directionality, tiling and rotation.");
+                tabs.getAccessibleContext().setAccessibleName("Gradient settings");
+                tabs.getAccessibleContext().setAccessibleDescription("Only gradient controls are exposed; decoration fill, image, border and shadows are not shader parameters.");
+            }
             tabs.addTab("Gradient", gradientPanel());
             add(tabs, BorderLayout.CENTER);
 
-            populate(initialValue().explicitValue()
-                    .map(PropertyValue.BoxDecorationValue.class::cast)
-                    .orElseGet(DecorationPanel::emptyDecoration));
+            populate(gradientOnly ? new PropertyValue.BoxDecorationValue(
+                    Optional.empty(), Optional.empty(), Optional.empty(), List.of(),
+                    Optional.of(initialValue().explicitValue().map(PropertyValue.GradientValue.class::cast)
+                            .orElseGet(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema::neutral).gradient()),
+                    Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)
+                    : initialValue().explicitValue().map(PropertyValue.BoxDecorationValue.class::cast).orElseGet(DecorationPanel::emptyDecoration));
             useDefault.setSelected(initialValue().explicitValue().isEmpty());
             installListeners();
             updateEnabledState();
@@ -1551,7 +1565,9 @@ final class FlutterContainerPropertyEditorComponents {
                 return true;
             }
             try {
-                PropertyValue.BoxDecorationValue value = new PropertyValue.BoxDecorationValue(
+                PropertyValue value = gradientOnly
+                        ? new PropertyValue.GradientValue(readGradient().orElseThrow(() -> new IllegalArgumentException("A gradient is required")))
+                        : new PropertyValue.BoxDecorationValue(
                         fill.value(), readImage(), readBorder(), readRadius(),
                         readShadows(), readGradient(),
                         NOT_SET.equals(blend.getSelectedItem()) ? Optional.empty()

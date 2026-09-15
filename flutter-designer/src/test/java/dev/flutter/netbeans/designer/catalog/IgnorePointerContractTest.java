@@ -114,7 +114,7 @@ class IgnorePointerContractTest {
                     assertFalse(decoded.migrated());
                     assertEquals(document, decoded.document());
                     assertArrayEquals(encoded.copyBytes(), codec.encode(decoded.document()).copyBytes());
-                    assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 16"));
+                    assertTrue(new String(encoded.copyBytes(), StandardCharsets.UTF_8).contains("\"schemaVersion\": 17"));
                 }
             }
         }
@@ -152,9 +152,9 @@ class IgnorePointerContractTest {
         }
         var invalid = new WidgetNode(StableId.random(), TYPE, Map.of(), Map.of(CHILD, new WidgetSlot.ListSlot(List.of())));
         assertFalse(validator.validate(document(invalid), BuiltInWidgetCatalog.getDefault()).valid());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
     }
 
     private static Map<PropertyName, PropertyValue> values(Optional<Boolean> ignoring, Optional<Boolean> semantics) {

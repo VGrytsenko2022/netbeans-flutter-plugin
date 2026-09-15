@@ -293,9 +293,9 @@ class DefaultSelectionStyleContractTest {
         }
         assertTrue(BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.widgets.DefaultSelectionStyle.fallback")).isEmpty());
         assertTrue(BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId("flutter.widgets.DefaultSelectionStyle.merge")).isEmpty());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
     }
 
     private static PropertyValue.BooleanValue bool(boolean value) { return new PropertyValue.BooleanValue(value); }

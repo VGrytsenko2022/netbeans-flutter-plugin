@@ -26,16 +26,16 @@ void main() {
   test(
     'AppBar adds only the reviewed nonnull predicate union without protocol or inventory changes',
     () {
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(216),
+        hasLength(217),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7434),
+        hasLength(7436),
       );
       final start = contract.indexOf('W|flutter.material.AppBar\n');
       final section = contract.substring(

@@ -18,14 +18,14 @@ void main() {
     () {
       final contract = canvasRuntimeWidgetSchemaContractForTesting();
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(216),
+        hasLength(217),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7434),
+        hasLength(7436),
       );
       final start = contract.indexOf('W|flutter.widgets.ListView\n');
       final section = contract.substring(

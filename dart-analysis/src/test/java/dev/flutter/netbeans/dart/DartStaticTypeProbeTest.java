@@ -8,6 +8,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 class DartStaticTypeProbeTest {
+    @Test void shaderCallbackRequiresReviewedFlutterContext() {
+        for (String uri : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))
+            assertEquals("ShaderCallback", new DartStaticTypeProbe(10,5,0,5,"ShaderCallback",uri).expectedDartType());
+        for (String uri : List.of("dart:ui", "dart:core", "package:app/fake.dart", "package:flutter/rendering.dart"))
+            assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,"ShaderCallback",uri));
+    }
+
     @Test void rawImageAndNullableAnimationHaveClosedReviewedProofContexts() {
         for (String type : List.of("Image?", "Rect?", "Animation<double>?")) {
             for (String uri : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))

@@ -60,8 +60,8 @@ class NavigationBarContractTest {
         assertEquals(SlotCardinality.LIST, slot.cardinality());
         assertEquals(0, slot.minChildren());
         assertEquals(10_000, slot.maxChildren());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 

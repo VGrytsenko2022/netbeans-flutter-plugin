@@ -35,8 +35,8 @@ class SwitchListTileContractTest {
         var prototype = WidgetNodePrototypeFactory.create(definition(), StableId.random());
         assertEquals(Map.of(p("value"), b(false), p("onChanged"), s("noop"), p("variant"), s("standard")), prototype.properties());
         assertTrue(valid(prototype));
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
         for (String absent : List.of("key", "enabled", "tristate", "padding", "trackOutlineWidth", "focusColor", "titleAlignment")) {
             assertTrue(definition().property(p(absent)).isEmpty(), absent);
         }

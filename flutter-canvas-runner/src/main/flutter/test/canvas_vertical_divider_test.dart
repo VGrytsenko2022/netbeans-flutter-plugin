@@ -46,7 +46,7 @@ void main() {
       expect(block, contains('P|color|color,themeToken|0|-|-|color:any;'));
       expect(block, isNot(contains('S|')));
       expect(block, isNot(contains('C|')));
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       expect(canvasWidgetTraitsForType(_type), isEmpty);
       expect(isCanvasPaletteWrapperWidgetType(_type), false);

@@ -617,8 +617,9 @@ final class FdJsonDecoder {
                     "urn:netbeans-flutter-designer:schema:fd:12",
                     "urn:netbeans-flutter-designer:schema:fd:13",
                     "urn:netbeans-flutter-designer:schema:fd:14",
-                    "urn:netbeans-flutter-designer:schema:fd:15" ->
-                    "urn:netbeans-flutter-designer:schema:fd:16";
+                    "urn:netbeans-flutter-designer:schema:fd:15",
+                    "urn:netbeans-flutter-designer:schema:fd:16" ->
+                    "urn:netbeans-flutter-designer:schema:fd:17";
             case "../fd-v1.schema.json", "../fd-v2.schema.json",
                     "../fd-v3.schema.json", "../fd-v4.schema.json",
                     "../fd-v5.schema.json", "../fd-v6.schema.json",
@@ -626,8 +627,8 @@ final class FdJsonDecoder {
                     "../fd-v9.schema.json", "../fd-v10.schema.json",
                     "../fd-v11.schema.json", "../fd-v12.schema.json",
                     "../fd-v13.schema.json", "../fd-v14.schema.json",
-                    "../fd-v15.schema.json" ->
-                    "../fd-v16.schema.json";
+                    "../fd-v15.schema.json", "../fd-v16.schema.json" ->
+                    "../fd-v17.schema.json";
             default -> reference.orElseThrow();
         });
     }
@@ -1275,6 +1276,9 @@ final class FdJsonDecoder {
                     pointer(base, "kind"),
                     "Schema version 1 does not define this property kind.");
         }
+        if (sourceVersion < 17 && kind.equals("gradient")) {
+            throw invalidValue(parser, pointer(base, "kind"), "Gradient values require schema version 17.");
+        }
         if (sourceVersion < 5 && Set.of(
                 "alignmentGeometry", "boxConstraints", "matrix4", "boxDecoration")
                 .contains(kind)) {
@@ -1658,6 +1662,10 @@ final class FdJsonDecoder {
                 }
                 Optional<PropertyValue.ShapeBorderClipperValue.TextDirection> resolvedDirection = direction;
                 yield modelValue(base, () -> new PropertyValue.ShapeBorderClipperValue(shape, radius, resolvedDirection));
+            }
+            case "gradient" -> {
+                enforceAllowedFields(parser, fields, base, Set.of("kind", "gradient"));
+                yield new PropertyValue.GradientValue(readBoxGradient(requiredJson(fields, "gradient", base), pointer(base, "gradient")));
             }
             case "boxDecoration" -> {
                 Set<String> allowed = sourceVersion >= 6

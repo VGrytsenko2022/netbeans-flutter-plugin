@@ -26,7 +26,7 @@ class FdV14StateBindingCodecTest {
                 DesignerDocument document = document(Optional.of(binding));
                 OriginalFdBytes bytes = codec.encode(document);
                 String json = new String(bytes.copyBytes(), StandardCharsets.UTF_8);
-                assertTrue(json.contains("\"schemaVersion\": 16"), json);
+                assertTrue(json.contains("\"schemaVersion\": 17"), json);
                 assertTrue(json.contains("\"stateBinding\""), json);
                 assertTrue(json.contains("\"value\": true"), "Literal preview must remain stored");
                 assertFalse(json.contains("setState"));
@@ -42,8 +42,8 @@ class FdV14StateBindingCodecTest {
     @Test
     void preservesFrozenV13OriginalAndMigratesOnlyTheSchemaReference() throws Exception {
         String current = json(Optional.empty());
-        byte[] old = current.replace("\"schemaVersion\": 16", "\"schemaVersion\": 13")
-                .replace("fd-v16.schema.json", "fd-v13.schema.json").getBytes(StandardCharsets.UTF_8);
+        byte[] old = current.replace("\"schemaVersion\": 17", "\"schemaVersion\": 13")
+                .replace("fd-v17.schema.json", "fd-v13.schema.json").getBytes(StandardCharsets.UTF_8);
         var migrated = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(old));
         assertTrue(migrated.migrated());
         assertEquals(13, migrated.sourceSchemaVersion());
@@ -57,10 +57,10 @@ class FdV14StateBindingCodecTest {
     void rejectsBindingInAllOlderVersionsAndPreservesFutureBytesOpaque() throws Exception {
         String current = json(Optional.of(new StateBinding("_value", "_changed", StateBinding.Type.BOOL)));
         for (int version = 1; version < 14; version++) {
-            String old = current.replace("\"schemaVersion\": 16", "\"schemaVersion\": " + version);
+            String old = current.replace("\"schemaVersion\": 17", "\"schemaVersion\": " + version);
             assertInstanceOf(FdDecodeResult.Invalid.class, codec.decode(old.getBytes(StandardCharsets.UTF_8)));
         }
-        byte[] future = current.replace("\"schemaVersion\": 16", "\"schemaVersion\": 17")
+        byte[] future = current.replace("\"schemaVersion\": 17", "\"schemaVersion\": 18")
                 .getBytes(StandardCharsets.UTF_8);
         var result = assertInstanceOf(FdDecodeResult.UnsupportedNewer.class, codec.decode(future));
         assertArrayEquals(future, result.original().copyBytes());
@@ -120,7 +120,7 @@ class FdV14StateBindingCodecTest {
 
     private static DesignerDocument document(Optional<StateBinding> binding) {
         ManagedRegion region = new ManagedRegion("A".repeat(64));
-        return new DesignerDocument(Optional.of("../fd-v16.schema.json"),
+        return new DesignerDocument(Optional.of("../fd-v17.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor("page.dart", "Page", WidgetClassKind.STATEFUL, Optional.empty(),
                         new ManagedRegions(region, region)), Optional.empty(),

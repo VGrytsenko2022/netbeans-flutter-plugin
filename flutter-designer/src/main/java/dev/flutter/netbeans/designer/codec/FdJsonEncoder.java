@@ -603,6 +603,9 @@ final class FdJsonEncoder {
             writeBorderRadius(clipper.borderRadius(), pointer + "/borderRadius", context);
             writeOptionalStringField("textDirection", clipper.textDirection().map(
                     PropertyValue.ShapeBorderClipperValue.TextDirection::wireName), pointer, context);
+        } else if (value instanceof PropertyValue.GradientValue gradient) {
+            context.fieldName("gradient", pointer + "/gradient");
+            writeBoxGradient(gradient.gradient(), pointer + "/gradient", context);
         } else if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             writeBoxDecoration(decoration, pointer, context);
         } else {

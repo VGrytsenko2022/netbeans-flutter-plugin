@@ -25,7 +25,7 @@ class MenuItemButtonContractTest {
         var prototype = WidgetNodePrototypeFactory.create(definition(), StableId.random());
         assertEquals(Map.of(p("enabled"), new PropertyValue.BooleanValue(true)), prototype.properties()); assertTrue(valid(prototype));
         for (String absent : List.of("variant", "onLongPress", "isSemanticButton", "iconAlignment")) assertTrue(definition().property(p(absent)).isEmpty());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
     }
     @Test void activationOptionalSlotsAndNativeClipAreSparseAndConstCorrect() throws Exception {
         assertTrue(generated(node(Map.of())).build().payload().contains("onPressed: () {}"));

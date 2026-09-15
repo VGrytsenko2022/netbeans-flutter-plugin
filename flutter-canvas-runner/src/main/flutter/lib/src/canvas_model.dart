@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'material_icon_registry.dart';
 
 const canvasModelFormat = 'netbeans-flutter-canvas-model';
-const canvasModelProtocolVersion = 19;
+const canvasModelProtocolVersion = 20;
 const maxCanvasSequence = 9007199254740991;
 const _maxCanvasIconCodePoint = 0x10ffff;
 const _canvasIconSurrogateStart = 0xd800;
@@ -1278,6 +1278,9 @@ class CanvasValue {
           kind as String,
           _decodeImageProvider(object['value'], '$path/value'),
         );
+      case 'gradient':
+        _exactKeys(object, path, const {'kind', 'gradient'});
+        return CanvasValue(kind as String, _decodeBoxGradient(object['gradient'], spec, '$path/gradient'));
       case 'boxDecoration':
         return CanvasValue(
           kind as String,
@@ -7924,6 +7927,13 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.ShaderMask': _WidgetSpec({
+    'shaderCallback': _PropertySpec({'gradient','dartObjectReference'}, required: true,
+        creationDefaultFingerprint: 'gradient:opaqueWhite', themeTokens: canvasColorSchemeThemeTokens,
+        dartObjectExpectedType: 'ShaderCallback'),
+    'blendMode': _PropertySpec({'enum'}, enumLibraryUri: _widgetsLibraryUri, enumType:'BlendMode',
+        enumValues: {'clear','src','dst','srcOver','dstOver','srcIn','dstIn','srcOut','dstOut','srcATop','dstATop','xor','plus','modulate','screen','overlay','darken','lighten','colorDodge','colorBurn','hardLight','softLight','difference','exclusion','multiply','hue','saturation','color','luminosity'}),
+  }, {'child': _optionalSingleSlot}),
   'flutter.widgets.BackdropGroup': _WidgetSpec({
     'backdropKey': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'BackdropKey?'),
   }, {'child':_SlotSpec(cardinality:'single', required:true, minimumChildren:1, maximumChildren:1)}),
@@ -17979,6 +17989,10 @@ P|alignment|alignmentGeometry,dartObjectReference|0|-|-|alignmentGeometry:alignm
 P|filterQuality|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:FilterQuality:high,low,medium,none;null:any
 P|scale|dartObjectReference,double,integer|1|double:1|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|dartObjectReference:dartObjectReference:v1:Animation<double>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.ShaderMask
+P|blendMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BlendMode:clear,color,colorBurn,colorDodge,darken,difference,dst,dstATop,dstIn,dstOut,dstOver,exclusion,hardLight,hue,lighten,luminosity,modulate,multiply,overlay,plus,saturation,screen,softLight,src,srcATop,srcIn,srcOut,srcOver,xor
+P|shaderCallback|dartObjectReference,gradient|1|gradient:opaqueWhite|-|dartObjectReference:dartObjectReference:v1:ShaderCallback:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);gradient:gradient:v1:linear,radial,sweep:stops(2..256,ordered,0..1):alignment(physical,directional):tile(clamp,repeated,mirror,decal):rotation:finite:theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+S|child|single|0|0|1|any
 W|flutter.widgets.SingleChildScrollView
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
 P|dragStartBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL2dlc3R1cmVzLmRhcnQ:DragStartBehavior:down,start
@@ -18636,6 +18650,13 @@ String _propertyConstraintFingerprint(_PropertySpec spec, String kind) {
   if (kind == 'imageProvider') {
     return 'imageProvider:v1:asset,exactAsset:package:exactScale:'
         'resize(1..16384,exact,fit,allowUpscaling)';
+  }
+  if (kind == 'gradient') {
+    final tokens = spec.themeTokens.toList()..sort();
+    _expect(tokens.isNotEmpty, 'Canvas gradient token schema is empty.');
+    return 'gradient:v1:linear,radial,sweep:stops(2..256,ordered,0..1):'
+        'alignment(physical,directional):tile(clamp,repeated,mirror,decal):'
+        'rotation:finite:theme=${tokens.join(',')}';
   }
   if (kind == 'boxDecoration') {
     final tokens = spec.themeTokens.toList()..sort();

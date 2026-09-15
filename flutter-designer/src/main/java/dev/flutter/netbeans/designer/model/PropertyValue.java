@@ -40,10 +40,17 @@ public sealed interface PropertyValue permits
         PropertyValue.BorderRadiusValue,
         PropertyValue.ShapeBorderClipperValue,
         PropertyValue.BoxDecorationValue,
+        PropertyValue.GradientValue,
         PropertyValue.PointerDeviceKindSetValue,
         PropertyValue.NullValue {
 
     PropertyValueKind kind();
+
+    /** Standalone typed gradient; shares the existing geometry/stops algebra. */
+    record GradientValue(BoxDecorationValue.BoxGradient gradient) implements PropertyValue {
+        public GradientValue { Objects.requireNonNull(gradient, "gradient"); }
+        @Override public PropertyValueKind kind() { return PropertyValueKind.GRADIENT; }
+    }
 
     /** A closed, deterministic set of Flutter pointer-device kinds; empty differs from null/omitted. */
     record PointerDeviceKindSetValue(List<PointerDeviceKind> values) implements PropertyValue {

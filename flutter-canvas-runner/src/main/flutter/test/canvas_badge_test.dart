@@ -55,7 +55,7 @@ void main() {
         'label',
         'child',
       ]);
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
     },
   );
 

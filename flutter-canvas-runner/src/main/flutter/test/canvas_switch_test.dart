@@ -1404,7 +1404,7 @@ void main() {
         actual.where((v) => v.startsWith('S|') || v.startsWith('C|')),
         isEmpty,
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(_control(_model())['properties'], hasLength(3));
     },
   );

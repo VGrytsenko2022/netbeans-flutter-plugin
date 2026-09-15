@@ -90,7 +90,7 @@ void main() {
           'S|child|single|1|1|1|any\nC|$_type|paletteCreate|wrapExistingChild|child\n',
         ),
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedRequiredChildWrapperWidgetType(_type), isTrue);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       final defaultProperties = _find(_decode(_model()).root, _id)!.properties;

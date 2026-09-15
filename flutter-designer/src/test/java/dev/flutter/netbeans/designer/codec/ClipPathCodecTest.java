@@ -51,7 +51,7 @@ class ClipPathCodecTest {
                                         hasChild);
                                 var encoded = codec.encode(original);
                                 var decoded = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(encoded));
-                                assertEquals(16, decoded.sourceSchemaVersion());
+                                assertEquals(17, decoded.sourceSchemaVersion());
                                 assertFalse(decoded.migrated());
                                 assertEquals(original, decoded.document());
                                 assertArrayEquals(encoded.copyBytes(), codec.encode(decoded.document()).copyBytes());

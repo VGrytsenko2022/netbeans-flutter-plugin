@@ -34,7 +34,7 @@ class SubmenuButtonContractTest {
         assertTrue(source.contains("const SubmenuButton("), source); assertTrue(source.contains("child: null")); assertTrue(source.contains("menuChildren:"));
         for (String absent : List.of("enabled", "onPressed", "onLongPress", "variant", "padding", "autofocus", "isSemanticButton")) assertTrue(definition().property(p(absent)).isEmpty(), absent);
         for (String absent : List.of("onPressed:", "controller:", "hoverOpenDelay:", "style:", "submenuIcon:")) assertFalse(source.contains(absent), source);
-        roundTrip(prototype); assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        roundTrip(prototype); assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
     }
     @Test void everyNullableDirectReferenceAndFactoryKeepsExactProofPaths() throws Exception {
         var types = Map.ofEntries(Map.entry("controller", "MenuController"), Map.entry("style", "ButtonStyle"), Map.entry("menuStyle", "MenuStyle"), Map.entry("alignmentOffset", "Offset"), Map.entry("focusNode", "FocusNode"), Map.entry("statesController", "WidgetStatesController"), Map.entry("submenuIcon", "WidgetStateProperty<Widget?>"), Map.entry("onOpen", "VoidCallback"), Map.entry("onClose", "VoidCallback"), Map.entry("onHover", "ValueChanged<bool>"), Map.entry("onFocusChange", "ValueChanged<bool>"), Map.entry("onAnimationStatusChanged", "ValueChanged<AnimationStatus>"), Map.entry("hoverOpenDelayUs", "Duration"));

@@ -62,9 +62,9 @@ class IconThemeContractTest {
         assertFalse(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition));
         assertEquals(List.of("C|flutter.widgets.IconTheme|paletteCreate|wrapExistingChild|child"),
                 WidgetPlacementRules.capabilityFingerprintLines(definition));
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test

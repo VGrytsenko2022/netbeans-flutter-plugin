@@ -30,6 +30,7 @@ final class FlutterLocalDartReferenceEditorComponent {
     static final String OFFSET = "Signed Offset coordinates";
     static final String NUMBER = "Local number";
     static final String MATRIX = "Structured Matrix4";
+    static final String GRADIENT = "Structured gradient shader";
     static final String PHYSICAL_ALIGNMENT = "Physical Alignment";
     static final String CONSTRAINTS = "Structured BoxConstraints";
     static final String DECORATION = "Structured BoxDecoration";
@@ -66,13 +67,14 @@ final class FlutterLocalDartReferenceEditorComponent {
             boolean color = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.COLOR_REFERENCE;
             boolean alignment = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ALIGNMENT_REFERENCE;
             boolean offset = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.OFFSET_REFERENCE;
+            boolean gradient = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.GRADIENT_REFERENCE;
             boolean matrix = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.MATRIX4_REFERENCE;
             boolean number = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.NUMBER_REFERENCE;
             boolean physicalAlignment = binding.definition().constraints().stream().anyMatch(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.AlignmentValues.class::isInstance);
             boolean constraints = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_CONSTRAINTS_REFERENCE;
             boolean decoration = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_DECORATION_REFERENCE;
             boolean icon = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ICON_WIDGET_REFERENCE;
-            localMode = image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
+            localMode = gradient ? GRADIENT : image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
             var modes = new java.util.ArrayList<String>(); if (binding.optional()) modes.add(OMIT);
             if (binding.definition().acceptedKinds().contains(PropertyValueKind.NULL)) modes.add(NULL);
             modes.add(localMode); modes.add(PROJECT); mode = new JComboBox<>(modes.toArray(String[]::new));
@@ -90,6 +92,7 @@ final class FlutterLocalDartReferenceEditorComponent {
             var localBinding = FlutterTypedPropertyEditors.binding(localDefinition).orElseThrow();
             var localEditor = localBinding.createEditor();
             PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) && !(initial instanceof PropertyValue.NullValue) ? initial
+                    : gradient ? dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.neutral()
                     : image ? PropertyValue.ImageProviderValue.unresolved()
                     : radius ? zeroRadius()
                     : matrix ? new PropertyValue.Matrix4Value(java.util.stream.IntStream.range(0, 16).mapToObj(i -> i % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO).toList())

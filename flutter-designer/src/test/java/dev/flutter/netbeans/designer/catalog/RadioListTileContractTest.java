@@ -34,7 +34,7 @@ class RadioListTileContractTest {
         assertEquals(Map.of(p("value"), s("option"), p("valueType"), s("String"), p("variant"), s("standard"), p("onChanged"), s("noop")), node(Map.of()).properties());
         assertTrue(valid(node(Map.of())));
         for (String name : List.of("key", "groupRegistry", "focusColor", "backgroundColor", "side", "innerRadius", "tristate")) assertTrue(definition().property(p(name)).isEmpty(), name);
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
     }
 
     @Test

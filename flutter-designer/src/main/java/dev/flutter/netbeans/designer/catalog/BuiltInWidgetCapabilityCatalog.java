@@ -59,6 +59,7 @@ public final class BuiltInWidgetCapabilityCatalog {
                     PropertyValueKind.SHAPE_BORDER_CLIPPER,
                     PropertyValueKind.DART_OBJECT_REFERENCE,
                     PropertyValueKind.BOX_DECORATION,
+                    PropertyValueKind.GRADIENT,
                     PropertyValueKind.NULL,
                     PropertyValueKind.CALLBACK));
     private static final Set<PropertyValueKind> NUMERIC_SCHEMA_KINDS =
@@ -292,6 +293,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.BackdropFilter", STATIC_EDITABLE),
             Map.entry("flutter.widgets.BackdropFilter.grouped", STATIC_EDITABLE),
             Map.entry("flutter.widgets.BackdropGroup", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.ShaderMask", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeTransition", STATIC_EDITABLE),
@@ -1007,6 +1009,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.ShaderMask", projection(
+                    ShaderMaskWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
             Map.entry("flutter.widgets.BackdropFilter", projection(
                     BackdropFilterWidgetPropertySchema.properties(new WidgetTypeId("flutter.widgets.BackdropFilter")).stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
@@ -4961,6 +4966,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + ":currentOrPackage:root,optionalMember:reference,"
                     + "zeroArgumentInvocation:requiredConstnessBoolean(false,true)";
         }
+        if (constraint instanceof PropertyValueConstraint.GradientValues values) {
+            return "gradient:v1:linear,radial,sweep:stops(2..256,ordered,0..1):alignment(physical,directional):tile(clamp,repeated,mirror,decal):rotation:finite:theme="
+                    + String.join(",", values.colorThemeTokenIds());
+        }
         if (constraint instanceof PropertyValueConstraint.BoxDecorationValues values) {
             return boxDecorationFingerprint(values.colorThemeTokenIds());
         }
@@ -5087,6 +5096,10 @@ public final class BuiltInWidgetCapabilityCatalog {
                     + boxConstraintBoundFingerprint(constraints.maxWidth()) + ','
                     + boxConstraintBoundFingerprint(constraints.minHeight()) + ','
                     + boxConstraintBoundFingerprint(constraints.maxHeight());
+        }
+        if (value instanceof PropertyValue.GradientValue gradient) {
+            if (gradient.equals(ShaderMaskWidgetPropertySchema.neutral())) return "gradient:opaqueWhite";
+            throw new ExceptionInInitializerError("Unreviewed gradient creation default");
         }
         if (value instanceof PropertyValue.BoxDecorationValue decoration) {
             if (decoration.color().isEmpty()

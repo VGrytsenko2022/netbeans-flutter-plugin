@@ -39,9 +39,9 @@ class FloatingActionButtonContractTest {
         assertTrue(valid(prototype));
         assertEquals(WidgetPlacementRules.PaletteCreationMode.INSERT_PROTOTYPE, WidgetPlacementRules.creationMode(definition));
         assertTrue(generated(prototype).build().payload().contains("onPressed: () {}"));
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test

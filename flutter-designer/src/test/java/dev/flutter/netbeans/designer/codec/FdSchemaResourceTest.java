@@ -389,7 +389,7 @@ class FdSchemaResourceTest {
         try (InputStream input = FdSchemas.openV16()) { packaged = input.readAllBytes(); }
         assertArrayEquals(Files.readAllBytes(findRepositoryFile(
                 Path.of("docs", "flutter-designer", "fd-v16.schema.json"))), packaged);
-        assertArrayEquals(packaged, loadCurrentSchema());
+        assertFalse(new String(packaged, StandardCharsets.UTF_8).contains("gradientValue"));
         String schema = new String(packaged, StandardCharsets.UTF_8);
         assertFalse(schema.contains("\r"));
         assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:16"));
@@ -401,6 +401,24 @@ class FdSchemaResourceTest {
         }
         try (InputStream input = FdSchemas.openV15()) {
             assertFalse(new String(input.readAllBytes(), StandardCharsets.UTF_8).contains("pointerDeviceKindSet"));
+        }
+    }
+
+    @Test
+    void packagesV17StandaloneGradientAndPreservesFrozenV16() throws IOException {
+        byte[] packaged;
+        try (InputStream input = FdSchemas.openV17()) { packaged = input.readAllBytes(); }
+        assertArrayEquals(Files.readAllBytes(findRepositoryFile(
+                Path.of("docs", "flutter-designer", "fd-v17.schema.json"))), packaged);
+        assertArrayEquals(packaged, loadCurrentSchema());
+        String schema = new String(packaged, StandardCharsets.UTF_8);
+        assertFalse(schema.contains("\r"));
+        assertTrue(schema.contains("urn:netbeans-flutter-designer:schema:fd:17"));
+        assertTrue(schema.contains("\"const\": 17"));
+        assertTrue(schema.contains("\"gradientValue\""));
+        assertTrue(schema.contains("\"$ref\": \"#/$defs/boxGradient\""));
+        try (InputStream input = FdSchemas.openV16()) {
+            assertFalse(new String(input.readAllBytes(), StandardCharsets.UTF_8).contains("gradientValue"));
         }
     }
 

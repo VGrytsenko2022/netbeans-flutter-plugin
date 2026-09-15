@@ -2569,7 +2569,14 @@ accepted architecture is documented in
     configuration/source precedence, typed shared keys, 52 Properties,
     native pixels/clipping/input tests and required-child group wrapping.
     See [BackdropFilter](BACKDROP_FILTER.md).
-  - [ ] Next palette slice: ShaderMask (typed shader callback and blend modes).
+  - [x] Add ShaderMask: linear/radial/sweep gradient editor, exact typed
+    ShaderCallback and source-handler lifecycle, all 29 BlendModes, optional
+    Child, theme/RTL dependencies, save/reopen/history and native pixel tests.
+    FD 17 standalone gradient values migrate older forms without changing Dart.
+    See [ShaderMask](SHADER_MASK.md).
+  - [ ] Next palette candidate: CustomPaint (typed painter/foregroundPainter,
+    size, cache hints, optional Child and explicit source-owned paint behavior).
+    Verify against the pinned SDK before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

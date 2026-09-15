@@ -223,14 +223,14 @@ class ListTileContractTest {
     @Test
     void aggregateCountsAndUnchangedBudgetsAreExecutable() {
         var definitions = CATALOG.definitions();
-        assertEquals(216, definitions.size());
-        assertEquals(181, definitions.stream().filter(WidgetDefinition::constConstructor).count());
-        assertEquals(7434, definitions.stream().mapToInt(v -> v.properties().size()).sum());
+        assertEquals(217, definitions.size());
+        assertEquals(182, definitions.stream().filter(WidgetDefinition::constConstructor).count());
+        assertEquals(7436, definitions.stream().mapToInt(v -> v.properties().size()).sum());
         assertEquals(679, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
         assertEquals(53, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
         assertEquals(52, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
     }
 

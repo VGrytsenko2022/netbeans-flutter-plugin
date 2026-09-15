@@ -60,8 +60,8 @@ class FdV11BorderRadiusValueCodecTest {
                 DIRECTIONAL, directional)));
         String json = new String(encoded.copyBytes(), StandardCharsets.UTF_8);
 
-        assertTrue(json.contains("\"schemaVersion\": 16"), json);
-        assertTrue(json.contains("\"$schema\": \"../fd-v16.schema.json\""), json);
+        assertTrue(json.contains("\"schemaVersion\": 17"), json);
+        assertTrue(json.contains("\"$schema\": \"../fd-v17.schema.json\""), json);
         assertCanonicalOrder(
                 json,
                 "\"directionalRadius\"",
@@ -89,7 +89,7 @@ class FdV11BorderRadiusValueCodecTest {
 
         FdDecodeResult.Current decoded = assertInstanceOf(
                 FdDecodeResult.Current.class, codec.decode(encoded));
-        assertEquals(16, decoded.sourceSchemaVersion());
+        assertEquals(17, decoded.sourceSchemaVersion());
         assertFalse(decoded.migrated());
         assertEquals(directional, decoded.document().root().properties().get(DIRECTIONAL));
         assertEquals(physical, decoded.document().root().properties().get(PHYSICAL));
@@ -107,8 +107,8 @@ class FdV11BorderRadiusValueCodecTest {
                                 radius("5", "6"), radius("7", "8"))))))
                 .copyBytes(), StandardCharsets.UTF_8);
         String v10 = current
-                .replace("\"schemaVersion\": 16", "\"schemaVersion\": 10")
-                .replace("../fd-v16.schema.json", "../fd-v10.schema.json");
+                .replace("\"schemaVersion\": 17", "\"schemaVersion\": 10")
+                .replace("../fd-v17.schema.json", "../fd-v10.schema.json");
 
         assertInvalid(
                 v10,
@@ -200,19 +200,19 @@ class FdV11BorderRadiusValueCodecTest {
         String current = new String(codec.encode(document(Map.of())).copyBytes(),
                 StandardCharsets.UTF_8);
         String legacy = current
-                .replace("\"schemaVersion\": 16", "\"schemaVersion\": 10")
-                .replace("../fd-v16.schema.json", "../fd-v10.schema.json");
+                .replace("\"schemaVersion\": 17", "\"schemaVersion\": 10")
+                .replace("../fd-v17.schema.json", "../fd-v10.schema.json");
 
         FdDecodeResult.Current migrated = assertInstanceOf(
                 FdDecodeResult.Current.class,
                 codec.decode(legacy.getBytes(StandardCharsets.UTF_8)));
         assertEquals(10, migrated.sourceSchemaVersion());
         assertTrue(migrated.migrated());
-        assertEquals(Optional.of("../fd-v16.schema.json"),
+        assertEquals(Optional.of("../fd-v17.schema.json"),
                 migrated.document().schemaReference());
         assertFalse(migrated.document().root().properties().containsKey(CLIP_RADIUS));
         assertTrue(new String(codec.encode(migrated.document()).copyBytes(),
-                StandardCharsets.UTF_8).contains("\"schemaVersion\": 16"));
+                StandardCharsets.UTF_8).contains("\"schemaVersion\": 17"));
     }
 
     private void assertInvalid(
@@ -265,7 +265,7 @@ class FdV11BorderRadiusValueCodecTest {
             Map<PropertyName, PropertyValue> properties) {
         ManagedRegion region = new ManagedRegion("A".repeat(64));
         return new DesignerDocument(
-                Optional.of("../fd-v16.schema.json"),
+                Optional.of("../fd-v17.schema.json"),
                 StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"),
                 new DartSourceDescriptor(
                         "clip_rrect_page.dart",

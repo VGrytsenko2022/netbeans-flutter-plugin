@@ -152,7 +152,7 @@ void main() {
       expect(RegExp(r'^P\|', multiLine: true).allMatches(block), hasLength(23));
       expect(block, contains('ImageProvider<Object>'));
       expect(block, contains('ImageErrorWidgetBuilder?'));
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       for (final name in ['placeholder', 'image']) {
         final raw = data();
         (a.builder(raw)['properties'] as Map).remove(name);

@@ -46,7 +46,7 @@ class FdV16PointerDeviceKindSetCodecTest {
             byte[] bytes = codec.encode(original).copyBytes();
             var result = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(bytes));
             assertFalse(result.migrated());
-            assertEquals(16, result.sourceSchemaVersion());
+            assertEquals(17, result.sourceSchemaVersion());
             assertEquals(original, result.document());
             assertArrayEquals(bytes, codec.encode(result.document()).copyBytes());
         }
@@ -76,7 +76,7 @@ class FdV16PointerDeviceKindSetCodecTest {
         assertInvalid(valid.replace("\"kind\": \"pointerDeviceKindSet\"", "\"kind\": \"pointerDeviceKindSet\", \"extra\": true"));
         assertInvalid(valid.replace("\"values\"", "\"devices\""));
         for (int version = 1; version < 16; version++) {
-            assertInvalid(valid.replace("\"schemaVersion\": 16", "\"schemaVersion\": " + version));
+            assertInvalid(valid.replace("\"schemaVersion\": 17", "\"schemaVersion\": " + version));
         }
     }
 
@@ -90,15 +90,15 @@ class FdV16PointerDeviceKindSetCodecTest {
         for (String reference : List.of("../fd-v15.schema.json", "urn:netbeans-flutter-designer:schema:fd:15", "custom.json")) {
             var value = new DesignerDocument(Optional.of(reference), plain.documentId(), plain.source(),
                     Optional.empty(), root, Extensions.empty());
-            byte[] old = json(value).replace("\"schemaVersion\": 16", "\"schemaVersion\": 15").getBytes(StandardCharsets.UTF_8);
+            byte[] old = json(value).replace("\"schemaVersion\": 17", "\"schemaVersion\": 15").getBytes(StandardCharsets.UTF_8);
             var result = assertInstanceOf(FdDecodeResult.Current.class, codec.decode(old));
             assertEquals(15, result.sourceSchemaVersion());
             assertTrue(result.migrated());
             assertArrayEquals(old, result.original().copyBytes());
             assertEquals(root, result.document().root());
-            String expected = reference.equals("custom.json") ? reference : reference.replace("15", "16");
+            String expected = reference.equals("custom.json") ? reference : reference.replace("15", "17");
             assertEquals(Optional.of(expected), result.document().schemaReference());
-            assertTrue(json(result.document()).contains("\"schemaVersion\": 16"));
+            assertTrue(json(result.document()).contains("\"schemaVersion\": 17"));
         }
     }
 
@@ -110,7 +110,7 @@ class FdV16PointerDeviceKindSetCodecTest {
     }
     private static DesignerDocument document(Map<PropertyName, PropertyValue> values) {
         var region = new ManagedRegion("0".repeat(64));
-        return new DesignerDocument(Optional.of("../fd-v16.schema.json"), StableId.random(),
+        return new DesignerDocument(Optional.of("../fd-v17.schema.json"), StableId.random(),
                 new DartSourceDescriptor("sample.dart", "Sample", WidgetClassKind.STATEFUL,
                         Optional.empty(), new ManagedRegions(region, region)), Optional.empty(),
                 new WidgetNode(StableId.random(), new WidgetTypeId("flutter.widgets.GestureDetector"),

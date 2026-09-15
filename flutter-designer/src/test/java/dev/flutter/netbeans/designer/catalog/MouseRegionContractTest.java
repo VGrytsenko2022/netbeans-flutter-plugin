@@ -129,7 +129,7 @@ class MouseRegionContractTest {
     @Test
     void schema16RoundTripsEveryCallbackBindingWithoutCollapsingOmittedNullOrReferences() throws Exception {
         var codec = new FdDocumentCodec();
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
         for (String name : CALLBACKS) {
             for (var value : List.of(new PropertyValue.NullValue(), new PropertyValue.CallbackValue("_handler"),
                     new PropertyValue.CallbackValue("noop"), reference())) {

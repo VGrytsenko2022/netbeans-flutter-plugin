@@ -153,11 +153,11 @@ void main() {
       expect(schema, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(schema),
-        hasLength(216),
+        hasLength(217),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(schema),
-        hasLength(7434),
+        hasLength(7436),
       );
       final start = schema.indexOf('W|$_type\n');
       final section = schema.substring(start, schema.indexOf('W|', start + 2));
@@ -180,7 +180,7 @@ void main() {
       );
       expect(canvasExpansionCurvePresets, hasLength(43));
       expect(canvasReviewedRequiredWrapperSlot(_type), 'title');
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
     },
   );
 

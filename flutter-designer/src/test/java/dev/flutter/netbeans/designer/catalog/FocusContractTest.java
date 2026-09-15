@@ -98,7 +98,7 @@ class FocusContractTest {
 
     @Test void schema16RoundTripsBothConstructorsEveryValueAndInactiveFieldsWithoutChangingRepresentation() throws Exception {
         var codec = new FdDocumentCodec();
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
         var fields = new LinkedHashMap<PropertyName, PropertyValue>();
         fields.put(new PropertyName("focusNode"), reference("_node"));
         fields.put(new PropertyName("parentNode"), new PropertyValue.NullValue());

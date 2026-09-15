@@ -28,6 +28,7 @@ public enum PropertyValueKind {
     BORDER_RADIUS("borderRadius"),
     SHAPE_BORDER_CLIPPER("shapeBorderClipper"),
     BOX_DECORATION("boxDecoration"),
+    GRADIENT("gradient"),
     POINTER_DEVICE_KIND_SET("pointerDeviceKindSet"),
     NULL("null");
 

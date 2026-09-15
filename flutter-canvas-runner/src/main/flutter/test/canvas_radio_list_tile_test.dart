@@ -160,11 +160,11 @@ void main() {
       expect(schema, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(schema),
-        hasLength(216),
+        hasLength(217),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(schema),
-        hasLength(7434),
+        hasLength(7436),
       );
       final start = schema.indexOf('W|$_type\n');
       final section = schema.substring(
@@ -185,7 +185,7 @@ void main() {
         sha256Hex(utf8.encode(section)),
         '306c07a11aaefb7dc310fa40343302af4c4e99bcf1726b7ee500d801d4518c85',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
     },
   );
 

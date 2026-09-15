@@ -29,7 +29,7 @@ void main() {
   test(
     'Focus exact13property3event contract and required-child wrap retain protocol19',
     () {
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(
         canvasRuntimeWidgetSchemaContractForTesting(),
         canvasReviewedWidgetSchemaContract.trimLeft(),

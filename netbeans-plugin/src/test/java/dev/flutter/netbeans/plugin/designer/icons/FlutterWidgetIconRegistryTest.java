@@ -39,7 +39,7 @@ class FlutterWidgetIconRegistryTest {
             "dev/flutter/netbeans/plugin/designer/icons/widgets/";
     private static final String SVG_NAMESPACE = "http://www.w3.org/2000/svg";
     private static final Set<String> PAINT_ATTRIBUTES = Set.of(
-            "color", "fill", "fill-opacity", "opacity", "stroke", "stroke-opacity");
+            "color", "fill", "fill-opacity", "opacity", "stroke", "stroke-opacity", "stop-color", "stop-opacity");
     private static final Set<String> FORBIDDEN_ELEMENTS = Set.of(
             "font", "font-face", "foreignobject", "image", "script", "style", "text");
 
@@ -110,6 +110,19 @@ class FlutterWidgetIconRegistryTest {
         assertEquals(EXPECTED, actual);
         assertEquals(EXPECTED.size(), new HashSet<>(actual.values()).size(),
                 "each reviewed widget must have a dedicated icon base");
+    }
+
+    @Test void shaderMaskUsesGradientPaintAndMatchingGeometryInAllFourVariants() throws Exception {
+        String base = ICON_ROOT + "shadermask.svg";
+        for (boolean large : List.of(false, true)) {
+            var light = readSvg(variant(base, large, false), large ? 32 : 16);
+            var dark = readSvg(variant(base, large, true), large ? 32 : 16);
+            assertEquals(light.geometry(), dark.geometry());
+            assertTrue(light.geometry().stream().anyMatch(item -> item.startsWith("linearGradient[")));
+            assertTrue(light.paint().stream().anyMatch(item -> item.contains("stop-color=#0079bd")));
+            assertTrue(dark.paint().stream().anyMatch(item -> item.contains("stop-color=#78caff")));
+            assertTrue(light.paint().stream().anyMatch(item -> item.contains("fill=url(#mask)")));
+        }
     }
 
     @Test void crossFadeHasTwoOverlappingFramesAndDirectionArrowInFourReviewedSvgs() throws Exception {
@@ -2259,6 +2272,7 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.BackdropFilter", ICON_ROOT + "backdropfilter.svg");
         expected.put("flutter.widgets.BackdropFilter.grouped", ICON_ROOT + "backdropfiltergrouped.svg");
         expected.put("flutter.widgets.BackdropGroup", ICON_ROOT + "backdropgroup.svg");
+        expected.put("flutter.widgets.ShaderMask", ICON_ROOT + "shadermask.svg");
         expected.put("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg");
         expected.put("flutter.widgets.AnimatedContainer", ICON_ROOT + "animatedcontainer.svg");
         expected.put("flutter.widgets.AnimatedOpacity", ICON_ROOT + "animatedopacity.svg");

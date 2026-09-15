@@ -30,7 +30,7 @@ void main() {
         contract.substring(start, end),
         'W|$_type\nP|index|integer|1|integer:0|integer:-9007199254740991:1:9007199254740991:1|integer:range:-9007199254740991:1:9007199254740991:1\nS|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(isCanvasPaletteWrapperWidgetType(_type), isFalse);
       expect(canvasWidgetTraitsForType(_type), isEmpty);

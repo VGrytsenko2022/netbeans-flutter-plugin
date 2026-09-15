@@ -89,7 +89,7 @@ class NotificationListenerContractTest {
         NotificationListenerWidgetPropertySchema.typePresets().forEach(name -> types.add(new PropertyValue.StringValue(name)));
         types.add(reference("CustomNotice", Optional.of("package:app/notices.dart"), false));
         var codec = new FdDocumentCodec();
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
         for (PropertyValue type : types) {
             var props = new LinkedHashMap<PropertyName, PropertyValue>();
             props.put(p("notificationType"), type);

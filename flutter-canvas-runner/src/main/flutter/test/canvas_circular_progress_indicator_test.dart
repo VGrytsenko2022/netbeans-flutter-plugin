@@ -259,7 +259,7 @@ void main() {
       expect(_node(_decode(model)).properties.keys, ['variant']);
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       expect(canvasWidgetTraitsForType(_type), isEmpty);
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       for (final name in ['value', 'strokeWidth', 'strokeAlign']) {
         for (final value in [
           _int(-9007199254740991),

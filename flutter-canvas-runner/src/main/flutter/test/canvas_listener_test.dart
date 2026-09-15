@@ -28,7 +28,7 @@ const _events = <String>[
 
 void main() {
   test('Listener exact10property9event contract retains protocol19', () {
-    expect(canvasModelProtocolVersion, 19);
+    expect(canvasModelProtocolVersion, 20);
     expect(
       canvasRuntimeWidgetSchemaContractForTesting(),
       canvasReviewedWidgetSchemaContract.trimLeft(),

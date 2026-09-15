@@ -95,7 +95,8 @@ public final class WidgetEventCatalog {
                     || dev.flutter.netbeans.designer.catalog.SliverVariedExtentListWidgetPropertySchema.find(definition.typeId()).isPresent()) {
                 nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
             }
-            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE)) {
+            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE)
+                    || definition.typeId().equals(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE)) {
                 sdkRequired = property.parameter().required();
                 nullable = false;
             }
@@ -121,6 +122,7 @@ public final class WidgetEventCatalog {
 
     private static String unsetBehavior(String widget, String property) {
         if ((widget.equals("ModalBarrier") || widget.equals("AnimatedModalBarrier")) && property.equals("onDismiss")) return "Unset/null uses Navigator.maybePop when Dismissible is true; otherwise the retained callback is ignored. A bound callback owns dismissal; Canvas suppresses callback, route changes and alert sounds.";
+        if (widget.equals("ShaderMask") && property.equals("shaderCallback")) return "Required Shader Function(Rect bounds). Disconnect restores the opaque-white gradient; it never writes null or removes the required callback.";
         if (widget.equals("MatrixTransition") && property.equals("onTransform")) return "Required TransformCallback or a structured fixed-matrix callback. Null/unset is not allowed; disconnect restores the identity matrix preset. Return a fresh Matrix4 from the animation value.";
         if (widget.equals("TweenAnimationBuilder") && property.equals("builder")) return "Required typed builder or Child preset; null/unset are not allowed. Match the selected box/sliver result.";
         if (widget.equals("ListenableBuilder") || widget.equals("AnimatedBuilder") || widget.equals("ValueListenableBuilder")) return "Required callback: retain Child or a typed project reference. Unset/null is not allowed; Child and result must match the selected box/sliver placement.";
@@ -312,6 +314,8 @@ public final class WidgetEventCatalog {
                 false, "Widget", "BuildContext:context", "MenuController:controller", "Widget?:child");
         add(widgets, "flutter.widgets.ModalBarrier", "onDismiss", "VoidCallback?", true, "void");
         add(widgets, "flutter.widgets.AnimatedModalBarrier", "onDismiss", "VoidCallback?", true, "void");
+        addCallable(widgets, "flutter.widgets.ShaderMask", "shaderCallback", "ShaderCallback",
+                WidgetEventDescriptor.Kind.DELEGATE, false, "Shader", "Rect:bounds");
         addCallable(widgets, "flutter.widgets.MatrixTransition", "onTransform", "TransformCallback",
                 WidgetEventDescriptor.Kind.DELEGATE, false, "Matrix4", "double:animationValue");
         addCallable(widgets, "flutter.material.Tooltip", "positionDelegate", "TooltipPositionDelegate", WidgetEventDescriptor.Kind.DELEGATE, false, "Offset", "TooltipPositionContext:context");
@@ -432,6 +436,7 @@ public final class WidgetEventCatalog {
             List<WidgetEventDescriptor.Parameter> args) {
         List<String> imports = new ArrayList<>();
         if (result.equals("Future<void>")) imports.add("dart:async");
+        if (callbackType.equals("ShaderCallback")) imports.add(WIDGETS);
         if (callbackType.equals(NotificationListenerWidgetPropertySchema.CALLBACK_TYPE) || callbackType.equals("ChildIndexGetter?")) imports.add(WIDGETS);
         if (callbackType.equals("TooltipPositionDelegate") || callbackType.equals("TooltipTriggeredCallback")) imports.add(WIDGETS);
         if (callbackType.equals("ValueChanged<AnimationStatus>") || callbackType.equals("TransformCallback")) imports.add(WIDGETS);

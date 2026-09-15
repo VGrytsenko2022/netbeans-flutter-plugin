@@ -609,6 +609,9 @@ public final class FlutterDesignerPalette {
             } else if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("DecoratedBoxTransition");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+                setDisplayName("ShaderMask");
+                setShortDescription(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.DESCRIPTION);
             } else if (dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.isFilter(definition.typeId())) {
                 setDisplayName(definition.typeId().equals(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.GROUPED) ? "BackdropFilter.grouped" : "BackdropFilter");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.BackdropFilterWidgetPropertySchema.DESCRIPTION);

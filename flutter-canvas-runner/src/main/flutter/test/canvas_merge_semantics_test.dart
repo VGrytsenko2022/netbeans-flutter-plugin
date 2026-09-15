@@ -30,7 +30,7 @@ void main() {
         contract.substring(start, end),
         'W|$_type\nS|child|single|0|0|1|any\n',
       );
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       expect(_find(_decode(_model()).root)!.properties, isEmpty);
       expect(isCanvasReviewedWidgetType(_type), isTrue);
       expect(canvasWidgetTraitsForType(_type), isEmpty);

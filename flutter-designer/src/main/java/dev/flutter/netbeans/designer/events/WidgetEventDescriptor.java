@@ -42,7 +42,7 @@ public record WidgetEventDescriptor(
 
     /** Reviewed source lifecycle actions, separate from native Events classification. */
     public boolean supportsHandlerActions() {
-        return kind == Kind.EVENT || (kind == Kind.DELEGATE && callbackType.equals("TransformCallback"))
+        return kind == Kind.EVENT || (kind == Kind.DELEGATE && java.util.Set.of("TransformCallback", "ShaderCallback").contains(callbackType))
                 || (kind == Kind.BUILDER && callbackType.equals("ImageErrorWidgetBuilder?"));
     }
 
@@ -132,6 +132,10 @@ public record WidgetEventDescriptor(
         if (callbackType.equals("ImageErrorWidgetBuilder?")) {
             return declaration + " {\n  // TODO: Display a fallback for " + propertyName.value()
                     + ".\n  return const SizedBox.shrink();\n}";
+        }
+        if (callbackType.equals("ShaderCallback")) {
+            return declaration + " {\n  // Return a shader for the current paint bounds.\n"
+                    + "  return (const LinearGradient(colors: <Color>[Color(0xFFFFFFFF), Color(0xFFFFFFFF)])).createShader(bounds);\n}";
         }
         if (callbackType.equals("TransformCallback")) {
             return declaration + " {\n  // Compute a fresh transform from animationValue.\n  return Matrix4.identity();\n}";

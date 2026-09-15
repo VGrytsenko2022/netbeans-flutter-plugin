@@ -35,6 +35,7 @@ public sealed interface PropertyValueConstraint permits
         PropertyValueConstraint.ShapeBorderClipperValues,
         PropertyValueConstraint.DartObjectReferenceValues,
         PropertyValueConstraint.BoxDecorationValues,
+        PropertyValueConstraint.GradientValues,
         PropertyValueConstraint.IntegerRange,
         PropertyValueConstraint.DoubleRange,
         PropertyValueConstraint.EnumValues,
@@ -68,6 +69,7 @@ public sealed interface PropertyValueConstraint permits
                     || kind == PropertyValueKind.BORDER_RADIUS
                     || kind == PropertyValueKind.SHAPE_BORDER_CLIPPER
                     || kind == PropertyValueKind.DART_OBJECT_REFERENCE
+                    || kind == PropertyValueKind.GRADIENT
                     || kind == PropertyValueKind.BOX_DECORATION
                     || kind == PropertyValueKind.ICON_DATA
                     || kind == PropertyValueKind.CALLBACK) {
@@ -430,6 +432,17 @@ public sealed interface PropertyValueConstraint permits
             return "project Dart reference or zero-argument invocation assignable to "
                     + expectedDartType;
         }
+    }
+
+    /** All three structured gradient families, finite geometry and reviewed colors. */
+    record GradientValues(List<String> colorThemeTokenIds) implements PropertyValueConstraint {
+        public GradientValues { colorThemeTokenIds = themeTokenIds(colorThemeTokenIds); }
+        @Override public PropertyValueKind kind() { return PropertyValueKind.GRADIENT; }
+        @Override public boolean accepts(PropertyValue value) {
+            return value instanceof PropertyValue.GradientValue gradient
+                    && new BoxDecorationValues(colorThemeTokenIds).acceptsGradient(gradient.gradient());
+        }
+        @Override public String description() { return "Linear, radial or sweep gradient with typed stops, directionality, tiling and rotation"; }
     }
 
     /** Accepts the reviewed BoxDecoration subset and theme colors. */

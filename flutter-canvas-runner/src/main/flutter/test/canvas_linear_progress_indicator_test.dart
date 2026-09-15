@@ -36,7 +36,7 @@ void main() {
       expect(block, isNot(contains('C|')));
       expect(block, contains('dartObjectReference:v1:Animation<Color?>:'));
       expect(block, contains('dartObjectReference:v1:AnimationController:'));
-      expect(canvasModelProtocolVersion, 19);
+      expect(canvasModelProtocolVersion, 20);
       final decoded = _node(_decode(_model()));
       expect(decoded.properties, isEmpty);
       expect(decoded.slots, isEmpty);

@@ -293,6 +293,13 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.ImageProviderValues.class::isInstance)) {
             editorKind = EditorKind.NULLABLE_IMAGE_PROVIDER;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.GRADIENT, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.GradientValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues ref && ref.expectedDartType().equals("ShaderCallback"))) {
+            editorKind = EditorKind.GRADIENT_REFERENCE;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.GRADIENT))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.GradientValues.class::isInstance)) {
+            editorKind = EditorKind.GRADIENT;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.BOX_DECORATION))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.BoxDecorationValues.class::isInstance)) {
@@ -367,6 +374,8 @@ final class FlutterTypedPropertyEditors {
         ALIGNMENT_REFERENCE,
         BOX_CONSTRAINTS_REFERENCE,
         BOX_DECORATION_REFERENCE,
+        GRADIENT_REFERENCE,
+        GRADIENT,
         SIZE,
         OFFSET,
         OFFSET_REFERENCE,
@@ -450,6 +459,7 @@ final class FlutterTypedPropertyEditors {
                     values.colorThemeTokenIds().stream();
                 case PropertyValueConstraint.ShadowListValues values ->
                     values.colorThemeTokenIds().stream();
+                case PropertyValueConstraint.GradientValues values -> values.colorThemeTokenIds().stream();
                 case PropertyValueConstraint.BoxDecorationValues values ->
                     values.colorThemeTokenIds().stream();
                 default -> java.util.stream.Stream.empty();
@@ -505,7 +515,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
-                        ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
+                        GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
                         MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
                         DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->
                     new StructuredEditor(this);

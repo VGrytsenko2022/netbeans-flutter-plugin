@@ -26,7 +26,7 @@ class TooltipContractTest {
         var prototype = WidgetNodePrototypeFactory.create(definition(), StableId.random()); assertEquals(Map.of(p("message"), s("Tooltip")), prototype.properties());
         assertTrue(valid(prototype)); assertTrue(WidgetPlacementRules.supportsDirectPrototypeInsertion(definition()));
         assertTrue(generated(prototype).build().payload().contains("const Tooltip("));
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
         for (var property : definition().properties()) assertEquals(property.parameter().order(), TooltipWidgetPropertySchema.find(property.name()).orElseThrow().dartOrder());
     }
     @Test @org.junit.jupiter.api.condition.EnabledIfSystemProperty(named = "flutter.events.sdk", matches = ".+")

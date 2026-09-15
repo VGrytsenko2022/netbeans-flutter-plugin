@@ -51,9 +51,9 @@ class RefreshIndicatorContractTest {
         assertEquals(WidgetPlacementRules.PaletteCreationMode.WRAP_EXISTING_CHILD, WidgetPlacementRules.creationMode(definition));
         assertTrue(WidgetPlacementRules.capabilityFingerprintLines(definition).contains(
                 "C|flutter.material.RefreshIndicator|paletteCreate|wrapExistingChild|child"));
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
-        assertEquals(19, CanvasModelPayloadCodec.VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
+        assertEquals(20, CanvasModelPayloadCodec.VERSION);
     }
 
     @Test
@@ -191,7 +191,7 @@ class RefreshIndicatorContractTest {
             assertEquals(expected, WidgetPlacementRules.accepts(definition, slot, child));
             if (expected) accepted++;
         }
-        assertEquals(160, accepted);
+        assertEquals(161, accepted);
         assertTrue(valid(node(Map.of())), "Any Widget child is legal even without scrollables; runtime then has no pull gesture");
     }
 

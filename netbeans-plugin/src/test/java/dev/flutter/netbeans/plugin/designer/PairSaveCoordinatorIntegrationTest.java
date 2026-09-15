@@ -828,7 +828,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .contains("\"schemaVersion\": 1"));
             assertTrue(new String(
                     c1.prepared().prospectiveFdBytes(), StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 16"));
+                    .contains("\"schemaVersion\": 17"));
 
             SetProperty background = new SetProperty(
                     ROOT_ID,
@@ -844,7 +844,7 @@ class PairSaveCoordinatorIntegrationTest {
                     .encode(c1.current().decoded().document()).copyBytes();
             assertTrue(new String(
                     canonicalC0Fd, StandardCharsets.UTF_8)
-                    .contains("\"schemaVersion\": 16"));
+                    .contains("\"schemaVersion\": 17"));
             assertFalse(Arrays.equals(
                     c1.prepared().baselineFdBytes(), canonicalC0Fd));
 
@@ -6546,7 +6546,7 @@ class PairSaveCoordinatorIntegrationTest {
             String canonical = new String(
                     baselineFd, StandardCharsets.UTF_8);
             String legacy = canonical.replace(
-                    "\"schemaVersion\": 16",
+                    "\"schemaVersion\": 17",
                     "\"schemaVersion\": 1");
             if (legacy.equals(canonical)) {
                 throw new AssertionError(

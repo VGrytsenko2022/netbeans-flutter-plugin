@@ -236,6 +236,8 @@ final class FlutterWidgetEventPropertyEditor extends PropertyEditorSupport {
             if (!List.of("void", "Future<void>").contains(event.signature().returnType())) {
                 JLabel returns = new JLabel("Returns " + event.signature().returnType() + (java.util.Set.of("AnimatedCrossFadeBuilder", "AnimatedSwitcherTransitionBuilder", "AnimatedSwitcherLayoutBuilder").contains(event.callbackType())
                         ? ". New handlers use the native default builder and retain its children; customize it in Source."
+                        : event.callbackType().equals("ShaderCallback")
+                        ? ". New handlers return an opaque-white shader for bounds; customize it in Source."
                         : event.callbackType().equals("TransformCallback")
                         ? ". New handlers return Matrix4.identity(); customize the animation-dependent transform in Source."
                         : ". New handlers throw UnimplementedError until you implement an explicit return in Source."));

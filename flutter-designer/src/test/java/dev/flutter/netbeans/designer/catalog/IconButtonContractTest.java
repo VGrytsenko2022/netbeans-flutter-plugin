@@ -50,8 +50,8 @@ class IconButtonContractTest {
         assertEquals(1024, WidgetDefinition.MAX_PROPERTIES);
         assertEquals(1024, ValidationLimits.defaults().maxPropertiesPerWidget());
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
     }
 
     @Test

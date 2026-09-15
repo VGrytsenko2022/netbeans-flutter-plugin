@@ -45,6 +45,7 @@
           <include>fd-v14.schema.json</include>
           <include>fd-v15.schema.json</include>
           <include>fd-v16.schema.json</include>
+          <include>fd-v17.schema.json</include>
         </includes>
         <targetPath>META-INF/netbeans-flutter-designer/schema</targetPath>
         <filtering>false</filtering>

@@ -89,8 +89,8 @@ class ScaffoldBottomSheetScrimBuilderTest {
             assertEquals(value.access() == PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, expression.endsWith("()"));
             assertEquals(value.constant().orElse(false), generated.build().payload().contains("const Scaffold("));
         }
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION);
-        assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION);
+        assertEquals(16, WidgetCatalog.API_VERSION);
     }
 
     @Test void exactAnonymousSignatureAllowlistDoesNotAdmitOtherFunctionsNullableCallbacksOrGenericOverrides() {

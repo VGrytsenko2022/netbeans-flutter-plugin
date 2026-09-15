@@ -113,6 +113,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.BackdropFilter", ICON_ROOT + "backdropfilter.svg"),
             Map.entry("flutter.widgets.BackdropFilter.grouped", ICON_ROOT + "backdropfiltergrouped.svg"),
             Map.entry("flutter.widgets.BackdropGroup", ICON_ROOT + "backdropgroup.svg"),
+            Map.entry("flutter.widgets.ShaderMask", ICON_ROOT + "shadermask.svg"),
             Map.entry("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg"),
             Map.entry("flutter.widgets.RelativePositionedTransition", ICON_ROOT + "relativepositionedtransition.svg"),
             Map.entry("flutter.widgets.ScaleTransition", ICON_ROOT + "scaletransition.svg"),

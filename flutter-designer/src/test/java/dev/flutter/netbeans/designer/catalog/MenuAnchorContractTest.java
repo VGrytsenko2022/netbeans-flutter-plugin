@@ -31,7 +31,7 @@ class MenuAnchorContractTest {
         assertTrue(prototype.properties().isEmpty()); assertTrue(valid(prototype));
         assertTrue(generated(prototype).build().payload().contains("const MenuAnchor("));
         for (String absent : List.of("enabled", "onPressed", "animationStyle", "variant", "styleTextFontSize", "styleForegroundBuilder")) assertTrue(definition().property(p(absent)).isEmpty());
-        assertEquals(16, DesignerDocument.SCHEMA_VERSION); assertEquals(15, WidgetCatalog.API_VERSION);
+        assertEquals(17, DesignerDocument.SCHEMA_VERSION); assertEquals(16, WidgetCatalog.API_VERSION);
         roundTrip(prototype);
     }
     @Test void sparseNativeDefaultsAllSlotsAndNullsRemainExact() throws Exception {

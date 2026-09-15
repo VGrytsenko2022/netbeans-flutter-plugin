@@ -505,7 +505,7 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
-            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())) {
+            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(node.type()) || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 var value = node.properties().get(property.name());
                 if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)
@@ -1062,7 +1062,7 @@ public final class DartRegionGenerator {
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
         }
-        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())) {
+        if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
             for (String family : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamilies())
                 appendTextCompoundArguments(node, definition, path, constructorBaseIndent + 2, context, arguments, family,
                         definition.property(new PropertyName(family)).orElseThrow().parameter().order(),
@@ -1071,7 +1071,7 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
                 || node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE)
-                || dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type())
+                || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
                 || node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
                 || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)

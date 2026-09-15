@@ -1,5 +1,17 @@
 # Widget events API audit
 
+## SimpleDialog and SimpleDialogOption — 2026-09-15
+
+SimpleDialog has no callbacks. SimpleDialogOption exposes optional onPressed
+with the exact VoidCallback? type: create/select/open/rename/disconnect handler,
+explicit null, no-op and verified reference/getter/factory sources. Unset/null
+disables the option; it never invents a default activation callback.
+showDialog and Navigator.pop own dismissal and result delivery; a generated
+option returning a real route result is covered by the SDK integration test.
+Current inventory: 244 definitions; 267 callables across 100 types, including
+197 Events across 71 types, 50 builders, seven predicates, two formatters and
+eleven delegates. Earlier entries below are historical.
+
 ## AlertDialog — 2026-09-15
 
 AlertDialog and AlertDialog.adaptive have no native callback parameters. Icon, Title, Content and Actions are widget slots; their descendants own Events. showDialog/showAdaptiveDialog and Navigator own cancellation and result delivery. The 242-definition catalog still has 196 native Event rows across 70 types and 266 callable rows across 99 types.

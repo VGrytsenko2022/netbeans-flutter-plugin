@@ -299,6 +299,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
             Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(SimpleDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(SimpleDialogWidgetPropertySchema.OPTION_TYPE.value(), STATIC_EDITABLE),
             Map.entry(AlertDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(AlertDialogWidgetPropertySchema.ADAPTIVE_TYPE.value(), STATIC_EDITABLE),
             Map.entry(DialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
@@ -1034,6 +1036,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(SimpleDialogWidgetPropertySchema.TYPE.value(), projection(
+                    SimpleDialogWidgetPropertySchema.properties(false).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("title", singleSlotSchema(false, 0), "children", listSlotSchema(false, 0, 10000)))),
+            Map.entry(SimpleDialogWidgetPropertySchema.OPTION_TYPE.value(), projection(
+                    SimpleDialogWidgetPropertySchema.properties(true).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("child", singleSlotSchema(false, 0)))),
             Map.entry(AlertDialogWidgetPropertySchema.TYPE.value(),projection(
                     AlertDialogWidgetPropertySchema.properties(false).stream().collect(java.util.stream.Collectors.toMap(
                             p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),

@@ -181,6 +181,9 @@ public final class WidgetEventCatalog {
         if (property.equals("onChanged") && Set.of("Radio", "RadioListTile").contains(widget)) {
             return "Unset preserves RadioGroup ownership; the creation default is an explicit no-op for legacy mode.";
         }
+        if (widget.equals("SimpleDialogOption") && property.equals("onPressed")) {
+            return "Unset/null disables selection. A handler may return the dialog result through Navigator.pop(context, result). Canvas never executes handlers.";
+        }
         if (property.equals("onPressed")) {
             return "Unset uses the existing enabled/disabled and long-press rules; enabled controls may generate a no-op.";
         }
@@ -255,6 +258,7 @@ public final class WidgetEventCatalog {
         }
         add(widgets, "flutter.material.FloatingActionButton", "onPressed", "VoidCallback", true, "void");
         add(widgets, "flutter.material.IconButton", "onPressed", "VoidCallback", true, "void");
+        add(widgets, "flutter.material.SimpleDialogOption", "onPressed", "VoidCallback?", true, "void");
         add(widgets, "flutter.material.IconButton", "onLongPress", "VoidCallback", false, "void");
         add(widgets, "flutter.material.IconButton", "onHover", "ValueChanged<bool>", false, "void", "bool:isHovered");
         buttonBuilders(widgets, "flutter.material.IconButton");

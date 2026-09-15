@@ -62,13 +62,13 @@ class ListViewItemExtentBuilderPropertyTest {
         assertDoesNotThrow(() -> binding().validate(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())));
         for (var invalid : List.of(new PropertyValue.CallbackValue("_extent"), new PropertyValue.StringValue("(index, dimensions) => null")))
             assertThrows(IllegalArgumentException.class, () -> binding().validate(FlutterPropertyCellValue.explicit(invalid)));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(242, catalog.size());
-        assertEquals(8076, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(266, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(244, catalog.size());
+        assertEquals(8177, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(267, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         // Current audited callable inventory includes all admitted sliver builders.
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
-        assertEquals(196, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
-        assertEquals(99, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
+        assertEquals(197, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        assertEquals(100, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
     }
 
     @Test

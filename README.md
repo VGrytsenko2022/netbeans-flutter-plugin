@@ -11,7 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **242 admitted built-in definitions**, now including
+Current palette milestone: **244 admitted built-in definitions**, now including
+`SimpleDialog` and `SimpleDialogOption`,
 `AlertDialog`, `AlertDialog.adaptive`, `Dialog`, `Dialog.fullscreen`, `TimePickerDialog`, `InputDatePickerFormField`, `CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
 `DataTable`, `DataColumn`, `DataRow`, `DataRow.byIndex`, `DataCell`, `DataCell.empty`, `Table`, `TableRow`, `TableCell`, `Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
@@ -28,15 +29,24 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **8,076 writable rows** (8,058 outside `Scaffold`) and
-**198 const-capable definitions**. All 242 definitions have reviewed
-Canvas/Create/DnD capability; 233 expose typed Properties and nine are
-propertyless/structural definitions. Native Events comprise **196 rows across
-70 widget types**; all supported callables total 266 across 99 widget types,
+The current catalog has **8,177 writable rows** (8,159 outside `Scaffold`) and
+**200 const-capable definitions**. All 244 definitions have reviewed
+Canvas/Create/DnD capability; 235 expose typed Properties and nine are
+propertyless/structural definitions. Native Events comprise **197 rows across
+71 widget types**; all supported callables total 267 across 100 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback, one matrix transform delegate and one shader computation delegate.
 Formats are FD 17, Catalog API 16, Canvas model 20 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### SimpleDialog and SimpleDialogOption: native choices
+
+All 17 / 4 constructor arguments: 98 / 3 writable rows, Title/Children/Child
+slots, two complete TextStyle families and ten shape families. The option's
+nullable onPressed Event supports user handlers and verified Dart sources;
+unset/null disables selection. Dialog results remain with showDialog and
+Navigator.pop. Canvas uses native widgets without executing project sources.
+See [SimpleDialog and SimpleDialogOption](docs/SIMPLE_DIALOG.md).
 
 ### AlertDialog: Material and adaptive alerts
 

@@ -1166,18 +1166,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
-        } else if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type())) {
+        } else if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.supports(widget.type()))) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
                 String name = field.name().value();
                 var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.group(name), group -> {
-                    var result = propertySet("alertDialog" + group, group, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION);
+                    var result = propertySet("alertDialog" + group, group, (dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.supports(widget.type()) ? (dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(widget.type()) ? dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_DESCRIPTION : dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.DESCRIPTION) : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION));
                     assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
                     return result;
                 });
                 set.put(projectProperty(field, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(field.name()),
                         dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.label(name),
-                        dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.help(name),
+                        (dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.supports(widget.type()) ? dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.help(name) : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.help(name)),
                         false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
@@ -1812,7 +1812,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.InputDatePickerFormFieldWidgetPropertySchema.DESCRIPTION;
-        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION;
+        if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(widget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.supports(widget.type()))) return (dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.supports(widget.type()) ? (dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(widget.type()) ? dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_DESCRIPTION : dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.DESCRIPTION) : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.DESCRIPTION);
         if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(widget.type())) return dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.DESCRIPTION;
@@ -6121,7 +6121,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
             return badgePropertyCommand(currentWidget, propertyName, accepted);
         }
-        if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type())) {
+        if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(currentWidget.type()))) {
             return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())

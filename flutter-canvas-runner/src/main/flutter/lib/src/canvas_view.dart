@@ -1364,7 +1364,7 @@ String _tooltipAncestorSdkTopology(CanvasNode node) {
           ? 'clipper-unavailable'
           : 'native',
     ],
-    'flutter.material.Card' || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType => [
+    'flutter.material.Card' || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType || canvasSimpleDialogType => [
       _cardShapePreviewUnavailableMessage(node) != null,
     ],
     'flutter.widgets.RadioGroup' => [
@@ -2943,6 +2943,13 @@ String? _radioGroupStaticMessage(CanvasNode node) {
   return null;
 }
 
+String _simpleDialogPreviewMessage(CanvasNode node) {
+  final sources = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
+  return '${node.type == canvasSimpleDialogType ? 'SimpleDialog' : 'SimpleDialogOption'} ${node.id}: '
+      'the caller owns showDialog and Navigator.pop results. Canvas never executes event handlers or project sources.'
+      '${sources.isEmpty ? '' : ' Native preview defaults replace project sources for: ${sources.join(', ')}.'}';
+}
+
 String? _radioGroupPreviewMessage(CanvasNode node, BuildContext? context) {
   _RadioGroupPreviewState? state;
   void visit(Element element) {
@@ -4041,6 +4048,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
+  if (node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType) return _simpleDialogPreviewMessage(node);
   if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
   if(node.type==canvasTimePickerDialogType){return _timePickerDialogPreviewMessage(node);}
@@ -5935,7 +5943,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
-        isCanvasAlertDialogType(node.type) || node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
+        node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType || isCanvasAlertDialogType(node.type) || node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
@@ -8650,6 +8658,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.BottomNavigationBar' => _bottomNavigationBar(context),
       'flutter.material.Material' => _material(context),
       'flutter.material.Scrollbar' => _scrollbar(),
+      canvasSimpleDialogType || canvasSimpleDialogOptionType => _TextButtonPreview(message: _simpleDialogPreviewMessage(node), child: _simpleDialog(context)),
       canvasAlertDialogType || canvasAdaptiveAlertDialogType => _TextButtonPreview(message:_alertDialogPreviewMessage(node),child:_alertDialog(context)),
       canvasDialogType || canvasFullscreenDialogType => _TextButtonPreview(message:_dialogPreviewMessage(node) ?? 'Dialog surface: child widgets own Events; showDialog/DialogRoute owns dismissal and result.',
         child:ExcludeSemantics(excluding:!const {'none','dialog','alertDialog'}.contains(_enum('semanticsRole')??'dialog'),child:_dialog(context))),
@@ -15829,6 +15838,35 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  Widget _simpleDialog(BuildContext context) {
+    if (node.type == canvasSimpleDialogOptionType) {
+      return SimpleDialogOption(
+        key: _string('key') == null ? null : ValueKey<String>(_string('key')!),
+        onPressed: node.properties['onPressed']?.kind == 'dartObjectReferencePresence' ? () {} : null,
+        padding: node.properties['padding']?.value is CanvasEdgeInsets ? _physicalEdgeInsets('padding') : null,
+        child: _single('child'));
+    }
+    final unavailable = _cardShapePreviewUnavailableMessage(node, widgetName: 'SimpleDialog');
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(widgetName: 'SimpleDialog.shape', expectedType: 'ShapeBorder',
+        previewLabel: 'SimpleDialog shape\\npreview unavailable', messageOverride: unavailable);
+    }
+    EdgeInsetsGeometry? padding(String name) => const {'edgeInsets', 'edgeInsetsDirectional'}.contains(node.properties[name]?.kind)
+        ? _edgeInsetsGeometry(name) : null;
+    return SimpleDialog(
+      key: _string('key') == null ? null : ValueKey<String>(_string('key')!),
+      title: _single('title'),
+      titlePadding: padding('titlePadding') ?? const EdgeInsets.fromLTRB(24, 24, 24, 0),
+      contentPadding: padding('contentPadding') ?? const EdgeInsets.fromLTRB(0, 12, 0, 16),
+      titleTextStyle: _textStyle(context, 'titleTextStyle'), contentTextStyle: _textStyle(context, 'contentTextStyle'),
+      backgroundColor: _resolvedColor(context, 'backgroundColor'), elevation: _number('elevation'),
+      shadowColor: _resolvedColor(context, 'shadowColor'), surfaceTintColor: _resolvedColor(context, 'surfaceTintColor'),
+      semanticLabel: _string('semanticLabel'), clipBehavior: _clipBehavior(), shape: _cardShape(context),
+      alignment: _alignmentGeometry('alignment'), constraints: _boxConstraints('constraints'),
+      insetPadding: node.properties['insetPadding']?.value is CanvasEdgeInsets ? _physicalEdgeInsets('insetPadding') : null,
+      children: node.slots.containsKey('children') ? _children('children') : null);
   }
 
   Widget _alertDialog(BuildContext context) {

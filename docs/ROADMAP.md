@@ -2640,8 +2640,13 @@ accepted architecture is documented in
     107 / 111 property rows, four slots, complete local text styles and shapes,
     nullable typed sources and native Material/Cupertino preview.
     See [AlertDialog](ALERT_DIALOG.md).
-  - [ ] Next palette candidate: SimpleDialog and SimpleDialogOption.
-    Audit option events, route results, intrinsic layout and theme defaults first.
+  - [x] Add SimpleDialog and SimpleDialogOption: all 17 / 4 constructor arguments,
+    98 / 3 property rows, Title/Children/Child slots, complete text styles and
+    shapes, exact padding nullability, nullable onPressed Events and native Canvas.
+    Verified user-owned route results, source types, history and save/reopen.
+    See [SimpleDialog and SimpleDialogOption](SIMPLE_DIALOG.md).
+  - [ ] Next palette candidate: BottomSheet. Audit controller ownership, drag
+    callbacks, route integration and native sizing before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

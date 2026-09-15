@@ -540,6 +540,11 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToCalendarEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
       ],
+      canvasSimpleDialogType => const [
+        CanvasDropSlotSemantics.emptySingle(slotName: 'title'),
+        canvasChildrenAppendDropSlot,
+      ],
+      canvasSimpleDialogOptionType => const [canvasEmptyChildDropSlot],
       canvasAlertDialogType || canvasAdaptiveAlertDialogType => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'icon'),
         CanvasDropSlotSemantics.emptySingle(slotName:'title'),

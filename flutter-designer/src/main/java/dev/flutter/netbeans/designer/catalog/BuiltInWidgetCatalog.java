@@ -164,6 +164,8 @@ public final class BuiltInWidgetCatalog {
             dialog(true),
             alertDialog(false),
             alertDialog(true),
+            simpleDialog(false),
+            simpleDialog(true),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3332,6 +3334,17 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition simpleDialog(boolean option) {
+        var properties = SimpleDialogWidgetPropertySchema.properties(option);
+        return widget((option ? SimpleDialogWidgetPropertySchema.OPTION_TYPE : SimpleDialogWidgetPropertySchema.TYPE).value(),
+                option ? "SimpleDialogOption" : "SimpleDialog", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:ui", "dart:core"), Set.of(),
+                palette("flutter.material", 100, option ? 730 : 720, option ? "SimpleDialogOption" : "SimpleDialog"),
+                properties, option ? List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET))
+                        : List.of(singleSlot("title", properties.size(), false, 0, ANY_WIDGET),
+                                  listSlot("children", properties.size() + 1, false, ANY_WIDGET)));
     }
 
     private static WidgetDefinition alertDialog(boolean adaptive) {

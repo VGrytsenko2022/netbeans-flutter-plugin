@@ -59,11 +59,11 @@ class ElevatedButtonLayerBuilderPropertyTest {
         }
         var events = Arrays.stream(node.getPropertySets()).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
         assertEquals(Set.of("onPressed", "onLongPress", "onHover", "onFocusChange"), Arrays.stream(events.getProperties()).map(Node.Property::getName).collect(java.util.stream.Collectors.toSet()));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(242, catalog.size());
-        assertEquals(8076, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(266, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(244, catalog.size());
+        assertEquals(8177, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(267, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
-        assertEquals(196, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        assertEquals(197, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
     }
 
     @Test

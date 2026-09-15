@@ -26,7 +26,7 @@ class WidgetEventCatalogTest {
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(242, definitions.size());
+        assertEquals(244, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {
@@ -46,18 +46,18 @@ class WidgetEventCatalogTest {
                 }
             }
         }
-        assertEquals(266, callables);
-        assertEquals(99, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
+        assertEquals(267, callables);
+        assertEquals(100, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
     }
 
     @Test
     void separatesEventsBuildersPredicatesAndFormatters() {
         var all = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(widget -> WidgetEventCatalog.eventsFor(widget).stream()).toList();
-        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 196L, WidgetEventDescriptor.Kind.BUILDER, 50L,
+        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 197L, WidgetEventDescriptor.Kind.BUILDER, 50L,
                 WidgetEventDescriptor.Kind.PREDICATE, 7L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
                 all.stream().collect(Collectors.groupingBy(WidgetEventDescriptor::kind, Collectors.counting())));
-        assertEquals(70, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(71, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(widget -> WidgetEventCatalog.eventsFor(widget).stream()
                         .anyMatch(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT)).count());
         assertFalse(find("TextField", "onTapAlwaysCalled").isPresent());

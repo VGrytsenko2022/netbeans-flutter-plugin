@@ -298,6 +298,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
             Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DatePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DateRangePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(CalendarDatePickerWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
@@ -1029,6 +1030,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(),projection(
+                    TimePickerDialogWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("switchToInputEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon")),
+                            "switchToTimerEntryModeIcon",new CanvasSlotContract(SlotCardinality.SINGLE,false,0,1,"types:"+base64("flutter.widgets.Icon"))))),
             Map.entry(DatePickerDialogWidgetPropertySchema.TYPE.value(),projection(
                     DatePickerDialogWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),

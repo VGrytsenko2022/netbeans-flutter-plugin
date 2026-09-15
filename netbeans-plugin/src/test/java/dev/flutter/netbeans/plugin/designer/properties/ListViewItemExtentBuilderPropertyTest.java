@@ -62,13 +62,13 @@ class ListViewItemExtentBuilderPropertyTest {
         assertDoesNotThrow(() -> binding().validate(FlutterPropertyCellValue.explicit(new PropertyValue.NullValue())));
         for (var invalid : List.of(new PropertyValue.CallbackValue("_extent"), new PropertyValue.StringValue("(index, dimensions) => null")))
             assertThrows(IllegalArgumentException.class, () -> binding().validate(FlutterPropertyCellValue.explicit(invalid)));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(237, catalog.size());
-        assertEquals(7806, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(265, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(238, catalog.size());
+        assertEquals(7819, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(266, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         // Current audited callable inventory includes all admitted sliver builders.
         assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
-        assertEquals(195, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
-        assertEquals(98, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
+        assertEquals(196, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        assertEquals(99, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
     }
 
     @Test

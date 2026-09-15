@@ -8,6 +8,7 @@ const canvasDataTableType='flutter.material.DataTable';
 const canvasDatePickerDialogType='flutter.material.DatePickerDialog';
 const canvasCalendarDatePickerType='flutter.material.CalendarDatePicker';
 const canvasInputDatePickerFormFieldType='flutter.material.InputDatePickerFormField';
+const canvasTimePickerDialogType='flutter.material.TimePickerDialog';
 const canvasDateRangePickerDialogType='flutter.material.DateRangePickerDialog';
 const canvasPaginatedDataTableType='flutter.material.PaginatedDataTable';
 bool isCanvasDataTable(String type)=>type==canvasDataTableType||type==canvasPaginatedDataTableType;
@@ -6954,6 +6955,19 @@ Map<String,_PropertySpec> _dateRangePickerDialogProperties() {
     'selectableDayPredicate':_PropertySpec({'dartObjectReference','null'},dartObjectExpectedType:'SelectableDayForRangePredicate'),
   };
 }
+Map<String,_PropertySpec> _timePickerDialogProperties() {
+  final shared=_datePickerDialogProperties();
+  return {
+    for(final name in ['key','cancelText','confirmText','helpText','errorInvalidText','restorationId'])name:shared[name]!,
+    for(final name in ['hourLabelText','minuteLabelText'])name:_PropertySpec({'string','null'},minimumStringLength:0,maximumStringLength:16384,explicitStringLength:true),
+    'initialTime':_PropertySpec({'string','dartObjectReference'},required:true,creationDefaultFingerprint:'string:MDk6MDA',
+      stringPattern:'(?:[01][0-9]|2[0-3]):[0-5][0-9]',dartObjectExpectedType:'TimeOfDay'),
+    'initialEntryMode':_PropertySpec({'enum'},enumLibraryUri:'package:flutter/material.dart',enumType:'TimePickerEntryMode',enumValues:{'dial','input','dialOnly','inputOnly'}),
+    'orientation':_PropertySpec({'enum','null'},enumLibraryUri:_widgetsLibraryUri,enumType:'Orientation',enumValues:{'portrait','landscape'}),
+    'onEntryModeChanged':_PropertySpec({'string','dartObjectReference','null'},stringPattern:'noop',dartObjectExpectedType:'EntryModeChangeCallback'),
+    'emptyInitialInput':_PropertySpec({'boolean'}),
+  };
+}
 Map<String,_PropertySpec> _inputDatePickerFormFieldProperties() {
   final shared=_datePickerDialogProperties();
   return {
@@ -7023,6 +7037,10 @@ Map<String,_PropertySpec> _paginatedDataTableProperties() {
 final _widgetSpecifications = <String, _WidgetSpec>{
   canvasCalendarDatePickerType:_WidgetSpec(_calendarDatePickerProperties(),{}),
   canvasInputDatePickerFormFieldType:_WidgetSpec(_inputDatePickerFormFieldProperties(),{}),
+  canvasTimePickerDialogType:_WidgetSpec(_timePickerDialogProperties(),{
+    for(final name in ['switchToInputEntryModeIcon','switchToTimerEntryModeIcon'])
+      name:_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1,acceptance:_SlotAcceptance.exactTypes({'flutter.widgets.Icon'})),
+  }),
   canvasDateRangePickerDialogType:_WidgetSpec(_dateRangePickerDialogProperties(),{
     for(final name in ['switchToInputEntryModeIcon','switchToCalendarEntryModeIcon'])
       name:_SlotSpec(cardinality:'single',required:false,minimumChildren:0,maximumChildren:1,acceptance:_SlotAcceptance.exactTypes({'flutter.widgets.Icon'}))}),
@@ -17507,6 +17525,22 @@ W|flutter.material.Theme
 P|data|dartObjectReference,string|1|string:bGlnaHQ|-|dartObjectReference:dartObjectReference:v1:ThemeData:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86bGlnaHR8ZGFya3xmYWxsYmFja3xsaWdodE0yfGRhcmtNMnxmYWxsYmFja00yKQ
 S|child|single|1|1|1|any
 C|flutter.material.Theme|paletteCreate|wrapExistingChild|child
+W|flutter.material.TimePickerDialog
+P|cancelText|null,string|0|-|-|null:any;string:length:0:16384
+P|confirmText|null,string|0|-|-|null:any;string:length:0:16384
+P|emptyInitialInput|boolean|0|-|-|boolean:any
+P|errorInvalidText|null,string|0|-|-|null:any;string:length:0:16384
+P|helpText|null,string|0|-|-|null:any;string:length:0:16384
+P|hourLabelText|null,string|0|-|-|null:any;string:length:0:16384
+P|initialEntryMode|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL21hdGVyaWFsLmRhcnQ:TimePickerEntryMode:dial,dialOnly,input,inputOnly
+P|initialTime|dartObjectReference,string|1|string:MDk6MDA|-|dartObjectReference:dartObjectReference:v1:TimeOfDay:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:KD86WzAxXVswLTldfDJbMC0zXSk6WzAtNV1bMC05XQ
+P|key|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:Key?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:length:0:4096
+P|minuteLabelText|null,string|0|-|-|null:any;string:length:0:16384
+P|onEntryModeChanged|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:EntryModeChangeCallback:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:bm9vcA
+P|orientation|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Orientation:landscape,portrait;null:any
+P|restorationId|null,string|0|-|-|null:any;string:length:0:16384
+S|switchToInputEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
+S|switchToTimerEntryModeIcon|single|0|0|1|types:Zmx1dHRlci53aWRnZXRzLkljb24
 W|flutter.material.Tooltip
 P|constraints|boxConstraints,dartObjectReference,null|0|-|-|boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity;dartObjectReference:dartObjectReference:v1:BoxConstraints:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
 P|decoration|boxDecoration,dartObjectReference,null|0|-|-|boxDecoration:boxDecoration:v2:imageProvider:v1:asset,exactAsset:package:exactScale:resize(1..16384,exact,fit,allowUpscaling):decorationImage:v1:onError,colorFilter(mode,matrix20,linearToSrgbGamma,srgbToLinearGamma,saturation),fit,alignment,centerSlice,repeat,matchTextDirection,scale,opacity,filterQuality,invertColors,isAntiAlias:centerSliceFit(except:cover,none):theme=material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim;dartObjectReference:dartObjectReference:v1:Decoration:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any

@@ -540,6 +540,10 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToCalendarEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
       ],
+      'flutter.material.TimePickerDialog' => const [
+        CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
+        CanvasDropSlotSemantics.emptySingle(slotName:'switchToTimerEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
+      ],
       'flutter.material.DateRangePickerDialog' => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToInputEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),
         CanvasDropSlotSemantics.emptySingle(slotName:'switchToCalendarEntryModeIcon',acceptance:CanvasDropAcceptance.exactTypes({'flutter.widgets.Icon'})),

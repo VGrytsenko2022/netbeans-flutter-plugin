@@ -11,8 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **237 admitted built-in definitions**, now including
-`InputDatePickerFormField`, `CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
+Current palette milestone: **238 admitted built-in definitions**, now including
+`TimePickerDialog`, `InputDatePickerFormField`, `CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
 `DataTable`, `DataColumn`, `DataRow`, `DataRow.byIndex`, `DataCell`, `DataCell.empty`, `Table`, `TableRow`, `TableCell`, `Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
 `MenuAnchor`, `MenuItemButton`, `SubmenuButton`, `MenuBar`, `NavigationBar`, `NavigationRail`, `TooltipTheme`, `TooltipVisibility`,
@@ -28,15 +28,23 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **7,806 writable rows** (7,788 outside `Scaffold`) and
-**193 const-capable definitions**. All 237 definitions have reviewed
-Canvas/Create/DnD capability; 228 expose typed Properties and nine are
-propertyless/structural definitions. Native Events comprise **195 rows across
-69 widget types**; all supported callables total 265 across 98 widget types,
+The current catalog has **7,819 writable rows** (7,801 outside `Scaffold`) and
+**194 const-capable definitions**. All 238 definitions have reviewed
+Canvas/Create/DnD capability; 229 expose typed Properties and nine are
+propertyless/structural definitions. Native Events comprise **196 rows across
+70 widget types**; all supported callables total 266 across 99 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback, one matrix transform delegate and one shader computation delegate.
 Formats are FD 17, Catalog API 16, Canvas model 20 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### TimePickerDialog: time input, entry modes and route results
+
+All 15 native constructor arguments: 13 property rows and two Icon-only slots.
+Structured HH:mm editing or verified TimeOfDay sources; dial/input and both
+only-modes, orientation, localized labels, empty initial input and restoration.
+The mode-change Event does not return a selected time: await the Navigator result.
+Canvas isolates interaction and source execution. See [TimePickerDialog](docs/TIME_PICKER_DIALOG.md).
 
 ### InputDatePickerFormField: date input, validation and form Events
 

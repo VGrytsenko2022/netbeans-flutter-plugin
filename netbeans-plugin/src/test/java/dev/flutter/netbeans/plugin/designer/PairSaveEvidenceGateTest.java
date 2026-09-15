@@ -156,6 +156,31 @@ class PairSaveEvidenceGateTest {
         }
     }
 
+    @Test void timePickerRequiresExactLocalTimeSymbolEvidenceWithoutExpandingTrustRoots() throws Exception {
+        var fixture=fixture(Optional.empty(),true,List.of(),"flutter.material.TimePickerDialog","",
+                Map.of(new PropertyName("initialTime"),new PropertyValue.StringValue("23:59")));
+        var ticket=ticket(fixture,fixture.current());
+        var probes=ticket.request().symbolProbes().stream().filter(p->p.expectedSymbolName().equals("TimeOfDay")).toList();
+        assertEquals(1,probes.size());
+        assertEquals("package:flutter/material.dart",probes.getFirst().expectedLibraryUri());
+        assertTrue(ticket.accept(analysis(ticket,fixture.acceptedEvidence())).ready());
+        for(String mutation:List.of("missing","id","span","library","outside")){
+            var fresh=ticket(fixture,fixture.current());
+            var bad=fixture.acceptedEvidence().stream()
+                .filter(value->!(mutation.equals("missing")&&value.probe().expectedSymbolName().equals("TimeOfDay")))
+                .map(value->{
+                    var original=value.probe();
+                    if(!original.expectedSymbolName().equals("TimeOfDay"))return value;
+                    if(mutation.equals("outside"))return accepted(original,fixture.dartFile());
+                    var forged=new DartSymbolProbe(mutation.equals("id")?original.id()+"-forged":original.id(),
+                        mutation.equals("span")?original.offset()+1:original.offset(),original.length(),original.expectedSymbolName(),
+                        mutation.equals("library")?"dart:io":original.expectedLibraryUri(),original.expectedTargetRoot(),original.expectedTargetKind(),original.staticTypeProbe());
+                    return new DartSymbolEvidence(forged,value.targets(),true,Optional.empty());
+                }).toList();
+            assertFalse(fresh.accept(analysis(fresh,bad)).ready(),mutation);
+        }
+    }
+
     @Test void datePickerDatesRequireExactGeneratedSpansAndTrustedCoreConstructors() throws Exception {
         for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
             var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.DatePickerDialog", "",
@@ -3105,7 +3130,7 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) {
-        if (widgetType.equals("flutter.material.InputDatePickerFormField") || widgetType.equals("flutter.material.CalendarDatePicker") || widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
+        if (widgetType.equals("flutter.material.TimePickerDialog") || widgetType.equals("flutter.material.InputDatePickerFormField") || widgetType.equals("flutter.material.CalendarDatePicker") || widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
             return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
                     StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
                     radioProperties, Map.of()));

@@ -2626,8 +2626,13 @@ accepted architecture is documented in
     labels, all keyboard presets, autofocus and caller-owned FocusNode.
     Includes stable editors, exact history/save/reopen and isolated native Canvas.
     See [InputDatePickerFormField](INPUT_DATE_PICKER_FORM_FIELD.md).
-  - [ ] Next palette candidate: TimePickerDialog. Audit the pinned constructor,
-    TimeOfDay editing, entry modes, route results and restoration first.
+  - [x] Add TimePickerDialog: all 15 constructor arguments, 13 typed property
+    rows, two exact Icon slots, structured hour/minute editor, verified TimeOfDay
+    sources, all entry modes, orientation and native mode-change Event.
+    Preserve route results, Key/restoration lifecycle, history and isolated Canvas.
+    See [TimePickerDialog](TIME_PICKER_DIALOG.md).
+  - [ ] Next palette candidate: Dialog (standard and fullscreen constructors).
+    Audit constraints, insets, semantics, theme defaults and route ownership first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

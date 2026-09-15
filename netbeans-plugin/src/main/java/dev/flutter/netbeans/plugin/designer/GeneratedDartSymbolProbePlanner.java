@@ -171,6 +171,7 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("SelectableDayForRangePredicate")
                         || type.equals("DateTimeRange<DateTime>")
                         || type.equals("ValueChanged<DatePickerEntryMode>")
+                        || type.equals("TimeOfDay") || type.equals("EntryModeChangeCallback")
                         || type.equals("SemanticFormatterCallback")
                         || type.equals("ValueChanged<RangeValues>")
                         || type.equals("RangeLabels")

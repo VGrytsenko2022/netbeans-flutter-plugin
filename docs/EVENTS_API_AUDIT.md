@@ -1,5 +1,17 @@
 # Widget events API audit
 
+## TimePickerDialog update (2026-09-15)
+
+The constructor exposes one optional EntryModeChangeCallback, with the exact
+void Function(TimePickerEntryMode mode) signature and a Material import.
+It supports handler creation, selection, navigation, rename, no-op, typed sources,
+null and omission. No onChanged/onConfirm is invented: confirm and cancel return
+TimeOfDay/null through Navigator. Builders/predicates remain separate.
+
+Current inventory: 238 definitions, 266 callables across 99 types; 196 Events
+across 70 types, 50 builders, 7 predicates, 2 formatters and 11 delegates.
+See [TimePickerDialog](TIME_PICKER_DIALOG.md).
+
 ## InputDatePickerFormField update (2026-09-15)
 
 Add optional onDateSubmitted and onDateSaved, both ValueChanged<DateTime>.

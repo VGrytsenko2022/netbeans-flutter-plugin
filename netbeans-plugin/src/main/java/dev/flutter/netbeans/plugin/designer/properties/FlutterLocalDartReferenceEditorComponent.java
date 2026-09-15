@@ -63,6 +63,7 @@ final class FlutterLocalDartReferenceEditorComponent {
 
         LocalReferencePanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment);
+            boolean time = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.TIME_REFERENCE;
             boolean dateRange = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.DATE_RANGE_REFERENCE;
             boolean date = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.DATE_REFERENCE;
             boolean tableWidth = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.TABLE_WIDTH_REFERENCE;
@@ -80,7 +81,7 @@ final class FlutterLocalDartReferenceEditorComponent {
             boolean constraints = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_CONSTRAINTS_REFERENCE;
             boolean decoration = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.BOX_DECORATION_REFERENCE;
             boolean icon = binding.editorKind() == FlutterTypedPropertyEditors.EditorKind.ICON_WIDGET_REFERENCE;
-            localMode = dateRange ? "Gregorian date range" : date ? "Gregorian date (YYYY-MM-DD)" : tableWidth ? "Structured column widths" : key ? "String ValueKey" : size ? SIZE : gradient ? GRADIENT : image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
+            localMode = time ? "Time of day (HH:mm)" : dateRange ? "Gregorian date range" : date ? "Gregorian date (YYYY-MM-DD)" : tableWidth ? "Structured column widths" : key ? "String ValueKey" : size ? SIZE : gradient ? GRADIENT : image ? IMAGE : radius ? RADIUS : matrix ? MATRIX : color ? COLOR : alignment ? physicalAlignment ? PHYSICAL_ALIGNMENT : ALIGNMENT : number ? NUMBER : offset ? OFFSET : constraints ? CONSTRAINTS : decoration ? DECORATION : icon ? ICON : INSETS;
             var modes = new java.util.ArrayList<String>(); if (binding.optional()) modes.add(OMIT);
             if (binding.definition().acceptedKinds().contains(PropertyValueKind.NULL)) modes.add(NULL);
             modes.add(localMode); modes.add(PROJECT); mode = new JComboBox<>(modes.toArray(String[]::new));
@@ -98,6 +99,7 @@ final class FlutterLocalDartReferenceEditorComponent {
             var localBinding = FlutterTypedPropertyEditors.binding(localDefinition).orElseThrow();
             var localEditor = localBinding.createEditor();
             PropertyValue initialLocal = initial != null && !(initial instanceof PropertyValue.DartObjectReferenceValue) && !(initial instanceof PropertyValue.NullValue) ? initial
+                    : time ? binding.definition().creationDefault().orElse(new PropertyValue.StringValue("09:00"))
                     : dateRange ? new PropertyValue.StringValue("2000-01-01/2000-01-01")
                     : date ? binding.definition().creationDefault().filter(PropertyValue.StringValue.class::isInstance).orElse(new PropertyValue.StringValue("2000-01-01"))
                     : tableWidth ? new PropertyValue.StringValue(binding.definition().name().value().equals("columnWidths") ? "" : "flex(1)")
@@ -133,7 +135,8 @@ final class FlutterLocalDartReferenceEditorComponent {
             if (imageChoices != null) localDescriptor.setValue(FlutterImageAssetChoices.FEATURE_ATTRIBUTE, imageChoices);
             var localEnvironment = PropertyEnv.create(localDescriptor);
             localPanel = (FlutterPropertyEditorComponents.CommitOnValidPanel)
-                    (dateRange ? new FlutterDateRangeEditorComponent(localEditor,localBinding,localEnvironment)
+                    (time ? new FlutterTimeOfDayEditorComponent(localEditor,localBinding,localEnvironment)
+                    : dateRange ? new FlutterDateRangeEditorComponent(localEditor,localBinding,localEnvironment)
                     : tableWidth ? new FlutterTableWidthEditorComponent(localEditor,localBinding,localEnvironment)
                     : number ? FlutterNullableNumberEditorComponent.customEditor(localEditor, localBinding, localEnvironment)
                     : FlutterPropertyEditorComponents.customEditor(localEditor, localBinding, localEnvironment));

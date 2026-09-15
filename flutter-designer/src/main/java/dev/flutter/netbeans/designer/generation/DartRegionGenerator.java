@@ -505,6 +505,20 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue text) {
+                String name=property.name().value(),pp=path+"/properties/"+name;
+                RenderedValue rendered=null;
+                if(name.equals("initialTime")) {
+                    var time=dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.time(text.value());
+                    var symbol=context.planner().renderedSymbol(MATERIAL_IMPORT,"TimeOfDay");
+                    rendered=scalar("const "+symbol.text()+"(hour: "+time.getHour()+", minute: "+time.getMinute()+")",true,pp,node.id(),context,
+                            List.of(occurrence("widget:"+node.id()+":time:"+name,6+symbol.nameOffset(),symbol.name(),symbol.libraryUri(),pp,Optional.of(node.id()))));
+                } else if(name.equals("key"))rendered=renderPositionalComposite("ValueKey",Optional.empty(),
+                        scalar(dartString(text.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context);
+                else if(name.equals("onEntryModeChanged"))rendered=scalar("(_) {}",false,pp,node.id(),context);
+                if(rendered!=null){arguments.add(new ConstructorArgument(property.parameter(),name,false,rendered));continue;}
+            }
             if ((dev.flutter.netbeans.designer.catalog.DatePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
                     || dev.flutter.netbeans.designer.catalog.DateRangePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
                     || dev.flutter.netbeans.designer.catalog.CalendarDatePickerWidgetPropertySchema.TYPE.equals(node.type())

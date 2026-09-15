@@ -1,5 +1,17 @@
 # State/value bindings
 
+## TimePickerDialog lifecycle (2026-09-15)
+
+initialTime and initialEntryMode seed private restorable dialog state, not a
+controlled value. The orientation override is restorable too; an omitted/null
+override follows MediaQuery. Changing constructor inputs with the same Key does
+not reset those initial values. A new Key recreates state. To receive the chosen
+time, await the Navigator result; the entry-mode Event is not a selection event.
+
+No artificial State consumer is added. Inventory stays 178 consumers across
+60 types. Canvas remounts when the immutable model changes and never dismisses
+an IDE route or executes a project source. See [TimePickerDialog](TIME_PICKER_DIALOG.md).
+
 ## InputDatePickerFormField lifecycle (2026-09-15)
 
 No new controlled State consumers: the widget owns its private controller and

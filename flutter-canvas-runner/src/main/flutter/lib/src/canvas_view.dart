@@ -4041,6 +4041,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
+  if(node.type==canvasTimePickerDialogType){return _timePickerDialogPreviewMessage(node);}
   if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
     final message=_dataTablePreviewMessage(node);return message.isEmpty?null:message;
@@ -8516,6 +8517,10 @@ String _dateRangePickerPreviewMessage(CanvasNode node) =>
     'Save/OK returns DateTimeRange through Navigator in Run/Debug; cancel returns null. '
     'Project dates/ranges/calendars show a preview-unavailable placeholder; predicates are not executed and typed keyboard uses datetime. '
     'Initial range/mode are remounted only when the Designer model changes.';
+String _timePickerDialogPreviewMessage(CanvasNode node) =>
+    'TimePickerDialog ${node.id}: design-only dialog; pointer input, focus and dismissal are suppressed. '
+    'Confirm returns TimeOfDay through Navigator in Run/Debug; cancel returns null. Only entry-mode changes are constructor Events. '
+    'Project initialTime cannot be previewed; project callbacks are not executed. Initial state is remounted on Designer edits.';
 String _inputDatePickerFormFieldPreviewMessage(CanvasNode node) =>
     'InputDatePickerFormField ${node.id}: design-only date text field; editing, autofocus and focus are disabled. '
     'Project dates/calendar delegates show an unavailable placeholder; predicates, focus nodes and callbacks are not executed. '
@@ -9272,6 +9277,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.DatePickerDialog' => _TextButtonPreview(message:_datePickerPreviewMessage(node),child:_datePickerDialog(context)),
       'flutter.material.CalendarDatePicker' => _TextButtonPreview(message:_calendarDatePickerPreviewMessage(node),child:_calendarDatePicker(context)),
       'flutter.material.InputDatePickerFormField' => _TextButtonPreview(message:_inputDatePickerFormFieldPreviewMessage(node),child:_inputDatePickerFormField(context)),
+      'flutter.material.TimePickerDialog' => _TextButtonPreview(message:_timePickerDialogPreviewMessage(node),child:_timePickerDialog(context)),
       'flutter.material.DateRangePickerDialog' => _TextButtonPreview(message:_dateRangePickerPreviewMessage(node),child:_dateRangePickerDialog(context)),
       'flutter.material.DataTable' || 'flutter.material.PaginatedDataTable' => _TextButtonPreview(message:_dataTablePreviewMessage(node),child:_dataTable(context)),
       'flutter.material.DataColumn' || 'flutter.material.DataRow' || 'flutter.material.DataRow.byIndex'
@@ -14427,6 +14433,32 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       keyboardType:node.properties['keyboardType']?.kind=='dartObjectReferencePresence'||_string('keyboardType')==null?TextInputType.datetime:(_textInputType()??TextInputType.datetime),
       restorationId:_string('restorationId'),
       switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToCalendarEntryModeIcon:icons['switchToCalendarEntryModeIcon'],
+    ))));
+  }
+
+  Widget _timePickerDialog(BuildContext context) {
+    if(node.properties['initialTime']?.kind=='dartObjectReferencePresence') {
+      return const SizedBox(width:312,height:100,child:Center(child:Text('TimePickerDialog: project TimeOfDay preview unavailable. Run/Debug uses the saved source.')));
+    }
+    final parts=_string('initialTime')!.split(':').map(int.parse).toList();
+    final icons=<String,Icon>{};
+    for(final name in ['switchToInputEntryModeIcon','switchToTimerEntryModeIcon']) {
+      final children=node.slot(name)?.children??<CanvasNode>[];
+      if(children.isNotEmpty) {
+        final child=children.single,icon=_view(child)._icon(context,key:nodeKey(child.id));
+        if(icon is! Icon){return icon;}
+        icons[name]=icon;
+      }
+    }
+    return KeyedSubtree(key:ValueKey(node),child:ExcludeFocus(child:AbsorbPointer(child:TimePickerDialog(
+      initialTime:TimeOfDay(hour:parts[0],minute:parts[1]),
+      initialEntryMode:TimePickerEntryMode.values.byName(_enum('initialEntryMode')??'dial'),
+      orientation:_enum('orientation')==null?null:Orientation.values.byName(_enum('orientation')!),
+      cancelText:_string('cancelText'),confirmText:_string('confirmText'),helpText:_string('helpText'),
+      errorInvalidText:_string('errorInvalidText'),hourLabelText:_string('hourLabelText'),minuteLabelText:_string('minuteLabelText'),
+      restorationId:_string('restorationId'),emptyInitialInput:_boolean('emptyInitialInput')??false,
+      onEntryModeChanged:_dataCallback(node,'onEntryModeChanged')?(_){}:null,
+      switchToInputEntryModeIcon:icons['switchToInputEntryModeIcon'],switchToTimerEntryModeIcon:icons['switchToTimerEntryModeIcon'],
     ))));
   }
 

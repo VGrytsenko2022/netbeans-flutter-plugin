@@ -413,6 +413,7 @@ public final class WidgetEventCatalog {
                 WidgetEventDescriptor.Kind.DELEGATE, false, "int?", "Widget:widget", "int:localIndex");
         addCallable(widgets,"flutter.material.DateRangePickerDialog","selectableDayPredicate","SelectableDayForRangePredicate",
                 WidgetEventDescriptor.Kind.PREDICATE,false,"bool","DateTime:day","DateTime?:selectedStartDay","DateTime?:selectedEndDay");
+        add(widgets,"flutter.material.TimePickerDialog","onEntryModeChanged","EntryModeChangeCallback",true,"void","TimePickerEntryMode:mode");
         add(widgets,"flutter.material.InputDatePickerFormField","onDateSubmitted","ValueChanged<DateTime>",true,"void","DateTime:date");
         add(widgets,"flutter.material.InputDatePickerFormField","onDateSaved","ValueChanged<DateTime>",false,"void","DateTime:date");
         addCallable(widgets,"flutter.material.InputDatePickerFormField","selectableDayPredicate","SelectableDayPredicate",
@@ -469,7 +470,7 @@ public final class WidgetEventCatalog {
             List<WidgetEventDescriptor.Parameter> args) {
         List<String> imports = new ArrayList<>();
         if (result.equals("Future<void>")) imports.add("dart:async");
-        if (callbackType.equals("DataColumnSortCallback") || callbackType.equals("ValueChanged<DatePickerEntryMode>") || callbackType.equals("SelectableDayPredicate")) imports.add(MATERIAL);
+        if (callbackType.equals("EntryModeChangeCallback") || callbackType.equals("DataColumnSortCallback") || callbackType.equals("ValueChanged<DatePickerEntryMode>") || callbackType.equals("SelectableDayPredicate")) imports.add(MATERIAL);
         if (callbackType.equals("ShaderCallback")) imports.add(WIDGETS);
         if (callbackType.equals(NotificationListenerWidgetPropertySchema.CALLBACK_TYPE) || callbackType.equals("ChildIndexGetter?")) imports.add(WIDGETS);
         if (callbackType.equals("TooltipPositionDelegate") || callbackType.equals("TooltipTriggeredCallback")) imports.add(WIDGETS);

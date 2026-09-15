@@ -60,6 +60,8 @@ public final class WidgetPlacementRules {
     /** Evaluates whether a widget may be the Designer document root. */
     public static Decision evaluateRoot(WidgetDefinition child) {
         Objects.requireNonNull(child, "child");
+        if (LayoutIdWidgetPropertySchema.TYPE.equals(child.typeId()))
+            return rejected(RejectionKind.ROOT_PLACEMENT, "LayoutId requires direct CustomMultiChildLayout.children, not the root.");
         if (isStackPositionedWidget(child)) return rejected(RejectionKind.ROOT_PLACEMENT,
                 child.typeId().value() + " requires a direct Stack.children parent, not the root.");
         if (SLIVER_CROSS_AXIS_EXPANDED_TYPE.equals(child.typeId().value())) {
@@ -95,6 +97,10 @@ public final class WidgetPlacementRules {
         Objects.requireNonNull(child, "child");
 
         String destination = parent.typeId().value() + '.' + slot.name().value();
+        if (LayoutIdWidgetPropertySchema.TYPE.equals(child.typeId())
+                && !(CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(parent.typeId()) && CHILDREN_SLOT.equals(slot.name().value())))
+            return rejected(RejectionKind.DIRECT_PARENT_SLOT, "LayoutId cannot be placed in " + destination
+                    + "; it requires direct CustomMultiChildLayout.children.");
         if (!slot.acceptance().accepts(child)) {
             return rejected(
                     RejectionKind.SLOT_ACCEPTANCE,
@@ -174,6 +180,11 @@ public final class WidgetPlacementRules {
         if (SLIVER_CROSS_AXIS_EXPANDED_TYPE.equals(type)) {
             lines.add("R|" + type + "|directParentSlot|flutter.widgets.SliverCrossAxisGroup|slivers");
         }
+        if (LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            lines.add("R|" + type + "|directParentSlot|flutter.widgets.CustomMultiChildLayout|children");
+            lines.add("C|" + type + "|paletteCreate|seedBoxChild|child|48");
+            lines.add("C|" + type + "|paletteCreate|stableNodeId|id");
+        }
         if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) {
             lines.add("C|" + type + "|paletteCreate|seedBoxChild|child|48");
         }
@@ -218,7 +229,7 @@ public final class WidgetPlacementRules {
      * Palette creation must wrap an existing compatible child atomically.
      */
     public static Optional<SlotDefinition> requiredWrapperSlot(WidgetDefinition definition) {
-        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
+        if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId()) || LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (definition.properties().stream().anyMatch(property ->
                 property.parameter().required()
                 && property.creationDefault().isEmpty())) {

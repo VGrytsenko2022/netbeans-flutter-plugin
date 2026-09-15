@@ -316,6 +316,13 @@ class DartStaticTypeProbeTest {
             assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,"SingleChildLayoutDelegate",library));
     }
 
+    @Test void multiChildLayoutDelegateUsesTheSdkWitnessNotAShadowableLocalType() {
+        for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))
+            assertEquals("MultiChildLayoutDelegate", new DartStaticTypeProbe(10,5,0,5,"MultiChildLayoutDelegate",library).expectedDartType());
+        for (String library : List.of("package:app/fake.dart", "package:flutter/rendering.dart", "dart:core"))
+            assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,"MultiChildLayoutDelegate",library));
+    }
+
     @Test void customPaintUsesOnlyReviewedProofContexts() {
         for (String type : List.of("CustomPainter?", "Size")) {
             for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))

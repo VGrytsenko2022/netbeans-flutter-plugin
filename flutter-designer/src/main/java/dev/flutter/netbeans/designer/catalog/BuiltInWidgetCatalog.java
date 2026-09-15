@@ -141,6 +141,8 @@ public final class BuiltInWidgetCatalog {
             shaderMask(),
             customPaint(),
             customSingleChildLayout(),
+            customMultiChildLayout(),
+            layoutId(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3304,6 +3306,20 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition customMultiChildLayout() {
+        return widget(CustomMultiChildLayoutWidgetPropertySchema.TYPE.value(), "CustomMultiChildLayout", true,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "package:flutter/rendering.dart"), Set.of(),
+                palette("flutter.layout", 200, 600, "CustomMultiChildLayout"), CustomMultiChildLayoutWidgetPropertySchema.properties(),
+                List.of(listSlot("children", 1, false, new SlotAcceptance.HasTrait(LayoutIdWidgetPropertySchema.TRAIT))));
+    }
+
+    private static WidgetDefinition layoutId() {
+        return widget(LayoutIdWidgetPropertySchema.TYPE.value(), "LayoutId", false,
+                WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, "package:flutter/rendering.dart"), Set.of(LayoutIdWidgetPropertySchema.TRAIT),
+                palette("flutter.layout", 200, 610, "LayoutId"), LayoutIdWidgetPropertySchema.properties(),
+                List.of(singleSlot("child", 1, true, 1, ANY_WIDGET)));
     }
 
     private static WidgetDefinition customSingleChildLayout() {

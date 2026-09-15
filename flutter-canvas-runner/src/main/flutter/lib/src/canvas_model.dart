@@ -775,6 +775,7 @@ class CanvasNode {
       }
     }
     if (depth == 0) {
+      _expect(type != 'flutter.widgets.LayoutId', 'LayoutId requires direct CustomMultiChildLayout.children, not the root.');
       _expect(!_widgetSpecifications[type]!.traits.contains(_sliverWidgetTrait),
           'Canvas slivers require a sliver slot; $type cannot be the root.');
     }
@@ -848,6 +849,15 @@ void _validateNodeSlotRelationships(
   Map<String, CanvasSlot> slots,
   String path,
 ) {
+  if (type == 'flutter.widgets.CustomMultiChildLayout') {
+    final seen = <Object>{};
+    for (final child in slots['children']?.children ?? <CanvasNode>[]) {
+      final value = child.properties['id']!;
+      if (value.kind != 'dartObjectReferencePresence') {
+        _expect(seen.add(value.value!), 'Duplicate LayoutId value in CustomMultiChildLayout: $path/slots/children/${child.id}');
+      }
+    }
+  }
   if (type == 'flutter.widgets.Focus' &&
       properties['variant']?.value == 'withExternalFocusNode') {
     _expect(
@@ -7927,6 +7937,17 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.CustomMultiChildLayout': _WidgetSpec({
+    'delegate': _PropertySpec({'dartObjectReference'}, required: true,
+      creationDefaultFingerprint: 'dartObjectReference:multiChildLayoutDelegate:starter-v1',
+      dartObjectExpectedType: 'MultiChildLayoutDelegate'),
+  }, {'children': _SlotSpec(cardinality: 'list', required: false, minimumChildren: 0, maximumChildren: 10000,
+       acceptance: _SlotAcceptance.requiredTrait('flutter.widgets.LayoutId'))}),
+  'flutter.widgets.LayoutId': _WidgetSpec({
+    'id': _PropertySpec({'string','integer','double','boolean','dartObjectReference'}, required: true,
+      creationDefaultFingerprint: 'string:bGF5b3V0Q2hpbGQ', minimumStringLength: 0, maximumStringLength: 4096, explicitStringLength: true,
+      numericBounds: _unboundedNumberBounds, dartObjectExpectedType: 'Object'),
+  }, {'child': _requiredSingleSlot}, traits: {'flutter.widgets.LayoutId'}),
   'flutter.widgets.CustomSingleChildLayout': _WidgetSpec({
     'delegate': _PropertySpec({'dartObjectReference'}, required: true,
       creationDefaultFingerprint: 'dartObjectReference:singleChildLayoutDelegate:starter-v1',
@@ -17292,6 +17313,9 @@ P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.CustomMultiChildLayout
+P|delegate|dartObjectReference|1|dartObjectReference:multiChildLayoutDelegate:starter-v1|-|dartObjectReference:dartObjectReference:v1:MultiChildLayoutDelegate:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)
+S|children|list|0|0|10000|trait:Zmx1dHRlci53aWRnZXRzLkxheW91dElk
 W|flutter.widgets.CustomPaint
 P|foregroundPainter|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:CustomPainter?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
 P|isComplex|boolean|0|-|-|boolean:any
@@ -17763,6 +17787,12 @@ P|stepWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 S|child|single|0|0|1|any
 W|flutter.widgets.LayoutBuilder
 P|builder|dartObjectReference,string|1|string:ZW1wdHk|-|dartObjectReference:dartObjectReference:v1:LayoutWidgetBuilder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:ZW1wdHk
+W|flutter.widgets.LayoutId
+P|id|boolean,dartObjectReference,double,integer,string|1|string:bGF5b3V0Q2hpbGQ|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|boolean:any;dartObjectReference:dartObjectReference:v1:Object:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1;string:length:0:4096
+S|child|single|1|1|1|any
+R|flutter.widgets.LayoutId|directParentSlot|flutter.widgets.CustomMultiChildLayout|children
+C|flutter.widgets.LayoutId|paletteCreate|seedBoxChild|child|48
+C|flutter.widgets.LayoutId|paletteCreate|stableNodeId|id
 W|flutter.widgets.LimitedBox
 P|maxHeight|double|0|-|double:0:1:*:1|double:range:0:1:*:1
 P|maxWidth|double|0|-|double:0:1:*:1|double:range:0:1:*:1
@@ -18503,6 +18533,10 @@ String canvasRuntimeWidgetSchemaContractForTesting() {
       }
     } else if (widgetType == 'flutter.widgets.AnimatedCrossFade') {
       result.writeln('C|$widgetType|paletteCreate|seedBoxChildren|firstChild|48|48|secondChild|48|80');
+    } else if (widgetType == 'flutter.widgets.LayoutId') {
+      result.writeln('R|$widgetType|directParentSlot|flutter.widgets.CustomMultiChildLayout|children');
+      result.writeln('C|$widgetType|paletteCreate|seedBoxChild|child|48');
+      result.writeln('C|$widgetType|paletteCreate|stableNodeId|id');
     } else if (widgetType == 'flutter.widgets.SliverFloatingHeader') {
       result.writeln('C|$widgetType|paletteCreate|seedBoxChild|child|48');
     } else if (isCanvasReviewedRequiredChildWrapperWidgetType(widgetType)) {
@@ -18520,6 +18554,9 @@ bool _placementAccepts(
   String slotName,
   String childWidgetType,
 ) {
+  if (childWidgetType == 'flutter.widgets.LayoutId') {
+    return parentWidgetType == 'flutter.widgets.CustomMultiChildLayout' && slotName == 'children';
+  }
   if (childWidgetType == 'flutter.widgets.SliverCrossAxisExpanded') {
     return parentWidgetType == 'flutter.widgets.SliverCrossAxisGroup' && slotName == 'slivers';
   }
@@ -18554,7 +18591,7 @@ bool isCanvasReviewedRequiredChildWrapperWidgetType(String widgetType) {
 /// The reviewed required AnyWidget or Sliver slot used by atomic palette wrapping.
 /// IconButton wraps into `icon`; existing wrappers continue to use `child`.
 String? canvasReviewedRequiredWrapperSlot(String widgetType) {
-  if (widgetType == 'flutter.widgets.SliverFloatingHeader') return null;
+  if (widgetType == 'flutter.widgets.SliverFloatingHeader' || widgetType == 'flutter.widgets.LayoutId') return null;
   final specification = _widgetSpecifications[widgetType];
   if (specification == null) {
     return null;

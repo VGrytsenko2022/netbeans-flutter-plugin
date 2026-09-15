@@ -187,11 +187,11 @@ class RefreshIndicatorContractTest {
         var slot = definition.slots().getFirst();
         int accepted = 0;
         for (var child : BuiltInWidgetCatalog.getDefault().definitions()) {
-            boolean expected = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child) && !WidgetPlacementRules.isSliverWidget(child);
+            boolean expected = !Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child) && !WidgetPlacementRules.isSliverWidget(child);
             assertEquals(expected, WidgetPlacementRules.accepts(definition, slot, child));
             if (expected) accepted++;
         }
-        assertEquals(163, accepted);
+        assertEquals(164, accepted);
         assertTrue(valid(node(Map.of())), "Any Widget child is legal even without scrollables; runtime then has no pull gesture");
     }
 

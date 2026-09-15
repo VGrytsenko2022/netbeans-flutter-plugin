@@ -1574,12 +1574,39 @@ public final class DartRegionGenerator {
                 node, path, baseIndent, context, rendered);
     }
 
+    private RenderedValue initializeMultiLayoutIds(WidgetNode node, String path, int baseIndent,
+            GenerationContext context, RenderedValue rendered) {
+        String local = "_fdMultiLayout_" + node.id().toString().replace("-", "");
+        String delegate = dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DELEGATE_CLASS;
+        var layoutId = context.planner().renderedSymbol(WIDGETS_IMPORT, "LayoutId");
+        var lines = new LineAccumulator(context.maxRenderedUtf8Bytes(), path, node.id());
+        lines.add("(() {");
+        String prefix = spaces(baseIndent + 2) + "final " + local + " = ";
+        lines.addBlock(prefix + rendered.joined() + ";", rendered.symbolOccurrences(), prefix.length());
+        prefix = spaces(baseIndent + 2) + "(" + local + ".delegate as ";
+        lines.add(prefix + delegate + ").ids = [",
+                List.of(occurrence("widget:" + node.id() + ":starter-cast", prefix.length(), delegate,
+                        CURRENT_PROJECT_LIBRARY_URI, path + "/properties/delegate", Optional.of(node.id()))));
+        prefix = spaces(baseIndent + 4) + "for (final child in " + local + ".children) (child as ";
+        lines.add(prefix + layoutId.text() + ").id",
+                List.of(occurrence("widget:" + node.id() + ":starter-child-id", prefix.length() + layoutId.nameOffset(),
+                        layoutId.name(), layoutId.libraryUri(), path + "/slots/children", Optional.of(node.id()))));
+        lines.add(spaces(baseIndent + 2) + "];");
+        lines.add(spaces(baseIndent + 2) + "return " + local + ";");
+        lines.add(spaces(baseIndent) + "})()");
+        return lines.build(false);
+    }
+
     private RenderedValue wrapConstraintGuardIfNeeded(
             WidgetNode node,
             String path,
             int baseIndent,
             GenerationContext context,
             RenderedValue rendered) {
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE)
+                && dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.INITIAL_DELEGATE.equals(node.properties().get(new PropertyName("delegate")))) {
+            return initializeMultiLayoutIds(node,path,baseIndent,context,rendered);
+        }
         if (node.type().equals(dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE)
                 && node.properties().get(new PropertyName("shaderCallback")) instanceof PropertyValue.GradientValue gradient) {
             return wrapShaderGradient(node, gradient, path, baseIndent, context, rendered);

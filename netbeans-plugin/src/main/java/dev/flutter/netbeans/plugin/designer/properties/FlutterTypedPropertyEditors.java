@@ -93,8 +93,10 @@ final class FlutterTypedPropertyEditors {
                 || kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && !presets.isEmpty() && definition.constraints().stream().anyMatch(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)) {
             editorKind = EditorKind.PRESET_DART_REFERENCE;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.NULL, PropertyValueKind.STRING, PropertyValueKind.INTEGER,
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.STRING, PropertyValueKind.INTEGER,
                 PropertyValueKind.DOUBLE, PropertyValueKind.BOOLEAN, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.NULL, PropertyValueKind.STRING, PropertyValueKind.INTEGER,
+                PropertyValueKind.DOUBLE, PropertyValueKind.BOOLEAN, PropertyValueKind.DART_OBJECT_REFERENCE)))
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
                         && reference.expectedDartType().equals("Object"))) {
             editorKind = EditorKind.OBJECT_TAG;

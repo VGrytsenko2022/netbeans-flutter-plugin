@@ -416,6 +416,8 @@ public final class WidgetTreeValidator {
             Map<String, String> firstSemanticsIdentifierPaths,
             IssueCollector issues) {
         String type = node.type().value();
+        dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.duplicateIdError(node)
+                .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath.substring(0, propertiesPath.length() - "/properties".length()) + "/slots/children", node.id(), message)));
         if (node.type().equals(dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.TYPE)) {
             dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.relationshipError(node)
                     .ifPresent(message -> issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/isComplex", node.id(), message)));

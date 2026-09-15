@@ -4036,6 +4036,11 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId') {
+    return '${node.type} ${node.id}: project delegates and IDs are not executed. '
+        'Canvas uses private per-node IDs and a constrained 256 by 192 vertical-cell layout. '
+        'Custom layout, relayout and source ID equality are tested in the generated application.';
+  }
   if (node.type == 'flutter.widgets.CustomSingleChildLayout') {
     return 'CustomSingleChildLayout ${node.id}: project delegate is not executed. '
         'Canvas uses a centered, constrained 128 by 96 logical-pixel preview. '
@@ -5781,7 +5786,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5872,7 +5877,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' || node.type == 'flutter.widgets.CustomMultiChildLayout' || node.type == 'flutter.widgets.LayoutId' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -6305,7 +6310,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
     if (requiredChildOwner != null &&
         (requiredChildOwner.id != parentWidgetId ||
             slotName !=
-                (requiredChildOwner.type == 'flutter.widgets.SliverFloatingHeader' ? 'child' : canvasReviewedRequiredWrapperSlot(requiredChildOwner.type)))) {
+                (const {'flutter.widgets.SliverFloatingHeader', 'flutter.widgets.LayoutId'}.contains(requiredChildOwner.type) ? 'child' : canvasReviewedRequiredWrapperSlot(requiredChildOwner.type)))) {
       // A move cannot expose an invalid empty required slot. Keep same-slot
       // no-op previews; the host still owns final mutation validation.
       return null;
@@ -6586,7 +6591,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
   }
 
   CanvasNode? _requiredChildOwner(CanvasNode node, String childId) {
-    if (node.type == 'flutter.widgets.SliverFloatingHeader' && node.slot('child')?.child?.id == childId) return node;
+    if (const {'flutter.widgets.SliverFloatingHeader', 'flutter.widgets.LayoutId'}.contains(node.type) && node.slot('child')?.child?.id == childId) return node;
     if (isCanvasReviewedRequiredChildWrapperWidgetType(node.type) &&
         node.slot(canvasReviewedRequiredWrapperSlot(node.type)!)?.child?.id ==
             childId) {
@@ -9049,6 +9054,15 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.CustomMultiChildLayout' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: CustomMultiChildLayout(
+          delegate: _MultiChildLayoutPreviewDelegate([for(final c in node.slot('children')?.children ?? <CanvasNode>[]) c.id]),
+          // Key the outer component, above LayoutId and instrumentation, so
+          // reordering preserves parent data and native child state together.
+          children: [for(final c in node.slot('children')?.children ?? <CanvasNode>[])
+            KeyedSubtree(key: ValueKey('canvas-layout-id-${c.id}'), child: _view(c))])),
+      'flutter.widgets.LayoutId' => _single('child')!,
       'flutter.widgets.CustomSingleChildLayout' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: CustomSingleChildLayout(
@@ -9258,6 +9272,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.widgets.PositionedTransition' => _positionedTransition(instrumented),
       'flutter.widgets.RelativePositionedTransition' => _relativePositionedTransition(instrumented),
       'flutter.widgets.Transform' => _transform(instrumented),
+      'flutter.widgets.LayoutId' => LayoutId(id: node.id, child: instrumented),
       'flutter.widgets.Expanded' => Expanded(
         flex: _integer('flex') ?? 1,
         child: instrumented,
@@ -17534,6 +17549,23 @@ class _PrototypeMeasurement extends SingleChildRenderObjectWidget {
 class _PrototypeMeasurementRenderBox extends RenderProxyBox {}
 
 /// Reviewed finite-size layout preview. Never invokes project delegate methods.
+class _MultiChildLayoutPreviewDelegate extends MultiChildLayoutDelegate {
+  _MultiChildLayoutPreviewDelegate(this.ids);
+  final List<Object> ids;
+  @override
+  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(256, 192));
+  @override
+  void performLayout(Size size) {
+    final height = ids.isEmpty ? 0.0 : size.height / ids.length;
+    for(var index = 0; index < ids.length; index++) {
+      layoutChild(ids[index], BoxConstraints.loose(Size(size.width, height)));
+      positionChild(ids[index], Offset(0, index * height));
+    }
+  }
+  @override
+  bool shouldRelayout(covariant _MultiChildLayoutPreviewDelegate oldDelegate) => true;
+}
+
 class _SingleChildLayoutPreviewDelegate extends SingleChildLayoutDelegate {
   const _SingleChildLayoutPreviewDelegate();
   @override

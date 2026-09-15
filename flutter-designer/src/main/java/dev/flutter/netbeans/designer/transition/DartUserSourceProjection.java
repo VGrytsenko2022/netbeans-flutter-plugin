@@ -99,7 +99,14 @@ public final class DartUserSourceProjection {
         return append(updatedEnvelope, updated, null);
     }
 
-    /** Adds the closed single-child layout starter; future edits remain user-owned. */
+    /** Adds the multi-child layout starter; future delegate edits remain user-owned. */
+    public DartUserSourceProjection insertMultiChildLayoutDelegate() {
+        byte[] updated = DartEventHandlerSource.insertMultiChildLayoutDelegate(targetSource);
+        Envelope updatedEnvelope = envelope(scan(updated, targetDescriptor));
+        return append(updatedEnvelope, updated, null);
+    }
+
+    /** Adds the single-child layout starter; future delegate edits remain user-owned. */
     public DartUserSourceProjection insertSingleChildLayoutDelegate() {
         byte[] updated = DartEventHandlerSource.insertSingleChildLayoutDelegate(targetSource);
         Envelope updatedEnvelope = envelope(scan(updated, targetDescriptor));

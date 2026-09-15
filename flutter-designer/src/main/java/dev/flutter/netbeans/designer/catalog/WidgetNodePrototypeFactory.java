@@ -25,10 +25,11 @@ public final class WidgetNodePrototypeFactory {
      * {@link SlotDefinition}. A required slot with a positive minimum therefore
      * remains intentionally incomplete: the detached value is suitable as an
      * atomic wrapper payload, while document validation still rejects inserting
-     * it without its required child. Exception: SliverFloatingHeader uses its
+     * it without its required child. Exceptions: LayoutId and SliverFloatingHeader use their
      * reviewed explicit 48 x 48 box seed; its child id is derived from the owner
      * id, so no additional supplied id is consumed. AnimatedCrossFade similarly seeds
-     * both required slots with explicit 48 x 48 / 48 x 80 SizedBox nodes.</p>
+     * both required slots with explicit 48 x 48 / 48 x 80 SizedBox nodes.
+     * LayoutId also derives its unique default Object ID string from the owner id.</p>
      *
      * @param definition exact immutable catalog definition
      * @param id stable identifier for the new widget
@@ -46,7 +47,7 @@ public final class WidgetNodePrototypeFactory {
      * left without either an explicit value or a reviewed creation default are
      * rejected before a model node is created. Required child slots remain
      * detached and empty so wrapper commands can still assemble them atomically,
-     * except the reviewed SliverFloatingHeader and AnimatedCrossFade seeds described above.</p>
+     * except the reviewed LayoutId, SliverFloatingHeader and AnimatedCrossFade seeds described above.</p>
      *
      * @param definition exact immutable catalog definition
      * @param id stable identifier for the new widget
@@ -62,7 +63,7 @@ public final class WidgetNodePrototypeFactory {
         return createNode(
                 definition,
                 id,
-                validatedCreationProperties(definition, creationValues));
+                identityCreationProperties(definition, id, creationValues, validatedCreationProperties(definition, creationValues)));
     }
 
     private static LinkedHashMap<PropertyName, PropertyValue>
@@ -114,6 +115,13 @@ public final class WidgetNodePrototypeFactory {
         return result;
     }
 
+    private static Map<PropertyName,PropertyValue> identityCreationProperties(WidgetDefinition definition, StableId id,
+            Map<PropertyName,? extends PropertyValue> creationValues, LinkedHashMap<PropertyName, PropertyValue> values) {
+        if (LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId()) && !creationValues.containsKey(new PropertyName("id")))
+            values.put(new PropertyName("id"),new PropertyValue.StringValue("child_" + id));
+        return values;
+    }
+
     private static WidgetNode createNode(
             WidgetDefinition definition,
             StableId id,
@@ -128,6 +136,8 @@ public final class WidgetNodePrototypeFactory {
             slots.put(slot.name(), empty);
         }
 
+        if (LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            slots.put(new SlotName("child"),WidgetSlot.SingleSlot.of(LayoutIdWidgetPropertySchema.starterChild(id)));
         // This sliver requires a box child but cannot wrap an existing sliver.
         // Keep the starter explicit in the model; never lower a missing required child.
         if (SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId())) {
@@ -164,6 +174,6 @@ public final class WidgetNodePrototypeFactory {
         LinkedHashMap<PropertyName, PropertyValue> properties =
                 validatedCreationProperties(definition, creationValues);
         StableId id = Objects.requireNonNull(idSupplier.get(), "idSupplier returned null");
-        return createNode(definition, id, properties);
+        return createNode(definition, id, identityCreationProperties(definition, id, creationValues, properties));
     }
 }

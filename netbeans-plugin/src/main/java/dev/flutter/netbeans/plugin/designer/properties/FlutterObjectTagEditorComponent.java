@@ -29,7 +29,7 @@ import javax.swing.event.DocumentEvent;
 import javax.swing.event.DocumentListener;
 import org.openide.explorer.propertysheet.PropertyEnv;
 
-/** Closed typed Hero identity union. Each mode owns a cancel-safe local draft. */
+/** Closed typed Hero/LayoutId identity union. Each mode owns a cancel-safe local draft. */
 final class FlutterObjectTagEditorComponent {
     static final String MODE_NAME = "flutter.objectTag.mode";
     static final String STRING_NAME = "flutter.objectTag.string";
@@ -60,29 +60,31 @@ final class FlutterObjectTagEditorComponent {
         private final JTextArea note = new JTextArea(3, 55);
         private final FlutterPropertyEditorComponents.CommitOnValidPanel referencePanel;
         private boolean refreshing;
+        private final boolean requiredIdentity;
 
         ObjectTagPanel(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
             super(editor, binding, environment);
+            requiredIdentity = !binding.definition().acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL);
             if (binding.editorKind() != FlutterTypedPropertyEditors.EditorKind.OBJECT_TAG)
-                throw new IllegalArgumentException("Object tag editor requires the exact nullable literal/Object-reference union.");
+                throw new IllegalArgumentException("Object tag editor requires the exact typed literal/Object-reference union.");
             setLayout(new BorderLayout(0, 8)); setPreferredSize(new Dimension(710, 490)); setName("flutter.objectTag.editor");
-            getAccessibleContext().setAccessibleName("Hero tag typed value editor");
-            getAccessibleContext().setAccessibleDescription("Omission, explicit null, primitive literals and analyzer-verified non-null Object references remain distinct. Cancel never publishes a draft.");
-            mode = new JComboBox<>(binding.optional() ? new String[]{OMIT, NONE, STRING, INTEGER, DOUBLE, BOOLEAN, PROJECT}
+            getAccessibleContext().setAccessibleName(requiredIdentity ? "Layout ID typed value editor" : "Hero tag typed value editor");
+            getAccessibleContext().setAccessibleDescription(requiredIdentity ? "Required non-null layout identity: primitive literal or analyzer-verified Object reference. Cancel never publishes a draft." : "Omission, explicit null, primitive literals and analyzer-verified non-null Object references remain distinct. Cancel never publishes a draft.");
+            mode = new JComboBox<>(requiredIdentity ? new String[]{STRING, INTEGER, DOUBLE, BOOLEAN, PROJECT} : binding.optional() ? new String[]{OMIT, NONE, STRING, INTEGER, DOUBLE, BOOLEAN, PROJECT}
                     : new String[]{NONE, STRING, INTEGER, DOUBLE, BOOLEAN, PROJECT});
-            mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName("Hero tag value type");
+            mode.setName(MODE_NAME); mode.getAccessibleContext().setAccessibleName(requiredIdentity ? "Layout ID value type" : "Hero tag value type");
             var heading = new JPanel(new BorderLayout(8, 0)); var source = new JLabel("Type:"); source.setLabelFor(mode);
             heading.add(source, BorderLayout.WEST); heading.add(mode, BorderLayout.CENTER); add(heading, BorderLayout.NORTH);
             var initial = initialValue().explicitValue().orElse(null);
             stringValue.setName(STRING_NAME); stringValue.setText(initial instanceof PropertyValue.StringValue value ? value.value() : "");
-            stringValue.getAccessibleContext().setAccessibleName("String Hero tag literal");
+            stringValue.getAccessibleContext().setAccessibleName(requiredIdentity ? "String layout ID literal" : "String Hero tag literal");
             stringValue.getAccessibleContext().setAccessibleDescription("Exact string including empty text, whitespace and line breaks; never parsed as Dart code.");
             var stringRow = new JPanel(new BorderLayout(8, 0)); var stringLabel = new JLabel("String:"); stringLabel.setLabelFor(stringValue);
             stringRow.add(stringLabel, BorderLayout.NORTH); stringRow.add(new JScrollPane(stringValue), BorderLayout.CENTER); cards.add(stringRow, STRING);
             addField(INTEGER, INTEGER_NAME, initial instanceof PropertyValue.IntegerValue value ? value.value().toString() : "0");
             addField(DOUBLE, DOUBLE_NAME, initial instanceof PropertyValue.DoubleValue value ? value.value().toPlainString() : "0.0");
             booleanValue.setName(BOOLEAN_NAME); booleanValue.setHorizontalAlignment(SwingConstants.CENTER);
-            booleanValue.getAccessibleContext().setAccessibleName("Boolean Hero tag");
+            booleanValue.getAccessibleContext().setAccessibleName(requiredIdentity ? "Boolean layout ID" : "Boolean Hero tag");
             booleanValue.setSelected(initial instanceof PropertyValue.BooleanValue value && value.value());
             cards.add(booleanValue, BOOLEAN); cards.add(new JPanel(), OMIT); cards.add(new JPanel(), NONE);
             var constraint = binding.definition().constraints().stream().filter(PropertyValueConstraint.DartObjectReferenceValues.class::isInstance)
@@ -96,8 +98,8 @@ final class FlutterObjectTagEditorComponent {
             if (!(initial instanceof PropertyValue.DartObjectReferenceValue)) clearReferenceRoot(referencePanel);
             cards.add(referencePanel, PROJECT); add(cards, BorderLayout.CENTER);
             note.setName(NOTE_NAME); note.setEditable(false); note.setOpaque(false); note.setLineWrap(true); note.setWrapStyleWord(true);
-            note.getAccessibleContext().setAccessibleName("Hero identity and preview behavior"); add(note, BorderLayout.SOUTH);
-            mode.setSelectedItem(initial == null ? binding.optional() ? OMIT : NONE : switch (initial) {
+            note.getAccessibleContext().setAccessibleName(requiredIdentity ? "Layout identity and preview behavior" : "Hero identity and preview behavior"); add(note, BorderLayout.SOUTH);
+            mode.setSelectedItem(initial == null ? requiredIdentity ? STRING : binding.optional() ? OMIT : NONE : switch (initial) {
                 case PropertyValue.NullValue ignored -> NONE;
                 case PropertyValue.StringValue ignored -> STRING;
                 case PropertyValue.IntegerValue ignored -> INTEGER;
@@ -118,7 +120,7 @@ final class FlutterObjectTagEditorComponent {
         }
 
         private void addField(String type, String name, String value) {
-            var field = new JTextField(value, 30); field.setName(name); field.getAccessibleContext().setAccessibleName(type + " Hero tag literal");
+            var field = new JTextField(value, 30); field.setName(name); field.getAccessibleContext().setAccessibleName(type + (requiredIdentity ? " layout ID literal" : " Hero tag literal"));
             field.getAccessibleContext().setAccessibleDescription(STRING.equals(type) ? "Exact string including empty text and whitespace; never parsed as Dart code."
                     : "A finite " + type.toLowerCase(java.util.Locale.ROOT) + " literal, not an expression.");
             var row = new JPanel(new BorderLayout(8, 0)); var label = new JLabel(type + ":"); label.setLabelFor(field);
@@ -135,6 +137,9 @@ final class FlutterObjectTagEditorComponent {
                         : OMIT.equals(selected) ? "Omits heroTag, retaining the SDK shared default tag. Multiple buttons in one route need distinct explicit tags or null."
                         : PROJECT.equals(selected) ? "The analyzer verifies a non-null Object. Project code is never executed in isolated Canvas; use a stable getter or factory for project identity."
                         : "Stores an explicit " + selected.toLowerCase(java.util.Locale.ROOT) + " tag. Equal tags in one route conflict, including numerically equal integer/double values.";
+                if (requiredIdentity) description = "Required unique LayoutId: primitive literal or strict Object source. "
+                        + "Equal IDs in the same CustomMultiChildLayout are invalid, including equal integer/double values. "
+                        + "Source equality is a runtime obligation; Canvas never executes project ID code.";
                 note.setText(description); note.getAccessibleContext().setAccessibleDescription(description);
                 FlutterPropertyCellValue candidate = switch (selected) {
                     case OMIT -> FlutterPropertyCellValue.unset();
@@ -149,7 +154,7 @@ final class FlutterObjectTagEditorComponent {
                 if (requestValidation) markValid(candidate); else stageValid(candidate);
                 return true;
             } catch (IllegalArgumentException failure) {
-                markInvalid("Invalid typed Hero tag: " + failure.getMessage(), note); return false;
+                markInvalid((requiredIdentity ? "Invalid layout ID: " : "Invalid typed Hero tag: ") + failure.getMessage(), note); return false;
             } finally { refreshing = false; }
         }
 

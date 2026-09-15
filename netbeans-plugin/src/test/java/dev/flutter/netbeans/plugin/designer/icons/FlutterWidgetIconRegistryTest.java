@@ -2274,6 +2274,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.widgets.BackdropGroup", ICON_ROOT + "backdropgroup.svg");
         expected.put("flutter.widgets.ShaderMask", ICON_ROOT + "shadermask.svg"); expected.put("flutter.widgets.CustomPaint", ICON_ROOT + "custompaint.svg");
         expected.put("flutter.widgets.CustomSingleChildLayout", ICON_ROOT + "customsinglechildlayout.svg");
+        expected.put("flutter.widgets.CustomMultiChildLayout", ICON_ROOT + "custommultichildlayout.svg");
+        expected.put("flutter.widgets.LayoutId", ICON_ROOT + "layoutid.svg");
         expected.put("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg");
         expected.put("flutter.widgets.AnimatedContainer", ICON_ROOT + "animatedcontainer.svg");
         expected.put("flutter.widgets.AnimatedOpacity", ICON_ROOT + "animatedopacity.svg");

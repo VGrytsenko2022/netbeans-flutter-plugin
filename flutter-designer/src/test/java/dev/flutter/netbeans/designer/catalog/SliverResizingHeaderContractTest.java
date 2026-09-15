@@ -30,7 +30,7 @@ class SliverResizingHeaderContractTest {
             assertEquals(0,slot.minChildren());assertEquals(1,slot.maxChildren());
             assertEquals(new SlotAcceptance.AnyWidget(),slot.acceptance());
             for(var child:catalog.definitions()) assertEquals(!WidgetPlacementRules.isSliverWidget(child)
-                    && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child),
+                    && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer","flutter.widgets.LayoutId").contains(child.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(child),
                     WidgetPlacementRules.accepts(d,slot,child),child.typeId().value());
         }
         var prototype=WidgetNodePrototypeFactory.create(d,StableId.random());assertTrue(prototype.properties().isEmpty());

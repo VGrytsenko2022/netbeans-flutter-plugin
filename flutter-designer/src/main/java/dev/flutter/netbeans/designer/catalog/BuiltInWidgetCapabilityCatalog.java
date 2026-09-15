@@ -296,6 +296,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.ShaderMask", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.CustomSingleChildLayout", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.LayoutId", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeTransition", STATIC_EDITABLE),
@@ -1011,6 +1013,13 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.CustomMultiChildLayout", projection(
+                    CustomMultiChildLayoutWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("children", traitListSlotSchema(false,0,10000,LayoutIdWidgetPropertySchema.TRAIT)))),
+            Map.entry("flutter.widgets.LayoutId", projection(
+                    LayoutIdWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child",singleSlotSchema(true,1)))),
             Map.entry("flutter.widgets.CustomSingleChildLayout", projection(
                     CustomSingleChildLayoutWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
@@ -5033,6 +5042,9 @@ public final class BuiltInWidgetCapabilityCatalog {
     }
 
     private static String defaultFingerprint(PropertyValue value) {
+        if (value.equals(CustomMultiChildLayoutWidgetPropertySchema.INITIAL_DELEGATE)) {
+            return "dartObjectReference:multiChildLayoutDelegate:starter-v1";
+        }
         if (value.equals(CustomSingleChildLayoutWidgetPropertySchema.INITIAL_DELEGATE)) {
             return "dartObjectReference:singleChildLayoutDelegate:starter-v1";
         }

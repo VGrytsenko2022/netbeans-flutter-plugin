@@ -1,5 +1,7 @@
 import 'canvas_model.dart';
 
+const canvasLayoutIdWidgetTrait = 'flutter.widgets.LayoutId';
+
 /// Resolves one normalized native surface point to a semantic drop target.
 typedef CanvasDropResolver =
     CanvasDropTarget? Function(
@@ -51,7 +53,7 @@ class CanvasDropAcceptance {
   final Set<String> exactTypes;
 
   bool accepts(CanvasPaletteDragSource source) => switch (kind) {
-    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait),
+    CanvasDropAcceptanceKind.any => !source.traits.contains(canvasSliverWidgetTrait) && source.widgetType != canvasLayoutIdWidgetTrait,
     CanvasDropAcceptanceKind.requiredTrait => source.traits.contains(
       requiredTrait,
     ),
@@ -530,6 +532,11 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.SliverPrototypeExtentList' => const [canvasChildrenAppendDropSlot, canvasPrototypeItemDropSlot],
       'flutter.widgets.SliverPrototypeExtentList.builder' ||
       'flutter.widgets.SliverPrototypeExtentList.delegate' => const [canvasPrototypeItemDropSlot],
+      'flutter.widgets.CustomMultiChildLayout' => const [
+        CanvasDropSlotSemantics.append(slotName: 'children', maximumChildren: 10000,
+          acceptance: CanvasDropAcceptance.requiredTrait(canvasLayoutIdWidgetTrait),
+          zonePlacement: CanvasDropZonePlacement.fullNode),
+      ],
       'flutter.widgets.CustomScrollView' ||
       'flutter.widgets.SliverMainAxisGroup' ||
       'flutter.widgets.SliverCrossAxisGroup' => const [canvasSliversAppendDropSlot],

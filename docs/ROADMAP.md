@@ -2582,10 +2582,13 @@ accepted architecture is documented in
     optional Child, atomic editable starter source, strict analyzer evidence,
     save/reopen/history and native relayout/constraint/position tests.
     Canvas discloses its fixed-size preview. See [CustomSingleChildLayout](CUSTOM_SINGLE_CHILD_LAYOUT.md).
-  - [ ] Next palette candidate: CustomMultiChildLayout with LayoutId as one
-    coordinated slice (typed MultiChildLayoutDelegate, stable typed child IDs,
-    layout ordering, source lifecycle and explicit Canvas preview boundary).
-    Confirm the pinned SDK and safe creation/placement rules before implementation.
+  - [x] Add CustomMultiChildLayout with LayoutId as one coordinated slice:
+    typed MultiChildLayoutDelegate, unique typed child IDs, editable source starter,
+    child replacement/reorder/history and explicit native Canvas preview boundary.
+    See [CustomMultiChildLayout and LayoutId](CUSTOM_MULTI_CHILD_LAYOUT.md).
+  - [ ] Next palette candidate: Flow with typed FlowDelegate, paint-time child
+    transforms, hit testing and explicit isolated-preview boundaries. Verify the
+    pinned SDK and safe starter lifecycle before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

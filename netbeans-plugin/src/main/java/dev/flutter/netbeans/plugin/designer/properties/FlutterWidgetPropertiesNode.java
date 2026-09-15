@@ -1121,6 +1121,18 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
                 sheet.put(set);
             }
+        } else if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("layoutId", "Layout identity", dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("id")).orElseThrow(), Optional.empty(),
+                    "ID", dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION, false, java.util.List.of()));
+            sheet.put(set);
+        } else if (dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("customMultiChildLayout", "Custom layout", dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            set.put(projectProperty(definition.property(new PropertyName("delegate")).orElseThrow(), Optional.empty(),
+                    "Delegate", dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION, false, java.util.List.of()));
+            sheet.put(set);
         } else if (dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) {
             Sheet.Set set = propertySet("customSingleChildLayout", "Custom layout", dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.DESCRIPTION);
             assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -1621,6 +1633,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.LayoutIdWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.DESCRIPTION;

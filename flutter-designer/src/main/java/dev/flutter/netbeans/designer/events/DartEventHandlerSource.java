@@ -153,6 +153,32 @@ public final class DartEventHandlerSource {
                 """);
     }
 
+    /** Reviewed mutable ID list is initialized once from actual LayoutId widgets by generated Dart. */
+    public static byte[] insertMultiChildLayoutDelegate(byte[] source) {
+        return insertReviewedDelegate(source,
+                dev.flutter.netbeans.designer.catalog.CustomMultiChildLayoutWidgetPropertySchema.DELEGATE_CLASS, """
+                // Editable CustomMultiChildLayout delegate. Designer preserves this class.
+                class _FlutterDesignerMultiChildLayoutDelegate extends MultiChildLayoutDelegate {
+                  _FlutterDesignerMultiChildLayoutDelegate({super.relayout});
+                  // Designer initializes these IDs from the actual children before mounting.
+                  List<Object> ids = const [];
+                  @override
+                  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(256, 192));
+                  @override
+                  void performLayout(Size size) {
+                    final height = ids.isEmpty ? 0.0 : size.height / ids.length;
+                    for (var index = 0; index < ids.length; index++) {
+                      final id = ids[index];
+                      layoutChild(id, BoxConstraints.loose(Size(size.width, height)));
+                      positionChild(id, Offset(0, index * height));
+                    }
+                  }
+                  @override
+                  bool shouldRelayout(covariant _FlutterDesignerMultiChildLayoutDelegate oldDelegate) => true;
+                }
+                """);
+    }
+
     private static byte[] insertReviewedDelegate(byte[] source, String name, String declaration) {
         Lexed lex = new Lexer(decode(source)).scan();
         for (int i = 0; i < lex.tokens().size(); i++) {

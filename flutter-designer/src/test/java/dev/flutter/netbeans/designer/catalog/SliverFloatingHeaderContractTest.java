@@ -46,7 +46,7 @@ class SliverFloatingHeaderContractTest {
             assertEquals(target.acceptance().equals(new SlotAcceptance.HasTrait(BuiltInWidgetCatalog.SLIVER_WIDGET_TRAIT)),
                     WidgetPlacementRules.accepts(parent,target,d));
         for(var type:CATALOG.definitions()) assertEquals(!WidgetPlacementRules.isSliverWidget(type)
-                && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer").contains(type.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(type),
+                && !Set.of("flutter.widgets.Expanded","flutter.widgets.Flexible","flutter.widgets.Spacer","flutter.widgets.LayoutId").contains(type.typeId().value()) && !WidgetPlacementRules.isStackPositionedWidget(type),
                 WidgetPlacementRules.accepts(d,slot,type));
     }
     @Test void allLocalStylePresenceCombinationsAndSnapModesRoundTripAndGenerateExactArguments() throws Exception {

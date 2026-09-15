@@ -1,5 +1,13 @@
 # Widget events API audit
 
+## CustomMultiChildLayout and LayoutId update (2026-09-15)
+
+MultiChildLayoutDelegate and non-null Object IDs are typed object contracts, not
+callback parameters. Layout methods, relayout notifications and source identity
+stay project-owned; no synthetic Events are added. Isolated Canvas never executes
+them. Inventory: 221 definitions; 240 callables across 88 types, and 174 native
+Events across 60 types. See [the coordinated layout slice](CUSTOM_MULTI_CHILD_LAYOUT.md).
+
 ## CustomSingleChildLayout update (2026-09-15)
 
 The required SingleChildLayoutDelegate is an object, not a callback parameter.

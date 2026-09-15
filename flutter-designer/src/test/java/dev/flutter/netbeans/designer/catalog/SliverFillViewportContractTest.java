@@ -37,7 +37,7 @@ class SliverFillViewportContractTest {
                 assertEquals(new SlotName("children"), slot.name()); assertTrue(slot.parameter().required());
                 assertEquals(SlotCardinality.LIST, slot.cardinality()); assertEquals(0, slot.minChildren());
                 for (var source : catalog.definitions()) {
-                    boolean invalid = WidgetPlacementRules.isSliverWidget(source) || WidgetPlacementRules.isStackPositionedWidget(source) || Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer").contains(source.typeId().value());
+                    boolean invalid = WidgetPlacementRules.isSliverWidget(source) || WidgetPlacementRules.isStackPositionedWidget(source) || Set.of("flutter.widgets.Expanded", "flutter.widgets.Flexible", "flutter.widgets.Spacer", "flutter.widgets.LayoutId").contains(source.typeId().value());
                     assertEquals(!invalid, WidgetPlacementRules.accepts(d, slot, source), source.typeId().value());
                 }
             }

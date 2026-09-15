@@ -2578,9 +2578,14 @@ accepted architecture is documented in
     Size, both cache hints, optional Child and native source-owned paint behavior.
     Isolated Canvas uses disclosed inert delegates; generated applications retain
     repaint, hit testing and semantics. See [CustomPaint](CUSTOM_PAINT.md).
-  - [ ] Next palette candidate: CustomSingleChildLayout (typed
-    SingleChildLayoutDelegate, optional Child and source-owned layout behavior).
-    Confirm the pinned SDK and safe preview policy before implementation.
+  - [x] Add CustomSingleChildLayout: required typed SingleChildLayoutDelegate,
+    optional Child, atomic editable starter source, strict analyzer evidence,
+    save/reopen/history and native relayout/constraint/position tests.
+    Canvas discloses its fixed-size preview. See [CustomSingleChildLayout](CUSTOM_SINGLE_CHILD_LAYOUT.md).
+  - [ ] Next palette candidate: CustomMultiChildLayout with LayoutId as one
+    coordinated slice (typed MultiChildLayoutDelegate, stable typed child IDs,
+    layout ordering, source lifecycle and explicit Canvas preview boundary).
+    Confirm the pinned SDK and safe creation/placement rules before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

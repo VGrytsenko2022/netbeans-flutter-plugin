@@ -99,6 +99,13 @@ public final class DartUserSourceProjection {
         return append(updatedEnvelope, updated, null);
     }
 
+    /** Adds the closed single-child layout starter; future edits remain user-owned. */
+    public DartUserSourceProjection insertSingleChildLayoutDelegate() {
+        byte[] updated = DartEventHandlerSource.insertSingleChildLayoutDelegate(targetSource);
+        Envelope updatedEnvelope = envelope(scan(updated, targetDescriptor));
+        return append(updatedEnvelope, updated, null);
+    }
+
     /** Adds the closed starter header class; its future edits remain user-owned. */
     public DartUserSourceProjection insertPersistentHeaderDelegate() {
         byte[] updated = DartEventHandlerSource.insertPersistentHeaderDelegate(targetSource);

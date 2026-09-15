@@ -93,7 +93,7 @@ class FlutterGestureDetectorWrapPlannerTest {
                     parent.typeId().value() + "." + slot.name().value() + ": " + plan);
             checked++;
         }
-        assertEquals(188, checked);
+        assertEquals(189, checked);
     }
 
     private static WidgetNode destinationPrototype(dev.flutter.netbeans.designer.catalog.WidgetDefinition definition, SlotName destination) {

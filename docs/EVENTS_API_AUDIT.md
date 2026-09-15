@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## CustomSingleChildLayout update (2026-09-15)
+
+The required SingleChildLayoutDelegate is an object, not a callback parameter.
+Its getSize, getConstraintsForChild, getPositionForChild, shouldRelayout and
+relayout Listenable stay in editable source. Do not create synthetic Events for
+these methods. The Canvas preview never executes source delegates.
+
+Inventory: 219 definitions; 240 callables across 88 types (50 builders, eleven
+callable delegates). Native Events remain 174 rows across 60 types.
+See [CustomSingleChildLayout](CUSTOM_SINGLE_CHILD_LAYOUT.md).
+
 ## CustomPaint update (2026-09-15)
 
 CustomPaint's painter and foregroundPainter are typed CustomPainter? objects,

@@ -115,6 +115,7 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.widgets.BackdropGroup", ICON_ROOT + "backdropgroup.svg"),
             Map.entry("flutter.widgets.ShaderMask", ICON_ROOT + "shadermask.svg"),
             Map.entry("flutter.widgets.CustomPaint", ICON_ROOT + "custompaint.svg"),
+            Map.entry("flutter.widgets.CustomSingleChildLayout", ICON_ROOT + "customsinglechildlayout.svg"),
             Map.entry("flutter.material.AnimatedIcon", ICON_ROOT + "animatedicon.svg"),
             Map.entry("flutter.widgets.RelativePositionedTransition", ICON_ROOT + "relativepositionedtransition.svg"),
             Map.entry("flutter.widgets.ScaleTransition", ICON_ROOT + "scaletransition.svg"),

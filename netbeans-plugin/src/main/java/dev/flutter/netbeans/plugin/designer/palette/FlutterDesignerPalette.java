@@ -609,6 +609,9 @@ public final class FlutterDesignerPalette {
             } else if (dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("DecoratedBoxTransition");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.DecoratedBoxTransitionWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+                setDisplayName("CustomSingleChildLayout");
+                setShortDescription(dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.DESCRIPTION);
             } else if (dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.TYPE.equals(definition.typeId())) {
                 setDisplayName("CustomPaint");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.DESCRIPTION);

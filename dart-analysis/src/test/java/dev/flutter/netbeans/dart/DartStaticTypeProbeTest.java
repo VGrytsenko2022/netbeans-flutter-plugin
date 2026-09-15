@@ -309,6 +309,13 @@ class DartStaticTypeProbeTest {
         assertThrows(IllegalArgumentException.class, () -> probe("BackdropKey??"));
     }
 
+    @Test void singleChildLayoutDelegateUsesTheSdkWitnessNotAShadowableLocalType() {
+        for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))
+            assertEquals("SingleChildLayoutDelegate", new DartStaticTypeProbe(10,5,0,5,"SingleChildLayoutDelegate",library).expectedDartType());
+        for (String library : List.of("package:app/fake.dart", "package:flutter/rendering.dart", "dart:core"))
+            assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,"SingleChildLayoutDelegate",library));
+    }
+
     @Test void customPaintUsesOnlyReviewedProofContexts() {
         for (String type : List.of("CustomPainter?", "Size")) {
             for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))

@@ -4036,6 +4036,11 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.CustomSingleChildLayout') {
+    return 'CustomSingleChildLayout ${node.id}: project delegate is not executed. '
+        'Canvas uses a centered, constrained 128 by 96 logical-pixel preview. '
+        'Source owns parent size, child constraints, position and relayout notifications.';
+  }
   if (node.type == 'flutter.widgets.CustomPaint') {
     final refs = ['painter', 'foregroundPainter', 'size'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
     return refs.isEmpty ? null : 'CustomPaint ${node.id}: project-owned ${refs.join(', ')} are not executed. '
@@ -5776,7 +5781,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5867,7 +5872,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' || node.type == 'flutter.widgets.CustomSingleChildLayout' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -9044,6 +9049,10 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.CustomSingleChildLayout' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: CustomSingleChildLayout(
+          delegate: const _SingleChildLayoutPreviewDelegate(), child: _single('child'))),
       'flutter.widgets.CustomPaint' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: _customPaint()),
@@ -17523,6 +17532,21 @@ class _PrototypeMeasurement extends SingleChildRenderObjectWidget {
   RenderObject createRenderObject(BuildContext context) => _PrototypeMeasurementRenderBox();
 }
 class _PrototypeMeasurementRenderBox extends RenderProxyBox {}
+
+/// Reviewed finite-size layout preview. Never invokes project delegate methods.
+class _SingleChildLayoutPreviewDelegate extends SingleChildLayoutDelegate {
+  const _SingleChildLayoutPreviewDelegate();
+  @override
+  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(128, 96));
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+      BoxConstraints.loose(getSize(constraints));
+  @override
+  Offset getPositionForChild(Size size, Size childSize) =>
+      Offset((size.width - childSize.width) / 2, (size.height - childSize.height) / 2);
+  @override
+  bool shouldRelayout(covariant _SingleChildLayoutPreviewDelegate oldDelegate) => false;
+}
 
 /// Keeps the native painter-presence/cache-hint contract without running project code.
 /// It paints nothing, publishes no semantics and does not claim source hit behavior.

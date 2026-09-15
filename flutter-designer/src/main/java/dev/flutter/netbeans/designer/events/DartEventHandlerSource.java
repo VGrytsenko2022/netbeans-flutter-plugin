@@ -113,22 +113,6 @@ public final class DartEventHandlerSource {
      * Imports and source bytes belong to the same reversible source projection as insertion.
      */
     public static byte[] insertPersistentHeaderDelegate(byte[] source) {
-        String name = dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.DELEGATE_CLASS;
-        Lexed lex = new Lexer(decode(source)).scan();
-        for (int i = 0; i < lex.tokens().size(); i++) {
-            if (value(lex, i).equals("class") && value(lex, i + 1).equals(name)) {
-                inspect(source, name); // rejects duplicate or non-concrete/ambiguous declarations
-                if (lex.managed(lex.tokens().get(i).start())) throw unsafe("Header delegate must be outside managed regions.");
-                return source.clone(); // edits to this class are user-owned; the Dart analyzer proves its type
-            }
-            if (value(lex, i).equals(name) && !lex.managed(lex.tokens().get(i).start())) {
-                throw unsafe("Cannot create header delegate: top-level name '" + name + "' is already in use.");
-            }
-            String token = value(lex, i);
-            if (token.equals("{") || token.equals("(") || token.equals("[")) i = lex.pairs()[i];
-        }
-        String text = decode(addImports(source, List.of("package:flutter/widgets.dart")));
-        String nl = text.contains("\r\n") ? "\r\n" : "\n";
         String declaration = """
                 // Editable SliverPersistentHeader delegate. Designer does not regenerate this class.
                 class _FlutterDesignerPersistentHeaderDelegate extends SliverPersistentHeaderDelegate {
@@ -144,6 +128,47 @@ public final class DartEventHandlerSource {
                   bool shouldRebuild(covariant _FlutterDesignerPersistentHeaderDelegate oldDelegate) => false;
                 }
                 """;
+        return insertReviewedDelegate(source,
+                dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.DELEGATE_CLASS, declaration);
+    }
+
+    /** Inserts the finite-size starter, once; every delegate method remains user-owned. */
+    public static byte[] insertSingleChildLayoutDelegate(byte[] source) {
+        return insertReviewedDelegate(source,
+                dev.flutter.netbeans.designer.catalog.CustomSingleChildLayoutWidgetPropertySchema.DELEGATE_CLASS, """
+                // Editable CustomSingleChildLayout delegate. Designer does not regenerate this class.
+                class _FlutterDesignerSingleChildLayoutDelegate extends SingleChildLayoutDelegate {
+                  const _FlutterDesignerSingleChildLayoutDelegate({super.relayout});
+                  @override
+                  Size getSize(BoxConstraints constraints) => constraints.constrain(const Size(128, 96));
+                  @override
+                  BoxConstraints getConstraintsForChild(BoxConstraints constraints) =>
+                      BoxConstraints.loose(getSize(constraints));
+                  @override
+                  Offset getPositionForChild(Size size, Size childSize) =>
+                      Offset((size.width - childSize.width) / 2, (size.height - childSize.height) / 2);
+                  @override
+                  bool shouldRelayout(covariant _FlutterDesignerSingleChildLayoutDelegate oldDelegate) => false;
+                }
+                """);
+    }
+
+    private static byte[] insertReviewedDelegate(byte[] source, String name, String declaration) {
+        Lexed lex = new Lexer(decode(source)).scan();
+        for (int i = 0; i < lex.tokens().size(); i++) {
+            if (value(lex, i).equals("class") && value(lex, i + 1).equals(name)) {
+                inspect(source, name); // rejects duplicate or non-concrete/ambiguous declarations
+                if (lex.managed(lex.tokens().get(i).start())) throw unsafe("Layout delegate must be outside managed regions.");
+                return source.clone(); // edits to this class are user-owned; the Dart analyzer proves its type
+            }
+            if (value(lex, i).equals(name) && !lex.managed(lex.tokens().get(i).start())) {
+                throw unsafe("Cannot create layout delegate: top-level name '" + name + "' is already in use.");
+            }
+            String token = value(lex, i);
+            if (token.equals("{") || token.equals("(") || token.equals("[")) i = lex.pairs()[i];
+        }
+        String text = decode(addImports(source, List.of("package:flutter/widgets.dart")));
+        String nl = text.contains("\r\n") ? "\r\n" : "\n";
         return encode(text + nl + declaration.replace("\n", nl));
     }
 

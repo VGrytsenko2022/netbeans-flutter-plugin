@@ -598,6 +598,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
       'flutter.widgets.BackdropFilter' ||
       'flutter.widgets.BackdropFilter.grouped' ||
       'flutter.widgets.CustomPaint' ||
+      'flutter.widgets.CustomSingleChildLayout' ||
       'flutter.widgets.ShaderMask' ||
       'flutter.widgets.Container' ||
       'flutter.widgets.DecoratedBox' ||

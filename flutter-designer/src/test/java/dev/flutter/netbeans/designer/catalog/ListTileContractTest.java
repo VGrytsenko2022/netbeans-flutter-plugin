@@ -223,9 +223,9 @@ class ListTileContractTest {
     @Test
     void aggregateCountsAndUnchangedBudgetsAreExecutable() {
         var definitions = CATALOG.definitions();
-        assertEquals(218, definitions.size());
-        assertEquals(183, definitions.stream().filter(WidgetDefinition::constConstructor).count());
-        assertEquals(7441, definitions.stream().mapToInt(v -> v.properties().size()).sum());
+        assertEquals(219, definitions.size());
+        assertEquals(184, definitions.stream().filter(WidgetDefinition::constConstructor).count());
+        assertEquals(7442, definitions.stream().mapToInt(v -> v.properties().size()).sum());
         assertEquals(681, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
         assertEquals(53, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
         assertEquals(52, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());

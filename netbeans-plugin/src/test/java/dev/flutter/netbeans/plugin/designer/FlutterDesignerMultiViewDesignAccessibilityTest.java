@@ -1068,7 +1068,7 @@ class FlutterDesignerMultiViewDesignAccessibilityTest {
                     "flutter.widgets.IconTheme",
                     "flutter.widgets.ImageIcon",
                     "flutter.widgets.DefaultTextStyle",
-                    "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask",
+                    "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask", "flutter.widgets.CustomPaint",
                     "flutter.widgets.ExcludeSemantics",
                     "flutter.widgets.BlockSemantics",
                     "flutter.widgets.MergeSemantics",

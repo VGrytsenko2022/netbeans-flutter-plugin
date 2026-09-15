@@ -2574,9 +2574,13 @@ accepted architecture is documented in
     Child, theme/RTL dependencies, save/reopen/history and native pixel tests.
     FD 17 standalone gradient values migrate older forms without changing Dart.
     See [ShaderMask](SHADER_MASK.md).
-  - [ ] Next palette candidate: CustomPaint (typed painter/foregroundPainter,
-    size, cache hints, optional Child and explicit source-owned paint behavior).
-    Verify against the pinned SDK before implementation.
+  - [x] Add CustomPaint: typed nullable Painter/Foreground painter, local/source
+    Size, both cache hints, optional Child and native source-owned paint behavior.
+    Isolated Canvas uses disclosed inert delegates; generated applications retain
+    repaint, hit testing and semantics. See [CustomPaint](CUSTOM_PAINT.md).
+  - [ ] Next palette candidate: CustomSingleChildLayout (typed
+    SingleChildLayoutDelegate, optional Child and source-owned layout behavior).
+    Confirm the pinned SDK and safe preview policy before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

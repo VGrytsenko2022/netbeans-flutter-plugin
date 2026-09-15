@@ -35,7 +35,7 @@ class FdV17GradientCodecTest {
   var newer=assertInstanceOf(FdDecodeResult.UnsupportedNewer.class,codec.decode(future));
   assertArrayEquals(future,newer.original().copyBytes());
  }
- @Test void oldPalettePrototypeModelsMigrateWithoutChangingAnyGeneratedDart()throws Exception{
+ @Test void nonGradientPalettePrototypeModelsMigrateWithoutChangingAnyGeneratedDart()throws Exception{
   var catalog=BuiltInWidgetCatalog.getDefault();var generator=new DartRegionGenerator();int checked=0;
   for(var definition:catalog.definitions()){
     if(definition.typeId().equals(ShaderMaskWidgetPropertySchema.TYPE))continue;
@@ -54,6 +54,6 @@ class FdV17GradientCodecTest {
     var before=generator.generate(original,catalog);var after=generator.generate(migrated.document(),catalog);
     assertEquals(before,after,definition.typeId().value());checked++;
   }
-  assertEquals(216,checked);
+  assertEquals(217,checked);
  }
 }

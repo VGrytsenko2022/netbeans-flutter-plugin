@@ -4215,7 +4215,7 @@ class FlutterPropertyEditorComponentsTest {
                         .map(property -> widget.typeId().value() + "."
                                 + property.name().value()))
                 .toList();
-        assertEquals(679, booleanProperties.size(),
+        assertEquals(681, booleanProperties.size(),
                 "every current built-in BOOLEAN-only property is covered");
         assertTrue(booleanProperties.contains(
                 "flutter.widgets.ExcludeSemantics.excluding"));

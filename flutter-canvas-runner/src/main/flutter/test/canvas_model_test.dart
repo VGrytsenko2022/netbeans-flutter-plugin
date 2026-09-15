@@ -8280,7 +8280,7 @@ void main() {
   test('Container reviewed contract is exact and closed', () {
     final contract = canvasRuntimeWidgetSchemaContractForTesting();
     final start = contract.indexOf('W|flutter.widgets.Container\n');
-    final end = contract.indexOf('W|flutter.widgets.CustomScrollView\n', start);
+    final end = contract.indexOf('W|', start + 2);
     expect(start, greaterThanOrEqualTo(0));
     expect(end, greaterThan(start));
     final slice = contract.substring(start, end);

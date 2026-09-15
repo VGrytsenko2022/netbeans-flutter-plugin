@@ -1,5 +1,16 @@
 # Widget events API audit
 
+## CustomPaint update (2026-09-15)
+
+CustomPaint's painter and foregroundPainter are typed CustomPainter? objects,
+not callbacks. Their source implementations retain paint, shouldRepaint,
+repaint notifications, hitTest and semantics; no synthetic Events are created.
+Canvas uses explicitly disclosed inert delegates and never executes project code.
+
+Inventory: 218 definitions; 240 callables across 88 types (50 builders, eleven
+delegates). Native Events remain 174 rows across 60 types.
+See [CustomPaint](CUSTOM_PAINT.md).
+
 ## ShaderMask update (2026-09-15)
 
 ShaderCallback is a required nonnull computation delegate, Shader Function(Rect).

@@ -1121,6 +1121,13 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                             Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
                 sheet.put(set);
             }
+        } else if (dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.TYPE.equals(widget.type())) {
+            Sheet.Set set = propertySet("customPaint", "Painting", dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.DESCRIPTION);
+            assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
+            for (var field : dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.FIELDS)
+                set.put(projectProperty(definition.property(new PropertyName(field.name())).orElseThrow(),
+                        Optional.empty(), field.label(), field.description(), false, java.util.List.of()));
+            sheet.put(set);
         } else if (dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE.equals(widget.type())) {
             Sheet.Set set = propertySet("shaderMask", "Shader", dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.DESCRIPTION);
             assignTab(set, hasSlotTab ? GENERAL_TAB_NAME : null);
@@ -1607,6 +1614,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedIconWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.AnimatedModalBarrierWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ModalBarrierWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.CustomPaintWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.ShaderMaskWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.MatrixTransitionWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.TYPE.equals(widget.type())) return dev.flutter.netbeans.designer.catalog.RelativePositionedTransitionWidgetPropertySchema.DESCRIPTION;

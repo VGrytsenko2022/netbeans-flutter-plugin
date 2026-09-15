@@ -4036,6 +4036,11 @@ String? _customClipperPreviewUnavailableMessageForNode(
         : '${node.type.split('.').last} ${node.id}: project-owned opacity animation is not executed. '
           'Canvas previews a stopped opacity of 1; generated Dart uses the typed animation and its live updates.';
   }
+  if (node.type == 'flutter.widgets.CustomPaint') {
+    final refs = ['painter', 'foregroundPainter', 'size'].where((name) => node.properties[name]?.kind == 'dartObjectReferencePresence').toList();
+    return refs.isEmpty ? null : 'CustomPaint ${node.id}: project-owned ${refs.join(', ')} are not executed. '
+        'Canvas substitutes inert painters and Size.zero; source artwork, repaint, custom hit testing and semantics are not previewed.';
+  }
   if (node.type == 'flutter.widgets.ShaderMask') {
     return node.properties['shaderCallback']?.kind == 'dartObjectReferencePresence'
         ? 'ShaderMask ${node.id}: project-owned ShaderCallback is not executed. Canvas substitutes an opaque-white shader and keeps Blend mode; this is neutral with the default modulate, not every blend mode.' : null;
@@ -5771,7 +5776,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.AnimatedModalBarrier' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' ||
         node.type == 'flutter.material.AnimatedIcon' ||
         node.type == 'flutter.widgets.ExcludeSemantics' ||
         node.type == 'flutter.widgets.ExcludeFocus' ||
@@ -5862,7 +5867,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.widgets.Image' ||
         node.type == 'flutter.widgets.FadeInImage' ||
         node.type == 'flutter.widgets.RawImage' || node.type == 'flutter.widgets.ColorFiltered' ||
-        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' ||
+        node.type == 'flutter.widgets.ImageFiltered' || node.type == 'flutter.widgets.BackdropFilter' || node.type == 'flutter.widgets.BackdropFilter.grouped' || node.type == 'flutter.widgets.BackdropGroup' || node.type == 'flutter.widgets.ShaderMask' || node.type == 'flutter.widgets.CustomPaint' ||
         node.type == 'flutter.widgets.ImageIcon' ||
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
@@ -9039,6 +9044,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
         )),
       'flutter.widgets.Icon' => _icon(context),
       'flutter.widgets.Image' => _image(context),
+      'flutter.widgets.CustomPaint' => _TextButtonPreview(
+        message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
+        child: _customPaint()),
       'flutter.widgets.ShaderMask' => _TextButtonPreview(
         message: _customClipperPreviewUnavailableMessageForNode(node) ?? '',
         child: _shaderMask(context)),
@@ -14124,6 +14132,19 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _customPaint() {
+    final size = node.properties['size']?.value;
+    CustomPainter? painter(String name) => node.properties[name]?.kind == 'dartObjectReferencePresence'
+        ? const _InertProjectPainter() : null;
+    return CustomPaint(
+      painter: painter('painter'),
+      foregroundPainter: painter('foregroundPainter'),
+      size: size is CanvasSizeValue ? Size(size.width, size.height) : Size.zero,
+      isComplex: _boolean('isComplex') ?? false,
+      willChange: _boolean('willChange') ?? false,
+      child: _single('child'));
+  }
+
   Widget _shaderMask(BuildContext context) {
     final local = node.properties['shaderCallback']?.value;
     final gradient = local is CanvasBoxGradientValue ? _boxGradient(context, local)
@@ -17502,6 +17523,18 @@ class _PrototypeMeasurement extends SingleChildRenderObjectWidget {
   RenderObject createRenderObject(BuildContext context) => _PrototypeMeasurementRenderBox();
 }
 class _PrototypeMeasurementRenderBox extends RenderProxyBox {}
+
+/// Keeps the native painter-presence/cache-hint contract without running project code.
+/// It paints nothing, publishes no semantics and does not claim source hit behavior.
+class _InertProjectPainter extends CustomPainter {
+  const _InertProjectPainter();
+  @override
+  void paint(Canvas canvas, Size size) {}
+  @override
+  bool? hitTest(Offset position) => false;
+  @override
+  bool shouldRepaint(covariant _InertProjectPainter oldDelegate) => false;
+}
 
 class _CanvasWidgetOutlinePainter extends CustomPainter {
   const _CanvasWidgetOutlinePainter({

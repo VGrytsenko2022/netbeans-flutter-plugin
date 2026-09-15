@@ -294,6 +294,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.BackdropFilter.grouped", STATIC_EDITABLE),
             Map.entry("flutter.widgets.BackdropGroup", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ShaderMask", STATIC_EDITABLE),
+            Map.entry("flutter.widgets.CustomPaint", STATIC_EDITABLE),
             Map.entry("flutter.widgets.ScaleTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.SlideTransition", STATIC_EDITABLE),
             Map.entry("flutter.widgets.FadeTransition", STATIC_EDITABLE),
@@ -1009,6 +1010,9 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry("flutter.widgets.CustomPaint", projection(
+                    CustomPaintWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),
             Map.entry("flutter.widgets.ShaderMask", projection(
                     ShaderMaskWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child", singleSlotSchema(false,0)))),

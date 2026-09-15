@@ -7927,6 +7927,13 @@ final _widgetSpecifications = <String, _WidgetSpec>{
     },
     {'child': _optionalSingleSlot},
   ),
+  'flutter.widgets.CustomPaint': _WidgetSpec({
+    'painter': _PropertySpec({'dartObjectReference', 'null'}, dartObjectExpectedType: 'CustomPainter?'),
+    'foregroundPainter': _PropertySpec({'dartObjectReference', 'null'}, dartObjectExpectedType: 'CustomPainter?'),
+    'size': _PropertySpec({'size', 'dartObjectReference'}, dartObjectExpectedType: 'Size'),
+    'isComplex': _PropertySpec({'boolean'}),
+    'willChange': _PropertySpec({'boolean'}),
+  }, {'child': _optionalSingleSlot}),
   'flutter.widgets.ShaderMask': _WidgetSpec({
     'shaderCallback': _PropertySpec({'gradient','dartObjectReference'}, required: true,
         creationDefaultFingerprint: 'gradient:opaqueWhite', themeTokens: canvasColorSchemeThemeTokens,
@@ -17280,6 +17287,13 @@ P|transform|matrix4|0|-|-|matrix4:matrix4
 P|transformAlignment|alignmentGeometry|0|-|-|alignmentGeometry:alignmentGeometry
 P|width|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
 S|child|single|0|0|1|any
+W|flutter.widgets.CustomPaint
+P|foregroundPainter|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:CustomPainter?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|isComplex|boolean|0|-|-|boolean:any
+P|painter|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:CustomPainter?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|size|dartObjectReference,size|0|-|-|dartObjectReference:dartObjectReference:v1:Size:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);size:size:finiteNonNegative
+P|willChange|boolean|0|-|-|boolean:any
+S|child|single|0|0|1|any
 W|flutter.widgets.CustomScrollView
 P|anchor|double|0|-|double:0:1:1:1|double:range:0:1:1:1
 P|clipBehavior|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none
@@ -18726,6 +18740,11 @@ void _validatePropertyRelationships(
   String path,
   _NodeBudget budget,
 ) {
+  if (type == 'flutter.widgets.CustomPaint') {
+    final hasPainter = ['painter', 'foregroundPainter'].any((name) => properties[name]?.kind == 'dartObjectReferencePresence');
+    final hint = ['isComplex', 'willChange'].any((name) => properties[name]?.value == true);
+    _expect(hasPainter || !hint, 'Canvas CustomPaint cache hints require Painter or Foreground painter: $path/properties/isComplex');
+  }
   if (type == 'flutter.widgets.BackdropFilter' || type == 'flutter.widgets.BackdropFilter.grouped') {
     final config = properties['filterConfig'];
     final needsFilter = config == null || config.kind == 'null' || config.value == 'wrap';

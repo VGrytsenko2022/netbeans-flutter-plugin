@@ -297,7 +297,7 @@ class CanvasModelPayloadCodecTest {
                 "flutter.widgets.IconTheme",
                 "flutter.widgets.ImageIcon",
                 "flutter.widgets.DefaultTextStyle",
-                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask",
+                "flutter.widgets.DefaultTextStyle.merge", "flutter.widgets.ModalBarrier", "flutter.widgets.AnimatedModalBarrier", "flutter.widgets.FadeInImage", "flutter.widgets.RawImage", "flutter.widgets.ColorFiltered", "flutter.widgets.ImageFiltered", "flutter.widgets.BackdropFilter", "flutter.widgets.BackdropFilter.grouped", "flutter.widgets.BackdropGroup", "flutter.widgets.ShaderMask", "flutter.widgets.CustomPaint",
                 "flutter.widgets.ExcludeSemantics",
                 "flutter.widgets.BlockSemantics",
                 "flutter.widgets.MergeSemantics",
@@ -5596,6 +5596,28 @@ class CanvasModelPayloadCodecTest {
         assertTrue(json.contains("\"shaderCallback\":{\"kind\":\"dartObjectReferencePresence\"}"), json);
         for (String privateText : List.of("private_app", "PrivateShaders", "shaders.dart", "\"mask\""))
             assertFalse(json.contains(privateText), json);
+    }
+
+    @Test void customPaintRedactsEverySourceObjectButPreservesLocalSizeAndHints() throws Exception {
+        var codec = new CanvasModelPayloadCodec();
+        var reference = new PropertyValue.DartObjectReferenceValue(Optional.of("package:private_app/painters.dart"),
+                "PrivatePainter", Optional.of("createPainter"), PropertyValue.DartObjectReferenceValue.Access.ZERO_ARGUMENT_INVOCATION, Optional.of(false));
+        var values = new LinkedHashMap<PropertyName,PropertyValue>();
+        for (String field : List.of("painter","foregroundPainter","size")) values.put(new PropertyName(field),reference);
+        values.put(new PropertyName("isComplex"),new PropertyValue.BooleanValue(true));
+        var node = new WidgetNode(StableId.random(),type("flutter.widgets.CustomPaint"),values,
+                Map.of(new SlotName("child"),WidgetSlot.SingleSlot.empty()));
+        var json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID,source(),node))),StandardCharsets.UTF_8);
+        for (String field : List.of("painter","foregroundPainter","size"))
+            assertTrue(json.contains("\"" + field + "\":{\"kind\":\"dartObjectReferencePresence\"}"),json);
+        for (String secret : List.of("private_app","PrivatePainter","painters.dart","createPainter"))
+            assertFalse(json.contains(secret),json);
+        values.put(new PropertyName("size"),new PropertyValue.SizeValue(new BigDecimal("48.5"),new BigDecimal("32.25")));
+        node = new WidgetNode(node.id(),node.type(),values,node.slots());
+        json = new String(codec.encode(request(new DesignerDocument(DOCUMENT_ID,source(),node))),StandardCharsets.UTF_8);
+        assertTrue(json.contains("\"kind\":\"size\""),json);
+        assertTrue(json.contains("\"width\":48.5"),json);
+        assertTrue(json.contains("\"height\":32.25"),json);
     }
 
     private static WidgetTypeId type(String value) {

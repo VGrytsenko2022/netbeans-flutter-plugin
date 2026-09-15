@@ -694,7 +694,7 @@ public final class DartCandidateAnalyzer {
             importLine += "import 'package:flutter/foundation.dart' as " + alias + "Foundation;\n";
         }
         if (typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .anyMatch(probe -> Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader").contains(probe.expectedDartType()))) {
+                .anyMatch(probe -> Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader", "Size").contains(probe.expectedDartType()))) {
             // RawImage's Image is dart:ui.Image, never the Flutter Widget with the same name.
             importLine += "import 'dart:ui' as " + alias + "Ui;\n";
         }
@@ -705,7 +705,7 @@ public final class DartCandidateAnalyzer {
         boolean pointerProofTypes = typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
                 .anyMatch(DartCandidateAnalyzer::usesPointerProofType);
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
-                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "ShaderCallback", "ImageFilterConfig", "BackdropKey?").contains(probe.expectedDartType()))) {
+                .anyMatch(probe -> usesItemExtentProofType(probe) || Set.of("SliverLayoutWidgetBuilder", "LayoutWidgetBuilder", "ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?").contains(probe.expectedDartType()))) {
             importLine += "import 'package:flutter/rendering.dart' as " + alias + "Rendering;\n";
         }
         if (pointerProofTypes || typed.stream().map(evidence -> evidence.probe().staticTypeProbe().orElseThrow())
@@ -1191,13 +1191,13 @@ public final class DartCandidateAnalyzer {
     private static String qualifiedExpectedType(DartStaticTypeProbe probe, String alias, String coreAlias)
             throws AnalysisFailure {
         if (probe.expectedDartType().equals("Float64List")) return alias + "TypedData.Float64List";
-        if (Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
+        if (Set.of("Image?", "Rect?", "ImageFilter", "FragmentShader", "Size").contains(probe.expectedDartType())) return alias + "Ui." + probe.expectedDartType();
         if (probe.expectedDartType().equals("SystemUiOverlayStyle?")) return alias + "Services.SystemUiOverlayStyle?";
         if (probe.expectedDartType().equals("AsyncCallback")) return alias + "Foundation.AsyncCallback";
         if (probe.expectedDartType().equals("ValueNotifier<EdgeInsets>?")) return alias + "Foundation.ValueNotifier<" + alias + ".EdgeInsets>?";
         if (probe.expectedDartType().equals("ValueListenable<Object>") && probe.sourceTypeOverride().isEmpty())
             return alias + "Foundation.ValueListenable<" + coreAlias + ".Object>";
-        if (usesItemExtentProofType(probe) || Set.of("ShaderCallback", "ImageFilterConfig", "BackdropKey?").contains(probe.expectedDartType())) {
+        if (usesItemExtentProofType(probe) || Set.of("ShaderCallback", "ImageFilterConfig", "BackdropKey?", "CustomPainter?").contains(probe.expectedDartType())) {
             return alias + "Rendering." + probe.expectedDartType();
         }
         if (probe.sourceTypeOverride().isEmpty()) {

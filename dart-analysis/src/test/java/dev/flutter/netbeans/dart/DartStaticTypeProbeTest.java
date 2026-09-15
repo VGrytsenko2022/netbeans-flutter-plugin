@@ -309,6 +309,17 @@ class DartStaticTypeProbeTest {
         assertThrows(IllegalArgumentException.class, () -> probe("BackdropKey??"));
     }
 
+    @Test void customPaintUsesOnlyReviewedProofContexts() {
+        for (String type : List.of("CustomPainter?", "Size")) {
+            for (String library : List.of("package:flutter/widgets.dart", "package:flutter/material.dart"))
+                assertEquals(type, new DartStaticTypeProbe(10,5,0,5,type,library).expectedDartType());
+            for (String library : List.of("package:app/fake.dart", "package:flutter/rendering.dart", "dart:core"))
+                assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,type,library));
+        }
+        assertThrows(IllegalArgumentException.class, () -> probe("CustomPainter??"));
+        assertThrows(IllegalArgumentException.class, () -> probe("Size?"));
+    }
+
     private static DartStaticTypeProbe probe(String type) {
         return new DartStaticTypeProbe(10, 5, 0, 5, type, "package:flutter/widgets.dart");
     }

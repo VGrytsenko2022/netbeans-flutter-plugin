@@ -252,6 +252,11 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.AlignmentGeometryValues
                         || value instanceof PropertyValueConstraint.AlignmentValues)) {
             editorKind = EditorKind.ALIGNMENT_GEOMETRY;
+        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE, PropertyValueKind.DART_OBJECT_REFERENCE))
+                && definition.constraints().stream().anyMatch(PropertyValueConstraint.SizeValues.class::isInstance)
+                && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
+                        && reference.expectedDartType().equals("Size"))) {
+            editorKind = EditorKind.SIZE_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.SizeValues.class::isInstance)) {
@@ -376,7 +381,7 @@ final class FlutterTypedPropertyEditors {
         BOX_DECORATION_REFERENCE,
         GRADIENT_REFERENCE,
         GRADIENT,
-        SIZE,
+        SIZE_REFERENCE, SIZE,
         OFFSET,
         OFFSET_REFERENCE,
         NUMBER_REFERENCE,
@@ -515,7 +520,7 @@ final class FlutterTypedPropertyEditors {
                 case THEME_TOKEN -> new ThemeTokenEditor(this);
                 case CALLBACK -> new CallbackEditor(this);
                 case PAINT, SHADOW_LIST, FONT_FEATURE_LIST, FONT_VARIATION_LIST, NULLABLE_STRING,
-                        GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
+                        GRADIENT, GRADIENT_REFERENCE, ICON_DATA, ICON_WIDGET_REFERENCE, ALIGNMENT_GEOMETRY, ALIGNMENT_REFERENCE, BOX_CONSTRAINTS_REFERENCE, BOX_DECORATION_REFERENCE, MATRIX4_REFERENCE, SIZE_REFERENCE, SIZE, OFFSET, OFFSET_REFERENCE, NUMBER_REFERENCE, BOX_CONSTRAINTS, POINTER_DEVICE_KIND_SET,
                         MATRIX4, IMAGE_PROVIDER, IMAGE_PROVIDER_REFERENCE, NULLABLE_IMAGE_PROVIDER, BOX_DECORATION, BORDER_RADIUS, BORDER_RADIUS_REFERENCE,
                         DART_OBJECT_REFERENCE, NULLABLE_DART_REFERENCE, DURATION_REFERENCE, SHAPE_BORDER_CLIPPER, COLOR_ANIMATION, COLOR_REFERENCE, EDGE_INSETS_REFERENCE, NULLABLE_THEME_COLOR, PRESET_DART_REFERENCE, OBJECT_TAG, RADIO_TYPE, NOTIFICATION_TYPE, RADIO_VALUE ->
                     new StructuredEditor(this);

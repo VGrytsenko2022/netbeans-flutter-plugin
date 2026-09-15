@@ -1,5 +1,13 @@
 # Widget events API audit
 
+## Dialog and Dialog.fullscreen update (2026-09-15)
+
+All native arguments are implemented, but neither constructor declares a callback.
+Child widgets own Events; DialogRoute/showDialog owns dismissal and the result.
+Current inventory: 240 definitions; callable totals remain 266 across 99 types,
+including 196 Events across 70 types, 50 builders, 7 predicates, 2 formatters and
+11 delegates. See [Dialog](DIALOG.md). Earlier totals below are historical.
+
 ## TimePickerDialog update (2026-09-15)
 
 The constructor exposes one optional EntryModeChangeCallback, with the exact

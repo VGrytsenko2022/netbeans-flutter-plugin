@@ -299,6 +299,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry("flutter.widgets.CustomMultiChildLayout", STATIC_EDITABLE),
             Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(DialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(DialogWidgetPropertySchema.FULLSCREEN_TYPE.value(), STATIC_EDITABLE),
             Map.entry(DatePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(DateRangePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(CalendarDatePickerWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
@@ -1030,6 +1032,12 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(DialogWidgetPropertySchema.TYPE.value(),projection(
+                    DialogWidgetPropertySchema.properties(false).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child",singleSlotSchema(false,0)))),
+            Map.entry(DialogWidgetPropertySchema.FULLSCREEN_TYPE.value(),projection(
+                    DialogWidgetPropertySchema.properties(true).stream().collect(java.util.stream.Collectors.toMap(
+                            p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of("child",singleSlotSchema(false,0)))),
             Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(),projection(
                     TimePickerDialogWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p->p.name().value(),BuiltInWidgetCapabilityCatalog::propertyContract)),

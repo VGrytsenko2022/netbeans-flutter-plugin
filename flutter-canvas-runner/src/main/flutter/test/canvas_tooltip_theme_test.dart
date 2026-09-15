@@ -497,14 +497,14 @@ void main() {
           r'^W\|',
           multiLine: true,
         ).allMatches(canvasReviewedWidgetSchemaContract),
-        hasLength(238),
+        hasLength(240),
       );
       expect(
         RegExp(
           r'^P\|',
           multiLine: true,
         ).allMatches(canvasReviewedWidgetSchemaContract),
-        hasLength(7819),
+        hasLength(7858),
       );
       expect(canvasDropSlotsForWidgetType(_type), isEmpty);
       expect(canvasReviewedRequiredWrapperSlot(_type), 'child');

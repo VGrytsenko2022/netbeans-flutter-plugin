@@ -30,7 +30,7 @@ public record DartStaticTypeProbe(
 
     static final String SCAFFOLD_SCRIM_BUILDER_TYPE = "Widget? Function(BuildContext, Animation<double>)";
     private static final Pattern EXPECTED_TYPE = Pattern.compile(
-            "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|(?:Object|bool|int|double|num|String|FocusNode|AnimationStyle|Duration|Curve|ShapeBorder|IconThemeData|TextStyle|TextHeightBehavior|BorderRadius|SystemUiOverlayStyle|AlignmentGeometry|Color|Decoration|BoxConstraints|Matrix4|EdgeInsetsGeometry|InputCounterWidgetBuilder|EditableTextContextMenuBuilder|ItemExtentBuilder|ChildIndexGetter)\\?)");
+            "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|(?:Object|bool|int|double|num|String|FocusNode|AnimationStyle|Duration|Curve|ShapeBorder|IconThemeData|TextStyle|TextHeightBehavior|BorderRadius|SystemUiOverlayStyle|AlignmentGeometry|Color|Decoration|BoxConstraints|Matrix4|EdgeInsets|EdgeInsetsGeometry|InputCounterWidgetBuilder|EditableTextContextMenuBuilder|ItemExtentBuilder|ChildIndexGetter)\\?)");
     private static final Pattern SOURCE_TYPE = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?\\??");
     private static final Pattern LIBRARY_URI = Pattern.compile(
             "(?:dart:[a-z][a-z0-9_.]*|package:[a-z][a-z0-9_]*/"

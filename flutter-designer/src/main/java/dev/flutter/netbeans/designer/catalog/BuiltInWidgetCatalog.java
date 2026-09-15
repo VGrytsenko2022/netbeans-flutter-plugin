@@ -160,6 +160,8 @@ public final class BuiltInWidgetCatalog {
             calendarDatePicker(),
             inputDatePickerFormField(),
             timePickerDialog(),
+            dialog(false),
+            dialog(true),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -1658,7 +1660,7 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 0, true, 0, ANY_WIDGET), singleSlot("icon", 56, false, 0, ANY_WIDGET)));
     }
 
-    private static WidgetDefinition card() {
+    static List<PropertyDefinition> cardProperties() {
         List<PropertyDefinition> properties = new ArrayList<>();
         for (var entry : CardWidgetPropertySchema.definitions().entrySet()) {
             String name = entry.getKey();
@@ -1682,6 +1684,11 @@ public final class BuiltInWidgetCatalog {
                     ? namedProperty(name, entry.getValue().dartOrder(), true, constraints, new PropertyValue.StringValue("elevated"))
                     : namedProperty(name, entry.getValue().dartOrder(), false, constraints));
         }
+        return List.copyOf(properties);
+    }
+
+    private static WidgetDefinition card() {
+        var properties = cardProperties();
         return widget(CardWidgetPropertySchema.CARD_TYPE.value(), "Card", true,
                 MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT), Set.of(),
                 palette("flutter.material", 100, 70, "Card"), properties,
@@ -3323,6 +3330,13 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition dialog(boolean fullscreen) {
+        return widget((fullscreen ? DialogWidgetPropertySchema.FULLSCREEN_TYPE : DialogWidgetPropertySchema.TYPE).value(),
+                "Dialog", true, MATERIAL_IMPORT, List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:ui", "dart:core"), Set.of(),
+                palette("flutter.material", 100, fullscreen ? 690 : 680, fullscreen ? "Dialog.fullscreen" : "Dialog"),
+                DialogWidgetPropertySchema.properties(fullscreen), List.of(singleSlot("child", fullscreen ? 5 : 34, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition timePickerDialog() {

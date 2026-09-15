@@ -505,6 +505,26 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type())) {
+                String name = property.name().value(), pp = path + "/properties/" + name;
+                var value = node.properties().get(property.name());
+                if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)) continue;
+                RenderedValue rendered = null;
+                if (name.equals("key") && value instanceof PropertyValue.StringValue text)
+                    rendered = renderPositionalComposite("ValueKey", Optional.empty(),
+                            scalar(dartString(text.value(), pp, node.id(), context.maxRenderedUtf8Bytes()), true, pp, node.id(), context), pp, node.id(), context);
+                if (name.equals("insetAnimationCurve") && value instanceof PropertyValue.StringValue text)
+                    rendered = renderExpansionTilePreset("Curves", text.value(), pp, node.id(), context);
+                if (name.equals("insetAnimationDurationUs") && value instanceof PropertyValue.IntegerValue integer)
+                    rendered = scalar("const Duration(microseconds: " + integer.value() + ")", true, pp, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":dialog-inset-duration", 6, "Duration", "dart:core", pp, Optional.of(node.id()))));
+                if (name.equals("insetAnimationDurationUs") && rendered == null && value != null)
+                    rendered = renderProperty(value, property, pp, node.id(), context);
+                if (rendered != null) {
+                    arguments.add(new ConstructorArgument(property.parameter(), name.equals("insetAnimationDurationUs") ? "insetAnimationDuration" : name, false, rendered));
+                    continue;
+                }
+            }
             if (dev.flutter.netbeans.designer.catalog.TimePickerDialogWidgetPropertySchema.TYPE.equals(node.type())
                     && node.properties().get(property.name()) instanceof PropertyValue.StringValue text) {
                 String name=property.name().value(),pp=path+"/properties/"+name;
@@ -1042,6 +1062,7 @@ public final class DartRegionGenerator {
                     context, arguments);
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE)
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
                 || node.type().equals(SwitchListTileWidgetPropertySchema.SWITCH_LIST_TILE_TYPE)
                 || node.type().equals(RadioListTileWidgetPropertySchema.RADIO_LIST_TILE_TYPE)
@@ -1592,6 +1613,10 @@ public final class DartRegionGenerator {
                         path + "/properties/variant", Optional.of(node.id())));
                 constructor += ".adaptive";
             }
+        } else if (node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.FULLSCREEN_TYPE)) {
+            constructorOccurrences.add(occurrence("widget:" + node.id() + ":dialogFullscreen", constructor.length() + 1,
+                    "fullscreen", renderedClass.libraryUri(), path, Optional.of(node.id())));
+            constructor += ".fullscreen";
         } else if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)) {
             String variant = ((PropertyValue.StringValue) node.properties().get(new PropertyName("variant"))).value();
             if (!variant.equals("elevated")) {

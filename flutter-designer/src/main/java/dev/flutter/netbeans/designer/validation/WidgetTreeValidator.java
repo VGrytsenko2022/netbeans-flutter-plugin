@@ -903,6 +903,10 @@ public final class WidgetTreeValidator {
             validateMutuallyExclusiveProperties(node, propertiesPath, issues, "extendedTextStyleBackgroundColor", "extendedTextStyleBackground", "FloatingActionButton extendedTextStyle");
             return;
         }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.value())) {
+            validateCardShape(node, propertiesPath, issues, "shape", "Dialog shape");
+            return;
+        }
         if (type.equals(CardWidgetPropertySchema.CARD_TYPE.value())) {
             validateCardShape(node, propertiesPath, issues);
             return;

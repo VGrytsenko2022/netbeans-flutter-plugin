@@ -2631,7 +2631,12 @@ accepted architecture is documented in
     sources, all entry modes, orientation and native mode-change Event.
     Preserve route results, Key/restoration lifecycle, history and isolated Canvas.
     See [TimePickerDialog](TIME_PICKER_DIALOG.md).
-  - [ ] Next palette candidate: Dialog (standard and fullscreen constructors).
+  - [x] Add Dialog and Dialog.fullscreen: all 14 / 6 native constructor arguments,
+    34 / 5 writable rows, optional Child slots, ten complete shape families,
+    43 curves, 33 semantics roles, exact typed source proof and native Canvas.
+    Route behavior stays separate; context-dependent semantic subtrees are
+    explicitly excluded only in isolated preview. See [Dialog](DIALOG.md).
+  - [ ] Next palette candidate: AlertDialog (standard and adaptive constructors).
     Audit constraints, insets, semantics, theme defaults and route ownership first.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,

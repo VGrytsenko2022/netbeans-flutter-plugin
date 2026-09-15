@@ -156,6 +156,34 @@ class PairSaveEvidenceGateTest {
         }
     }
 
+    @Test void dialogFullscreenDurationAndSemanticRoleRequireExactTrustedEvidence() throws Exception {
+        var fixture=fixture(Optional.empty(),true,List.of(),"flutter.material.Dialog.fullscreen","",
+                Map.of(new PropertyName("insetAnimationDurationUs"),new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(120000)),
+                       new PropertyName("semanticsRole"),new PropertyValue.EnumValue("SemanticsRole","dialog")));
+        var sdk=fixture.flutterLib().getParent().getParent().getParent();
+        var core=sdk.resolve("bin/cache/dart-sdk/lib/core/duration.dart");Files.createDirectories(core.getParent());Files.writeString(core,"class Duration {}");
+        var ui=sdk.resolve("bin/cache/pkg/sky_engine/lib/ui/semantics.dart");Files.createDirectories(ui.getParent());Files.writeString(ui,"enum SemanticsRole { dialog }");
+        var model=new RadioFixture(fixture,sdk,core);
+        java.util.function.Function<PairCandidateAnalysisTicket,List<DartSymbolEvidence>> evidence=ticket->
+            ticket.request().symbolProbes().stream().map(probe->accepted(probe,probe.expectedLibraryUri().equals("dart:core")?core:
+                probe.expectedLibraryUri().equals("dart:ui")?ui:fixture.frameworkFile())).toList();
+        var ticket=radioTicket(model);
+        for(String name:List.of("fullscreen","Duration","SemanticsRole"))assertTrue(ticket.request().symbolProbes().stream().anyMatch(p->p.expectedSymbolName().equals(name)),name);
+        var result=ticket.accept(analysis(ticket,evidence.apply(ticket)));assertTrue(result.ready(),result.diagnostics().toString());
+        for(String name:List.of("fullscreen","Duration","SemanticsRole"))for(String mutation:List.of("missing","id","span","library","outside")){
+            var fresh=radioTicket(model);
+            var bad=evidence.apply(fresh).stream().filter(e->!(mutation.equals("missing")&&e.probe().expectedSymbolName().equals(name)))
+                .map(e->{var original=e.probe();if(!original.expectedSymbolName().equals(name))return e;
+                    if(mutation.equals("outside"))return accepted(original,fixture.dartFile());
+                    var forged=new DartSymbolProbe(mutation.equals("id")?original.id()+"-forged":original.id(),
+                        mutation.equals("span")?original.offset()+1:original.offset(),original.length(),original.expectedSymbolName(),
+                        mutation.equals("library")?"dart:io":original.expectedLibraryUri(),original.expectedTargetRoot(),original.expectedTargetKind(),original.staticTypeProbe());
+                    return new DartSymbolEvidence(forged,e.targets(),true,Optional.empty());
+                }).toList();
+            assertFalse(fresh.accept(analysis(fresh,bad)).ready(),name+":"+mutation);
+        }
+    }
+
     @Test void timePickerRequiresExactLocalTimeSymbolEvidenceWithoutExpandingTrustRoots() throws Exception {
         var fixture=fixture(Optional.empty(),true,List.of(),"flutter.material.TimePickerDialog","",
                 Map.of(new PropertyName("initialTime"),new PropertyValue.StringValue("23:59")));
@@ -3130,7 +3158,7 @@ class PairSaveEvidenceGateTest {
             String widgetType,
             String propertyName,
             Map<PropertyName, PropertyValue> radioProperties) {
-        if (widgetType.equals("flutter.material.TimePickerDialog") || widgetType.equals("flutter.material.InputDatePickerFormField") || widgetType.equals("flutter.material.CalendarDatePicker") || widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
+        if (widgetType.equals("flutter.material.Dialog") || widgetType.equals("flutter.material.Dialog.fullscreen") || widgetType.equals("flutter.material.TimePickerDialog") || widgetType.equals("flutter.material.InputDatePickerFormField") || widgetType.equals("flutter.material.CalendarDatePicker") || widgetType.equals("flutter.material.DateRangePickerDialog") || widgetType.equals("flutter.material.DatePickerDialog") || widgetType.equals("flutter.widgets.ValueListenableBuilder") || widgetType.equals("flutter.widgets.TweenAnimationBuilder")) {
             return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
                     StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
                     radioProperties, Map.of()));

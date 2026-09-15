@@ -147,11 +147,11 @@ void main() {
       expect(contract, canvasReviewedWidgetSchemaContract.trimLeft());
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(238),
+        hasLength(240),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(7819),
+        hasLength(7858),
       );
       final start = contract.indexOf('W|$_type\n');
       final section = contract.substring(

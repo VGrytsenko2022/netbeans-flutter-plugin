@@ -1364,7 +1364,7 @@ String _tooltipAncestorSdkTopology(CanvasNode node) {
           ? 'clipper-unavailable'
           : 'native',
     ],
-    'flutter.material.Card' => [
+    'flutter.material.Card' || canvasDialogType => [
       _cardShapePreviewUnavailableMessage(node) != null,
     ],
     'flutter.widgets.RadioGroup' => [
@@ -4041,6 +4041,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
+  if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
   if(node.type==canvasTimePickerDialogType){return _timePickerDialogPreviewMessage(node);}
   if(node.type==canvasDateRangePickerDialogType)return _dateRangePickerPreviewMessage(node);
   if(isCanvasDataTable(node.type)||isCanvasDataDescriptor(node.type)) {
@@ -4841,6 +4842,19 @@ String? _linearProgressUnavailableMessage(
   return null;
 }
 
+String? _dialogPreviewMessage(CanvasNode node) {
+  final shape=node.type==canvasDialogType?_cardShapePreviewUnavailableMessage(node,widgetName:'Dialog'):null;
+  if(shape!=null)return shape;
+  final sources=node.properties.entries.where((entry)=>entry.value.kind=='dartObjectReferencePresence').map((entry)=>entry.key).toList();
+  final value=node.properties['semanticsRole']?.value;
+  final role=value is CanvasEnumValue?value.value:'dialog';
+  final roleMessage=!const {'none','dialog','alertDialog'}.contains(role)
+    ? 'Dialog ${node.id}: $role semantics may require a supporting parent/child structure. Canvas excludes this semantic subtree; Run/Debug preserves and validates the configured role. ' : '';
+  if(sources.isEmpty)return roleMessage.isEmpty?null:roleMessage;
+  return '${roleMessage}Dialog ${node.id}: project sources are not executed in Canvas: ${sources.join(', ')}. '
+    'The preview uses native theme/default values for these properties (duration: 100ms ordinary / zero fullscreen, curve: decelerate). '
+    'Run/Debug uses the saved project sources; no modal route is created by this surface.';
+}
 String? _cardShapePreviewUnavailableMessage(
   CanvasNode node, {
   String widgetName = 'Card',
@@ -5912,6 +5926,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
+        node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
@@ -8626,6 +8641,8 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.BottomNavigationBar' => _bottomNavigationBar(context),
       'flutter.material.Material' => _material(context),
       'flutter.material.Scrollbar' => _scrollbar(),
+      canvasDialogType || canvasFullscreenDialogType => _TextButtonPreview(message:_dialogPreviewMessage(node) ?? 'Dialog surface: child widgets own Events; showDialog/DialogRoute owns dismissal and result.',
+        child:ExcludeSemantics(excluding:!const {'none','dialog','alertDialog'}.contains(_enum('semanticsRole')??'dialog'),child:_dialog(context))),
       'flutter.material.Card' => _card(context),
       'flutter.material.Badge' => _badge(context),
       'flutter.material.CircleAvatar' => _circleAvatar(context),
@@ -15802,6 +15819,33 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  Widget _dialog(BuildContext context) {
+    final fullscreen=node.type==canvasFullscreenDialogType;
+    final unavailable=fullscreen?null:_cardShapePreviewUnavailableMessage(node,widgetName:'Dialog');
+    if(unavailable!=null) {
+      return _customClipperPreviewUnavailable(
+        widgetName:'Dialog.shape',expectedType:'ShapeBorder',previewLabel:'Dialog shape\npreview unavailable',messageOverride:unavailable);
+    }
+    final duration=Duration(microseconds:_integer('insetAnimationDurationUs')??(fullscreen?0:100000));
+    final curve=_expansionCurves[_string('insetAnimationCurve')]??Curves.decelerate;
+    final role=SemanticsRole.values.byName(_enum('semanticsRole')??'dialog');
+    final child=_single('child');
+    if(fullscreen) {
+      return Dialog.fullscreen(
+        key:_string('key')==null?null:ValueKey<String>(_string('key')!),
+        backgroundColor:_resolvedColor(context,'backgroundColor'),insetAnimationDuration:duration,
+        insetAnimationCurve:curve,semanticsRole:role,child:child);
+    }
+    return Dialog(
+      key:_string('key')==null?null:ValueKey<String>(_string('key')!),
+      backgroundColor:_resolvedColor(context,'backgroundColor'),elevation:_number('elevation'),
+      shadowColor:_resolvedColor(context,'shadowColor'),surfaceTintColor:_resolvedColor(context,'surfaceTintColor'),
+      insetAnimationDuration:duration,insetAnimationCurve:curve,
+      insetPadding:node.properties['insetPadding']?.value is CanvasEdgeInsets?_physicalEdgeInsets('insetPadding'):null,
+      clipBehavior:_clipBehavior(),shape:_cardShape(context),alignment:_alignmentGeometry('alignment'),
+      constraints:_boxConstraints('constraints'),semanticsRole:role,child:child);
   }
 
   Widget _card(BuildContext context) {

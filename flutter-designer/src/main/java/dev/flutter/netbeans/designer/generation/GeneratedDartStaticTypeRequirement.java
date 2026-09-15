@@ -26,7 +26,7 @@ public record GeneratedDartStaticTypeRequirement(
         Optional<String> sourceTypeBound) {
 
     private static final Pattern EXPECTED_TYPE = Pattern.compile(
-            "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|(?:Object|bool|int|double|num|String|FocusNode|AnimationStyle|Duration|Curve|ShapeBorder|IconThemeData|TextStyle|TextHeightBehavior|BorderRadius|SystemUiOverlayStyle|AlignmentGeometry|Color|Decoration|BoxConstraints|Matrix4|EdgeInsetsGeometry)\\?)");
+            "(?:[A-Za-z][A-Za-z0-9_]*(?:<[A-Za-z][A-Za-z0-9_]*\\??>)?|(?:Object|bool|int|double|num|String|FocusNode|AnimationStyle|Duration|Curve|ShapeBorder|IconThemeData|TextStyle|TextHeightBehavior|BorderRadius|SystemUiOverlayStyle|AlignmentGeometry|Color|Decoration|BoxConstraints|Matrix4|EdgeInsets|EdgeInsetsGeometry)\\?)");
     private static final Pattern SOURCE_TYPE = Pattern.compile("[A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?\\??");
 
     public GeneratedDartStaticTypeRequirement(int expressionOffset, int expressionLength, String expectedDartType) {

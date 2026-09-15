@@ -121,6 +121,8 @@ public final class FlutterWidgetIconRegistry {
             Map.entry("flutter.material.CalendarDatePicker", ICON_ROOT + "calendardatepicker.svg"),
             Map.entry("flutter.material.InputDatePickerFormField", ICON_ROOT + "inputdatepickerformfield.svg"),
             Map.entry("flutter.material.TimePickerDialog", ICON_ROOT + "timepickerdialog.svg"),
+            Map.entry("flutter.material.Dialog", ICON_ROOT + "dialog.svg"),
+            Map.entry("flutter.material.Dialog.fullscreen", ICON_ROOT + "dialogfullscreen.svg"),
             Map.entry("flutter.material.DateRangePickerDialog", ICON_ROOT + "daterangepickerdialog.svg"),
             Map.entry("flutter.material.PaginatedDataTable", ICON_ROOT + "paginateddatatable.svg"),
             Map.entry("flutter.material.DataTable", ICON_ROOT + "datatable.svg"),

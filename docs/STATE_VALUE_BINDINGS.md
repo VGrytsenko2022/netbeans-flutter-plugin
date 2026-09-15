@@ -1,5 +1,13 @@
 # State/value bindings
 
+## Dialog and Dialog.fullscreen lifecycle (2026-09-15)
+
+Both constructors are stateless surfaces. Property changes rebuild normally;
+a changed Key recreates the subtree. Route results and child state do not imply
+a Dialog State consumer. Inventory remains 178 consumers across 60 types.
+Canvas honors local ValueKey identity, keeps project keys opaque, and does not
+create a modal route. See [Dialog](DIALOG.md).
+
 ## TimePickerDialog lifecycle (2026-09-15)
 
 initialTime and initialEntryMode seed private restorable dialog state, not a

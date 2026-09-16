@@ -301,6 +301,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(BottomSheetWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SnackBarWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(MaterialBannerWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SnackBarWidgetPropertySchema.ACTION.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.OPTION_TYPE.value(), STATIC_EDITABLE),
@@ -1039,6 +1040,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(MaterialBannerWidgetPropertySchema.TYPE.value(), projection(
+                    MaterialBannerWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("content", singleSlotSchema(true, 1), "leading", singleSlotSchema(false, 0),
+                            "actions", listSlotSchema(true, 1, 10_000)))),
             Map.entry(SnackBarWidgetPropertySchema.TYPE.value(), projection(
                     SnackBarWidgetPropertySchema.properties(false).stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),

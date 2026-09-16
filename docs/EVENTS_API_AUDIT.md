@@ -1,5 +1,20 @@
 # Widget events API audit
 
+## MaterialBanner — 2026-09-16
+
+One optional VoidCallback? Event: onVisible fires on the first completed
+animation status. Static (null/omitted animation) and stopped animations do not
+emit it. Child actions own their Events; activation does not dismiss a banner
+automatically. ScaffoldMessenger owns the queue, show/hide/remove and the
+controller's closed Future. These are not invented widget callbacks.
+
+Canvas never invokes user handlers or source expressions. Local handlers
+support create/select/open/rename/disconnect, undo/redo and source-preserving
+save/reopen. Current inventory: 248 definitions, 274 callables across 104 types;
+203 Events across 75 types, 51 builders, seven predicates, two formatters and
+eleven delegates. See [MaterialBanner](MATERIAL_BANNER.md).
+Entries below are historical.
+
 ## SnackBar and SnackBarAction — 2026-09-16
 
 SnackBar has optional VoidCallback? onVisible: the native callback fires when
@@ -12,7 +27,7 @@ ScaffoldMessenger owns presentation, animation and the closed Future; no
 invented widget onClosed callback is exposed. Canvas blocks activation and
 never executes project handlers.
 
-Current inventory: 247 definitions; 273 callables across 103 types, including
+Inventory at that milestone: 247 definitions; 273 callables across 103 types, including
 202 Events across 74 types, 51 builders, seven predicates, two formatters and
 eleven delegates. See [SnackBar and SnackBarAction](SNACK_BAR.md).
 Entries below are historical.

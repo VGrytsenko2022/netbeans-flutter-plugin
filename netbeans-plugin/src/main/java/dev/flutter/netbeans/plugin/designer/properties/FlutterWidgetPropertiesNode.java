@@ -1181,6 +1181,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("materialBanner" + group, group, dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(field.name()),
+                        dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.help(name), false,
+                        dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1802,6 +1817,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                     ? dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.ACTION_DESCRIPTION
                     : dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.DESCRIPTION;
         }
+        if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(widget.type()))
+            return dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION;
         }
@@ -6163,7 +6180,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
             return badgePropertyCommand(currentWidget, propertyName, accepted);
         }
-        if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(currentWidget.type()))) {
+        if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(currentWidget.type())
+                || dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(currentWidget.type()))) {
             return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.equals(currentWidget.type())

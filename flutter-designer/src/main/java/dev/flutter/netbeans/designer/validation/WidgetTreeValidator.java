@@ -912,6 +912,13 @@ public final class WidgetTreeValidator {
                 validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", node.type().value()+" "+family);
             }
         }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.value())) {
+            String family = "contentTextStyle";
+            validateListTileWholeLocal(node, propertiesPath, issues, family, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.localStyleProperties(family));
+            validateFontPackageDependency(node, propertiesPath, issues, family+"Package", family+"FontFamily", family+"FontFamilyFallback", "MaterialBanner contentTextStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"Color", family+"Foreground", "MaterialBanner contentTextStyle");
+            validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", "MaterialBanner contentTextStyle");
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.value())) {
             validateCardShape(node, propertiesPath, issues, "shape", "SnackBar shape");
             if (TooltipWidgetPropertySchema.isNonNull(node, "width") && TooltipWidgetPropertySchema.isNonNull(node, "margin"))

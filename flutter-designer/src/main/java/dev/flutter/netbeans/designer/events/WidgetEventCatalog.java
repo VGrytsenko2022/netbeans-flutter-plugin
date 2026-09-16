@@ -133,6 +133,7 @@ public final class WidgetEventCatalog {
     private static String unsetBehavior(String widget, String property) {
         if (widget.equals("BottomSheet")) return dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.help(property);
         if (widget.equals("SnackBar") || widget.equals("SnackBarAction")) return dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.help(property);
+        if (widget.equals("MaterialBanner")) return dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.help(property);
         if ((widget.equals("ModalBarrier") || widget.equals("AnimatedModalBarrier")) && property.equals("onDismiss")) return "Unset/null uses Navigator.maybePop when Dismissible is true; otherwise the retained callback is ignored. A bound callback owns dismissal; Canvas suppresses callback, route changes and alert sounds.";
         if (widget.equals("CalendarDatePicker") && property.equals("onDateChanged")) return "Required ValueChanged<DateTime>. Disconnect restores the explicit no-op; it never writes null or removes the required callback.";
         if (widget.equals("ShaderMask") && property.equals("shaderCallback")) return "Required Shader Function(Rect bounds). Disconnect restores the opaque-white gradient; it never writes null or removes the required callback.";
@@ -366,6 +367,7 @@ public final class WidgetEventCatalog {
                 WidgetEventDescriptor.Kind.PREDICATE, false, "bool", "ScrollNotification:notification");
         String bottomSheet = "flutter.material.BottomSheet";
         add(widgets, "flutter.material.SnackBar", "onVisible", "VoidCallback?", true, "void");
+        add(widgets, "flutter.material.MaterialBanner", "onVisible", "VoidCallback?", true, "void");
         add(widgets, "flutter.material.SnackBarAction", "onPressed", "VoidCallback", true, "void");
         add(widgets, bottomSheet, "onClosing", "VoidCallback", true, "void");
         add(widgets, bottomSheet, "onDragStart", "BottomSheetDragStartHandler?", false, "void", "DragStartDetails:details");

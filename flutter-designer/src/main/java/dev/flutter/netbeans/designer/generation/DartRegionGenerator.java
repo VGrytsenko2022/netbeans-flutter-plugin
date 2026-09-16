@@ -505,6 +505,21 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(node.type())) {
+                String name = property.name().value(), pp = path + "/properties/" + name;
+                if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamily(property.name()).isPresent()) continue;
+                var value = node.properties().get(property.name());
+                RenderedValue rendered = null;
+                if (name.equals("key") && value instanceof PropertyValue.StringValue text)
+                    rendered = renderPositionalComposite("ValueKey", Optional.empty(),
+                            scalar(dartString(text.value(), pp, node.id(), context.maxRenderedUtf8Bytes()), true, pp, node.id(), context), pp, node.id(), context);
+                if (name.equals("animation") && (value instanceof PropertyValue.IntegerValue || value instanceof PropertyValue.DoubleValue))
+                    rendered = renderStoppedTurns(value, pp, node.id(), context);
+                if (rendered != null) {
+                    arguments.add(new ConstructorArgument(property.parameter(), name, false, rendered));
+                    continue;
+                }
+            }
             if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(node.type())) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 var value = node.properties().get(property.name());
@@ -1089,6 +1104,11 @@ public final class DartRegionGenerator {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
+        }
+        if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(node.type())) {
+            appendTextCompoundArguments(node, definition, path, constructorBaseIndent + 2, context, arguments, "contentTextStyle",
+                    definition.property(new PropertyName("contentTextStyle")).orElseThrow().parameter().order(),
+                    dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema::styleBinding);
         }
         if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
             for (String family : dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamilies())

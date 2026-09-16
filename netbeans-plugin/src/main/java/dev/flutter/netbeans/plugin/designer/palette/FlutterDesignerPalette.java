@@ -698,6 +698,8 @@ public final class FlutterDesignerPalette {
             } else if ("flutter.widgets.AnimatedPadding".equals(definition.typeId().value())) {
                 setDisplayName("AnimatedPadding");
                 setShortDescription(dev.flutter.netbeans.designer.catalog.AnimatedPaddingWidgetPropertySchema.DESCRIPTION);
+            } else if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+                setShortDescription(dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.DESCRIPTION);
             } else if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(definition.typeId())) {
                 setDisplayName(definition.palette().displayName());
                 setShortDescription(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.ACTION.equals(definition.typeId())

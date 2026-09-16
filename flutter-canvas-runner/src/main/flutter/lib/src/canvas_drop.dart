@@ -545,6 +545,11 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         canvasChildrenAppendDropSlot,
       ],
       canvasBottomSheetType => const [canvasEmptyChildDropSlot],
+      canvasMaterialBannerType => const [
+        CanvasDropSlotSemantics.emptySingle(slotName:'content'),
+        CanvasDropSlotSemantics.append(slotName:'actions',maximumChildren:10000),
+        CanvasDropSlotSemantics.emptySingle(slotName:'leading'),
+      ],
       canvasSnackBarType => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'content'),
         CanvasDropSlotSemantics.emptySingle(slotName:'action',acceptance:CanvasDropAcceptance.exactTypes({canvasSnackBarActionType})),

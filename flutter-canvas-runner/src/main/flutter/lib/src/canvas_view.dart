@@ -2950,6 +2950,12 @@ String _bottomSheetPreviewMessage(CanvasNode node) {
       '${sources.isEmpty ? '' : 'Project sources unavailable: ${sources.join(', ')}; native defaults are used for source-owned appearance.'}';
 }
 
+String _materialBannerPreviewMessage(CanvasNode node) {
+  final sources = node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+  return 'MaterialBanner ${node.id}: static unless animation is supplied; caller owns ScaffoldMessenger presentation and closed results. '
+      'Actions do not automatically dismiss the banner. Canvas blocks activation, never executes sources/events, and completes supplied animation. '
+      '${sources.isEmpty ? '' : 'Project preview unavailable for: ${sources.join(', ')}; appearance uses native defaults.'}';
+}
 String _snackBarPreviewMessage(CanvasNode node) {
   final sources = node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
   for (final action in node.slot('action')?.children ?? <CanvasNode>[]) {
@@ -4067,6 +4073,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
   if (node.type == canvasBottomSheetType) return _bottomSheetPreviewMessage(node);
   if (node.type == canvasSnackBarType || node.type == canvasSnackBarActionType) return _snackBarPreviewMessage(node);
+  if (node.type == canvasMaterialBannerType) return _materialBannerPreviewMessage(node);
   if (node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType) return _simpleDialogPreviewMessage(node);
   if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
@@ -8679,6 +8686,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Scrollbar' => _scrollbar(),
       canvasBottomSheetType => _TextButtonPreview(message: _bottomSheetPreviewMessage(node), child: _bottomSheet(context)),
       canvasSnackBarType => _TextButtonPreview(message:_snackBarPreviewMessage(node),child:_snackBar(context)),
+      canvasMaterialBannerType => _TextButtonPreview(message:_materialBannerPreviewMessage(node),child:_materialBanner(context)),
       canvasSnackBarActionType => _TextButtonPreview(message:_snackBarPreviewMessage(node),
         child:ExcludeFocus(child:AbsorbPointer(child:_snackBarAction(context)))),
       canvasSimpleDialogType || canvasSimpleDialogOptionType => _TextButtonPreview(message: _simpleDialogPreviewMessage(node), child: _simpleDialog(context)),
@@ -15861,6 +15869,25 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  Widget _materialBanner(BuildContext context) {
+    EdgeInsetsGeometry? insets(String name) => const {'edgeInsets','edgeInsetsDirectional'}.contains(node.properties[name]?.kind)
+        ? _edgeInsetsGeometry(name) : null;
+    final animated = node.properties['animation'] != null && node.properties['animation']!.kind != 'null';
+    return ExcludeFocus(child: AbsorbPointer(child: MaterialBanner(
+      key:_string('key') == null ? null : ValueKey<String>(_string('key')!),
+      content:_single('content')!, actions:_children('actions'), leading:_single('leading'),
+      contentTextStyle:node.properties.containsKey('contentTextStyle') ? null : _textStyle(context,'contentTextStyle'), elevation:_number('elevation'),
+      backgroundColor:_resolvedColor(context,'backgroundColor'),surfaceTintColor:_resolvedColor(context,'surfaceTintColor'),
+      shadowColor:_resolvedColor(context,'shadowColor'),dividerColor:_resolvedColor(context,'dividerColor'),
+      padding:insets('padding'),margin:insets('margin'),leadingPadding:insets('leadingPadding'),
+      forceActionsBelow:_boolean('forceActionsBelow') ?? false,
+      overflowAlignment:_enum('overflowAlignment') == null ? OverflowBarAlignment.end : OverflowBarAlignment.values.byName(_enum('overflowAlignment')!),
+      minActionBarHeight:_number('minActionBarHeight') ?? 52,
+      animation:animated ? const AlwaysStoppedAnimation<double>(1) : null,
+      onVisible:null,
+    )));
   }
 
   SnackBarAction _snackBarAction(BuildContext context, {Key? key}) => SnackBarAction(

@@ -139,6 +139,8 @@ public final class WidgetNodePrototypeFactory {
 
         if (SnackBarWidgetPropertySchema.TYPE.equals(definition.typeId()))
             slots.put(new SlotName("content"), WidgetSlot.SingleSlot.of(SnackBarWidgetPropertySchema.starterContent(id)));
+        if (MaterialBannerWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            slots.putAll(MaterialBannerWidgetPropertySchema.starterSlots(id));
         if (DataTableWidgetPropertySchema.supports(definition.typeId()))
             slots.putAll(DataTableGrid.starterSlots(definition.typeId(),id));
         if (TableWidgetPropertySchema.TYPE.equals(definition.typeId()))

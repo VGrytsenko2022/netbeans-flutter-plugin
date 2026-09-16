@@ -2654,8 +2654,12 @@ accepted architecture is documented in
     onVisible/onPressed Events, strict sources and isolated native Canvas.
     Verified messenger animation, one-shot action, timeout/persistence and
     close reasons. See [SnackBar and SnackBarAction](SNACK_BAR.md).
-  - [ ] Next palette candidate: MaterialBanner. Audit messenger presentation,
-    action slots, overflow layout, animation and dismissal ownership.
+  - [x] Add MaterialBanner: all 18 constructor arguments, 46 property rows,
+    complete local/whole TextStyle, seeded required Content/nonempty Actions
+    and optional Leading, onVisible Events and isolated native Canvas.
+    Static mode and messenger ownership remain distinct. See [MaterialBanner](MATERIAL_BANNER.md).
+  - [ ] Next palette candidate: Chip. Audit avatar/label/delete slots, state
+    styling, deletion Events, focus and tooltip ownership before implementation.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.
@@ -2756,11 +2760,11 @@ accepted architecture is documented in
    native/RTL/reversed geometry parity, SVG icons and real-SDK contracts.
    See [SliverFillRemaining](SLIVER_FILL_REMAINING.md).
   - [ ] Continue admitting the practical post-core backlog only as complete
-  vertical slices. The current catalog presents 209 admitted built-in
-   definitions: all 209 have reviewed Canvas/Create/DnD capability, while 201
-   expose typed Properties and eight structural definitions have child-slot
-   editors. The catalog contains 175 const definitions and 7,302 writable
-   property rows (7,284 outside Scaffold). This does not imply
+  vertical slices. The current catalog presents 248 admitted built-in
+   definitions: all 248 have reviewed Canvas/Create/DnD capability, while 239
+   expose typed Properties and nine structural definitions have child-slot
+   editors. The catalog contains 204 const definitions and 8,306 writable
+   property rows (8,288 outside Scaffold). This does not imply
     Create, Canvas, DnD or Properties capability for any unreviewed widget.
 - [x] Establish the project-wide theme foundation outside `.fd`: canonical
   schema-v1/v2/v3/v4 `.fd_templates/project.fdtheme`, hash-guarded generated

@@ -168,6 +168,7 @@ public final class BuiltInWidgetCatalog {
             simpleDialog(true),
             bottomSheet(),
             snackBar(false), snackBar(true),
+            materialBanner(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3336,6 +3337,17 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition materialBanner() {
+        var properties = MaterialBannerWidgetPropertySchema.properties();
+        return widget(MaterialBannerWidgetPropertySchema.TYPE.value(), "MaterialBanner", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, DART_UI_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 770, "MaterialBanner"), properties,
+                List.of(singleSlot("content", properties.size(), true, 1, ANY_WIDGET),
+                        new SlotDefinition(new SlotName("actions"), DartParameter.named(properties.size() + 1, true),
+                                SlotCardinality.LIST, 1, 10_000, ANY_WIDGET),
+                        singleSlot("leading", properties.size() + 2, false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition snackBar(boolean action) {

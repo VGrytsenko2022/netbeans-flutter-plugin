@@ -1,5 +1,22 @@
 # Widget events API audit
 
+## SnackBar and SnackBarAction — 2026-09-16
+
+SnackBar has optional VoidCallback? onVisible: the native callback fires when
+the bar first becomes fully visible. SnackBarAction has required VoidCallback
+onPressed; disconnect restores a no-action closure without deleting the user
+method. Flutter calls it once, disables the button, and then hides the current
+bar with SnackBarClosedReason.action. Native lifecycle tests verify this order,
+timeout with persist false, persistence and the close-icon dismiss reason.
+ScaffoldMessenger owns presentation, animation and the closed Future; no
+invented widget onClosed callback is exposed. Canvas blocks activation and
+never executes project handlers.
+
+Current inventory: 247 definitions; 273 callables across 103 types, including
+202 Events across 74 types, 51 builders, seven predicates, two formatters and
+eleven delegates. See [SnackBar and SnackBarAction](SNACK_BAR.md).
+Entries below are historical.
+
 ## BottomSheet — 2026-09-16
 
 Three native Events: required VoidCallback onClosing, optional

@@ -912,6 +912,16 @@ public final class WidgetTreeValidator {
                 validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", node.type().value()+" "+family);
             }
         }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.value())) {
+            validateCardShape(node, propertiesPath, issues, "shape", "SnackBar shape");
+            if (TooltipWidgetPropertySchema.isNonNull(node, "width") && TooltipWidgetPropertySchema.isNonNull(node, "margin"))
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/margin", node.id(), "SnackBar Width and Margin are mutually exclusive."));
+            if ((TooltipWidgetPropertySchema.isNonNull(node, "width") || TooltipWidgetPropertySchema.isNonNull(node, "margin"))
+                    && !new PropertyValue.EnumValue("SnackBarBehavior", "floating").equals(node.properties().get(new PropertyName("behavior"))))
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/behavior", node.id(),
+                        "SnackBar Width/Margin require explicit floating Behavior; theme values cannot be proven by Designer."));
+            return;
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.value())) {
             validateCardShape(node, propertiesPath, issues, "shape", "BottomSheet shape");
             boolean controller = node.properties().get(new PropertyName("animationController"))

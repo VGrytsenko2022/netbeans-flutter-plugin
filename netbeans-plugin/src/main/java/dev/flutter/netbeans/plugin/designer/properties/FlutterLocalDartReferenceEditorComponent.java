@@ -2,6 +2,7 @@ package dev.flutter.netbeans.plugin.designer.properties;
 
 import dev.flutter.netbeans.designer.catalog.DartParameter;
 import dev.flutter.netbeans.designer.catalog.PropertyDefinition;
+import dev.flutter.netbeans.designer.catalog.PropertyValueConstraint;
 import dev.flutter.netbeans.designer.model.PropertyValue;
 import dev.flutter.netbeans.designer.model.PropertyValueKind;
 import java.awt.BorderLayout;
@@ -49,6 +50,32 @@ final class FlutterLocalDartReferenceEditorComponent {
 
     static Component customEditor(PropertyEditor editor, FlutterTypedPropertyEditors.Binding binding, PropertyEnv environment) {
         return new LocalReferencePanel(editor, binding, environment);
+    }
+
+    /** Valid inactive draft only; opening an omitted/null/reference value must not commit it. */
+    static PropertyValue initialNumber(PropertyDefinition definition) {
+        var zero = new PropertyValue.DoubleValue(BigDecimal.ZERO);
+        if (definition.constraints().stream().anyMatch(value -> value.accepts(zero))) return zero;
+        for (var constraint : definition.constraints()) {
+            if (constraint instanceof PropertyValueConstraint.IntegerRange range) {
+                var candidate = java.math.BigInteger.ZERO;
+                if (range.minimum() != null) candidate = candidate.max(range.minimum());
+                if (range.maximum() != null) candidate = candidate.min(range.maximum());
+                var value = new PropertyValue.IntegerValue(candidate);
+                if (range.accepts(value)) return value;
+            } else if (constraint instanceof PropertyValueConstraint.DoubleRange range) {
+                var candidate = range.minimum() != null && range.maximum() != null
+                        ? range.minimum().add(range.maximum()).divide(BigDecimal.valueOf(2))
+                        : range.minimum() != null ? range.minimum().add(BigDecimal.ONE)
+                        : range.maximum() != null ? range.maximum().subtract(BigDecimal.ONE) : BigDecimal.ZERO;
+                var value = new PropertyValue.DoubleValue(candidate);
+                if (range.accepts(value)) return value;
+            } else if (constraint.kind() == PropertyValueKind.INTEGER) {
+                var value = new PropertyValue.IntegerValue(java.math.BigInteger.ZERO);
+                if (constraint.accepts(value)) return value;
+            }
+        }
+        throw new IllegalArgumentException("No valid local numeric draft for " + definition.name().value());
     }
 
     private static final class LocalReferencePanel extends FlutterPropertyEditorComponents.CommitOnValidPanel {
@@ -112,14 +139,9 @@ final class FlutterLocalDartReferenceEditorComponent {
                     : matrix ? new PropertyValue.Matrix4Value(java.util.stream.IntStream.range(0, 16).mapToObj(i -> i % 5 == 0 ? BigDecimal.ONE : BigDecimal.ZERO).toList())
                     : color ? new PropertyValue.ColorValue(0xff000000L)
                     : alignment ? new PropertyValue.AlignmentGeometryValue(PropertyValue.AlignmentGeometryValue.HorizontalBasis.PHYSICAL, BigDecimal.ZERO, BigDecimal.ZERO)
-                    : number ? binding.definition().creationDefault().orElseGet(() ->
-                        localBinding.editorKind() == FlutterTypedPropertyEditors.EditorKind.INTEGER
-                            ? new PropertyValue.IntegerValue(binding.definition().constraints().stream()
-                                .filter(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.IntegerRange.class::isInstance)
-                                .map(dev.flutter.netbeans.designer.catalog.PropertyValueConstraint.IntegerRange.class::cast)
-                                .map(range -> range.minimum() == null ? java.math.BigInteger.ZERO : range.minimum().max(java.math.BigInteger.ZERO))
-                                .findFirst().orElse(java.math.BigInteger.ZERO))
-                            : new PropertyValue.DoubleValue(BigDecimal.ZERO))
+                    : number ? binding.definition().creationDefault().filter(value ->
+                        value instanceof PropertyValue.IntegerValue || value instanceof PropertyValue.DoubleValue)
+                        .orElseGet(() -> initialNumber(localDefinition))
                     : offset ? new PropertyValue.OffsetValue(BigDecimal.ZERO, BigDecimal.ZERO)
                     : constraints ? new PropertyValue.BoxConstraintsValue(BigDecimal.ZERO, Optional.empty(), BigDecimal.ZERO, Optional.empty())
                     : decoration ? new PropertyValue.BoxDecorationValue(Optional.empty(), Optional.empty(), Optional.empty(), java.util.List.of(), Optional.empty(), Optional.empty(), PropertyValue.BoxDecorationValue.BoxShape.RECTANGLE)

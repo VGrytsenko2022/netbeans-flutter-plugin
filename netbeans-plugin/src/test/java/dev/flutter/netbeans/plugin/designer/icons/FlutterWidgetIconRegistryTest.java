@@ -2280,6 +2280,8 @@ class FlutterWidgetIconRegistryTest {
         expected.put("flutter.material.SimpleDialog", ICON_ROOT+"simpledialog.svg");
         expected.put("flutter.material.SimpleDialogOption", ICON_ROOT+"simpledialogoption.svg");
         expected.put("flutter.material.BottomSheet", ICON_ROOT+"bottomsheet.svg");
+        expected.put("flutter.material.SnackBar", ICON_ROOT+"snackbar.svg");
+        expected.put("flutter.material.SnackBarAction", ICON_ROOT+"snackbaraction.svg");
         expected.put("flutter.material.DataTable",ICON_ROOT+"datatable.svg");
         expected.put("flutter.material.DataColumn",ICON_ROOT+"datacolumn.svg");
         expected.put("flutter.material.DataRow",ICON_ROOT+"datarow.svg");

@@ -11,8 +11,8 @@ Starter architecture for first-class Dart + Flutter support in Apache NetBeans 3
 If you find this plugin useful, please consider supporting its development.
 These contacts and the donation link are also available in the NetBeans Plugin Description.
 
-Current palette milestone: **245 admitted built-in definitions**, now including
-`BottomSheet`, `SimpleDialog` and `SimpleDialogOption`,
+Current palette milestone: **247 admitted built-in definitions**, now including
+`SnackBar`, `SnackBarAction`, `BottomSheet`, `SimpleDialog` and `SimpleDialogOption`,
 `AlertDialog`, `AlertDialog.adaptive`, `Dialog`, `Dialog.fullscreen`, `TimePickerDialog`, `InputDatePickerFormField`, `CalendarDatePicker`, `DateRangePickerDialog`, `DatePickerDialog` and `PaginatedDataTable` with a typed, long-lived `DataTableSource`,
 `DataTable`, `DataColumn`, `DataRow`, `DataRow.byIndex`, `DataCell`, `DataCell.empty`, `Table`, `TableRow`, `TableCell`, `Flow`, `Flow.unwrapped`, `CustomMultiChildLayout`, `LayoutId`, `CustomSingleChildLayout`, `CustomPaint`, `ShaderMask`, `BackdropFilter`, `BackdropFilter.grouped`, `BackdropGroup`, `ImageFiltered`, `ColorFiltered`, `RawImage`, `FadeInImage`, `AnimatedIcon`, `AnimatedModalBarrier`, `ModalBarrier`, `MatrixTransition`, `AlignTransition`, `DecoratedBoxTransition`, `RelativePositionedTransition`, `PositionedTransition`, `SizeTransition`, `RotationTransition`, `ScaleTransition`, `SlideTransition`, `FadeTransition`, `SliverFadeTransition`, `DefaultTextStyleTransition`, `DefaultTextStyle`, `DefaultTextStyle.merge`, `Theme`, `AnimatedTheme`, `AnimatedSwitcher`, `AnimatedCrossFade`, `AnimatedFractionallySizedBox`, `AnimatedPhysicalModel`, `AnimatedDefaultTextStyle`, `AnimatedPositioned`, `AnimatedPositioned.fromRect`, `AnimatedPositionedDirectional`, `AnimatedSize`, `AnimatedContainer`, `AnimatedRotation`, `AnimatedScale`, `AnimatedSlide`, `AnimatedPadding`, `AnimatedAlign`, `AnimatedOpacity`,
 `TweenAnimationBuilder`, `ValueListenableBuilder`, `AnimatedBuilder`, `ListenableBuilder` and `DeviceOrientationBuilder` (box and sliver projections), `OrientationBuilder`, `LayoutBuilder`, `FlexibleSpaceBarSettings`, `FlexibleSpaceBar`, `SliverAppBar`, `SliverAppBar.medium`, `SliverAppBar.large`,
@@ -29,15 +29,25 @@ the five interaction wrappers, `Material`, `Scrollbar`, `PageView`,
 The historical 92-widget number is a planning target, not the complete Flutter
 inventory or a verified remaining-work count. The full original ordered list
 is not preserved; further widgets are admitted from the pinned Flutter API.
-The current catalog has **8,214 writable rows** (8,196 outside `Scaffold`) and
-**201 const-capable definitions**. All 245 definitions have reviewed
-Canvas/Create/DnD capability; 236 expose typed Properties and nine are
-propertyless/structural definitions. Native Events comprise **200 rows across
-72 widget types**; all supported callables total 271 across 101 widget types,
+The current catalog has **8,260 writable rows** (8,242 outside `Scaffold`) and
+**203 const-capable definitions**. All 247 definitions have reviewed
+Canvas/Create/DnD capability; 238 expose typed Properties and nine are
+propertyless/structural definitions. Native Events comprise **202 rows across
+74 widget types**; all supported callables total 273 across 103 widget types,
 including one positioning delegate, seven sliver child-index delegates, one
 SliverFillViewport semantic-index callback, one matrix transform delegate and one shader computation delegate.
 Formats are FD 17, Catalog API 16, Canvas model 20 and transport 1.
 Historical milestone totals below are not current remaining-work counts.
+
+### SnackBar and SnackBarAction: messages and one-shot actions
+
+All 20 / 7 constructor arguments, 39 / 7 property rows, required Content,
+an exact Action slot, ten shape families and two native Events. Geometry
+switches are atomic; literal, null and typed source values retain native
+semantics. The application owns ScaffoldMessenger presentation and results.
+Canvas uses a completed animation, keeps content selectable and blocks
+activation/dismissal without executing project code.
+See [SnackBar and SnackBarAction](docs/SNACK_BAR.md).
 
 ### BottomSheet: native surface, content and drag events
 

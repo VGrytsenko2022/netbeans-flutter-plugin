@@ -29,6 +29,7 @@ public final class WidgetNodePrototypeFactory {
      * reviewed explicit 48 x 48 box seed; its child id is derived from the owner
      * id, so no additional supplied id is consumed. AnimatedCrossFade similarly seeds
      * both required slots with explicit 48 x 48 / 48 x 80 SizedBox nodes.
+     * SnackBar seeds its required Content with an explicit Text('Message').
      * LayoutId also derives its unique default Object ID string from the owner id.</p>
      *
      * @param definition exact immutable catalog definition
@@ -136,6 +137,8 @@ public final class WidgetNodePrototypeFactory {
             slots.put(slot.name(), empty);
         }
 
+        if (SnackBarWidgetPropertySchema.TYPE.equals(definition.typeId()))
+            slots.put(new SlotName("content"), WidgetSlot.SingleSlot.of(SnackBarWidgetPropertySchema.starterContent(id)));
         if (DataTableWidgetPropertySchema.supports(definition.typeId()))
             slots.putAll(DataTableGrid.starterSlots(definition.typeId(),id));
         if (TableWidgetPropertySchema.TYPE.equals(definition.typeId()))

@@ -25,6 +25,8 @@ public final class FlutterWidgetIconRegistry {
 
     private static final Map<String, String> REVIEWED_ICON_PATHS = Map.ofEntries(
             Map.entry("flutter.material.BottomSheet", ICON_ROOT + "bottomsheet.svg"),
+            Map.entry("flutter.material.SnackBar", ICON_ROOT + "snackbar.svg"),
+            Map.entry("flutter.material.SnackBarAction", ICON_ROOT + "snackbaraction.svg"),
             Map.entry("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg"),
             Map.entry("flutter.material.AppBar", ICON_ROOT + "appbar.svg"),
             Map.entry("flutter.material.FlexibleSpaceBar", ICON_ROOT + "flexiblespacebar.svg"),

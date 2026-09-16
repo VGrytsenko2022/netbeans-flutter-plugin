@@ -2649,8 +2649,13 @@ accepted architecture is documented in
     typed WidgetBuilder, three Events, nullable Size editor and ten shape families.
     Safe creation defaults, typed controller ownership, strict source admission,
     native preview lifecycle and real drag callback order. See [BottomSheet](BOTTOM_SHEET.md).
-  - [ ] Next palette candidate: SnackBar and SnackBarAction. Audit ScaffoldMessenger,
-    action lifecycle, dismissal/animation and native responsive layout.
+  - [x] Add SnackBar and SnackBarAction: all 20 / 7 constructor arguments,
+    39 / 7 editable rows, required Content and exact Action slots, ten shapes,
+    onVisible/onPressed Events, strict sources and isolated native Canvas.
+    Verified messenger animation, one-shot action, timeout/persistence and
+    close reasons. See [SnackBar and SnackBarAction](SNACK_BAR.md).
+  - [ ] Next palette candidate: MaterialBanner. Audit messenger presentation,
+    action slots, overflow layout, animation and dismissal ownership.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

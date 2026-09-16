@@ -1364,7 +1364,7 @@ String _tooltipAncestorSdkTopology(CanvasNode node) {
           ? 'clipper-unavailable'
           : 'native',
     ],
-    'flutter.material.Card' || canvasBottomSheetType || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType || canvasSimpleDialogType => [
+    'flutter.material.Card' || canvasSnackBarType || canvasBottomSheetType || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType || canvasSimpleDialogType => [
       _cardShapePreviewUnavailableMessage(node) != null,
     ],
     'flutter.widgets.RadioGroup' => [
@@ -2950,6 +2950,16 @@ String _bottomSheetPreviewMessage(CanvasNode node) {
       '${sources.isEmpty ? '' : 'Project sources unavailable: ${sources.join(', ')}; native defaults are used for source-owned appearance.'}';
 }
 
+String _snackBarPreviewMessage(CanvasNode node) {
+  final sources = node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+  for (final action in node.slot('action')?.children ?? <CanvasNode>[]) {
+    sources.addAll(action.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>'Action.${e.key}'));
+  }
+  return '${node.type.split('.').last} ${node.id}: caller owns ScaffoldMessenger presentation, timeouts and closed results. '
+      'Canvas never executes project sources; activation/dismissal are blocked and the animation stays completed. '
+      '${sources.isEmpty ? '' : 'Project preview unavailable for: ${sources.join(', ')}; appearance uses native defaults and source labels use a placeholder.'}';
+}
+
 String _simpleDialogPreviewMessage(CanvasNode node) {
   final sources = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
   return '${node.type == canvasSimpleDialogType ? 'SimpleDialog' : 'SimpleDialogOption'} ${node.id}: '
@@ -4056,6 +4066,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
   if (node.type == canvasBottomSheetType) return _bottomSheetPreviewMessage(node);
+  if (node.type == canvasSnackBarType || node.type == canvasSnackBarActionType) return _snackBarPreviewMessage(node);
   if (node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType) return _simpleDialogPreviewMessage(node);
   if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
@@ -8667,6 +8678,9 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.Material' => _material(context),
       'flutter.material.Scrollbar' => _scrollbar(),
       canvasBottomSheetType => _TextButtonPreview(message: _bottomSheetPreviewMessage(node), child: _bottomSheet(context)),
+      canvasSnackBarType => _TextButtonPreview(message:_snackBarPreviewMessage(node),child:_snackBar(context)),
+      canvasSnackBarActionType => _TextButtonPreview(message:_snackBarPreviewMessage(node),
+        child:ExcludeFocus(child:AbsorbPointer(child:_snackBarAction(context)))),
       canvasSimpleDialogType || canvasSimpleDialogOptionType => _TextButtonPreview(message: _simpleDialogPreviewMessage(node), child: _simpleDialog(context)),
       canvasAlertDialogType || canvasAdaptiveAlertDialogType => _TextButtonPreview(message:_alertDialogPreviewMessage(node),child:_alertDialog(context)),
       canvasDialogType || canvasFullscreenDialogType => _TextButtonPreview(message:_dialogPreviewMessage(node) ?? 'Dialog surface: child widgets own Events; showDialog/DialogRoute owns dismissal and result.',
@@ -15847,6 +15861,36 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  SnackBarAction _snackBarAction(BuildContext context, {Key? key}) => SnackBarAction(
+    key:key ?? (_string('key') == null ? null : ValueKey<String>(_string('key')!)),
+    label:_string('label') ?? 'Project label preview unavailable',
+    onPressed:(){},
+    textColor:_resolvedColor(context,'textColor'), disabledTextColor:_resolvedColor(context,'disabledTextColor'),
+    backgroundColor:_resolvedColor(context,'backgroundColor'), disabledBackgroundColor:_resolvedColor(context,'disabledBackgroundColor'));
+
+  Widget _snackBar(BuildContext context) {
+    final unavailable = _cardShapePreviewUnavailableMessage(node,widgetName:'SnackBar');
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(widgetName:'SnackBar.shape',expectedType:'ShapeBorder',
+        previewLabel:'SnackBar shape preview unavailable',messageOverride:unavailable);
+    }
+    EdgeInsetsGeometry? insets(String name) => const {'edgeInsets','edgeInsetsDirectional'}.contains(node.properties[name]?.kind) ? _edgeInsetsGeometry(name) : null;
+    final children = node.slot('action')?.children ?? <CanvasNode>[];
+    final action = children.isEmpty ? null : _view(children.single)._snackBarAction(context,key:nodeKey(children.single.id));
+    return ExcludeFocus(child:AbsorbPointer(child:SnackBar(
+      key:_string('key') == null ? null : ValueKey<String>(_string('key')!),
+      content:_single('content')!, action:action,
+      backgroundColor:_resolvedColor(context,'backgroundColor'),elevation:_number('elevation'),
+      margin:insets('margin'),padding:insets('padding'),width:_number('width'),shape:_cardShape(context),
+      hitTestBehavior:_enum('hitTestBehavior')==null?null:HitTestBehavior.values.byName(_enum('hitTestBehavior')!),
+      behavior:_enum('behavior')==null?null:SnackBarBehavior.values.byName(_enum('behavior')!),
+      actionOverflowThreshold:_number('actionOverflowThreshold'),showCloseIcon:_boolean('showCloseIcon'),
+      closeIconColor:_resolvedColor(context,'closeIconColor'),duration:Duration(microseconds:_integer('durationUs')??4000000),
+      persist:_boolean('persist'),animation:const AlwaysStoppedAnimation<double>(1),onVisible:(){},
+      dismissDirection:_enum('dismissDirection')==null?null:DismissDirection.values.byName(_enum('dismissDirection')!),
+      clipBehavior:_clipBehavior()??Clip.hardEdge)));
   }
 
   Widget _bottomSheet(BuildContext context) {

@@ -47,11 +47,11 @@ class AppBarNotificationPredicatePropertyTest {
         assertEquals(WidgetEventDescriptor.Kind.PREDICATE, descriptor.kind()); assertEquals("bool", descriptor.signature().returnType());
         assertEquals(List.of("ScrollNotification"), descriptor.signature().parameters().stream().map(WidgetEventDescriptor.Parameter::type).toList());
         var catalog = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(245, catalog.size()); assertEquals(8214, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(271, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        assertEquals(247, catalog.size()); assertEquals(8260, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(273, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
         assertEquals(7, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.PREDICATE).count());
-        assertEquals(200, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).count());
-        assertEquals(101, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
+        assertEquals(202, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        assertEquals(103, catalog.stream().filter(definition -> !WidgetEventCatalog.eventsFor(definition).isEmpty()).count());
         assertEquals(Set.of(PropertyValueKind.STRING, PropertyValueKind.DART_OBJECT_REFERENCE), DEFINITION.property(PREDICATE).orElseThrow().acceptedKinds());
         assertEquals("ScrollNotificationPredicate", AppBarWidgetPropertySchema.NOTIFICATION_PREDICATE_TYPE);
         assertEquals(List.of("default", "depthZero", "all"), binding().stringPresets());

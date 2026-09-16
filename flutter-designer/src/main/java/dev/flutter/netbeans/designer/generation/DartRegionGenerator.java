@@ -505,6 +505,30 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(node.type())) {
+                String name = property.name().value(), pp = path + "/properties/" + name;
+                var value = node.properties().get(property.name());
+                if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)) continue;
+                RenderedValue rendered = null;
+                if (name.equals("key") && value instanceof PropertyValue.StringValue text)
+                    rendered = renderPositionalComposite("ValueKey", Optional.empty(),
+                            scalar(dartString(text.value(), pp, node.id(), context.maxRenderedUtf8Bytes()), true, pp, node.id(), context), pp, node.id(), context);
+                if (name.equals("onPressed") && value instanceof PropertyValue.StringValue)
+                    rendered = scalar("() {}", false, pp, node.id(), context);
+                if (name.equals("animation") && (value instanceof PropertyValue.IntegerValue || value instanceof PropertyValue.DoubleValue))
+                    rendered = renderStoppedTurns(value, pp, node.id(), context);
+                if (name.equals("durationUs") && value instanceof PropertyValue.IntegerValue integer) {
+                    var symbol = context.planner().renderedSymbol("dart:core", "Duration");
+                    rendered = scalar("const " + symbol.text() + "(microseconds: " + integer.value() + ")", true, pp, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":snackbar-duration", 6 + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), pp, Optional.of(node.id()))));
+                }
+                if (name.equals("durationUs") && rendered == null && value != null)
+                    rendered = renderProperty(value, property, pp, node.id(), context);
+                if (rendered != null) {
+                    arguments.add(new ConstructorArgument(property.parameter(), name.equals("durationUs") ? "duration" : name, false, rendered));
+                    continue;
+                }
+            }
             if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(node.type()) || dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(node.type()) || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 var value = node.properties().get(property.name());
@@ -1074,6 +1098,7 @@ public final class DartRegionGenerator {
                                 .filter(family::equals).flatMap(ignored -> dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(name)));
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE)
                 || node.type().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)
                 || node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE)
                 || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))

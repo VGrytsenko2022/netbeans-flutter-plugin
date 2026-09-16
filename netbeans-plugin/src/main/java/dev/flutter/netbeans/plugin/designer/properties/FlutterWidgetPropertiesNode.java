@@ -1181,6 +1181,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("snackBar" + group, group, dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, Optional.empty(),
+                        name.equals("durationUs") ? "Duration (microseconds)" : dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.help(name), false,
+                        name.equals("onPressed") ? java.util.List.of("noop") : dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1781,6 +1796,11 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.supports(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.ACTION.equals(widget.type())
+                    ? dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.ACTION_DESCRIPTION
+                    : dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.DESCRIPTION;
         }
         if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION;
@@ -6146,7 +6166,26 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(currentWidget.type()))) {
             return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.equals(currentWidget.type())
+                && java.util.Set.of("width","margin","behavior").contains(propertyName.value())) {
+            var patches = new java.util.ArrayList<PatchProperties.Patch>();
+            var value = accepted.explicitValue().orElse(null);
+            if (!propertyName.value().equals("behavior") && value != null && !(value instanceof PropertyValue.NullValue)) {
+                var other = new PropertyName(propertyName.value().equals("width") ? "margin" : "width");
+                if (currentWidget.properties().containsKey(other)) patches.add(new PatchProperties.ResetPatch(other));
+                patches.add(new PatchProperties.SetPatch(new PropertyName("behavior"),new PropertyValue.EnumValue("SnackBarBehavior","floating")));
+            } else if (propertyName.value().equals("behavior") && !new PropertyValue.EnumValue("SnackBarBehavior","floating").equals(value)) {
+                for (String name : java.util.List.of("width","margin")) {
+                    var other = new PropertyName(name);
+                    if (currentWidget.properties().containsKey(other)) patches.add(new PatchProperties.ResetPatch(other));
+                }
+            }
+            patches.add(accepted.explicitValue().<PatchProperties.Patch>map(v -> new PatchProperties.SetPatch(propertyName,v))
+                    .orElseGet(() -> new PatchProperties.ResetPatch(propertyName)));
+            return new PatchProperties(currentWidget.id(),patches);
+        }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())
+                || dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.equals(currentWidget.type())
                 || dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(currentWidget.type())
                 || dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.equals(currentWidget.type())) {
             return cardPropertyCommand(currentWidget, propertyName, accepted);

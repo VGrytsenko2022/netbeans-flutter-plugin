@@ -167,6 +167,7 @@ public final class BuiltInWidgetCatalog {
             simpleDialog(false),
             simpleDialog(true),
             bottomSheet(),
+            snackBar(false), snackBar(true),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3335,6 +3336,16 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition snackBar(boolean action) {
+        var properties = SnackBarWidgetPropertySchema.properties(action);
+        return widget((action ? SnackBarWidgetPropertySchema.ACTION : SnackBarWidgetPropertySchema.TYPE).value(),
+                action ? "SnackBarAction" : "SnackBar", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, RENDERING_IMPORT, "dart:ui", "dart:core"), Set.of(),
+                palette("flutter.material", 100, action ? 760 : 750, action ? "SnackBarAction" : "SnackBar"), properties,
+                action ? List.of() : List.of(singleSlot("content", properties.size(), true, 1, ANY_WIDGET),
+                        singleSlot("action", properties.size() + 1, false, 0, new SlotAcceptance.ExactTypes(List.of(SnackBarWidgetPropertySchema.ACTION)))));
     }
 
     private static WidgetDefinition bottomSheet() {

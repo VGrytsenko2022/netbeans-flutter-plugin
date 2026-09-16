@@ -300,6 +300,8 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry(PaginatedDataTableWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(TimePickerDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(BottomSheetWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(SnackBarWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(SnackBarWidgetPropertySchema.ACTION.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.OPTION_TYPE.value(), STATIC_EDITABLE),
             Map.entry(AlertDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
@@ -1037,6 +1039,14 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(SnackBarWidgetPropertySchema.TYPE.value(), projection(
+                    SnackBarWidgetPropertySchema.properties(false).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("content", singleSlotSchema(true, 1),
+                            "action", new CanvasSlotContract(SlotCardinality.SINGLE, false, 0, 1, "types:" + base64(SnackBarWidgetPropertySchema.ACTION.value()))))),
+            Map.entry(SnackBarWidgetPropertySchema.ACTION.value(), projection(
+                    SnackBarWidgetPropertySchema.properties(true).stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)), Map.of())),
             Map.entry(BottomSheetWidgetPropertySchema.TYPE.value(), projection(
                     BottomSheetWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),

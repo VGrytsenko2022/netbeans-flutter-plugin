@@ -67,7 +67,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.BottomNavigationBar",
             "flutter.material.Material",
             "flutter.material.Scrollbar",
-            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet", "flutter.material.SnackBar", "flutter.material.SnackBarAction",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -204,7 +204,7 @@ class BuiltInWidgetCapabilityCatalogTest {
             "flutter.material.BottomNavigationBar",
             "flutter.material.Material",
             "flutter.material.Scrollbar",
-            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet",
+            "flutter.material.SliverAppBar", "flutter.material.SliverAppBar.medium", "flutter.material.SliverAppBar.large", "flutter.material.FlexibleSpaceBar", "flutter.material.FlexibleSpaceBarSettings", "flutter.material.AnimatedTheme", "flutter.material.Theme", "flutter.material.AnimatedIcon", "flutter.material.DataTable", "flutter.material.DataColumn", "flutter.material.DataRow", "flutter.material.DataRow.byIndex", "flutter.material.DataCell", "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet", "flutter.material.SnackBar", "flutter.material.SnackBarAction",
             "flutter.widgets.Column",
             "flutter.widgets.Row",
             "flutter.widgets.Wrap",
@@ -325,8 +325,8 @@ class BuiltInWidgetCapabilityCatalogTest {
         }
         long candidates = (long) sources.size() * destinations.size();
 
-        assertEquals(245, sources.size());
-        assertEquals(219, destinations.size());
+        assertEquals(247, sources.size());
+        assertEquals(220, destinations.size());
         assertEquals(188, destinations.stream()
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.AnyWidget)
@@ -335,9 +335,9 @@ class BuiltInWidgetCapabilityCatalogTest {
                 .filter(destination -> destination.slot().acceptance()
                         instanceof SlotAcceptance.HasTrait)
                 .count());
-        assertEquals(53655, candidates);
-        assertEquals(34770, accepted);
-        assertEquals(18885, candidates - accepted);
+        assertEquals(54340, candidates);
+        assertEquals(35147, accepted);
+        assertEquals(19193, candidates - accepted);
     }
 
     @Test
@@ -2736,7 +2736,7 @@ class BuiltInWidgetCapabilityCatalogTest {
                     + ":currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true)",
                     property.constraintFingerprints().get(PropertyValueKind.DART_OBJECT_REFERENCE));
         }
-        assertEquals(8214, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
+        assertEquals(8260, BuiltInWidgetCapabilityCatalog.definitionsSupporting(WidgetCapability.CANVAS).stream()
                 .mapToInt(definition -> definition.properties().size()).sum());
         String contract = BuiltInWidgetCapabilityCatalog.reviewedCanvasSchemaContract();
         int start = contract.indexOf("W|flutter.material.SwitchListTile\n");

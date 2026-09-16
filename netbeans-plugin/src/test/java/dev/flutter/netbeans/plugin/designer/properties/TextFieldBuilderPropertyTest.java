@@ -69,11 +69,11 @@ class TextFieldBuilderPropertyTest {
         var events = Arrays.stream(node.getPropertySets()).filter(set -> set.getName().equals(FlutterWidgetPropertiesNode.EVENTS_SET_NAME)).findFirst().orElseThrow();
         assertEquals(Set.of("onChanged", "onEditingComplete", "onSubmitted", "onAppPrivateCommand", "onTap", "onTapOutside", "onTapUpOutside"),
                 Arrays.stream(events.getProperties()).map(Node.Property::getName).collect(java.util.stream.Collectors.toSet()));
-        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(244, catalog.size());
-        assertEquals(8177, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
-        assertEquals(267, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
-        assertEquals(50, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
-        assertEquals(197, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
+        var catalog = BuiltInWidgetCatalog.getDefault().definitions(); assertEquals(245, catalog.size());
+        assertEquals(8214, catalog.stream().mapToInt(definition -> definition.properties().size()).sum());
+        assertEquals(271, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        assertEquals(51, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
+        assertEquals(200, catalog.stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).filter(value -> value.kind() == WidgetEventDescriptor.Kind.EVENT).count());
         assertTrue(rawRow(node, ENABLED.value()).getPropertyEditor().isPaintable()); assertNull(rawRow(node, ENABLED.value()).getPropertyEditor().getTags());
     }
 

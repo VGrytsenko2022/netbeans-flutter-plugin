@@ -343,7 +343,17 @@ class DartStaticTypeProbeTest {
                 assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,type,library));
         }
         assertThrows(IllegalArgumentException.class, () -> probe("CustomPainter??"));
-        assertThrows(IllegalArgumentException.class, () -> probe("Size?"));
+        assertThrows(IllegalArgumentException.class, () -> probe("Size??"));
+    }
+
+    @Test void bottomSheetSourcesUseReviewedSdkProofContexts() {
+        for (String type : List.of("Size?", "AnimationController?", "BottomSheetDragStartHandler?", "BottomSheetDragEndHandler?")) {
+            assertEquals(type, new DartStaticTypeProbe(10,5,0,5,type,"package:flutter/material.dart").expectedDartType());
+            for (String library : List.of("package:app/fake.dart", "dart:core", "package:flutter/rendering.dart"))
+                assertThrows(IllegalArgumentException.class, () -> new DartStaticTypeProbe(10,5,0,5,type,library));
+        }
+        for(String type:List.of("BottomSheetDragStartHandler??","AnimationController??","Size??"))
+            assertThrows(IllegalArgumentException.class, () -> probe(type));
     }
 
     private static DartStaticTypeProbe probe(String type) {

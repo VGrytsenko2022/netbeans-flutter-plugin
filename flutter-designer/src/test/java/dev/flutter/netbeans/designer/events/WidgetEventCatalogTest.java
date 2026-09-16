@@ -17,7 +17,7 @@ import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.*;
 
 class WidgetEventCatalogTest {
-    private static final Set<String> TYPED_CALLABLES = Set.of("EntryModeChangeCallback", "SelectableDayForRangePredicate", "SelectableDayPredicate", "ValueChanged<DatePickerEntryMode>", "ValueChanged<DateTime>", "GestureTapCallback", "GestureLongPressCallback", "GestureTapDownCallback", "GestureTapCancelCallback", "DataColumnSortCallback", "ValueSetter<bool?>", "VoidCallback?", "VoidCallback", "ValueChanged<bool>",
+    private static final Set<String> TYPED_CALLABLES = Set.of("WidgetBuilder", "BottomSheetDragStartHandler?", "BottomSheetDragEndHandler?", "EntryModeChangeCallback", "SelectableDayForRangePredicate", "SelectableDayPredicate", "ValueChanged<DatePickerEntryMode>", "ValueChanged<DateTime>", "GestureTapCallback", "GestureLongPressCallback", "GestureTapDownCallback", "GestureTapCancelCallback", "DataColumnSortCallback", "ValueSetter<bool?>", "VoidCallback?", "VoidCallback", "ValueChanged<bool>",
             "ValueChanged<bool?>", "ValueChanged<Object?>", "ValueChanged<double>", "ValueChanged<RangeValues>",
             "ValueChanged<RefreshIndicatorStatus?>", "ImageErrorListener", "RefreshCallback", "AsyncCallback",
             "ScrollNotificationPredicate", "SemanticFormatterCallback", "ButtonLayerBuilder", "MenuAnchorChildBuilder", "ValueChanged<AnimationStatus>", "ValueChanged<int>", "ValueChanged<int?>",
@@ -26,7 +26,7 @@ class WidgetEventCatalogTest {
     @Test
     void coversEveryCallablePropertyAcrossAllOneHundredDefinitionsWithoutTreatingObjectsAsEvents() {
         var definitions = BuiltInWidgetCatalog.getDefault().definitions();
-        assertEquals(244, definitions.size());
+        assertEquals(245, definitions.size());
         int callables = 0;
         for (WidgetDefinition widget : definitions) {
             for (PropertyDefinition property : widget.properties()) {
@@ -34,10 +34,10 @@ class WidgetEventCatalogTest {
                 // interaction/event surface; it is edited in Properties and
                 // deliberately excluded from the Events tab.
                 boolean callable = !widget.typeId().value().equals("flutter.widgets.Builder")
-                        && property.acceptedKinds().contains(PropertyValueKind.CALLBACK)
+                        && (property.acceptedKinds().contains(PropertyValueKind.CALLBACK)
                         || property.constraints().stream().anyMatch(value ->
                                 value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
-                                        && TYPED_CALLABLES.contains(reference.expectedDartType()));
+                                        && TYPED_CALLABLES.contains(reference.expectedDartType())));
                 var descriptor = WidgetEventCatalog.find(widget.typeId(), property.name());
                 assertEquals(callable, descriptor.isPresent(), widget.dartClassName() + "." + property.name());
                 if (callable) {
@@ -46,18 +46,18 @@ class WidgetEventCatalogTest {
                 }
             }
         }
-        assertEquals(267, callables);
-        assertEquals(100, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
+        assertEquals(271, callables);
+        assertEquals(101, definitions.stream().filter(widget -> !WidgetEventCatalog.eventsFor(widget).isEmpty()).count());
     }
 
     @Test
     void separatesEventsBuildersPredicatesAndFormatters() {
         var all = BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(widget -> WidgetEventCatalog.eventsFor(widget).stream()).toList();
-        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 197L, WidgetEventDescriptor.Kind.BUILDER, 50L,
+        assertEquals(Map.of(WidgetEventDescriptor.Kind.EVENT, 200L, WidgetEventDescriptor.Kind.BUILDER, 51L,
                 WidgetEventDescriptor.Kind.PREDICATE, 7L, WidgetEventDescriptor.Kind.FORMATTER, 2L, WidgetEventDescriptor.Kind.DELEGATE, 11L),
                 all.stream().collect(Collectors.groupingBy(WidgetEventDescriptor::kind, Collectors.counting())));
-        assertEquals(71, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(72, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(widget -> WidgetEventCatalog.eventsFor(widget).stream()
                         .anyMatch(event -> event.kind() == WidgetEventDescriptor.Kind.EVENT)).count());
         assertFalse(find("TextField", "onTapAlwaysCalled").isPresent());

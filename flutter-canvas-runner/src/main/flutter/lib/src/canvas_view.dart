@@ -1364,7 +1364,7 @@ String _tooltipAncestorSdkTopology(CanvasNode node) {
           ? 'clipper-unavailable'
           : 'native',
     ],
-    'flutter.material.Card' || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType || canvasSimpleDialogType => [
+    'flutter.material.Card' || canvasBottomSheetType || canvasDialogType || canvasAlertDialogType || canvasAdaptiveAlertDialogType || canvasSimpleDialogType => [
       _cardShapePreviewUnavailableMessage(node) != null,
     ],
     'flutter.widgets.RadioGroup' => [
@@ -2943,6 +2943,13 @@ String? _radioGroupStaticMessage(CanvasNode node) {
   return null;
 }
 
+String _bottomSheetPreviewMessage(CanvasNode node) {
+  final sources = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
+  return 'BottomSheet ${node.id}: caller owns routes, dismissal and controller disposal. '
+      'Canvas uses its own preview controller, never executes project builders/events, and keeps the design visible. '
+      '${sources.isEmpty ? '' : 'Project sources unavailable: ${sources.join(', ')}; native defaults are used for source-owned appearance.'}';
+}
+
 String _simpleDialogPreviewMessage(CanvasNode node) {
   final sources = node.properties.entries.where((e) => e.value.kind == 'dartObjectReferencePresence').map((e) => e.key).toList();
   return '${node.type == canvasSimpleDialogType ? 'SimpleDialog' : 'SimpleDialogOption'} ${node.id}: '
@@ -4048,6 +4055,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if(node.type==canvasDatePickerDialogType)return _datePickerPreviewMessage(node);
   if(node.type==canvasCalendarDatePickerType)return _calendarDatePickerPreviewMessage(node);
   if(node.type==canvasInputDatePickerFormFieldType)return _inputDatePickerFormFieldPreviewMessage(node);
+  if (node.type == canvasBottomSheetType) return _bottomSheetPreviewMessage(node);
   if (node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType) return _simpleDialogPreviewMessage(node);
   if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
@@ -5943,7 +5951,7 @@ class _CanvasDocumentViewState extends State<CanvasDocumentView> {
         node.type == 'flutter.material.Divider' ||
         node.type == 'flutter.material.VerticalDivider' ||
         node.type == 'flutter.material.Card' ||
-        node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType || isCanvasAlertDialogType(node.type) || node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
+        node.type == canvasBottomSheetType || node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType || isCanvasAlertDialogType(node.type) || node.type == canvasDialogType || node.type == canvasFullscreenDialogType ||
         node.type == 'flutter.material.Badge' ||
         node.type == 'flutter.material.CircleAvatar' ||
         node.type == 'flutter.material.Switch' ||
@@ -8658,6 +8666,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       'flutter.material.BottomNavigationBar' => _bottomNavigationBar(context),
       'flutter.material.Material' => _material(context),
       'flutter.material.Scrollbar' => _scrollbar(),
+      canvasBottomSheetType => _TextButtonPreview(message: _bottomSheetPreviewMessage(node), child: _bottomSheet(context)),
       canvasSimpleDialogType || canvasSimpleDialogOptionType => _TextButtonPreview(message: _simpleDialogPreviewMessage(node), child: _simpleDialog(context)),
       canvasAlertDialogType || canvasAdaptiveAlertDialogType => _TextButtonPreview(message:_alertDialogPreviewMessage(node),child:_alertDialog(context)),
       canvasDialogType || canvasFullscreenDialogType => _TextButtonPreview(message:_dialogPreviewMessage(node) ?? 'Dialog surface: child widgets own Events; showDialog/DialogRoute owns dismissal and result.',
@@ -15840,6 +15849,26 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 
+  Widget _bottomSheet(BuildContext context) {
+    final unavailable = _cardShapePreviewUnavailableMessage(node, widgetName: 'BottomSheet');
+    if (unavailable != null) {
+      return _customClipperPreviewUnavailable(widgetName:'BottomSheet.shape', expectedType:'ShapeBorder',
+        previewLabel:'BottomSheet shape preview unavailable',messageOverride:unavailable);
+    }
+    final size = node.properties['dragHandleSize']?.value;
+    final child = node.properties['builder']?.kind == 'dartObjectReferencePresence'
+        ? const SizedBox(width:240,height:64,child:Center(child:Text('BottomSheet builder preview unavailable')))
+        : _single('child') ?? const SizedBox.shrink();
+    return _BottomSheetPreview(
+      sheetKey:_string('key') == null ? null : ValueKey<String>(_string('key')!),
+      enableDrag:_boolean('enableDrag') ?? true, showDragHandle:_boolean('showDragHandle'),
+      dragHandleColor:_resolvedColor(context,'dragHandleColor'),
+      dragHandleSize:size is CanvasSizeValue ? Size(size.width,size.height) : null,
+      backgroundColor:_resolvedColor(context,'backgroundColor'), shadowColor:_resolvedColor(context,'shadowColor'),
+      elevation:_number('elevation'), shape:_cardShape(context), clipBehavior:_clipBehavior(),
+      constraints:_boxConstraints('constraints'), child:child);
+  }
+
   Widget _simpleDialog(BuildContext context) {
     if (node.type == canvasSimpleDialogOptionType) {
       return SimpleDialogOption(
@@ -19497,6 +19526,39 @@ class _PersistentHeaderPreviewDelegate extends SliverPersistentHeaderDelegate {
       const SizedBox.expand();
   @override
   bool shouldRebuild(covariant _PersistentHeaderPreviewDelegate oldDelegate) => false;
+}
+
+// A preview-only controller is owned/disposed here, never borrowed from project code.
+class _BottomSheetPreview extends StatefulWidget {
+  const _BottomSheetPreview({required this.child, required this.enableDrag, this.showDragHandle, this.sheetKey,
+    this.dragHandleColor,this.dragHandleSize,this.backgroundColor,this.shadowColor,this.elevation,
+    this.shape,this.clipBehavior,this.constraints});
+  final Widget child;
+  final bool enableDrag;
+  final bool? showDragHandle;
+  final Color? dragHandleColor,backgroundColor,shadowColor;
+  final Size? dragHandleSize;
+  final double? elevation;
+  final ShapeBorder? shape;
+  final Clip? clipBehavior;
+  final BoxConstraints? constraints;
+  @override
+  State<_BottomSheetPreview> createState() => _BottomSheetPreviewState();
+  final Key? sheetKey;
+}
+class _BottomSheetPreviewState extends State<_BottomSheetPreview> with SingleTickerProviderStateMixin {
+  late final AnimationController _controller = BottomSheet.createAnimationController(this)..value = 1;
+  @override
+  void dispose() { _controller.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => BottomSheet(
+    key:widget.sheetKey, animationController:_controller, enableDrag:widget.enableDrag, showDragHandle:widget.showDragHandle,
+    dragHandleColor:widget.dragHandleColor,dragHandleSize:widget.dragHandleSize,
+    backgroundColor:widget.backgroundColor,shadowColor:widget.shadowColor,elevation:widget.elevation,
+    shape:widget.shape,clipBehavior:widget.clipBehavior,constraints:widget.constraints,
+    onClosing:() { _controller.value = 1; },
+    onDragEnd:(_, {required isClosing}) { _controller.value = 1; },
+    builder:(_) => widget.child);
 }
 
 String _displayType(String type) => type.substring(type.lastIndexOf('.') + 1);

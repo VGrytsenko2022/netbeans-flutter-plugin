@@ -165,6 +165,7 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("MenuStyle")
                         || type.equals("MenuAnchorChildBuilder")
                         || type.equals("DataColumnSortCallback")
+                        || type.equals("BottomSheetDragStartHandler?") || type.equals("BottomSheetDragEndHandler?")
                         || type.equals("DataTableSource")
                         || type.equals("CalendarDelegate<DateTime>")
                         || type.equals("SelectableDayPredicate")

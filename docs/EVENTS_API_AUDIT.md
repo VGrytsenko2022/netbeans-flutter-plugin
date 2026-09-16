@@ -1,5 +1,21 @@
 # Widget events API audit
 
+## BottomSheet — 2026-09-16
+
+Three native Events: required VoidCallback onClosing, optional
+BottomSheetDragStartHandler? onDragStart, and BottomSheetDragEndHandler?
+onDragEnd. The last signature is void Function(DragEndDetails details,
+{required bool isClosing}); generated handlers preserve the named parameter.
+Disconnect onClosing restores the no-action preset and retains the user method;
+optional drag callbacks disconnect by omission. onClosing may fire repeatedly
+and is not confirmation that the route closed. onDragEnd precedes onClosing.
+WidgetBuilder is a construction callable, not an Event. Controller/route
+lifecycles remain application-owned; Canvas executes neither source nor handlers.
+Current inventory: 245 definitions; 271 callables across 101 types, including
+200 Events across 72 types, 51 builders, seven predicates, two formatters and
+eleven delegates. See [BottomSheet](BOTTOM_SHEET.md); entries below are historical.
+
+
 ## SimpleDialog and SimpleDialogOption — 2026-09-15
 
 SimpleDialog has no callbacks. SimpleDialogOption exposes optional onPressed

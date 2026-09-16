@@ -411,7 +411,7 @@ public sealed interface PropertyValueConstraint permits
                     && !ScaffoldWidgetPropertySchema.BOTTOM_SHEET_SCRIM_BUILDER_TYPE.equals(expectedDartType)
                     && !Set.of(TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE,
                             TextFieldWidgetPropertySchema.CONTEXT_MENU_BUILDER_TYPE,
-                            ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "DateTime?", "Key?", "LocalKey?", "TableBorder?", "Map<int, TableColumnWidth>?", "TableColumnWidth?", "WidgetStateProperty<Color?>?", "WidgetStateProperty<MouseCursor?>?").contains(expectedDartType)) {
+                            ListViewWidgetPropertySchema.ITEM_EXTENT_BUILDER_TYPE, "ChildIndexGetter?", "VoidCallback?", "ValueNotifier<EdgeInsets>?", "AnimationController?", "Size?", "BottomSheetDragStartHandler?", "BottomSheetDragEndHandler?", "ImageErrorWidgetBuilder?", "Image?", "Rect?", "BackdropKey?", "Animation<double>?", "CustomPainter?", "DateTime?", "Key?", "LocalKey?", "TableBorder?", "Map<int, TableColumnWidth>?", "TableColumnWidth?", "WidgetStateProperty<Color?>?", "WidgetStateProperty<MouseCursor?>?").contains(expectedDartType)) {
                 throw new IllegalArgumentException(
                         "Expected Dart type must use the closed simple/generic form");
             }

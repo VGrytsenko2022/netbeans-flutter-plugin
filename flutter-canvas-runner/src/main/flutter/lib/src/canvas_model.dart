@@ -9,6 +9,7 @@ const canvasDatePickerDialogType='flutter.material.DatePickerDialog';
 const canvasCalendarDatePickerType='flutter.material.CalendarDatePicker';
 const canvasInputDatePickerFormFieldType='flutter.material.InputDatePickerFormField';
 const canvasTimePickerDialogType='flutter.material.TimePickerDialog';
+const canvasBottomSheetType = 'flutter.material.BottomSheet';
 const canvasSimpleDialogType = 'flutter.material.SimpleDialog';
 const canvasSimpleDialogOptionType = 'flutter.material.SimpleDialogOption';
 const canvasAlertDialogType='flutter.material.AlertDialog';
@@ -1002,6 +1003,10 @@ void _validateNodeSlotRelationships(
       properties['focusNode']?.kind == 'dartObjectReferencePresence',
       'Canvas Focus.withExternalFocusNode requires a nonnull FocusNode reference: $path/properties/focusNode',
     );
+  }
+  if (type == canvasBottomSheetType) {
+    _expect(properties['builder']?.kind != 'dartObjectReferencePresence' || (slots['child']?.children.isEmpty ?? true),
+      'Canvas BottomSheet project Builder owns its subtree; clear Child first: $path');
   }
   if (type == 'flutter.material.ListTile') {
     _expect(
@@ -6963,6 +6968,20 @@ Map<String,_PropertySpec> _dateRangePickerDialogProperties() {
   };
 }
 const canvasDialogSemanticsRoles = <String>{'none','tab','tabBar','tabPanel','dialog','alertDialog','table','cell','row','columnHeader','dragHandle','spinButton','comboBox','menuBar','menu','menuItem','menuItemCheckbox','menuItemRadio','list','listItem','form','tooltip','loadingSpinner','progressBar','hotKey','radioGroup','status','alert','complementary','contentInfo','main','navigation','region'};
+Map<String, _PropertySpec> _bottomSheetProperties() => {
+  for (final entry in _dialogProperties(false).entries)
+    if (!const {'surfaceTintColor','insetAnimationDurationUs','insetAnimationCurve','insetPadding','alignment','semanticsRole'}.contains(entry.key))
+      entry.key: entry.value,
+  'animationController': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'AnimationController?'),
+  'enableDrag': _PropertySpec({'boolean'},creationDefaultFingerprint:'boolean:false'),
+  'showDragHandle': _PropertySpec({'boolean','null'},creationDefaultFingerprint:'boolean:false'),
+  'dragHandleColor': _dialogProperties(false)['backgroundColor']!,
+  'dragHandleSize': _PropertySpec({'size','dartObjectReference','null'}, dartObjectExpectedType:'Size?'),
+  'onDragStart': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'BottomSheetDragStartHandler?'),
+  'onDragEnd': _PropertySpec({'dartObjectReference','null'}, dartObjectExpectedType:'BottomSheetDragEndHandler?'),
+  'onClosing': _PropertySpec({'string','dartObjectReference'},required:true,stringPattern:'noop',dartObjectExpectedType:'VoidCallback',creationDefaultFingerprint:'string:bm9vcA'),
+  'builder': _PropertySpec({'string','dartObjectReference'},required:true,stringPattern:'child',dartObjectExpectedType:'WidgetBuilder',creationDefaultFingerprint:'string:Y2hpbGQ'),
+};
 Map<String, _PropertySpec> _simpleDialogProperties(bool option) {
   final alert = _alertDialogProperties(false);
   if (option) {
@@ -7113,6 +7132,7 @@ Map<String,_PropertySpec> _paginatedDataTableProperties() {
 final _widgetSpecifications = <String, _WidgetSpec>{
   canvasCalendarDatePickerType:_WidgetSpec(_calendarDatePickerProperties(),{}),
   canvasInputDatePickerFormFieldType:_WidgetSpec(_inputDatePickerFormFieldProperties(),{}),
+  canvasBottomSheetType: _WidgetSpec(_bottomSheetProperties(), const {'child': _optionalSingleSlot}),
   canvasSimpleDialogType: _WidgetSpec(_simpleDialogProperties(false), const {'title': _optionalSingleSlot, 'children': _optionalListSlot}),
   canvasSimpleDialogOptionType: _WidgetSpec(_simpleDialogProperties(true), const {'child': _optionalSingleSlot}),
   canvasAlertDialogType:_WidgetSpec(_alertDialogProperties(false),const {'icon':_optionalSingleSlot,'title':_optionalSingleSlot,'content':_optionalSingleSlot,'actions':_optionalListSlot}),
@@ -11338,6 +11358,45 @@ P|unselectedItemColor|color,dartObjectReference,null,themeToken|0|-|-|color:any;
 P|unselectedLabelStyle|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:TextStyle:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
 P|useLegacyColorScheme|boolean|0|-|-|boolean:any
 S|items|list|1|0|10000|any
+W|flutter.material.BottomSheet
+P|animationController|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:AnimationController?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|backgroundColor|color,dartObjectReference,null,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|builder|dartObjectReference,string|1|string:Y2hpbGQ|-|dartObjectReference:dartObjectReference:v1:WidgetBuilder:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:Y2hpbGQ
+P|clipBehavior|enum,null|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:Clip:antiAlias,antiAliasWithSaveLayer,hardEdge,none;null:any
+P|constraints|boxConstraints,dartObjectReference,null|0|-|-|boxConstraints:boxConstraints:v2:finiteOrPositiveInfinity;dartObjectReference:dartObjectReference:v1:BoxConstraints?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|dragHandleColor|color,dartObjectReference,null,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|dragHandleSize|dartObjectReference,null,size|0|-|-|dartObjectReference:dartObjectReference:v1:Size?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;size:size:finiteNonNegative
+P|elevation|dartObjectReference,double,integer,null|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|dartObjectReference:dartObjectReference:v1:double?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);double:range:0:1:*:1;integer:range:0:1:9007199254740991:1;null:any
+P|enableDrag|boolean|0|boolean:false|-|boolean:any
+P|key|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:Key?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:length:0:4096
+P|onClosing|dartObjectReference,string|1|string:bm9vcA|-|dartObjectReference:dartObjectReference:v1:VoidCallback:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:bm9vcA
+P|onDragEnd|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:BottomSheetDragEndHandler?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|onDragStart|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:BottomSheetDragStartHandler?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|shadowColor|color,dartObjectReference,null,themeToken|0|-|-|color:any;dartObjectReference:dartObjectReference:v1:Color?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|shape|dartObjectReference,null|0|-|-|dartObjectReference:dartObjectReference:v1:ShapeBorder?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any
+P|shapeBottomAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeBottomSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeCircleEccentricity|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeEndAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeEndSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeInnerRadiusRatio|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeKind|string|0|-|-|string:pattern:KD86cm91bmRlZFJlY3RhbmdsZXxiZXZlbGVkUmVjdGFuZ2xlfGNvbnRpbnVvdXNSZWN0YW5nbGV8cm91bmRlZFN1cGVyZWxsaXBzZXxjaXJjbGV8b3ZhbHxzdGFkaXVtfGxpbmVhcnxzdGFyfHBvbHlnb24p
+P|shapePointRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapePoints|double,integer|0|-|double:2:1:*:1;integer:2:1:9007199254740991:1|double:range:2:1:*:1;integer:range:2:1:9007199254740991:1
+P|shapeRadius|borderRadius|0|-|-|borderRadius:borderRadius:v1:physical,directional:finiteNonNegative
+P|shapeRotation|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeSideColor|color,themeToken|0|-|-|color:any;themeToken:tokens:material.colorScheme.error,material.colorScheme.errorContainer,material.colorScheme.inversePrimary,material.colorScheme.inverseSurface,material.colorScheme.onError,material.colorScheme.onErrorContainer,material.colorScheme.onInverseSurface,material.colorScheme.onPrimary,material.colorScheme.onPrimaryContainer,material.colorScheme.onPrimaryFixed,material.colorScheme.onPrimaryFixedVariant,material.colorScheme.onSecondary,material.colorScheme.onSecondaryContainer,material.colorScheme.onSecondaryFixed,material.colorScheme.onSecondaryFixedVariant,material.colorScheme.onSurface,material.colorScheme.onSurfaceVariant,material.colorScheme.onTertiary,material.colorScheme.onTertiaryContainer,material.colorScheme.onTertiaryFixed,material.colorScheme.onTertiaryFixedVariant,material.colorScheme.outline,material.colorScheme.outlineVariant,material.colorScheme.primary,material.colorScheme.primaryContainer,material.colorScheme.primaryFixed,material.colorScheme.primaryFixedDim,material.colorScheme.scrim,material.colorScheme.secondary,material.colorScheme.secondaryContainer,material.colorScheme.secondaryFixed,material.colorScheme.secondaryFixedDim,material.colorScheme.shadow,material.colorScheme.surface,material.colorScheme.surfaceBright,material.colorScheme.surfaceContainer,material.colorScheme.surfaceContainerHigh,material.colorScheme.surfaceContainerHighest,material.colorScheme.surfaceContainerLow,material.colorScheme.surfaceContainerLowest,material.colorScheme.surfaceDim,material.colorScheme.surfaceTint,material.colorScheme.tertiary,material.colorScheme.tertiaryContainer,material.colorScheme.tertiaryFixed,material.colorScheme.tertiaryFixedDim
+P|shapeSideStrokeAlign|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeSideStyle|enum|0|-|-|enum:enum:cGFja2FnZTpmbHV0dGVyL3dpZGdldHMuZGFydA:BorderStyle:none,solid
+P|shapeSideWidth|double,integer|0|-|double:0:1:*:1;integer:0:1:9007199254740991:1|double:range:0:1:*:1;integer:range:0:1:9007199254740991:1
+P|shapeSquash|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeStartAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeStartSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeTopAlignment|double,integer|0|-|double:*:1:*:1;integer:-9007199254740991:1:9007199254740991:1|double:range:*:1:*:1;integer:range:-9007199254740991:1:9007199254740991:1
+P|shapeTopSize|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|shapeValleyRounding|double,integer|0|-|double:0:1:1:1;integer:0:1:1:1|double:range:0:1:1:1;integer:range:0:1:1:1
+P|showDragHandle|boolean,null|0|boolean:false|-|boolean:any;null:any
+S|child|single|0|0|1|any
 W|flutter.material.CalendarDatePicker
 P|calendarDelegate|dartObjectReference,string|0|-|-|dartObjectReference:dartObjectReference:v1:CalendarDelegate<DateTime>:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);string:pattern:Z3JlZ29yaWFu
 P|currentDate|dartObjectReference,null,string|0|-|-|dartObjectReference:dartObjectReference:v1:DateTime?:currentOrPackage:root,optionalMember:reference,zeroArgumentInvocation:requiredConstnessBoolean(false,true);null:any;string:pattern:WzAtOV17NH0tWzAtOV17Mn0tWzAtOV17Mn0
@@ -20780,6 +20839,12 @@ void _validatePropertyRelationships(
         'Canvas $dialogName whole $family and local leaves are mutually exclusive: $path/properties/$family');
       _validateAppBarTextStyleRelationships(properties,prefix:family,path:path,widgetName:dialogName);
     }
+  }
+  if (type == canvasBottomSheetType) {
+    _validateCardRelationships(properties, path, widgetName:'BottomSheet');
+    _expect(properties['animationController']?.kind == 'dartObjectReferencePresence'
+        || (properties['enableDrag']?.value == false && properties['showDragHandle']?.value == false),
+      'Canvas BottomSheet needs AnimationController for dragging or inherited/visible handle: $path');
   }
   if (type == canvasDialogType) {
     _validateCardRelationships(properties, path, widgetName:'Dialog');

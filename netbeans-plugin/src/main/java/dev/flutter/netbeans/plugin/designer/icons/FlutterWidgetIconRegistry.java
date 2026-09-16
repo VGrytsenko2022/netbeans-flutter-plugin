@@ -24,6 +24,7 @@ public final class FlutterWidgetIconRegistry {
             "dev/flutter/netbeans/plugin/designer/icons/widgets/";
 
     private static final Map<String, String> REVIEWED_ICON_PATHS = Map.ofEntries(
+            Map.entry("flutter.material.BottomSheet", ICON_ROOT + "bottomsheet.svg"),
             Map.entry("flutter.material.Scaffold", ICON_ROOT + "scaffold.svg"),
             Map.entry("flutter.material.AppBar", ICON_ROOT + "appbar.svg"),
             Map.entry("flutter.material.FlexibleSpaceBar", ICON_ROOT + "flexiblespacebar.svg"),

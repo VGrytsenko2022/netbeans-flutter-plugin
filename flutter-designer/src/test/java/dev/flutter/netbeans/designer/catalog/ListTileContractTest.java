@@ -223,12 +223,12 @@ class ListTileContractTest {
     @Test
     void aggregateCountsAndUnchangedBudgetsAreExecutable() {
         var definitions = CATALOG.definitions();
-        assertEquals(244, definitions.size());
-        assertEquals(200, definitions.stream().filter(WidgetDefinition::constConstructor).count());
-        assertEquals(8177, definitions.stream().mapToInt(v -> v.properties().size()).sum());
-        assertEquals(730, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
-        assertEquals(54, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
-        assertEquals(70, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());
+        assertEquals(245, definitions.size());
+        assertEquals(201, definitions.stream().filter(WidgetDefinition::constConstructor).count());
+        assertEquals(8214, definitions.stream().mapToInt(v -> v.properties().size()).sum());
+        assertEquals(731, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
+        assertEquals(55, definitions.stream().flatMap(v -> v.properties().stream()).filter(v -> v.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN, PropertyValueKind.NULL))).count());
+        assertEquals(71, definitions.stream().filter(v -> v.palette().categoryId().equals("flutter.material")).count());
         assertEquals(17, DesignerDocument.SCHEMA_VERSION);
         assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(1024, FdCodecLimits.defaults().maxPropertiesPerWidget());

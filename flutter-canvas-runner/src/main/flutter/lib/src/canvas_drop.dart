@@ -544,6 +544,7 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         CanvasDropSlotSemantics.emptySingle(slotName: 'title'),
         canvasChildrenAppendDropSlot,
       ],
+      canvasBottomSheetType => const [canvasEmptyChildDropSlot],
       canvasSimpleDialogOptionType => const [canvasEmptyChildDropSlot],
       canvasAlertDialogType || canvasAdaptiveAlertDialogType => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'icon'),

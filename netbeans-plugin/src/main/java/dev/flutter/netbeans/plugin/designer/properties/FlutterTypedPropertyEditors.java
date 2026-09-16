@@ -273,10 +273,11 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.AlignmentGeometryValues
                         || value instanceof PropertyValueConstraint.AlignmentValues)) {
             editorKind = EditorKind.ALIGNMENT_GEOMETRY;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE, PropertyValueKind.DART_OBJECT_REFERENCE))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.SIZE, PropertyValueKind.DART_OBJECT_REFERENCE))
+                || kinds.equals(EnumSet.of(PropertyValueKind.SIZE, PropertyValueKind.DART_OBJECT_REFERENCE, PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(PropertyValueConstraint.SizeValues.class::isInstance)
                 && definition.constraints().stream().anyMatch(value -> value instanceof PropertyValueConstraint.DartObjectReferenceValues reference
-                        && reference.expectedDartType().equals("Size"))) {
+                        && (reference.expectedDartType().equals("Size") || reference.expectedDartType().equals("Size?")))) {
             editorKind = EditorKind.SIZE_REFERENCE;
         } else if (kinds.equals(EnumSet.of(PropertyValueKind.SIZE))
                 && definition.constraints().stream().anyMatch(

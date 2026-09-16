@@ -505,7 +505,7 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
-            if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(node.type()) || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
+            if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(node.type()) || dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.OPTION_TYPE.equals(node.type()) || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 var value = node.properties().get(property.name());
                 if (CardWidgetPropertySchema.builtInShapePropertyNames().contains(name)
@@ -701,6 +701,9 @@ public final class DartRegionGenerator {
             if (dev.flutter.netbeans.designer.catalog.ValueListenableBuilderWidgetPropertySchema.supports(node.type())) continue;
             if (dev.flutter.netbeans.designer.catalog.TweenAnimationBuilderWidgetPropertySchema.supports(node.type())
                     && !property.name().value().equals("onEnd")) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)
+                    && Set.of("builder", "onClosing").contains(property.name().value())
+                    && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
             if (usesListenableBuilderPresets(node)
                     && node.properties().get(property.name()) instanceof PropertyValue.StringValue) continue;
             if (node.type().equals(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE)) continue;
@@ -1002,6 +1005,7 @@ public final class DartRegionGenerator {
             if (OutlinedButtonWidgetPropertySchema.isFullStyleButton(node)
                     && slot.name().value().equals("icon") && !OutlinedButtonWidgetPropertySchema.isIconVariant(node)) continue;
             if (BadgeWidgetPropertySchema.isCountMode(node) && slot.name().value().equals("label")) continue;
+            if (node.type().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)) continue;
             if (value != null) {
                 if ((node.type().value().equals("flutter.widgets.Transform")
                         || (node.type().value().equals("flutter.widgets.Visibility")
@@ -1070,6 +1074,7 @@ public final class DartRegionGenerator {
                                 .filter(family::equals).flatMap(ignored -> dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleBinding(name)));
         }
         if (node.type().equals(CardWidgetPropertySchema.CARD_TYPE)
+                || node.type().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)
                 || node.type().equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE)
                 || (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(node.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(node.type()))
                 || node.type().equals(ListTileWidgetPropertySchema.LIST_TILE_TYPE)
@@ -1109,6 +1114,9 @@ public final class DartRegionGenerator {
         }
         if (node.type().equals(NotificationListenerWidgetPropertySchema.NOTIFICATION_LISTENER_TYPE)) {
             appendNotificationListenerArguments(node, definition, path, context, arguments);
+        }
+        if (node.type().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)) {
+            appendBottomSheetPresets(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (node.type().equals(BuilderWidgetPropertySchema.BUILDER_TYPE)) {
             appendBuilderArguments(node, definition, path, context, arguments);
@@ -4175,6 +4183,36 @@ public final class DartRegionGenerator {
                         valuePath, node.id(), context, occurrences);
             }
             arguments.add(new ConstructorArgument(property.parameter(), name, false, value));
+        }
+    }
+
+    private void appendBottomSheetPresets(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        for (String name : List.of("onClosing", "builder")) {
+            if (!(node.properties().get(new PropertyName(name)) instanceof PropertyValue.StringValue)) continue;
+            var property = definition.property(new PropertyName(name)).orElseThrow();
+            String valuePath = path + "/properties/" + name;
+            RenderedValue rendered;
+            if (name.equals("onClosing")) {
+                rendered = scalar("() {}", false, valuePath, node.id(), context);
+            } else {
+                var child = node.slots().get(new SlotName("child"));
+                RenderedValue content;
+                if (child instanceof WidgetSlot.SingleSlot single && single.child().isPresent()) {
+                    content = renderSlot(child, path + "/slots/child", indent, context);
+                } else {
+                    var symbol = context.planner().renderedSymbol(WIDGETS_IMPORT, "SizedBox");
+                    content = scalar("const " + symbol.text() + ".shrink()", true, valuePath, node.id(), context,
+                            List.of(occurrence("widget:" + node.id() + ":bottomSheetEmpty",
+                                    6 + symbol.nameOffset(), symbol.name(), symbol.libraryUri(), valuePath, Optional.of(node.id())),
+                                    occurrence("widget:" + node.id() + ":bottomSheetShrink", 7 + symbol.text().length(),
+                                            "shrink", symbol.libraryUri(), valuePath, Optional.of(node.id()))));
+                }
+                var lines = new LineAccumulator(context.maxRenderedUtf8Bytes(), valuePath, node.id());
+                lines.addBlock("(context) => " + content.joined(), content.symbolOccurrences(), 13);
+                rendered = lines.build(false);
+            }
+            arguments.add(new ConstructorArgument(property.parameter(), name, name.equals("builder"), rendered));
         }
     }
 

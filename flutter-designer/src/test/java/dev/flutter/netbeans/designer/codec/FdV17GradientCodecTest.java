@@ -54,6 +54,6 @@ class FdV17GradientCodecTest {
     var before=generator.generate(original,catalog);var after=generator.generate(migrated.document(),catalog);
     assertEquals(before,after,definition.typeId().value());checked++;
   }
-  assertEquals(243,checked);
+  assertEquals(244,checked);
  }
 }

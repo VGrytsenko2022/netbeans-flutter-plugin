@@ -166,6 +166,7 @@ public final class BuiltInWidgetCatalog {
             alertDialog(true),
             simpleDialog(false),
             simpleDialog(true),
+            bottomSheet(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -3334,6 +3335,14 @@ public final class BuiltInWidgetCatalog {
                 true, WIDGETS_IMPORT, List.of(WIDGETS_IMPORT, MATERIAL_IMPORT, DART_UI_IMPORT, "dart:typed_data", "package:flutter/rendering.dart"),
                 Set.of(), palette("flutter.basic", 300, grouped ? 340 : 330, grouped ? "BackdropFilter.grouped" : "BackdropFilter"),
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
+    }
+
+    private static WidgetDefinition bottomSheet() {
+        var properties = BottomSheetWidgetPropertySchema.properties();
+        return widget(BottomSheetWidgetPropertySchema.TYPE.value(), "BottomSheet", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, "dart:ui", "dart:core"), Set.of(),
+                palette("flutter.material", 100, 740, "BottomSheet"), properties,
+                List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
     }
 
     private static WidgetDefinition simpleDialog(boolean option) {

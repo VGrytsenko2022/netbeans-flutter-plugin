@@ -1181,6 +1181,25 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                String group = name.equals("builder") ? "Content" : name.startsWith("on") ? "Events"
+                        : name.equals("animationController") || name.equals("enableDrag") || name.equals("showDragHandle")
+                                ? "Behavior" : dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.group(name);
+                var set = groups.computeIfAbsent(group, key -> {
+                    var result = propertySet("bottomSheet" + key, key, dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, Optional.empty(),
+                        dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.help(name), false,
+                        name.equals("builder") ? java.util.List.of("child") : name.equals("onClosing") ? java.util.List.of("noop")
+                                : dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.supports(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1759,6 +1778,9 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         if (dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.SliverPersistentHeaderWidgetPropertySchema.DESCRIPTION;
+        }
+        if (dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(widget.type())) {
+            return dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.DESCRIPTION;
         }
         if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION;
@@ -6125,6 +6147,7 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
             return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
         }
         if (CardWidgetPropertySchema.CARD_TYPE.equals(currentWidget.type())
+                || dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.equals(currentWidget.type())
                 || dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.equals(currentWidget.type())) {
             return cardPropertyCommand(currentWidget, propertyName, accepted);
         }

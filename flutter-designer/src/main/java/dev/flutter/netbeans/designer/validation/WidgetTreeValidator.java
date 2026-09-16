@@ -912,6 +912,22 @@ public final class WidgetTreeValidator {
                 validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", node.type().value()+" "+family);
             }
         }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE.value())) {
+            validateCardShape(node, propertiesPath, issues, "shape", "BottomSheet shape");
+            boolean controller = node.properties().get(new PropertyName("animationController"))
+                    instanceof PropertyValue.DartObjectReferenceValue;
+            if (!controller && (!new PropertyValue.BooleanValue(false).equals(node.properties().get(new PropertyName("enableDrag")))
+                    || !new PropertyValue.BooleanValue(false).equals(node.properties().get(new PropertyName("showDragHandle"))))) {
+                issues.add(issue(PROPERTY_DEPENDENCY, propertiesPath + "/animationController", node.id(),
+                        "BottomSheet: supply AnimationController before enabling dragging or inheriting/showing a drag handle. Without a controller set Enable drag and Show drag handle explicitly false."));
+            }
+            if (node.properties().get(new PropertyName("builder")) instanceof PropertyValue.DartObjectReferenceValue
+                    && node.slots().get(new SlotName("child")) instanceof WidgetSlot.SingleSlot child && child.child().isPresent()) {
+                issues.add(issue(PROPERTY_CONFLICT, propertiesPath + "/builder", node.id(),
+                        "BottomSheet project Builder owns its subtree. Clear Child before selecting source, or retain the Child preset."));
+            }
+            return;
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.TYPE.value())) {
             validateCardShape(node, propertiesPath, issues, "shape", "Dialog shape");
             return;

@@ -45,8 +45,8 @@ class ScaffoldBottomSheetScrimBuilderPropertyTest {
         var descriptor = WidgetEventCatalog.eventsFor(DEFINITION).stream().filter(event -> event.propertyName().equals(BUILDER)).findFirst().orElseThrow();
         assertEquals(WidgetEventDescriptor.Kind.BUILDER, descriptor.kind()); assertEquals("Widget?", descriptor.signature().returnType());
         assertEquals(List.of("BuildContext", "Animation<double>"), descriptor.signature().parameters().stream().map(WidgetEventDescriptor.Parameter::type).toList());
-        assertEquals(267, BuiltInWidgetCatalog.getDefault().definitions().stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
-        assertEquals(50, BuiltInWidgetCatalog.getDefault().definitions().stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream())
+        assertEquals(271, BuiltInWidgetCatalog.getDefault().definitions().stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream()).count());
+        assertEquals(51, BuiltInWidgetCatalog.getDefault().definitions().stream().flatMap(definition -> WidgetEventCatalog.eventsFor(definition).stream())
                 .filter(event -> event.kind() == WidgetEventDescriptor.Kind.BUILDER).count());
         var row = row(node); assertTrue(row.canWrite()); assertTrue(row.supportsDefaultValue());
         assertEquals(FlutterTypedPropertyEditors.EditorKind.DART_OBJECT_REFERENCE, binding().editorKind());

@@ -2645,8 +2645,12 @@ accepted architecture is documented in
     shapes, exact padding nullability, nullable onPressed Events and native Canvas.
     Verified user-owned route results, source types, history and save/reopen.
     See [SimpleDialog and SimpleDialogOption](SIMPLE_DIALOG.md).
-  - [ ] Next palette candidate: BottomSheet. Audit controller ownership, drag
-    callbacks, route integration and native sizing before implementation.
+  - [x] Add BottomSheet: all 16 constructor arguments, 37 editable rows, Child/
+    typed WidgetBuilder, three Events, nullable Size editor and ten shape families.
+    Safe creation defaults, typed controller ownership, strict source admission,
+    native preview lifecycle and real drag callback order. See [BottomSheet](BOTTOM_SHEET.md).
+  - [ ] Next palette candidate: SnackBar and SnackBarAction. Audit ScaffoldMessenger,
+    action lifecycle, dismissal/animation and native responsive layout.
   - [x] Add SliverFloatingHeader: required box Child with an explicit creation
     seed and atomic replacement, both snap modes, full nullable AnimationStyle,
     independent durations/43 curves, strict source proof and native Canvas.

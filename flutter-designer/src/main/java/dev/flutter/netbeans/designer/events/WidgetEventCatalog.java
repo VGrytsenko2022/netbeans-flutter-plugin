@@ -105,6 +105,10 @@ public final class WidgetEventCatalog {
                 sdkRequired=property.parameter().required();
                 nullable=property.acceptedKinds().contains(PropertyValueKind.NULL);
             }
+            if (definition.typeId().equals(dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.TYPE)) {
+                sdkRequired = property.parameter().required();
+                nullable = property.acceptedKinds().contains(PropertyValueKind.NULL);
+            }
             if (definition.typeId().value().equals("flutter.widgets.SliverFillViewport")) nullable = false;
             return new WidgetEventDescriptor(name, spec.type(), spec.kind(), spec.signature(),
                     property.parameter().required(), property.acceptedKinds().contains(PropertyValueKind.NULL),
@@ -126,6 +130,7 @@ public final class WidgetEventCatalog {
     }
 
     private static String unsetBehavior(String widget, String property) {
+        if (widget.equals("BottomSheet")) return dev.flutter.netbeans.designer.catalog.BottomSheetWidgetPropertySchema.help(property);
         if ((widget.equals("ModalBarrier") || widget.equals("AnimatedModalBarrier")) && property.equals("onDismiss")) return "Unset/null uses Navigator.maybePop when Dismissible is true; otherwise the retained callback is ignored. A bound callback owns dismissal; Canvas suppresses callback, route changes and alert sounds.";
         if (widget.equals("CalendarDatePicker") && property.equals("onDateChanged")) return "Required ValueChanged<DateTime>. Disconnect restores the explicit no-op; it never writes null or removes the required callback.";
         if (widget.equals("ShaderMask") && property.equals("shaderCallback")) return "Required Shader Function(Rect bounds). Disconnect restores the opaque-white gradient; it never writes null or removes the required callback.";
@@ -357,6 +362,14 @@ public final class WidgetEventCatalog {
                 "void", "RefreshIndicatorStatus?:status");
         addCallable(widgets, "flutter.material.RefreshIndicator", "notificationPredicate", "ScrollNotificationPredicate",
                 WidgetEventDescriptor.Kind.PREDICATE, false, "bool", "ScrollNotification:notification");
+        String bottomSheet = "flutter.material.BottomSheet";
+        add(widgets, bottomSheet, "onClosing", "VoidCallback", true, "void");
+        add(widgets, bottomSheet, "onDragStart", "BottomSheetDragStartHandler?", false, "void", "DragStartDetails:details");
+        addCallable(widgets, bottomSheet, "onDragEnd", "BottomSheetDragEndHandler?", WidgetEventDescriptor.Kind.EVENT,
+                false, "void", List.of(new WidgetEventDescriptor.Parameter("DragEndDetails", "details"),
+                        WidgetEventDescriptor.Parameter.requiredNamed("bool", "isClosing")));
+        addCallable(widgets, bottomSheet, "builder", "WidgetBuilder", WidgetEventDescriptor.Kind.BUILDER,
+                false, "Widget", "BuildContext:context");
         String textField = "flutter.material.TextField";
         addCallable(widgets, textField, "buildCounter", TextFieldWidgetPropertySchema.INPUT_COUNTER_BUILDER_TYPE,
                 WidgetEventDescriptor.Kind.BUILDER, false, "Widget?", List.of(

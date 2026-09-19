@@ -14,7 +14,7 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ExpectedModuleCodeName = 'dev.flutter.netbeans.netbeans.plugin'
+$ExpectedModuleCodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
 $ExpectedModuleName = 'Flutter and Dart Support'
 $ExpectedModuleCategory = 'Flutter'
 $CriticalLogPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
@@ -30,34 +30,34 @@ $AuxiliaryConfigurationOrderingLogPattern = (
 $PluginLayerOrderingLogPattern = (
     '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
     '(?:Found same position\b|Not all children\b)' +
-    '[^\r\n]*dev-flutter-netbeans-plugin-'
+    '[^\r\n]*io-github-vgrytsenko2022-plugin-'
 )
 $OptionalSdkTestClasses = @(
-    'dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest',
-    'dev.flutter.netbeans.dart.DartCandidateAnalyzerRealSdkTest',
-    'dev.flutter.netbeans.project.FlutterProjectCreatorRealSdkTest',
-    'dev.flutter.netbeans.run.AndroidSdkAvdRealSdkTest',
-    'dev.flutter.netbeans.runtime.DartEditorEndToEndIT'
+    'io.github.vgrytsenko2022.dart.DartAnalysisServerRealSdkTest',
+    'io.github.vgrytsenko2022.dart.DartCandidateAnalyzerRealSdkTest',
+    'io.github.vgrytsenko2022.project.FlutterProjectCreatorRealSdkTest',
+    'io.github.vgrytsenko2022.run.AndroidSdkAvdRealSdkTest',
+    'io.github.vgrytsenko2022.runtime.DartEditorEndToEndIT'
 )
 $OptionalSdkTestCases = @(
-    'dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested',
-    'dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested',
-    'dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+    'io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested',
+    'io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested',
+    'io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
 )
 $OptionalWebCanvasTestCases = @(
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest#buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested',
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested',
-    'dev.flutter.netbeans.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest#loadsPackagedX64AdapterAndProbesInstalledRuntime',
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest#linkedSdkIdentityMetadataIsRejectedWhenLinksAreAvailable',
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest#rejectsFileSymlinkEscapeWhenSupported',
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest#rejectsSourceSymlinkWithoutReadingItsTarget',
-    'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest#cleanupFailsClosedWhenPublishedTreeIsReplacedByLink',
-    'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest#linkedUserDataParentIsRejectedWithoutTouchingItsTarget',
-    'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest#buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest#loadsPackagedX64AdapterAndProbesInstalledRuntime',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest#linkedSdkIdentityMetadataIsRejectedWhenLinksAreAvailable',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactContractTest#rejectsFileSymlinkEscapeWhenSupported',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactPublisherTest#rejectsSourceSymlinkWithoutReadingItsTarget',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactPublisherTest#cleanupFailsClosedWhenPublishedTreeIsReplacedByLink',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WindowsWebCanvasHostTest#linkedUserDataParentIsRejectedWithoutTouchingItsTarget',
+    'io.github.vgrytsenko2022.plugin.designer.canvas.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
 )
 $OptionalPlatformTestCases = @(
-    'dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable',
-    'dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
+    'io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable',
+    'io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
 )
 $Failures = New-Object 'System.Collections.Generic.List[string]'
 
@@ -585,8 +585,8 @@ function Verify-Nbm {
         }
 
         foreach ($entryName in @(
-                'netbeans/config/Modules/dev-flutter-netbeans-netbeans-plugin.xml',
-                'netbeans/modules/dev-flutter-netbeans-netbeans-plugin.jar')) {
+                'netbeans/config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml',
+                'netbeans/modules/io-github-vgrytsenko2022-netbeans-plugin.jar')) {
             if ($null -eq $archive.GetEntry($entryName)) {
                 Add-Failure "NBM is missing $entryName."
             } else {
@@ -734,9 +734,9 @@ function Verify-InstalledUserdir {
     }
     $resolvedUserdir = (Resolve-Path -LiteralPath $Userdir).Path
     $configPath = Join-Path $resolvedUserdir `
-        'config\Modules\dev-flutter-netbeans-netbeans-plugin.xml'
+        'config\Modules\io-github-vgrytsenko2022-netbeans-plugin.xml'
     $trackingPath = Join-Path $resolvedUserdir `
-        'update_tracking\dev-flutter-netbeans-netbeans-plugin.xml'
+        'update_tracking\io-github-vgrytsenko2022-netbeans-plugin.xml'
     $logPath = Join-Path $resolvedUserdir 'var\log\messages.log'
 
     foreach ($required in @($configPath, $trackingPath, $logPath)) {

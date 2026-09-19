@@ -674,8 +674,8 @@ extension catalog off the EDT. A broken contributor is rejected by the domain
 composer, its stable diagnostic is retained in the current UI state, and the
 built-in catalog remains available.
 
-The NetBeans module exports only `dev.flutter.netbeans.designer.catalog` and
-`dev.flutter.netbeans.designer.model` for contributor modules. Such a module
+The NetBeans module exports only `io.github.vgrytsenko2022.designer.catalog` and
+`io.github.vgrytsenko2022.designer.model` for contributor modules. Such a module
 depends on this plugin's NetBeans module and reuses its packaged
 `flutter-designer.jar`; bundling another copy would split SPI class identity.
 Codec, validation and NetBeans edge packages remain private. If the contributor

@@ -1,6 +1,6 @@
 // GENERATED DATA CONTRACT. Keep synchronized with the locked Flutter 3.44.8
 // registry at:
-// flutter-designer/src/main/resources/dev/flutter/netbeans/designer/catalog/
+// flutter-designer/src/main/resources/io/github/vgrytsenko2022/designer/catalog/
 // material-icons-3.44.8.tsv
 //
 // Source fingerprint:

@@ -58,10 +58,10 @@ function New-NbmFixture {
 
     $info = @"
 <?xml version="1.0" encoding="UTF-8"?>
-<module codenamebase="dev.flutter.netbeans.netbeans.plugin"
+<module codenamebase="io.github.vgrytsenko2022.netbeans.plugin"
         distribution="fixture.nbm" downloadsize="0" license="license-id"
         needsrestart="false" releasedate="2026/08/24">
-  <manifest OpenIDE-Module="dev.flutter.netbeans.netbeans.plugin"
+  <manifest OpenIDE-Module="io.github.vgrytsenko2022.netbeans.plugin"
             OpenIDE-Module-Name="Flutter and Dart Support"
             OpenIDE-Module-Specification-Version="$SpecificationVersion"
             OpenIDE-Module-Implementation-Version="$ImplementationVersion"/>
@@ -72,38 +72,38 @@ function New-NbmFixture {
     New-ZipFile $moduleJar @{
         'META-INF/MANIFEST.MF' = @"
 Manifest-Version: 1.0
-OpenIDE-Module: dev.flutter.netbeans.netbeans.plugin
+OpenIDE-Module: io.github.vgrytsenko2022.netbeans.plugin
 OpenIDE-Module-Specification-Version: $SpecificationVersion
 OpenIDE-Module-Implementation-Version: $ImplementationVersion
 
 "@
     }
     $config = @"
-<module name="dev.flutter.netbeans.netbeans.plugin">
+<module name="io.github.vgrytsenko2022.netbeans.plugin">
   <param name="enabled">true</param>
-  <param name="jar">modules/dev-flutter-netbeans-netbeans-plugin.jar</param>
+  <param name="jar">modules/io-github-vgrytsenko2022-netbeans-plugin.jar</param>
 </module>
 "@
     $tracking = @"
 <?xml version="1.0" encoding="UTF-8"?>
-<module codename="dev.flutter.netbeans.netbeans.plugin">
+<module codename="io.github.vgrytsenko2022.netbeans.plugin">
   <module_version last="true" origin="installer"
                   specification_version="$SpecificationVersion">
-    <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
-    <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
-    <file name="modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar"/>
-    <file name="update_tracking/dev-flutter-netbeans-netbeans-plugin.xml"/>
+    <file name="config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml"/>
+    <file name="modules/io-github-vgrytsenko2022-netbeans-plugin.jar"/>
+    <file name="modules/ext/io.github.vgrytsenko2022.netbeans-plugin/dependency.jar"/>
+    <file name="update_tracking/io-github-vgrytsenko2022-netbeans-plugin.xml"/>
   </module_version>
 </module>
 "@
     New-ZipFile $Path @{
         'Info/info.xml' = $info
-        'netbeans/config/Modules/dev-flutter-netbeans-netbeans-plugin.xml' = $config
-        'netbeans/modules/dev-flutter-netbeans-netbeans-plugin.jar' = `
+        'netbeans/config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml' = $config
+        'netbeans/modules/io-github-vgrytsenko2022-netbeans-plugin.jar' = `
             [System.IO.File]::ReadAllBytes($moduleJar)
-        'netbeans/modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar' = `
+        'netbeans/modules/ext/io.github.vgrytsenko2022.netbeans-plugin/dependency.jar' = `
             [System.Text.Encoding]::UTF8.GetBytes("dependency-$ImplementationVersion")
-        'netbeans/update_tracking/dev-flutter-netbeans-netbeans-plugin.xml' = $tracking
+        'netbeans/update_tracking/io-github-vgrytsenko2022-netbeans-plugin.xml' = $tracking
     }
     return $Path
 }
@@ -155,8 +155,8 @@ function New-InstalledFixture {
             "    <file name=`"$_`"/>"
         }) -join "`r`n"
     Write-Utf8File (Join-Path $Userdir `
-        'update_tracking\dev-flutter-netbeans-netbeans-plugin.xml') @"
-<module codename="dev.flutter.netbeans.netbeans.plugin">
+        'update_tracking\io-github-vgrytsenko2022-netbeans-plugin.xml') @"
+<module codename="io.github.vgrytsenko2022.netbeans.plugin">
   <module_version last="false" origin="$origin"
                   specification_version="$($Metadata.SpecificationVersion)">
 $trackedFileXml
@@ -170,7 +170,7 @@ $trackedFileXml
     Write-Utf8File (Join-Path $Userdir 'var\log\messages.log') @"
   Product Version         = Apache NetBeans IDE 30
 INFO [org.netbeans.core.startup.NbEvents]: Turning on modules:
-    dev.flutter.netbeans.netbeans.plugin [$($Metadata.SpecificationVersion) $($Metadata.ImplementationVersion) 202608241900]
+    io.github.vgrytsenko2022.netbeans.plugin [$($Metadata.SpecificationVersion) $($Metadata.ImplementationVersion) 202608241900]
 "@
 }
 
@@ -372,7 +372,7 @@ dart.sdk.useBundled=false
         $metadata = Get-NbmMetadata $nbm
         $catalog = New-LocalUpdateCatalog $metadata (Join-Path $TestDrive 'site')
 
-        $metadata.CodeName | Should Be 'dev.flutter.netbeans.netbeans.plugin'
+        $metadata.CodeName | Should Be 'io.github.vgrytsenko2022.netbeans.plugin'
         $metadata.SpecificationVersion | Should Be '0.1.2'
         $metadata.PayloadFiles.Count | Should Be 4
         (Get-FileHash $nbm -Algorithm SHA256).Hash | Should Be `
@@ -575,12 +575,12 @@ dart.sdk.useBundled=false
         $output = @"
 Code Name                                          Version                                State
 -------------------------------------------------- -------------------------------------- -------------
-dev.flutter.netbeans.netbeans.plugin               0.1.2     Enabled
+io.github.vgrytsenko2022.netbeans.plugin               0.1.2     Enabled
 -------------------------------------------------- -------------------------------------- -------------
 "@
         (Test-ModuleListReady $output) | Should Be $true
         $record = Get-ModuleListRecord $output `
-            'dev.flutter.netbeans.netbeans.plugin'
+            'io.github.vgrytsenko2022.netbeans.plugin'
         $record.Version | Should Be '0.1.2'
         $record.State | Should Be 'Enabled'
         @(Get-CriticalLogLines 'INFO clean').Count | Should Be 0
@@ -592,13 +592,13 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2     Enabled
         (Test-NetBeans30ProductLog `
                 'Product Version = Apache NetBeans IDE 31') | Should Be $false
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.2'
             ImplementationVersion = '0.1.2-20260824'
         }
         $activationLog = @"
   Product Version         = Apache NetBeans IDE 30
-    dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2-20260824 build]
+    io.github.vgrytsenko2022.netbeans.plugin [0.1.2 0.1.2-20260824 build]
 "@
         (Test-NetBeansActivationLog $activationLog $metadata) | Should Be $true
     }
@@ -608,14 +608,14 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2     Enabled
 WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <open-files xmlns="http://www.netbeans.org/ns/projectui-open-files/2"><group/></open-files> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/projectui-open-files/2#open-files on C:/fixture/flutter_app
 WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <preferences xmlns="http://www.netbeans.org/ns/auxiliary-configuration-preferences/1"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/auxiliary-configuration-preferences/1#preferences on C:/fixture/flutter_app
 WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <editor-bookmarks xmlns="http://www.netbeans.org/ns/editor-bookmarks/2"/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/editor-bookmarks/2#editor-bookmarks on C:/fixture/flutter_app
-WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance
-WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance and io-github-vgrytsenko2022-plugin-dart-DartEditorKit.instance
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [io-github-vgrytsenko2022-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
 WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ordering attribute <other/> from org.netbeans.spi.project.AuxiliaryConfiguration.http://www.netbeans.org/ns/other/1#other on C:/fixture/flutter_app
 WARNING [org.openide.filesystems.Ordering]: Not all children are marked with a position attribute.
 WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both org-example-One.instance and org-example-Two.instance
-WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute dev-flutter-netbeans-plugin-dart-DartTokenId.instance/org-example-One.instance
-INFO [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and org-example-One.instance
-WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [dev-flutter-netbeans-plugin-dart-DartTokenId.instance]
+WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance/org-example-One.instance
+INFO [org.openide.filesystems.Ordering]: Found same position 100 for both io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance and org-example-One.instance
+WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance]
 '@
 
         @(Get-PluginOwnedOrderingLogLines $log).Count | Should Be 5
@@ -975,7 +975,7 @@ Code Name Version State
 
     It 'handles exact module states and a direct disable with empty stdout' {
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.2'
         }
         $hostHandle = [pscustomobject]@{
@@ -1014,7 +1014,7 @@ Code Name Version State
                 StandardOutput = @"
 Code Name                                          Version State
 -------------------------------------------------- ------- ---------
-dev.flutter.netbeans.netbeans.plugin               0.1.2   $script:reportedModuleState
+io.github.vgrytsenko2022.netbeans.plugin               0.1.2   $script:reportedModuleState
 "@
                 StandardError = ''
             }
@@ -1055,7 +1055,7 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2   $script:reportedModul
                 '--userdir', 'fixture-userdir',
                 '--cachedir', 'fixture-cache',
                 '--nosplash', '--modules', '--direct-disable',
-                '^dev\.flutter\.netbeans\.netbeans\.plugin$'
+                '^io\.github\.vgrytsenko2022\.netbeans\.plugin$'
             ) -join '|')
     }
 
@@ -1063,13 +1063,13 @@ dev.flutter.netbeans.netbeans.plugin               0.1.2   $script:reportedModul
         $before = @"
 Code Name Version State
 ---------- ------- -----
-dev.flutter.netbeans.netbeans.plugin 0.1.2 Enabled
+io.github.vgrytsenko2022.netbeans.plugin 0.1.2 Enabled
 unrelated.module 7.4 Enabled
 "@
         $validAfter = @"
 Code Name Version State
 ---------- ------- -----
-dev.flutter.netbeans.netbeans.plugin 0.1.2 Installed
+io.github.vgrytsenko2022.netbeans.plugin 0.1.2 Installed
 unrelated.module 7.4 Enabled
 "@
         $changedAfter = $validAfter.Replace(
@@ -1077,10 +1077,10 @@ unrelated.module 7.4 Enabled
             'unrelated.module 7.4 Installed')
 
         { Assert-UnrelatedModuleStatesEqual $before $validAfter `
-                'dev.flutter.netbeans.netbeans.plugin' } | Should Not Throw
+                'io.github.vgrytsenko2022.netbeans.plugin' } | Should Not Throw
         (Test-ScriptBlockThrows {
                 Assert-UnrelatedModuleStatesEqual $before $changedAfter `
-                    'dev.flutter.netbeans.netbeans.plugin'
+                    'io.github.vgrytsenko2022.netbeans.plugin'
             }) | Should Be $true
     }
 
@@ -1104,13 +1104,13 @@ unrelated.module 7.4 Enabled
                 StandardOutput = if ($script:operationAttempts -eq 1) {
                     ''
                 } else {
-                    'Installing dev.flutter.netbeans.netbeans.plugin@0.1.1'
+                    'Installing io.github.vgrytsenko2022.netbeans.plugin@0.1.1'
                 }
                 StandardError = ''
             }
         }
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.1'
         }
         $catalog = [pscustomobject]@{ Uri = 'file:///fixture/updates.xml' }
@@ -1133,17 +1133,17 @@ unrelated.module 7.4 Enabled
                 StandardOutput = if ($script:catalogInstallAttempts -eq 1) {
                     'Refreshing file:///fixture/updates.xml'
                 } else {
-                    'Installing dev.flutter.netbeans.netbeans.plugin@0.1.2'
+                    'Installing io.github.vgrytsenko2022.netbeans.plugin@0.1.2'
                 }
                 StandardError = if ($script:catalogInstallAttempts -eq 1) {
-                    'Cannot find any module matching [^dev\.flutter\.netbeans\.netbeans\.plugin$]'
+                    'Cannot find any module matching [^io\.github\.vgrytsenko2022\.netbeans\.plugin$]'
                 } else {
                     ''
                 }
             }
         }
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.2'
         }
         $catalog = [pscustomobject]@{ Uri = 'file:///fixture/updates.xml' }
@@ -1162,7 +1162,7 @@ unrelated.module 7.4 Enabled
             throw [System.TimeoutException]::new('fixture restart handoff')
         }
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.2'
         }
         $catalog = [pscustomobject]@{ Uri = 'file:///fixture/updates.xml' }
@@ -1183,7 +1183,7 @@ unrelated.module 7.4 Enabled
         $fakeProcess | Add-Member -MemberType ScriptMethod -Name Refresh -Value {}
         $hostHandle = [pscustomobject]@{ Process = $fakeProcess }
         $metadata = [pscustomobject]@{
-            CodeName = 'dev.flutter.netbeans.netbeans.plugin'
+            CodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
             SpecificationVersion = '0.1.2'
             ImplementationVersion = '0.1.2-20260824'
         }
@@ -1196,7 +1196,7 @@ unrelated.module 7.4 Enabled
             }
             return @"
   Product Version         = Apache NetBeans IDE 30
-    dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2-20260824 build]
+    io.github.vgrytsenko2022.netbeans.plugin [0.1.2 0.1.2-20260824 build]
 "@
         }
 
@@ -1248,10 +1248,10 @@ unrelated.module 7.4 Enabled
         $currentLogPath = Join-Path $userdir 'var\log\messages.log'
         $cleanLog = [System.IO.File]::ReadAllText($currentLogPath)
         $currentWarning = @'
-WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance
+WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance and io-github-vgrytsenko2022-plugin-dart-DartEditorKit.instance
 '@
         $retainedWarning = @'
-WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [io-github-vgrytsenko2022-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
 '@
 
         Write-Utf8File $currentLogPath ($cleanLog + "`r`n" + $currentWarning)
@@ -1395,7 +1395,7 @@ WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-y
         Mock Get-NetBeansProbeProcesses { return @() }
         $tamperedBackup = Join-Path $userdir (
             'update\backup\netbeans\modules\ext\' +
-            'dev.flutter.netbeans.netbeans-plugin\dependency.jar')
+            'io.github.vgrytsenko2022.netbeans-plugin\dependency.jar')
         Write-Utf8File $tamperedBackup 'tampered-backup'
 
         (Test-ScriptBlockThrows {
@@ -1429,7 +1429,7 @@ WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-y
             "update_tracking\$ModuleConfigName"
         $tracking = [System.IO.File]::ReadAllText($trackingPath)
         $tracking = $tracking.Replace(
-            'modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar',
+            'modules/ext/io.github.vgrytsenko2022.netbeans-plugin/dependency.jar',
             '../outside.txt')
         Write-Utf8File $trackingPath $tracking
 
@@ -1495,7 +1495,7 @@ WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-y
         $backupTracking = Join-Path $userdir (
             "update\backup\netbeans\update_tracking\$ModuleConfigName")
         $backupText = [System.IO.File]::ReadAllText($backupTracking).Replace(
-            'codename="dev.flutter.netbeans.netbeans.plugin"',
+            'codename="io.github.vgrytsenko2022.netbeans.plugin"',
             'codename="wrong.module"')
         Write-Utf8File $backupTracking $backupText
 
@@ -1549,14 +1549,14 @@ WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-y
         $userdir = Join-Path $TestDrive 'stale\userdir'
         New-InstalledFixture $userdir $metadata $catalogPath
         Write-Utf8File (Join-Path $userdir `
-            'modules\ext\dev.flutter.netbeans.netbeans-plugin\dependency.jar') `
+            'modules\ext\io.github.vgrytsenko2022.netbeans-plugin\dependency.jar') `
             'stale previous-version bytes'
 
         $dependencyPath = Join-Path $userdir `
-            'modules\ext\dev.flutter.netbeans.netbeans-plugin\dependency.jar'
+            'modules\ext\io.github.vgrytsenko2022.netbeans-plugin\dependency.jar'
         (Get-FileHash -LiteralPath $dependencyPath -Algorithm SHA256).Hash |
             Should Not Be $metadata.PayloadFiles[
-                'modules/ext/dev.flutter.netbeans.netbeans-plugin/dependency.jar'].Sha256
+                'modules/ext/io.github.vgrytsenko2022.netbeans-plugin/dependency.jar'].Sha256
 
         try {
             Assert-InstalledModuleFiles $userdir $metadata $catalogPath

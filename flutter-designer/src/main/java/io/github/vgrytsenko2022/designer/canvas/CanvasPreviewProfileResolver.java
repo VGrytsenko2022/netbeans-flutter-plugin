@@ -1,0 +1,241 @@
+package io.github.vgrytsenko2022.designer.canvas;
+
+import io.github.vgrytsenko2022.designer.model.CanvasOrientation;
+import io.github.vgrytsenko2022.designer.model.CanvasPreferences;
+import io.github.vgrytsenko2022.designer.model.DesignerThemeMode;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
+import java.util.HexFormat;
+import java.util.Locale;
+import java.util.Objects;
+import java.util.Optional;
+
+/** Central, deterministic viewport and adaptive-platform preview profiles. */
+public final class CanvasPreviewProfileResolver {
+    private static final int LEGACY_SEED_ARGB = 0xFF6750A4;
+
+    private CanvasPreviewProfileResolver() {
+    }
+
+    /** Infers the initial toolbar mode without claiming a concrete device runtime. */
+    public static CanvasPreviewMode initialMode(Optional<CanvasPreferences> preferences) {
+        Objects.requireNonNull(preferences, "preferences");
+        if (preferences.isEmpty()) {
+            return CanvasPreviewMode.MOBILE;
+        }
+        CanvasPreferences value = preferences.orElseThrow();
+        String preset = value.preset().orElse("").toLowerCase(Locale.ROOT);
+        if (preset.contains("tablet") || preset.contains("ipad")) {
+            return CanvasPreviewMode.TABLET;
+        }
+        if (preset.contains("desktop") || preset.contains("window")) {
+            return CanvasPreviewMode.DESKTOP;
+        }
+        if (preset.contains("web") || preset.contains("browser")) {
+            return CanvasPreviewMode.WEB;
+        }
+        if (preset.contains("phone") || preset.contains("mobile")) {
+            return CanvasPreviewMode.MOBILE;
+        }
+        double width = value.logicalWidth().map(Number::doubleValue).orElse(390.0d);
+        return width <= 600.0d
+                ? CanvasPreviewMode.MOBILE
+                : width <= 1_000.0d
+                        ? CanvasPreviewMode.TABLET
+                        : CanvasPreviewMode.DESKTOP;
+    }
+
+    /**
+     * Resolves one exact profile. The target platform controls Flutter adaptive
+     * widget semantics and remains independent from the responsive viewport.
+     * The concrete engine that executes this profile is identified separately
+     * by {@code engineIdentity} and by the native host implementation.
+     */
+    public static CanvasRenderProfile resolve(
+            CanvasPreviewMode mode,
+            CanvasTargetPlatform targetPlatform,
+            Optional<CanvasPreferences> preferences,
+            CanvasEngineIdentity engineIdentity) {
+        DesignerThemeMode requestedMode = preferences
+                .flatMap(CanvasPreferences::themeMode)
+                .orElse(DesignerThemeMode.LIGHT);
+        CanvasThemeBrightness brightness = requestedMode == DesignerThemeMode.DARK
+                ? CanvasThemeBrightness.DARK
+                : CanvasThemeBrightness.LIGHT;
+        return resolve(
+                mode,
+                targetPlatform,
+                preferences,
+                engineIdentity,
+                legacyTheme(brightness));
+    }
+
+    /**
+     * Resolves viewport preferences around one already verified project theme.
+     * The caller owns project-theme inheritance and the per-document
+     * {@code canvas.themeMode} brightness override; this layer must not invent
+     * or duplicate project theme definitions.
+     */
+    public static CanvasRenderProfile resolve(
+            CanvasPreviewMode mode,
+            CanvasTargetPlatform targetPlatform,
+            Optional<CanvasPreferences> preferences,
+            CanvasEngineIdentity engineIdentity,
+            CanvasResolvedTheme resolvedTheme) {
+        return resolve(
+                mode,
+                targetPlatform,
+                preferences,
+                engineIdentity,
+                resolvedTheme,
+                Optional.empty());
+    }
+
+    /**
+     * Resolves a profile with an optional transient orientation override.
+     *
+     * <p>The override belongs to the preview presentation only; it is not
+     * persisted in the designer document. It is intentionally accepted for
+     * mobile and tablet modes only. Desktop and web previews retain their
+     * canonical dimensions.</p>
+     */
+    public static CanvasRenderProfile resolve(
+            CanvasPreviewMode mode,
+            CanvasTargetPlatform targetPlatform,
+            Optional<CanvasPreferences> preferences,
+            CanvasEngineIdentity engineIdentity,
+            CanvasResolvedTheme resolvedTheme,
+            Optional<CanvasOrientation> orientationOverride) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(targetPlatform, "targetPlatform");
+        Objects.requireNonNull(preferences, "preferences");
+        Objects.requireNonNull(engineIdentity, "engineIdentity");
+        Objects.requireNonNull(resolvedTheme, "resolvedTheme");
+        Objects.requireNonNull(orientationOverride, "orientationOverride");
+        requireCompatible(mode, targetPlatform);
+        CanvasViewport defaultViewport = defaultViewport(mode);
+        double[] size = new double[]{
+            defaultViewport.logicalWidth(),
+            defaultViewport.logicalHeight()
+        };
+        double dpr = resolveDevicePixelRatio(mode, preferences).value();
+        String locale = "en-US";
+        double textScale = 1.0d;
+        if (preferences.isPresent()) {
+            CanvasPreferences value = preferences.orElseThrow();
+            boolean ownsSavedViewport = mode == initialMode(preferences);
+            if (ownsSavedViewport) {
+                size[0] = value.logicalWidth().map(Number::doubleValue).orElse(size[0]);
+                size[1] = value.logicalHeight().map(Number::doubleValue).orElse(size[1]);
+            }
+            CanvasOrientation savedOrientation = ownsSavedViewport
+                    ? value.orientation().orElse(null) : null;
+            applyOrientation(size, orientationOverride.orElse(savedOrientation), mode);
+            locale = value.locale().orElse(locale);
+            textScale = value.textScaleFactor().map(Number::doubleValue)
+                    .orElse(textScale);
+        } else {
+            applyOrientation(size, orientationOverride.orElse(null), mode);
+        }
+        return new CanvasRenderProfile(
+                mode,
+                targetPlatform,
+                new CanvasViewport(size[0], size[1]),
+                new CanvasDevicePixelRatio(dpr),
+                resolvedTheme,
+                new CanvasLocale(locale),
+                new CanvasTextScaleFactor(textScale),
+                engineIdentity);
+    }
+
+    private static void applyOrientation(
+            double[] size,
+            CanvasOrientation orientation,
+            CanvasPreviewMode mode) {
+        if (orientation == null || (mode != CanvasPreviewMode.MOBILE
+                && mode != CanvasPreviewMode.TABLET)) {
+            return;
+        }
+        boolean landscape = size[0] > size[1];
+        boolean shouldSwap = orientation == CanvasOrientation.LANDSCAPE
+                ? !landscape : landscape;
+        if (shouldSwap) {
+            double swap = size[0];
+            size[0] = size[1];
+            size[1] = swap;
+        }
+    }
+
+    /**
+     * Resolves the exact DPR used by a presentation without requiring an
+     * engine or theme. Project asset selection uses this same source of truth.
+     */
+    public static CanvasDevicePixelRatio resolveDevicePixelRatio(
+            CanvasPreviewMode mode,
+            Optional<CanvasPreferences> preferences) {
+        Objects.requireNonNull(mode, "mode");
+        Objects.requireNonNull(preferences, "preferences");
+        double dpr = 1.0d;
+        if (preferences.isPresent() && mode == initialMode(preferences)) {
+            dpr = preferences.orElseThrow().devicePixelRatio()
+                    .map(Number::doubleValue)
+                    .orElse(dpr);
+        }
+        return new CanvasDevicePixelRatio(dpr);
+    }
+
+    /** Exact compatibility theme for projects created outside this plugin. */
+    public static CanvasResolvedTheme legacyTheme(CanvasThemeBrightness brightness) {
+        Objects.requireNonNull(brightness, "brightness");
+        String variant = brightness.name().toLowerCase(Locale.ROOT);
+        String definitionId = "material.default." + variant;
+        String identityInput = "netbeans-flutter-canvas-legacy-v1\n"
+                + definitionId + '\n'
+                + String.format(Locale.ROOT, "0x%08X", LEGACY_SEED_ARGB);
+        return new CanvasResolvedTheme(
+                definitionId,
+                LEGACY_SEED_ARGB,
+                brightness,
+                sha256(identityInput));
+    }
+
+    private static String sha256(String value) {
+        try {
+            return HexFormat.of().withUpperCase().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(
+                            value.getBytes(StandardCharsets.UTF_8)));
+        } catch (NoSuchAlgorithmException impossible) {
+            throw new IllegalStateException("SHA-256 is unavailable", impossible);
+        }
+    }
+
+    /** Returns the canonical default logical-pixel viewport for a preview mode. */
+    public static CanvasViewport defaultViewport(CanvasPreviewMode mode) {
+        Objects.requireNonNull(mode, "mode");
+        return switch (mode) {
+            case MOBILE -> new CanvasViewport(390.0d, 844.0d);
+            case TABLET -> new CanvasViewport(800.0d, 1_280.0d);
+            case DESKTOP -> new CanvasViewport(1_280.0d, 800.0d);
+            case WEB -> new CanvasViewport(1_440.0d, 900.0d);
+        };
+    }
+
+    private static void requireCompatible(
+            CanvasPreviewMode mode,
+            CanvasTargetPlatform targetPlatform) {
+        boolean compatible = switch (mode) {
+            case MOBILE, TABLET -> targetPlatform == CanvasTargetPlatform.ANDROID
+                    || targetPlatform == CanvasTargetPlatform.IOS;
+            case DESKTOP -> targetPlatform == CanvasTargetPlatform.WINDOWS
+                    || targetPlatform == CanvasTargetPlatform.MACOS
+                    || targetPlatform == CanvasTargetPlatform.LINUX;
+            case WEB -> targetPlatform == CanvasTargetPlatform.WEB;
+        };
+        if (!compatible) {
+            throw new IllegalArgumentException(
+                    "Canvas preview mode " + mode
+                    + " is incompatible with target platform " + targetPlatform);
+        }
+    }
+}

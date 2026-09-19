@@ -26,7 +26,7 @@ constexpr std::size_t kTokenLength =
     kUuidLength * kUuidCount + 1;
 constexpr SIZE_T kMaximumUnicodeStorageBytes = 256;
 constexpr std::int64_t kCoordinateMicros = 1'000'000;
-constexpr char kChannelName[] = "dev.flutter.netbeans/canvas_palette_drop";
+constexpr char kChannelName[] = "io.github.vgrytsenko2022/canvas_palette_drop";
 constexpr char kDropPrepareMethodName[] = "paletteDropPrepare";
 constexpr char kDropCommitMethodName[] = "paletteDropCommit";
 constexpr char kDropCancelMethodName[] = "paletteDropCancel";

@@ -2,6 +2,10 @@
 
 Starter architecture for first-class Dart + Flutter support in Apache NetBeans 31.
 
+Maven group and Java package prefix: `io.github.vgrytsenko2022`.
+See [namespace migration and existing-installation notes](docs/NAMESPACE_MIGRATION.md)
+before replacing a plugin built with the former module identity.
+
 ## Developer contact and project support
 
 - Email: [hrytsenkovalentyn@gmail.com](mailto:hrytsenkovalentyn@gmail.com)

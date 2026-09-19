@@ -150,6 +150,12 @@ Invoke-Pester tools/tests/verify-release.Tests.ps1
 
 ## Isolated NetBeans 30 install and upgrade smoke
 
+The current scripts target `io.github.vgrytsenko2022.netbeans.plugin`. A plugin
+with the former Maven group's code-name base is a different NetBeans module,
+not a same-module upgrade payload. Follow the
+[namespace migration notes](../docs/NAMESPACE_MIGRATION.md) for that transition;
+the smoke scripts do not remove or disable an older installed module for you.
+
 `smoke-netbeans30-nbm.ps1` exercises the real NetBeans command-line module
 service. It always creates a new userdir, cache, immutable local update-center
 catalog, and command evidence below the repository `target` directory. It does
@@ -206,7 +212,7 @@ For example, with the locally installed 0.1.1 release artifact:
 ```powershell
 pwsh -NoProfile -File tools/smoke-netbeans30-nbm.ps1 `
   -NetBeansHome G:/netbeans `
-  -PreviousNbmPath C:/Users/vhadmin/.m2/repository/dev/flutter/netbeans/netbeans-plugin/0.1.1/netbeans-plugin-0.1.1.nbm
+  -PreviousNbmPath C:/Users/vhadmin/.m2/repository/io/github/vgrytsenko2022/netbeans-plugin/0.1.1/netbeans-plugin-0.1.1.nbm
 ```
 
 `NETBEANS_HOME` can be used instead of `-NetBeansHome`. A custom `-ProbeRoot`

@@ -89,11 +89,11 @@ BEGIN
     BEGIN
         BLOCK "040904e4"
         BEGIN
-            VALUE "CompanyName", "dev.flutter.netbeans" "\0"
+            VALUE "CompanyName", "io.github.vgrytsenko2022" "\0"
             VALUE "FileDescription", "netbeans_flutter_canvas_runner" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "netbeans_flutter_canvas_runner" "\0"
-            VALUE "LegalCopyright", "Copyright (C) 2026 dev.flutter.netbeans. All rights reserved." "\0"
+            VALUE "LegalCopyright", "Copyright (C) 2026 io.github.vgrytsenko2022. All rights reserved." "\0"
             VALUE "OriginalFilename", "netbeans_flutter_canvas_runner.exe" "\0"
             VALUE "ProductName", "netbeans_flutter_canvas_runner" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"

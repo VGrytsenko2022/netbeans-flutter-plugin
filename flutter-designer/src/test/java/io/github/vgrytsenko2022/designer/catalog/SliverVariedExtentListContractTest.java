@@ -1,0 +1,69 @@
+package io.github.vgrytsenko2022.designer.catalog;
+import io.github.vgrytsenko2022.designer.model.*;
+import io.github.vgrytsenko2022.designer.command.*;
+import io.github.vgrytsenko2022.designer.events.*;
+import java.util.*;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.*;
+class SliverVariedExtentListContractTest {
+    @Test void allThreeConstructorsHaveExactFieldsPresetsPlacementAndCallbackContracts() {
+        var catalog = BuiltInWidgetCatalog.getDefault();
+        var viewport = catalog.find(new WidgetTypeId("flutter.widgets.CustomScrollView")).orElseThrow();
+        var box = catalog.find(new WidgetTypeId("flutter.widgets.Text")).orElseThrow();
+        int properties = 0, callables = 0;
+        for (var kind : SliverVariedExtentListWidgetPropertySchema.Kind.values()) {
+            var definition = catalog.find(kind.type()).orElseThrow();
+            assertEquals(kind.constructor(), definition.namedConstructor());
+            assertEquals(kind.constructor().isEmpty(), definition.constConstructor());
+            assertEquals(Set.of(BuiltInWidgetCatalog.SLIVER_WIDGET_TRAIT), definition.traits());
+            assertFalse(WidgetPlacementRules.evaluateRoot(definition).accepted());
+            assertTrue(WidgetPlacementRules.accepts(viewport, viewport.slots().getFirst(), definition));
+            assertEquals(kind.hasChildren() ? 1 : 0, definition.slots().size());
+            if (kind.hasChildren()) {
+                var slot = definition.slots().getFirst();
+                assertEquals(SlotCardinality.LIST, slot.cardinality());
+                assertTrue(slot.parameter().required());
+                assertTrue(WidgetPlacementRules.accepts(definition, slot, box));
+                assertFalse(WidgetPlacementRules.accepts(definition, slot, definition));
+            }
+            var node = WidgetNodePrototypeFactory.create(definition, StableId.random());
+            for (var field : SliverVariedExtentListWidgetPropertySchema.fields(kind)) {
+                var p = definition.properties().stream().filter(v -> v.name().value().equals(field.name())).findFirst().orElseThrow();
+                assertEquals(field.required(), p.parameter().required());
+                assertEquals(field.required(), p.creationDefault().isPresent());
+                if (field.required()) assertEquals(field.type().equals("double")
+                        ? new PropertyValue.DoubleValue(new java.math.BigDecimal("48"))
+                        : new PropertyValue.StringValue(field.preset()), node.properties().get(p.name()));
+                boolean callback = field.type().contains("WidgetBuilder") || field.type().equals("ItemExtentBuilder") || field.type().equals("ChildIndexGetter?");
+                var event = WidgetEventCatalog.find(kind.type(), p.name());
+                assertEquals(callback, event.isPresent());
+                if (callback) {
+                    callables++;
+                    assertEquals(field.required(), event.orElseThrow().sdkRequired());
+                    if (field.required()) assertTrue(event.orElseThrow().unsetBehavior().contains("not allowed"));
+                }
+                properties++;
+            }
+            assertTrue(BuiltInWidgetCapabilityCatalog.supports(definition, WidgetCapability.CANVAS));
+        }
+        assertEquals(13, properties); assertEquals(5, callables);
+    }
+    @Test void extentAndNullabilityFollowNativeLayoutContract() {
+        for(var kind : SliverVariedExtentListWidgetPropertySchema.Kind.values()) {
+            var definition = BuiltInWidgetCatalog.getDefault().find(kind.type()).orElseThrow();
+            assertTrue(definition.property(new PropertyName("itemExtent")).isEmpty());
+            assertTrue(definition.property(new PropertyName("semanticIndexOffset")).isEmpty());
+            var extent = definition.property(new PropertyName("itemExtentBuilder")).orElseThrow();
+            assertTrue(extent.constraints().stream().anyMatch(c -> c.accepts(new PropertyValue.StringValue("48"))));
+            for(PropertyValue value : List.of(new PropertyValue.NullValue(),
+                    new PropertyValue.DoubleValue(java.math.BigDecimal.valueOf(48)),
+                    new PropertyValue.StringValue("empty"), new PropertyValue.StringValue("arbitrary Dart")))
+                assertFalse(extent.constraints().stream().anyMatch(c -> c.accepts(value)));
+            for(var field : SliverVariedExtentListWidgetPropertySchema.fields(kind)) {
+                var property = definition.property(new PropertyName(field.name())).orElseThrow();
+                assertEquals(field.type().endsWith("?"), property.acceptedKinds().contains(PropertyValueKind.NULL));
+            }
+        }
+    }
+}
+

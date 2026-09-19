@@ -101,49 +101,49 @@ function New-ReleaseFixture {
 "@
     if ($OptionalSdkSkip) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\dart\DartAnalysisServerRealSdkTest.java') `
-            'package dev.flutter.netbeans.dart; class DartAnalysisServerRealSdkTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\dart\DartAnalysisServerRealSdkTest.java') `
+            'package io.github.vgrytsenko2022.dart; class DartAnalysisServerRealSdkTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest.xml') @"
-<testsuite name="dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.dart.DartAnalysisServerRealSdkTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.dart.DartAnalysisServerRealSdkTest"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.dart.DartAnalysisServerRealSdkTest" name="smoke">
+  <testcase classname="io.github.vgrytsenko2022.dart.DartAnalysisServerRealSdkTest" name="smoke">
     <skipped message="Dart SDK was not configured"/>
   </testcase>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\DartEditorEndToEndIT.java') `
-            'package dev.flutter.netbeans.runtime; class DartEditorEndToEndIT {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\runtime\DartEditorEndToEndIT.java') `
+            'package io.github.vgrytsenko2022.runtime; class DartEditorEndToEndIT {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.DartEditorEndToEndIT.xml') @"
-<testsuite name="dev.flutter.netbeans.runtime.DartEditorEndToEndIT"
+            'netbeans-plugin\target\failsafe-reports\TEST-io.github.vgrytsenko2022.runtime.DartEditorEndToEndIT.xml') @"
+<testsuite name="io.github.vgrytsenko2022.runtime.DartEditorEndToEndIT"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.runtime.DartEditorEndToEndIT" name="editorSmoke">
+  <testcase classname="io.github.vgrytsenko2022.runtime.DartEditorEndToEndIT" name="editorSmoke">
     <skipped message="Dart SDK was not configured"/>
   </testcase>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested">
     <skipped message="canvas.runner.flutter.sdk was not configured"/>
   </testcase>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
-            'package dev.flutter.netbeans.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
+            'package io.github.vgrytsenko2022.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
-<testsuite name="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT"
+            'netbeans-plugin\target\failsafe-reports\TEST-io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
+<testsuite name="io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime">
+  <testcase classname="io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime">
     <skipped message="canvas.runner.acceptance.flutter.sdk was not configured"/>
   </testcase>
 </testsuite>
@@ -151,13 +151,13 @@ function New-ReleaseFixture {
     }
     if ($OptionalSdkSkip -or $OptionalMaterialIconPreviewSkip) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested">
     <skipped message="material.icon.preview.flutter.sdk was not configured"/>
   </testcase>
 </testsuite>
@@ -165,16 +165,16 @@ function New-ReleaseFixture {
     }
     if ($OptionalPlatformSkip) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\FlutterDesignerPairCopyTest.java') `
-            'package dev.flutter.netbeans.plugin.designer; class FlutterDesignerPairCopyTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\FlutterDesignerPairCopyTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer; class FlutterDesignerPairCopyTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest"
            tests="2" failures="0" errors="0" skipped="2">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable">
     <skipped message="filesystem does not expose a read-only file"/>
   </testcase>
-  <testcase classname="dev.flutter.netbeans.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.FlutterDesignerPairCopyTest" name="readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem">
     <skipped message="filesystem does not expose a read-only folder"/>
   </testcase>
 </testsuite>
@@ -183,34 +183,34 @@ function New-ReleaseFixture {
     if ($OptionalWebCanvasSkip -or $PassingWebCanvasGates) {
         $webCanvasClasses = @(
             [pscustomobject]@{
-                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest'
+                Name = 'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest'
                 Methods = @(
                     'buildsPackagedWebRunnerWithConfiguredFlutterSdkWhenRequested',
                     'linkedSdkIdentityMetadataIsRejectedWhenLinksAreAvailable'
                 )
             },
             [pscustomobject]@{
-                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactContractTest'
+                Name = 'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactContractTest'
                 Methods = @(
                     'validatesConfiguredRealFlutterWebArtifactWhenRequested',
                     'rejectsFileSymlinkEscapeWhenSupported'
                 )
             },
             [pscustomobject]@{
-                Name = 'dev.flutter.netbeans.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest'
+                Name = 'io.github.vgrytsenko2022.plugin.designer.canvas.JnaWindowsWebView2PhysicalTest'
                 Methods = @(
                     'loadsPackagedX64AdapterAndProbesInstalledRuntime'
                 )
             },
             [pscustomobject]@{
-                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WebCanvasArtifactPublisherTest'
+                Name = 'io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasArtifactPublisherTest'
                 Methods = @(
                     'rejectsSourceSymlinkWithoutReadingItsTarget',
                     'cleanupFailsClosedWhenPublishedTreeIsReplacedByLink'
                 )
             },
             [pscustomobject]@{
-                Name = 'dev.flutter.netbeans.plugin.designer.canvas.WindowsWebCanvasHostTest'
+                Name = 'io.github.vgrytsenko2022.plugin.designer.canvas.WindowsWebCanvasHostTest'
                 Methods = @(
                     'linkedUserDataParentIsRejectedWithoutTouchingItsTarget',
                     'windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
@@ -251,33 +251,33 @@ $testCases
     }
     if ($PassingRequiredSdkCases) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="0">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested"/>
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested"/>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\properties\FlutterPropertyValuePreviewTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.properties; class FlutterPropertyValuePreviewTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest"
            tests="1" failures="0" errors="0" skipped="0">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested"/>
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.properties.FlutterPropertyValuePreviewTest" name="decodesConfiguredPinnedMaterialFontWhenRequested"/>
 </testsuite>
 "@
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
-            'package dev.flutter.netbeans.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\runtime\FlutterDesignerNativeCanvasWindowsIT.java') `
+            'package io.github.vgrytsenko2022.runtime; class FlutterDesignerNativeCanvasWindowsIT {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\failsafe-reports\TEST-dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
-<testsuite name="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT"
+            'netbeans-plugin\target\failsafe-reports\TEST-io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT.xml') @"
+<testsuite name="io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT"
            tests="1" failures="0" errors="0" skipped="0">
-  <testcase classname="dev.flutter.netbeans.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime"/>
+  <testcase classname="io.github.vgrytsenko2022.runtime.FlutterDesignerNativeCanvasWindowsIT" name="realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime"/>
 </testsuite>
 "@
     }
@@ -297,13 +297,13 @@ $testCases
     }
     if ($UnexpectedSdkMethodSkip) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\canvas\CanvasRunnerBuildServiceTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.canvas; class CanvasRunnerBuildServiceTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="someUnrelatedTest">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.canvas.CanvasRunnerBuildServiceTest" name="someUnrelatedTest">
     <skipped message="unrelated reason"/>
   </testcase>
 </testsuite>
@@ -311,13 +311,13 @@ $testCases
     }
     if ($UnexpectedWebCanvasMethodSkip) {
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\src\test\java\dev\flutter\netbeans\plugin\designer\canvas\WebCanvasBuildServiceTest.java') `
-            'package dev.flutter.netbeans.plugin.designer.canvas; class WebCanvasBuildServiceTest {}'
+            'netbeans-plugin\src\test\java\io\github\vgrytsenko2022\plugin\designer\canvas\WebCanvasBuildServiceTest.java') `
+            'package io.github.vgrytsenko2022.plugin.designer.canvas; class WebCanvasBuildServiceTest {}'
         Write-Utf8File (Join-Path $Root `
-            'netbeans-plugin\target\surefire-reports\TEST-dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest.xml') @"
-<testsuite name="dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest"
+            'netbeans-plugin\target\surefire-reports\TEST-io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest.xml') @"
+<testsuite name="io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest"
            tests="1" failures="0" errors="0" skipped="1">
-  <testcase classname="dev.flutter.netbeans.plugin.designer.canvas.WebCanvasBuildServiceTest" name="someUnrelatedTest">
+  <testcase classname="io.github.vgrytsenko2022.plugin.designer.canvas.WebCanvasBuildServiceTest" name="someUnrelatedTest">
     <skipped message="unrelated reason"/>
   </testcase>
 </testsuite>
@@ -327,9 +327,9 @@ $testCases
     $nbmPath = Join-Path (Join-Path $Root 'netbeans-plugin\target') $nbmFileName
     $info = @"
 <?xml version="1.0" encoding="UTF-8"?>
-<module codenamebase="dev.flutter.netbeans.netbeans.plugin"
+<module codenamebase="io.github.vgrytsenko2022.netbeans.plugin"
         distribution="$nbmFileName" license="license-id">
-  <manifest OpenIDE-Module="dev.flutter.netbeans.netbeans.plugin"
+  <manifest OpenIDE-Module="io.github.vgrytsenko2022.netbeans.plugin"
             OpenIDE-Module-Name="Flutter and Dart Support"
             OpenIDE-Module-Display-Category="$Category"
             OpenIDE-Module-Specification-Version="0.1.2"
@@ -339,21 +339,21 @@ $testCases
 "@
     New-ZipFile $nbmPath @{
         'Info/info.xml' = $info
-        'netbeans/config/Modules/dev-flutter-netbeans-netbeans-plugin.xml' = '<module/>'
-        'netbeans/modules/dev-flutter-netbeans-netbeans-plugin.jar' = 'fixture'
+        'netbeans/config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml' = '<module/>'
+        'netbeans/modules/io-github-vgrytsenko2022-netbeans-plugin.jar' = 'fixture'
     }
 
     $userdir = $null
     if ($InstalledUserdir) {
         $userdir = Join-Path $Root 'installed-userdir'
         $config = @"
-<module name="dev.flutter.netbeans.netbeans.plugin">
+<module name="io.github.vgrytsenko2022.netbeans.plugin">
   <param name="enabled">true</param>
-  <param name="jar">modules/dev-flutter-netbeans-netbeans-plugin.jar</param>
+  <param name="jar">modules/io-github-vgrytsenko2022-netbeans-plugin.jar</param>
 </module>
 "@
         Write-Utf8File (Join-Path $userdir `
-            'config\Modules\dev-flutter-netbeans-netbeans-plugin.xml') $config
+            'config\Modules\io-github-vgrytsenko2022-netbeans-plugin.xml') $config
         if ($CatalogUpdaterOrigin -or $OrphanUpdaterOrigin) {
             $site = Join-Path $Root 'installed-site'
             [void](New-Item -ItemType Directory -Path $site -Force)
@@ -364,9 +364,9 @@ $testCases
             $catalogPath = Join-Path $site 'updates.xml'
             Write-Utf8File $catalogPath @"
 <module_updates>
-  <module codenamebase="dev.flutter.netbeans.netbeans.plugin"
+  <module codenamebase="io.github.vgrytsenko2022.netbeans.plugin"
           distribution="$nbmFileName" downloadsize="$length">
-    <manifest OpenIDE-Module="dev.flutter.netbeans.netbeans.plugin"
+    <manifest OpenIDE-Module="io.github.vgrytsenko2022.netbeans.plugin"
               OpenIDE-Module-Specification-Version="0.1.2"/>
     <message_digest algorithm="SHA-512" value="$sha512"/>
   </module>
@@ -379,38 +379,38 @@ $testCases
                 @"
   <module_version last="false" origin="$catalogOrigin"
                   specification_version="0.1.2">
-    <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
-    <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
+    <file name="config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml"/>
+    <file name="modules/io-github-vgrytsenko2022-netbeans-plugin.jar"/>
   </module_version>
 "@
             }
             $tracking = @"
-<module codename="dev.flutter.netbeans.netbeans.plugin">
+<module codename="io.github.vgrytsenko2022.netbeans.plugin">
 $catalogVersion
   <module_version last="true" origin="updater"
                   specification_version="0.1.2">
-    <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
-    <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
+    <file name="config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml"/>
+    <file name="modules/io-github-vgrytsenko2022-netbeans-plugin.jar"/>
   </module_version>
 </module>
 "@
         } else {
             $tracking = @"
-<module codename="dev.flutter.netbeans.netbeans.plugin">
+<module codename="io.github.vgrytsenko2022.netbeans.plugin">
   <module_version last="true" origin="$nbmFileName"
                   specification_version="0.1.2">
-    <file name="config/Modules/dev-flutter-netbeans-netbeans-plugin.xml"/>
-    <file name="modules/dev-flutter-netbeans-netbeans-plugin.jar"/>
+    <file name="config/Modules/io-github-vgrytsenko2022-netbeans-plugin.xml"/>
+    <file name="modules/io-github-vgrytsenko2022-netbeans-plugin.jar"/>
   </module_version>
 </module>
 "@
         }
         Write-Utf8File (Join-Path $userdir `
-            'update_tracking\dev-flutter-netbeans-netbeans-plugin.xml') $tracking
-        New-ZipFile (Join-Path $userdir 'modules\dev-flutter-netbeans-netbeans-plugin.jar') @{
+            'update_tracking\io-github-vgrytsenko2022-netbeans-plugin.xml') $tracking
+        New-ZipFile (Join-Path $userdir 'modules\io-github-vgrytsenko2022-netbeans-plugin.jar') @{
             'META-INF/MANIFEST.MF' = @"
 Manifest-Version: 1.0
-OpenIDE-Module: dev.flutter.netbeans.netbeans.plugin
+OpenIDE-Module: io.github.vgrytsenko2022.netbeans.plugin
 OpenIDE-Module-Specification-Version: 0.1.2
 OpenIDE-Module-Implementation-Version: 0.1.2
 
@@ -428,7 +428,7 @@ WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ord
             ''
         }
         $pluginLayerOrdering = if ($PluginLayerOrderingLog) {
-            "`nWARNING [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and dev-flutter-netbeans-plugin-dart-DartEditorKit.instance"
+            "`nWARNING [org.openide.filesystems.Ordering]: Found same position 100 for both io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance and io-github-vgrytsenko2022-plugin-dart-DartEditorKit.instance"
         } else {
             ''
         }
@@ -436,9 +436,9 @@ WARNING [org.openide.filesystems.Ordering]: Encountered non-boolean relative ord
             $unrelatedWarnings = @'
 WARNING [org.openide.filesystems.Ordering]: Found same position 100 for both org-example-One.instance and org-example-Two.instance
 WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-dart/ marked with the position attribute: [org-example-One.instance]
-WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute dev-flutter-netbeans-plugin-dart-DartTokenId.instance/org-example-One.instance
-INFO [org.openide.filesystems.Ordering]: Found same position 100 for both dev-flutter-netbeans-plugin-dart-DartTokenId.instance and org-example-One.instance
-WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [dev-flutter-netbeans-plugin-dart-DartTokenId.instance]
+WARNING [org.openide.filesystems.Ordering]: Could not find both sides of relative ordering attribute io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance/org-example-One.instance
+INFO [org.openide.filesystems.Ordering]: Found same position 100 for both io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance and org-example-One.instance
+WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart/ marked with the position attribute: [io-github-vgrytsenko2022-plugin-dart-DartTokenId.instance]
 '@
             "`n$unrelatedWarnings"
         } else {
@@ -447,11 +447,11 @@ WARNING [org.openide.filesystems.Other]: Not all children in Editors/text/x-dart
         Write-Utf8File (Join-Path $userdir 'var\log\messages.log') @"
   Product Version         = Apache NetBeans IDE 30
 INFO [org.netbeans.core.startup.NbEvents]: Turning on modules:
-    dev.flutter.netbeans.netbeans.plugin [0.1.2 0.1.2 202608250001]$critical$auxiliaryOrdering$pluginLayerOrdering$unrelatedOrdering
+    io.github.vgrytsenko2022.netbeans.plugin [0.1.2 0.1.2 202608250001]$critical$auxiliaryOrdering$pluginLayerOrdering$unrelatedOrdering
 "@
         if ($RotatedPluginLayerOrderingLog) {
             Write-Utf8File (Join-Path $userdir 'var\log\messages.log.1') @'
-WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [dev-flutter-netbeans-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
+WARNING [org.openide.filesystems.Ordering]: Not all children in Editors/text/x-yaml/CodeTemplates/ marked with the position attribute: [io-github-vgrytsenko2022-plugin-pubspec-PubspecErrorProvider.instance], but some are: [org-netbeans-modules-editor-codegen-main.instance]
 '@
         }
     }
@@ -668,15 +668,15 @@ Describe 'verify-release.ps1' {
 
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional SDK skips'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.runtime\.DartEditorEndToEndIT'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.runtime\.FlutterDesignerNativeCanvasWindowsIT'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.runtime\.DartEditorEndToEndIT'
         $required.ExitCode | Should Be 1
         $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set'
-        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
-        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
-        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: io\.github\.vgrytsenko2022\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
     }
 
     It 'allows the exact Material icon preview SDK skip by default and rejects it in strict SDK mode' {
@@ -687,10 +687,10 @@ Describe 'verify-release.ps1' {
         $required = Invoke-ReleaseVerifier $fixture -RequireOptionalSdkTests
 
         $allowed.ExitCode | Should Be 0
-        $allowed.Text | Should Match 'Allowed optional SDK skips: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
+        $allowed.Text | Should Match 'Allowed optional SDK skips: io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
         $required.ExitCode | Should Be 1
-        $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
-        $required.Text | Should Match 'Required optional SDK test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
+        $required.Text | Should Match 'Optional SDK test\(s\) were skipped while -RequireOptionalSdkTests was set: io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest'
+        $required.Text | Should Match 'Required optional SDK test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
     }
 
     It 'classifies only exact optional Web Canvas cases under an independent strict gate' {
@@ -703,14 +703,14 @@ Describe 'verify-release.ps1' {
 
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional Web Canvas skips'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.JnaWindowsWebView2PhysicalTest'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.JnaWindowsWebView2PhysicalTest'
         $sdkRequired.ExitCode | Should Be 0
         $sdkRequired.Text | Should Match 'All optional SDK-backed tests ran without skips'
         $webRequired.ExitCode | Should Be 1
         $webRequired.Text | Should Match 'Optional Web Canvas test\(s\) were skipped while -RequireOptionalWebCanvasTests was set'
-        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested'
-        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
+        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.WebCanvasArtifactContractTest#validatesConfiguredRealFlutterWebArtifactWhenRequested'
+        $webRequired.Text | Should Match 'Required optional Web Canvas test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.WindowsWebCanvasHostTest#windowsDeletionHandlesBlockConcurrentRootAndMarkerReplacement'
     }
 
     It 'accepts strict Web Canvas mode only when every exact gate ran without skips' {
@@ -748,7 +748,7 @@ Describe 'verify-release.ps1' {
         $result = Invoke-ReleaseVerifier $fixture
 
         $result.ExitCode | Should Be 1
-        $result.Text | Should Match "Unexpected skipped test class 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest' \(test 'someUnrelatedTest'\)"
+        $result.Text | Should Match "Unexpected skipped test class 'io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.WebCanvasBuildServiceTest' \(test 'someUnrelatedTest'\)"
     }
 
     It 'classifies Pair Copy read-only probes as platform-dependent rather than SDK-backed' {
@@ -761,13 +761,13 @@ Describe 'verify-release.ps1' {
 
         $allowed.ExitCode | Should Be 0
         $allowed.Text | Should Match 'Allowed optional platform-dependent filesystem skips'
-        $allowed.Text | Should Match 'dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest'
+        $allowed.Text | Should Match 'io\.github\.vgrytsenko2022\.plugin\.designer\.FlutterDesignerPairCopyTest'
         $sdkRequired.ExitCode | Should Be 0
         $sdkRequired.Text | Should Match 'All optional SDK-backed tests ran without skips'
         $platformRequired.ExitCode | Should Be 1
         $platformRequired.Text | Should Match 'Optional platform-dependent test\(s\) were skipped while -RequireOptionalPlatformTests was set'
-        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
-        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
+        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
+        $platformRequired.Text | Should Match 'Required optional platform test case is recorded: io\.github\.vgrytsenko2022\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
     }
 
     It 'rejects skipped classes outside all explicit optional policies' {
@@ -787,7 +787,7 @@ Describe 'verify-release.ps1' {
         $result = Invoke-ReleaseVerifier $fixture
 
         $result.ExitCode | Should Be 1
-        $result.Text | Should Match "Unexpected skipped test class 'dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest' \(test 'someUnrelatedTest'\)"
+        $result.Text | Should Match "Unexpected skipped test class 'io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest' \(test 'someUnrelatedTest'\)"
     }
 
     It 'requires every exact SDK gate case report in strict SDK mode' {
@@ -799,9 +799,9 @@ Describe 'verify-release.ps1' {
         ([regex]::Matches($result.Text,
                 'Required optional SDK test case report is missing:').Count) |
             Should Be 3
-        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
-        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
-        $result.Text | Should Match 'Required optional SDK test case report is missing: dev\.flutter\.netbeans\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
+        $result.Text | Should Match 'Required optional SDK test case report is missing: io\.github\.vgrytsenko2022\.plugin\.designer\.canvas\.CanvasRunnerBuildServiceTest#buildsPackagedRunnerWithConfiguredFlutterSdkWhenRequested'
+        $result.Text | Should Match 'Required optional SDK test case report is missing: io\.github\.vgrytsenko2022\.plugin\.designer\.properties\.FlutterPropertyValuePreviewTest#decodesConfiguredPinnedMaterialFontWhenRequested'
+        $result.Text | Should Match 'Required optional SDK test case report is missing: io\.github\.vgrytsenko2022\.runtime\.FlutterDesignerNativeCanvasWindowsIT#realDesignMultiViewsSurviveCrashRetryAndCloseInAssembledWindowsRuntime'
     }
 
     It 'requires both exact Pair Copy filesystem cases in strict platform mode' {
@@ -810,7 +810,7 @@ Describe 'verify-release.ps1' {
         $result = Invoke-ReleaseVerifier $fixture -RequireOptionalPlatformTests
 
         $result.ExitCode | Should Be 1
-        $result.Text | Should Match 'Required optional platform test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
-        $result.Text | Should Match 'Required optional platform test case report is missing: dev\.flutter\.netbeans\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
+        $result.Text | Should Match 'Required optional platform test case report is missing: io\.github\.vgrytsenko2022\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlySourceFilesRemainCopyableWhenTheirParentsAreWritable'
+        $result.Text | Should Match 'Required optional platform test case report is missing: io\.github\.vgrytsenko2022\.plugin\.designer\.FlutterDesignerPairCopyTest#readOnlyDestinationFolderDisablesCopyWhenExposedByFilesystem'
     }
 }

@@ -58,7 +58,7 @@ int reserveNextCanvasLayoutSequence(int current, int? pending) =>
     pending ?? current + 1;
 
 const _paletteDropChannel = MethodChannel(
-  'dev.flutter.netbeans/canvas_palette_drop',
+  'io.github.vgrytsenko2022/canvas_palette_drop',
 );
 final _paletteDropTokenPattern = RegExp(
   r'^nbfdnd:v1:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}:[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$',

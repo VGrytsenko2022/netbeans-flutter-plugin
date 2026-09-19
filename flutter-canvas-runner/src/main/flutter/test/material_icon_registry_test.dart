@@ -59,8 +59,8 @@ File _lockedRegistry() {
     final candidate = File(
       '${directory.path}${Platform.pathSeparator}'
       'flutter-designer${Platform.pathSeparator}src${Platform.pathSeparator}'
-      'main${Platform.pathSeparator}resources${Platform.pathSeparator}dev'
-      '${Platform.pathSeparator}flutter${Platform.pathSeparator}netbeans'
+      'main${Platform.pathSeparator}resources${Platform.pathSeparator}io'
+      '${Platform.pathSeparator}github${Platform.pathSeparator}vgrytsenko2022'
       '${Platform.pathSeparator}designer${Platform.pathSeparator}catalog'
       '${Platform.pathSeparator}material-icons-3.44.8.tsv',
     );

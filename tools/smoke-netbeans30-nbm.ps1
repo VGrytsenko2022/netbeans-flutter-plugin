@@ -14,9 +14,9 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-$ExpectedModuleCodeName = 'dev.flutter.netbeans.netbeans.plugin'
-$ModuleConfigName = 'dev-flutter-netbeans-netbeans-plugin.xml'
-$FlutterPreferencesRelativePath = 'config\Preferences\dev\flutter\netbeans\netbeans\plugin.properties'
+$ExpectedModuleCodeName = 'io.github.vgrytsenko2022.netbeans.plugin'
+$ModuleConfigName = 'io-github-vgrytsenko2022-netbeans-plugin.xml'
+$FlutterPreferencesRelativePath = 'config\Preferences\io\github\vgrytsenko2022\netbeans\plugin.properties'
 $ProjectUiPreferencesRelativePath = 'config\Preferences\org\netbeans\modules\projectui.properties'
 $CriticalLogPattern = '(?i)SEVERE|Unexpected Exception|LinkageError|NoClassDefFoundError|ClassNotFoundException'
 $AuxiliaryConfigurationOrderingLogPattern = (
@@ -31,7 +31,7 @@ $AuxiliaryConfigurationOrderingLogPattern = (
 $PluginLayerOrderingLogPattern = (
     '(?i)^\s*WARNING\s+\[org\.openide\.filesystems\.Ordering\]:\s*' +
     '(?:Found same position\b|Not all children\b)' +
-    '[^\r\n]*dev-flutter-netbeans-plugin-'
+    '[^\r\n]*io-github-vgrytsenko2022-plugin-'
 )
 $HarmlessCliStderrPatterns = @(
     '^\s*WARNING: package com\.sun\.tools\.classfile not in jdk\.jdeps\s*$',

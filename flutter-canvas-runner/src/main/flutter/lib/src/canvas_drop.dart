@@ -545,6 +545,11 @@ List<CanvasDropSlotSemantics> canvasDropSlotsForWidgetType(String widgetType) =>
         canvasChildrenAppendDropSlot,
       ],
       canvasBottomSheetType => const [canvasEmptyChildDropSlot],
+      canvasChipType => const [
+        CanvasDropSlotSemantics.emptySingle(slotName:'label'),
+        CanvasDropSlotSemantics.emptySingle(slotName:'avatar'),
+        CanvasDropSlotSemantics.emptySingle(slotName:'deleteIcon'),
+      ],
       canvasMaterialBannerType => const [
         CanvasDropSlotSemantics.emptySingle(slotName:'content'),
         CanvasDropSlotSemantics.append(slotName:'actions',maximumChildren:10000),

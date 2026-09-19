@@ -50,7 +50,7 @@ class CircularProgressIndicatorContractTest {
         assertEquals(17, DesignerDocument.SCHEMA_VERSION);
         assertEquals(16, WidgetCatalog.API_VERSION);
         assertEquals(20, CanvasModelPayloadCodec.VERSION);
-        assertEquals(736, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(742, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .flatMap(value -> value.properties().stream())
                 .filter(value -> value.acceptedKinds().equals(Set.of(PropertyValueKind.BOOLEAN))).count());
     }

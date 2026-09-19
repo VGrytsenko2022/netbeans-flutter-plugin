@@ -26,11 +26,11 @@ void main() {
       expect(canvasModelProtocolVersion, 20);
       expect(
         RegExp(r'^W\|', multiLine: true).allMatches(contract),
-        hasLength(248),
+        hasLength(249),
       );
       expect(
         RegExp(r'^P\|', multiLine: true).allMatches(contract),
-        hasLength(8306),
+        hasLength(8476),
       );
       final start = contract.indexOf('W|flutter.material.TextField\n');
       final section = contract.substring(

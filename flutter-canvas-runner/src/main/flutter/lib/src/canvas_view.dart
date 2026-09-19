@@ -2950,6 +2950,12 @@ String _bottomSheetPreviewMessage(CanvasNode node) {
       '${sources.isEmpty ? '' : 'Project sources unavailable: ${sources.join(', ')}; native defaults are used for source-owned appearance.'}';
 }
 
+String _chipPreviewMessage(CanvasNode node) {
+  final sources=node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
+  return 'Chip ${node.id}: only onDeleted requests removal; the application owns deletion. Delete icon is hidden without a handler. '
+      'Canvas blocks activation/focus, completes animations and never executes project code. '
+      '${sources.isEmpty?'':'Project preview unavailable for: ${sources.join(', ')}; appearance uses native defaults. Callback presence uses a harmless preview stub.'}';
+}
 String _materialBannerPreviewMessage(CanvasNode node) {
   final sources = node.properties.entries.where((e)=>e.value.kind=='dartObjectReferencePresence').map((e)=>e.key).toList();
   return 'MaterialBanner ${node.id}: static unless animation is supplied; caller owns ScaffoldMessenger presentation and closed results. '
@@ -4074,6 +4080,7 @@ String? _customClipperPreviewUnavailableMessageForNode(
   if (node.type == canvasBottomSheetType) return _bottomSheetPreviewMessage(node);
   if (node.type == canvasSnackBarType || node.type == canvasSnackBarActionType) return _snackBarPreviewMessage(node);
   if (node.type == canvasMaterialBannerType) return _materialBannerPreviewMessage(node);
+  if (node.type == canvasChipType) return _chipPreviewMessage(node);
   if (node.type == canvasSimpleDialogType || node.type == canvasSimpleDialogOptionType) return _simpleDialogPreviewMessage(node);
   if(isCanvasAlertDialogType(node.type)){return _alertDialogPreviewMessage(node);}
   if(node.type==canvasDialogType || node.type==canvasFullscreenDialogType){return _dialogPreviewMessage(node);}
@@ -8687,6 +8694,7 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       canvasBottomSheetType => _TextButtonPreview(message: _bottomSheetPreviewMessage(node), child: _bottomSheet(context)),
       canvasSnackBarType => _TextButtonPreview(message:_snackBarPreviewMessage(node),child:_snackBar(context)),
       canvasMaterialBannerType => _TextButtonPreview(message:_materialBannerPreviewMessage(node),child:_materialBanner(context)),
+      canvasChipType => _TextButtonPreview(message:_chipPreviewMessage(node),child:_chip(context)),
       canvasSnackBarActionType => _TextButtonPreview(message:_snackBarPreviewMessage(node),
         child:ExcludeFocus(child:AbsorbPointer(child:_snackBarAction(context)))),
       canvasSimpleDialogType || canvasSimpleDialogOptionType => _TextButtonPreview(message: _simpleDialogPreviewMessage(node), child: _simpleDialog(context)),
@@ -15869,6 +15877,38 @@ class _CanvasNodeView extends StatelessWidget implements PreferredSizeWidget {
       isLabelVisible: isLabelVisible,
       child: child,
     );
+  }
+
+  Widget _chip(BuildContext context) {
+    EdgeInsetsGeometry? insets(String name)=>const {'edgeInsets','edgeInsetsDirectional'}.contains(node.properties[name]?.kind)?_edgeInsetsGeometry(name):null;
+    final cursors=<WidgetStatesConstraint,MouseCursor>{};
+    var unavailable=false;
+    for(final e in {..._checkboxStateLayers,WidgetState.any:'Default'}.entries) {
+      final name='mouseCursor${e.value}';
+      if(node.properties[name]?.kind=='dartObjectReferencePresence')unavailable=true;
+      final cursor=_mouseCursor(name);if(cursor!=null)cursors[e.key]=cursor;
+    }
+    final cursor=unavailable?null:cursors.isEmpty?_mouseCursor('mouseCursor'):WidgetStateMouseCursor.fromMap(cursors);
+    final horizontal=_number('visualDensityHorizontal'),vertical=_number('visualDensityVertical');
+    final deleting=node.properties['onDeleted']?.kind=='dartObjectReferencePresence';
+    return ExcludeFocus(child:AbsorbPointer(child:Chip(
+      key:_string('key')==null?null:ValueKey<String>(_string('key')!),
+      label:_single('label')!,avatar:_single('avatar'),deleteIcon:_single('deleteIcon'),
+      labelStyle:node.properties.containsKey('labelStyle')?null:_textStyle(context,'labelStyle'),
+      labelPadding:insets('labelPadding'),onDeleted:deleting?(){}:null,
+      deleteIconColor:_resolvedColor(context,'deleteIconColor'),
+      deleteButtonTooltipMessage:_string('deleteButtonTooltipMessage'),side:_checkboxSide(context),
+      shape:_cardShape(context) as OutlinedBorder?,clipBehavior:_clipBehavior()??Clip.none,focusNode:null,autofocus:false,
+      color:_checkboxStateColor(context,'color'),backgroundColor:_resolvedColor(context,'backgroundColor'),
+      padding:insets('padding'),visualDensity:horizontal==null&&vertical==null?null:VisualDensity(horizontal:horizontal??0,vertical:vertical??0),
+      materialTapTargetSize:_enum('materialTapTargetSize')==null?null:MaterialTapTargetSize.values.byName(_enum('materialTapTargetSize')!),
+      elevation:_number('elevation'),shadowColor:_resolvedColor(context,'shadowColor'),surfaceTintColor:_resolvedColor(context,'surfaceTintColor'),
+      iconTheme:node.properties.containsKey('iconTheme')?null:_iconTheme(context,'iconTheme'),
+      avatarBoxConstraints:_boxConstraints('avatarBoxConstraints'),deleteIconBoxConstraints:_boxConstraints('deleteIconBoxConstraints'),
+      chipAnimationStyle:ChipAnimationStyle(enableAnimation:AnimationStyle.noAnimation,selectAnimation:AnimationStyle.noAnimation,
+        avatarDrawerAnimation:AnimationStyle.noAnimation,deleteDrawerAnimation:AnimationStyle.noAnimation),
+      mouseCursor:cursor,
+    )));
   }
 
   Widget _materialBanner(BuildContext context) {

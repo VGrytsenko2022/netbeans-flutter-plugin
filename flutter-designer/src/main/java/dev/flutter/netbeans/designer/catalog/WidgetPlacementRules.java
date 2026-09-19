@@ -243,6 +243,9 @@ public final class WidgetPlacementRules {
         if (MaterialBannerWidgetPropertySchema.TYPE.equals(definition.typeId())) {
             lines.add("C|" + type + "|paletteCreate|seedBannerChildren|content|Message|actions|Action");
         }
+        if (ChipWidgetPropertySchema.TYPE.equals(definition.typeId())) {
+            lines.add("C|" + type + "|paletteCreate|seedTextChild|label|Chip");
+        }
         if (AnimatedCrossFadeWidgetPropertySchema.TYPE.equals(definition.typeId())) {
             lines.add("C|" + type + "|paletteCreate|seedBoxChildren|firstChild|48|48|secondChild|48|80");
         }
@@ -285,6 +288,7 @@ public final class WidgetPlacementRules {
      */
     public static Optional<SlotDefinition> requiredWrapperSlot(WidgetDefinition definition) {
         if (MaterialBannerWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
+        if (ChipWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (SnackBarWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (DataTableWidgetPropertySchema.descriptor(definition.typeId()) || SliverFloatingHeaderWidgetPropertySchema.TYPE.equals(definition.typeId()) || LayoutIdWidgetPropertySchema.TYPE.equals(definition.typeId())) return Optional.empty();
         if (definition.properties().stream().anyMatch(property ->

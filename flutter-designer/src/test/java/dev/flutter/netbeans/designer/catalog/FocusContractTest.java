@@ -120,7 +120,7 @@ class FocusContractTest {
     @Test void nullableFocusNodeProofExtendsOnlyTheReviewedClosedType() {
         assertDoesNotThrow(() -> new PropertyValueConstraint.DartObjectReferenceValues("FocusNode?"));
         assertDoesNotThrow(() -> new GeneratedDartStaticTypeRequirement(0, 1, "FocusNode?"));
-        for (String unsupported : List.of("MouseCursor?", "FocusNode??", "FocusNode | Object", "foo.FocusNode?")) {
+        for (String unsupported : List.of("MouseCursor??", "FocusNode??", "FocusNode | Object", "foo.FocusNode?")) {
             assertThrows(IllegalArgumentException.class, () -> new PropertyValueConstraint.DartObjectReferenceValues(unsupported));
             assertThrows(IllegalArgumentException.class, () -> new GeneratedDartStaticTypeRequirement(0, 1, unsupported));
         }

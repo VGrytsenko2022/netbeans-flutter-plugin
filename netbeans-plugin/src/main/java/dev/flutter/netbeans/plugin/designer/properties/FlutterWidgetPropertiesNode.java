@@ -1181,6 +1181,21 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
                         false, dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.presets(name)));
             }
             groups.values().forEach(sheet::put);
+        } else if (dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.equals(widget.type())) {
+            var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
+            for (var field : definition.properties()) {
+                String name = field.name().value();
+                var set = groups.computeIfAbsent(dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.group(name), group -> {
+                    var result = propertySet("chip" + group, group, dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.DESCRIPTION);
+                    assignTab(result, hasSlotTab ? GENERAL_TAB_NAME : null);
+                    return result;
+                });
+                set.put(projectProperty(field, dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.textBinding(field.name()),
+                        dev.flutter.netbeans.designer.catalog.DialogWidgetPropertySchema.label(name),
+                        dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.help(name), false,
+                        dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.presets(name)));
+            }
+            groups.values().forEach(sheet::put);
         } else if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(widget.type())) {
             var groups = new java.util.LinkedHashMap<String, Sheet.Set>();
             for (var field : definition.properties()) {
@@ -1819,6 +1834,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         }
         if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(widget.type()))
             return dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.DESCRIPTION;
+        if (dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.equals(widget.type()))
+            return dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.DESCRIPTION;
         if (dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.TYPE.equals(widget.type())) {
             return dev.flutter.netbeans.designer.catalog.LayoutBuilderWidgetPropertySchema.DESCRIPTION;
         }
@@ -6180,6 +6197,8 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         if (BadgeWidgetPropertySchema.BADGE_TYPE.equals(currentWidget.type())) {
             return badgePropertyCommand(currentWidget, propertyName, accepted);
         }
+        if (dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.equals(currentWidget.type()))
+            return chipPropertyCommand(currentWidget, propertyName, accepted);
         if ((dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.supports(currentWidget.type()) || dev.flutter.netbeans.designer.catalog.SimpleDialogWidgetPropertySchema.TYPE.equals(currentWidget.type())
                 || dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(currentWidget.type()))) {
             return alertDialogPropertyCommand(currentWidget, propertyName, accepted);
@@ -6918,6 +6937,33 @@ public final class FlutterWidgetPropertiesNode extends AbstractNode {
         resets.remove(name); resets.stream().filter(widget.properties()::containsKey).forEach(field -> patches.add(new PatchProperties.ResetPatch(field)));
         patches.add(setting ? new PatchProperties.SetPatch(name, accepted.explicitValue().orElseThrow()) : new PatchProperties.ResetPatch(name));
         return patches.size() == 1 ? ordinaryPropertyCommand(widget, name, accepted) : new PatchProperties(widget.id(), patches);
+    }
+
+    private DesignerCommand chipPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {
+        String edited=name.value();
+        if(edited.equals("shape") || CardWidgetPropertySchema.builtInShapePropertyNames().contains(edited)
+                || edited.equals("side") || CheckboxWidgetPropertySchema.sideLocalProperties().contains(edited))
+            return checkboxPropertyCommand(widget,name,accepted);
+        if(edited.startsWith("mouseCursor") || edited.startsWith("visualDensity"))
+            return checkboxListTileDensityCursorCommand(widget,name,accepted,"Chip");
+        boolean setting=accepted.explicitValue().isPresent();
+        var resets=new java.util.LinkedHashSet<PropertyName>();
+        for(var family:dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.families().entrySet()) {
+            if(setting && edited.equals(family.getKey())) family.getValue().forEach(n->resets.add(new PropertyName(n)));
+            if(setting && family.getValue().contains(edited)) resets.add(new PropertyName(family.getKey()));
+        }
+        if(setting && edited.startsWith("labelStyle")) {
+            String opposite=switch(edited.substring("labelStyle".length())) {
+                case "Foreground" -> "Color"; case "Color" -> "Foreground";
+                case "Background" -> "BackgroundColor"; case "BackgroundColor" -> "Background"; default -> null;
+            };
+            if(opposite!=null)resets.add(new PropertyName("labelStyle"+opposite));
+        }
+        resets.remove(name);
+        var patches=new java.util.ArrayList<PatchProperties.Patch>();
+        resets.stream().filter(widget.properties()::containsKey).forEach(n->patches.add(new PatchProperties.ResetPatch(n)));
+        patches.add(setting?new PatchProperties.SetPatch(name,accepted.explicitValue().orElseThrow()):new PatchProperties.ResetPatch(name));
+        return new PatchProperties(widget.id(),patches);
     }
 
     private DesignerCommand alertDialogPropertyCommand(WidgetNode widget, PropertyName name, FlutterPropertyCellValue accepted) {

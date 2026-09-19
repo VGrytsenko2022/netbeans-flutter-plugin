@@ -32,6 +32,9 @@ public final class CanvasRunnerSourceBundle {
     static final int MAX_MANIFEST_BYTES = 128 * 1024;
     static final int MAX_ENTRIES = 512;
     static final long MAX_FILE_BYTES = 4L * 1024 * 1024;
+    // The reviewed 249-widget schema now exceeds 4 MiB. Keep the larger bound
+    // limited to its exact packaged path, not arbitrary runner inputs.
+    static final long MAX_MODEL_BYTES = 8L * 1024 * 1024;
     static final long MAX_TOTAL_BYTES = 32L * 1024 * 1024;
     private static final String COMPLETION_MARKER = ".netbeans-canvas-runner-source";
     private static final int MAX_CACHED_WORKSPACE_PATHS = 250_000;
@@ -272,7 +275,8 @@ public final class CanvasRunnerSourceBundle {
             } catch (NumberFormatException ex) {
                 throw new IOException("invalid size in Canvas runner source manifest: " + path, ex);
             }
-            if (size < 0 || size > MAX_FILE_BYTES) {
+            long maximum = path.equals("lib/src/canvas_model.dart") ? MAX_MODEL_BYTES : MAX_FILE_BYTES;
+            if (size < 0 || size > maximum) {
                 throw new IOException("Canvas runner source is outside the per-file limit: " + path);
             }
             String digest = fields[2].toLowerCase(java.util.Locale.ROOT);

@@ -623,9 +623,13 @@ final class PairSaveEvidenceGate {
                 && probe.staticTypeProbe().isEmpty();
     }
 
+    private static final java.util.regex.Pattern CHIP_DURATION_PROBE_ID = java.util.regex.Pattern.compile(
+            "widget:[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}:chip-duration:chipAnimationStyle(?:EnableAnimation|SelectAnimation|AvatarDrawerAnimation|DeleteDrawerAnimation)(?:Reverse)?DurationUs");
+
     private static boolean isCoreDurationProbe(DartSymbolProbe probe) {
         return "dart:core".equals(probe.expectedLibraryUri())
                 && (EXPANSION_DURATION_PROBE_ID.matcher(probe.id()).matches()
+                    || CHIP_DURATION_PROBE_ID.matcher(probe.id()).matches()
                     || FLOATING_HEADER_DURATION_PROBE_ID.matcher(probe.id()).matches()
                     || TOOLTIP_DURATION_PROBE_ID.matcher(probe.id()).matches()
                     || TOOLTIP_THEME_DURATION_PROBE_ID.matcher(probe.id()).matches()

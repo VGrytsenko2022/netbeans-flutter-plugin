@@ -249,7 +249,7 @@ class DartStaticTypeProbeTest {
 
     @Test
     void rejectsNullableOuterTypesAndTypeExpressionEscapeHatches() {
-        for (String type : List.of("", "Animation?", "FocusNode??", "FocusScopeNode?", "MouseCursor?", "Animation<Color>?",
+        for (String type : List.of("", "Animation?", "FocusNode??", "FocusScopeNode?", "MouseCursor??", "Animation<Color>?",
                 "Animation<Color?>?", "Animation<Color??>", "Animation< Color?>",
                 "Animation<Color? >", "Animation<other.Color?>", "other.Animation<Color?>",
                 "Animation<List<Color?>>", "Animation<Color?, Color>", "Animation<Color?>;exit()",
@@ -258,6 +258,13 @@ class DartStaticTypeProbeTest {
         }
     }
 
+    @Test void chipAdmitsOnlyTheReviewedNullableTypeSpellings() {
+        for(String type:List.of("BorderSide?","OutlinedBorder?","VisualDensity?","ChipAnimationStyle?","MouseCursor?")){
+            assertEquals(type,probe(type).expectedDartType());
+            for(String malformed:List.of(type+"?",type+";exit()","app."+type,type+" "))
+                assertThrows(IllegalArgumentException.class,()->probe(malformed),malformed);
+        }
+    }
     @Test void crossFadeBuilderRequiresExactNonNullableWidgetsContext() {
         for(String library:List.of("package:flutter/widgets.dart","package:flutter/material.dart"))
             assertEquals("AnimatedCrossFadeBuilder",new DartStaticTypeProbe(10,5,0,5,"AnimatedCrossFadeBuilder",library).expectedDartType());

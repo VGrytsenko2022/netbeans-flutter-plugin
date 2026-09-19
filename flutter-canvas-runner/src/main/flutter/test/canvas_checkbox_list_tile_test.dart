@@ -114,7 +114,7 @@ void main() {
   test('CheckboxListTile runtime schema and drop slots are exact', () {
     String block(String source) {
       final start = source.indexOf('W|$_type\n');
-      final end = source.indexOf('W|flutter.material.CircleAvatar\n', start);
+      final end = source.indexOf('\nW|', start + 1);
       return source.substring(start, end);
     }
 

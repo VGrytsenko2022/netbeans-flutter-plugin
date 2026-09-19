@@ -919,6 +919,18 @@ public final class WidgetTreeValidator {
             validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"Color", family+"Foreground", "MaterialBanner contentTextStyle");
             validateMutuallyExclusiveProperties(node, propertiesPath, issues, family+"BackgroundColor", family+"Background", "MaterialBanner contentTextStyle");
         }
+        if (type.equals(dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.value())) {
+            for(var family:dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.families().entrySet())
+                validateListTileWholeLocal(node,propertiesPath,issues,family.getKey(),family.getValue());
+            validateFontPackageDependency(node,propertiesPath,issues,"labelStylePackage","labelStyleFontFamily","labelStyleFontFamilyFallback","Chip labelStyle");
+            validateMutuallyExclusiveProperties(node,propertiesPath,issues,"labelStyleColor","labelStyleForeground","Chip labelStyle");
+            validateMutuallyExclusiveProperties(node,propertiesPath,issues,"labelStyleBackgroundColor","labelStyleBackground","Chip labelStyle");
+            validateCardShape(node,propertiesPath,issues,"shape","Chip");
+            validateStatefulRadioOrCheckboxSide(node,propertiesPath,issues,"Chip");
+            if(dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.stateLeaves("mouseCursor").stream().anyMatch(n->node.properties().containsKey(new PropertyName(n)))
+                    && !node.properties().containsKey(new PropertyName("mouseCursorDefault")))
+                issues.add(issue(PROPERTY_DEPENDENCY,propertiesPath+"/mouseCursorDefault",node.id(),"Chip local cursor states require Default."));
+        }
         if (type.equals(dev.flutter.netbeans.designer.catalog.SnackBarWidgetPropertySchema.TYPE.value())) {
             validateCardShape(node, propertiesPath, issues, "shape", "SnackBar shape");
             if (TooltipWidgetPropertySchema.isNonNull(node, "width") && TooltipWidgetPropertySchema.isNonNull(node, "margin"))

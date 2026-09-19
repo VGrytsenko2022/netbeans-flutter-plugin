@@ -519,6 +519,7 @@ final class FlutterComplexPropertyEditorComponents {
         final JTable table;
         final DefaultTableModel model;
         final ArrayList<StableId> ids = new ArrayList<>();
+        final JCheckBox explicitNull = new JCheckBox("Inherit (explicit null)");
         final JCheckBox useDefault = new JCheckBox(
                 "Use inherited/default value (omit argument)");
         final JButton add = new JButton("Add");
@@ -572,6 +573,11 @@ final class FlutterComplexPropertyEditorComponents {
                         button.getText() + " an item in the ordered list.");
             }
             toolbarPanel.add(buttons, BorderLayout.SOUTH);
+            if (binding.definition().acceptedKinds().contains(dev.flutter.netbeans.designer.model.PropertyValueKind.NULL)) {
+                explicitNull.setName(componentName + ".null");
+                toolbarPanel.add(explicitNull, BorderLayout.CENTER);
+                explicitNull.addActionListener(ignored -> updateDraft());
+            }
             add(toolbarPanel, BorderLayout.NORTH);
 
             model.addTableModelListener(ignored -> {
@@ -592,6 +598,7 @@ final class FlutterComplexPropertyEditorComponents {
             try {
                 loadRowsImpl(items);
                 useDefault.setSelected(initialValue().explicitValue().isEmpty());
+                explicitNull.setSelected(initialValue().explicitValue().orElse(null) instanceof PropertyValue.NullValue);
             } finally {
                 updating = false;
             }
@@ -681,7 +688,8 @@ final class FlutterComplexPropertyEditorComponents {
                 return false;
             }
             boolean unset = binding.optional() && useDefault.isSelected();
-            table.setEnabled(!unset);
+            explicitNull.setEnabled(!unset);
+            table.setEnabled(!unset && !explicitNull.isSelected());
             updateButtons();
             if (unset) {
                 clearInvalid(table, table.getAccessibleContext()
@@ -690,7 +698,7 @@ final class FlutterComplexPropertyEditorComponents {
                 return true;
             }
             try {
-                PropertyValue value = buildValue();
+                PropertyValue value = explicitNull.isSelected() ? new PropertyValue.NullValue() : buildValue();
                 clearInvalid(table, table.getAccessibleContext()
                         .getAccessibleDescription());
                 storeValid(
@@ -713,7 +721,7 @@ final class FlutterComplexPropertyEditorComponents {
         }
 
         private void updateButtons() {
-            boolean enabled = !(binding.optional() && useDefault.isSelected());
+            boolean enabled = !(binding.optional() && useDefault.isSelected()) && !explicitNull.isSelected();
             int row = table.getSelectedRow();
             add.setEnabled(enabled && model.getRowCount() < maximum);
             remove.setEnabled(enabled && row >= 0);

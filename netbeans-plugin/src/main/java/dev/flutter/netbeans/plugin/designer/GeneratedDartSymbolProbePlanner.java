@@ -178,6 +178,8 @@ final class GeneratedDartSymbolProbePlanner {
                         || type.equals("RangeLabels")
                         || type.equals("RangeValues")
                         || type.equals("VisualDensity")
+                        || type.equals("VisualDensity?")
+                        || type.equals("ChipAnimationStyle?")
                         || type.equals("ButtonLayerBuilder")
                         || type.equals("InputCounterWidgetBuilder")
                         || type.equals("InputCounterWidgetBuilder?"))

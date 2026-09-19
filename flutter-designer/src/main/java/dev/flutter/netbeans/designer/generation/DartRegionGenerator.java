@@ -505,6 +505,18 @@ public final class DartRegionGenerator {
                                     ? IconButtonWidgetPropertySchema.constructorName(node) : icon ? "icon" : "", node));
         }
         for (PropertyDefinition property : definition.properties()) {
+            if (dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.equals(node.type())) {
+                String name=property.name().value(), pp=path+"/properties/"+name;
+                if (!dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.DIRECT.contains(name)) continue;
+                var value=node.properties().get(property.name());
+                if (name.equals("key") && value instanceof PropertyValue.StringValue text) {
+                    arguments.add(new ConstructorArgument(property.parameter(), name, false,
+                        renderPositionalComposite("ValueKey", Optional.empty(),
+                            scalar(dartString(text.value(),pp,node.id(),context.maxRenderedUtf8Bytes()),true,pp,node.id(),context),pp,node.id(),context)));
+                    continue;
+                }
+                if (name.equals("mouseCursor") && value instanceof PropertyValue.StringValue) continue;
+            }
             if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(node.type())) {
                 String name = property.name().value(), pp = path + "/properties/" + name;
                 if (dev.flutter.netbeans.designer.catalog.AlertDialogWidgetPropertySchema.styleFamily(property.name()).isPresent()) continue;
@@ -1104,6 +1116,9 @@ public final class DartRegionGenerator {
             appendTextCompoundArguments(
                     node, definition, path, constructorBaseIndent + 2,
                     context, arguments);
+        }
+        if (dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.TYPE.equals(node.type())) {
+            appendChipArguments(node, definition, path, constructorBaseIndent + 2, context, arguments);
         }
         if (dev.flutter.netbeans.designer.catalog.MaterialBannerWidgetPropertySchema.TYPE.equals(node.type())) {
             appendTextCompoundArguments(node, definition, path, constructorBaseIndent + 2, context, arguments, "contentTextStyle",
@@ -4466,6 +4481,68 @@ public final class DartRegionGenerator {
         arguments.add(new ConstructorArgument(callback.parameter(), "onDestinationSelected", false, rendered));
     }
 
+    private void appendChipArguments(WidgetNode node, WidgetDefinition definition, String path,
+            int indent, GenerationContext context, List<ConstructorArgument> arguments) {
+        appendTextCompoundArguments(node,definition,path,indent,context,arguments,"labelStyle",
+                definition.property(new PropertyName("labelStyle")).orElseThrow().parameter().order(),
+                dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema::textBinding);
+        appendCardShape(node,definition,path,indent,context,arguments);
+        appendCheckboxSideArguments(node,definition,path,indent,context,arguments);
+        if(node.properties().get(new PropertyName("mouseCursor")) instanceof PropertyValue.StringValue)
+            appendDefaultSelectionStyleCursor(node,definition,path,context,arguments);
+        for(String family:List.of("color","mouseCursor")) {
+            var entries=new ArrayList<ElevatedButtonStateEntry>();
+            for(String state:CheckboxWidgetPropertySchema.statePriority()) {
+                String name=family+dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.upper(state);
+                var p=definition.property(new PropertyName(name)).orElseThrow(); var value=node.properties().get(p.name());
+                if(value!=null) entries.add(new ElevatedButtonStateEntry(state.equals("default")?"any":state,
+                    family.equals("mouseCursor") && value instanceof PropertyValue.StringValue
+                        ? renderElevatedCursor(node,definition,name,path,context)
+                        : renderProperty(value,p,path+"/properties/"+name,node.id(),context)));
+            }
+            if(!entries.isEmpty()) arguments.add(new ConstructorArgument(definition.property(new PropertyName(family)).orElseThrow().parameter(),family,false,
+                renderCheckboxStateMap(family.equals("color")?"WidgetStateProperty":"WidgetStateMouseCursor",
+                    family.equals("color")?"Color":"MouseCursor",entries,path+"/properties/"+family,node.id(),context,family.equals("color"))));
+        }
+        var density=renderIconButtonDirectDensity(node,definition,path,context);
+        if(density!=null) arguments.add(new ConstructorArgument(definition.property(new PropertyName("visualDensity")).orElseThrow().parameter(),"visualDensity",false,density));
+        var icon=new ArrayList<CompositeMember>();
+        for(String name:dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.iconLeaves()) {
+            var p=definition.property(new PropertyName(name)).orElseThrow();var value=node.properties().get(p.name());
+            if(value==null)continue;String suffix=name.substring("iconTheme".length());
+            icon.add(new CompositeMember(Character.toLowerCase(suffix.charAt(0))+suffix.substring(1),icon.size(),
+                    renderProperty(value,p,path+"/properties/"+name,node.id(),context)));
+        }
+        if(!icon.isEmpty())arguments.add(new ConstructorArgument(definition.property(new PropertyName("iconTheme")).orElseThrow().parameter(),"iconTheme",false,
+                renderNamedCompositeMembers("IconThemeData",Optional.empty(),icon,indent,path+"/properties/iconTheme",node.id(),context)));
+        var animations=new ArrayList<CompositeMember>();
+        for(String part:dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.ANIMATIONS) {
+            String prefix=dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.animationPrefix(part);
+            var p=definition.property(new PropertyName(prefix)).orElseThrow();var value=node.properties().get(p.name()); RenderedValue rendered=null;
+            if(value instanceof PropertyValue.StringValue preset) rendered=renderExpansionTilePreset("AnimationStyle",preset.value(),path+"/properties/"+prefix,node.id(),context);
+            else if(value!=null)rendered=renderProperty(value,p,path+"/properties/"+prefix,node.id(),context);
+            else {
+                var members=new ArrayList<CompositeMember>();
+                for(String name:dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.animationLeaves(prefix)) {
+                    var leaf=definition.property(new PropertyName(name)).orElseThrow();var v=node.properties().get(leaf.name());if(v==null)continue;
+                    String pp=path+"/properties/"+name;RenderedValue rv;
+                    if(v instanceof PropertyValue.IntegerValue duration)
+                        rv=scalar("const Duration(microseconds: "+duration.value()+")",true,pp,node.id(),context,
+                            List.of(occurrence("widget:"+node.id()+":chip-duration:"+name,6,"Duration","dart:core",pp,Optional.of(node.id()))));
+                    else if(v instanceof PropertyValue.StringValue curve)rv=renderExpansionTilePreset("Curves",curve.value(),pp,node.id(),context);
+                    else rv=renderProperty(v,leaf,pp,node.id(),context);
+                    String suffix=name.substring(prefix.length());String dn=Character.toLowerCase(suffix.charAt(0))+suffix.substring(1);
+                    if(dn.endsWith("Us"))dn=dn.substring(0,dn.length()-2);
+                    members.add(new CompositeMember(dn,members.size(),rv));
+                }
+                if(!members.isEmpty())rendered=renderNamedCompositeMembers("AnimationStyle",Optional.empty(),members,indent+2,path+"/properties/"+prefix,node.id(),context);
+            }
+            if(rendered!=null)animations.add(new CompositeMember(part,animations.size(),rendered));
+        }
+        if(!animations.isEmpty())arguments.add(new ConstructorArgument(definition.property(new PropertyName("chipAnimationStyle")).orElseThrow().parameter(),"chipAnimationStyle",false,
+                renderNamedCompositeMembers(MATERIAL_IMPORT,"ChipAnimationStyle",Optional.empty(),animations,indent,path+"/properties/chipAnimationStyle",node.id(),context)));
+    }
+
     private void appendFloatingHeaderAnimationStyle(WidgetNode node, WidgetDefinition definition, String path,
             int indent, GenerationContext context, List<ConstructorArgument> arguments) {
         PropertyDefinition style = definition.property(new PropertyName("animationStyle")).orElseThrow();
@@ -6931,7 +7008,8 @@ public final class DartRegionGenerator {
             String path,
             StableId widgetId,
             GenerationContext context) {
-        boolean constant = members.stream().allMatch(
+        // ChipAnimationStyle is an SDK non-const data constructor even with constant members.
+        boolean constant = !dartClass.equals("ChipAnimationStyle") && members.stream().allMatch(
                 member -> member.rendered().constant());
         RenderedSymbol symbol = context.planner().renderedSymbol(
                 libraryUri, dartClass);

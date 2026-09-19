@@ -44,6 +44,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.CalendarDatePicker", "flutter.material.Card",
                 "flutter.material.Checkbox",
                 "flutter.material.CheckboxListTile",
+                "flutter.material.Chip",
                 "flutter.material.CircleAvatar",
                 "flutter.material.CircularProgressIndicator",
                 "flutter.material.DataCell",
@@ -228,11 +229,11 @@ class BuiltInWidgetCatalogTest {
 
     @Test
     void exposesTheExactReviewedConstConstructorCapabilities() {
-        assertEquals(248, BuiltInWidgetCatalog.getDefault().definitions().size());
-        assertEquals(204, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(249, BuiltInWidgetCatalog.getDefault().definitions().size());
+        assertEquals(205, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(WidgetDefinition::constConstructor)
                 .count());
-        assertEquals(239, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(240, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.properties().isEmpty()).count());
         assertEquals(List.of("flutter.material.DataCell.empty", "flutter.widgets.IntrinsicHeight", "flutter.widgets.MergeSemantics", "flutter.widgets.PinnedHeaderSliver",
                 "flutter.widgets.RepaintBoundary", "flutter.widgets.SliverCrossAxisGroup", "flutter.widgets.SliverMainAxisGroup", "flutter.widgets.SliverResizingHeader", "flutter.widgets.SliverToBoxAdapter"), BuiltInWidgetCatalog.getDefault().definitions().stream()
@@ -280,10 +281,10 @@ class BuiltInWidgetCatalogTest {
                         .filter(value -> !value.constConstructor())
                         .map(value -> value.typeId().value())
                         .toList());
-        assertEquals(8306, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(8476, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .mapToInt(value -> value.properties().size())
                 .sum(), "Every reviewed writable property is counted exactly once");
-        assertEquals(8288, BuiltInWidgetCatalog.getDefault().definitions().stream()
+        assertEquals(8458, BuiltInWidgetCatalog.getDefault().definitions().stream()
                 .filter(value -> !value.typeId().value().equals(
                         "flutter.material.Scaffold"))
                 .mapToInt(value -> value.properties().size())
@@ -336,6 +337,7 @@ class BuiltInWidgetCatalogTest {
                 Map.entry("flutter.material.RefreshProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.LinearProgressIndicator", MATERIAL_IMPORT),
                 Map.entry("flutter.material.MaterialBanner", MATERIAL_IMPORT),
+                Map.entry("flutter.material.Chip", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataCell", MATERIAL_IMPORT),
                 Map.entry("flutter.material.DataCell.empty", MATERIAL_IMPORT),
                 Map.entry("flutter.material.PaginatedDataTable", MATERIAL_IMPORT), Map.entry("flutter.material.DatePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.DateRangePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.CalendarDatePicker", MATERIAL_IMPORT), Map.entry("flutter.material.InputDatePickerFormField", MATERIAL_IMPORT), Map.entry("flutter.material.TimePickerDialog", MATERIAL_IMPORT), Map.entry("flutter.material.Dialog", MATERIAL_IMPORT), Map.entry("flutter.material.Dialog.fullscreen", MATERIAL_IMPORT), Map.entry("flutter.material.AlertDialog", MATERIAL_IMPORT), Map.entry("flutter.material.AlertDialog.adaptive", MATERIAL_IMPORT), Map.entry("flutter.material.SimpleDialog", MATERIAL_IMPORT), Map.entry("flutter.material.SimpleDialogOption", MATERIAL_IMPORT), Map.entry("flutter.material.BottomSheet", MATERIAL_IMPORT), Map.entry("flutter.material.SnackBar", MATERIAL_IMPORT), Map.entry("flutter.material.SnackBarAction", MATERIAL_IMPORT),
@@ -681,7 +683,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.material.DataRow",
                 "flutter.material.DataRow.byIndex",
                 "flutter.material.DataCell",
-                "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet", "flutter.material.SnackBar", "flutter.material.SnackBarAction", "flutter.material.MaterialBanner",
+                "flutter.material.DataCell.empty", "flutter.material.PaginatedDataTable", "flutter.material.DatePickerDialog", "flutter.material.DateRangePickerDialog", "flutter.material.CalendarDatePicker", "flutter.material.InputDatePickerFormField", "flutter.material.TimePickerDialog", "flutter.material.Dialog", "flutter.material.Dialog.fullscreen", "flutter.material.AlertDialog", "flutter.material.AlertDialog.adaptive", "flutter.material.SimpleDialog", "flutter.material.SimpleDialogOption", "flutter.material.BottomSheet", "flutter.material.SnackBar", "flutter.material.SnackBarAction", "flutter.material.MaterialBanner", "flutter.material.Chip",
                 "flutter.widgets.Column",
                 "flutter.widgets.Row",
                 "flutter.widgets.Wrap",
@@ -772,7 +774,7 @@ class BuiltInWidgetCatalogTest {
                 "flutter.widgets.MouseRegion",
                 "flutter.widgets.Focus",
                 "flutter.widgets.NotificationListener"), typeIds(palette));
-        assertEquals(74, palette.stream()
+        assertEquals(75, palette.stream()
                 .filter(definition -> definition.palette().categoryId()
                         .equals("flutter.material"))
                 .count());

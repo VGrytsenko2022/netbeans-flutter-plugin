@@ -302,6 +302,7 @@ public final class BuiltInWidgetCapabilityCatalog {
             Map.entry(BottomSheetWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SnackBarWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(MaterialBannerWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
+            Map.entry(ChipWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SnackBarWidgetPropertySchema.ACTION.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.TYPE.value(), STATIC_EDITABLE),
             Map.entry(SimpleDialogWidgetPropertySchema.OPTION_TYPE.value(), STATIC_EDITABLE),
@@ -1040,6 +1041,11 @@ public final class BuiltInWidgetCapabilityCatalog {
                     AlignTransitionWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
                     Map.of("child", singleSlotSchema(true, 1)))),
+            Map.entry(ChipWidgetPropertySchema.TYPE.value(), projection(
+                    ChipWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
+                            p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),
+                    Map.of("label", singleSlotSchema(true, 1), "avatar", singleSlotSchema(false, 0),
+                            "deleteIcon", singleSlotSchema(false, 0)))),
             Map.entry(MaterialBannerWidgetPropertySchema.TYPE.value(), projection(
                     MaterialBannerWidgetPropertySchema.properties().stream().collect(java.util.stream.Collectors.toMap(
                             p -> p.name().value(), BuiltInWidgetCapabilityCatalog::propertyContract)),

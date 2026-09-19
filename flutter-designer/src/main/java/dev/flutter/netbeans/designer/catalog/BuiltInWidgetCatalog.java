@@ -169,6 +169,7 @@ public final class BuiltInWidgetCatalog {
             bottomSheet(),
             snackBar(false), snackBar(true),
             materialBanner(),
+            chip(),
             fadeTransition(true),
             animatedPhysicalModel(),
             animatedFractionallySizedBox(),
@@ -1497,7 +1498,7 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 2, true, 1, ANY_WIDGET)));
     }
 
-    private static WidgetDefinition checkbox() {
+    static WidgetDefinition checkbox() {
         List<PropertyDefinition> properties = new ArrayList<>();
         WidgetDefinition shapes = card();
         for (var entry : CheckboxWidgetPropertySchema.definitions().entrySet()) {
@@ -3339,6 +3340,16 @@ public final class BuiltInWidgetCatalog {
                 properties, List.of(singleSlot("child", properties.size(), false, 0, ANY_WIDGET)));
     }
 
+    private static WidgetDefinition chip() {
+        var properties = ChipWidgetPropertySchema.properties();
+        return widget(ChipWidgetPropertySchema.TYPE.value(), "Chip", true, MATERIAL_IMPORT,
+                List.of(MATERIAL_IMPORT, WIDGETS_IMPORT, DART_UI_IMPORT, "dart:core"), Set.of(),
+                palette("flutter.material", 100, 780, "Chip"), properties,
+                List.of(singleSlot("label", properties.size(), true, 1, ANY_WIDGET),
+                        singleSlot("avatar", properties.size()+1, false, 0, ANY_WIDGET),
+                        singleSlot("deleteIcon", properties.size()+2, false, 0, ANY_WIDGET)));
+    }
+
     private static WidgetDefinition materialBanner() {
         var properties = MaterialBannerWidgetPropertySchema.properties();
         return widget(MaterialBannerWidgetPropertySchema.TYPE.value(), "MaterialBanner", true, MATERIAL_IMPORT,
@@ -4232,7 +4243,7 @@ public final class BuiltInWidgetCatalog {
                 List.of(singleSlot("child", 3, true, 1, ANY_WIDGET)));
     }
 
-    private static WidgetDefinition iconTheme() {
+    static WidgetDefinition iconTheme() {
         List<PropertyDefinition> properties = List.of(
                 namedProperty("size", 0, false, nonNegativeNumbers()),
                 namedProperty("fill", 1, false, zeroToOneDoubles()),

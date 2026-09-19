@@ -250,7 +250,8 @@ final class FlutterTypedPropertyEditors {
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.PaintValues.class::isInstance)) {
             editorKind = EditorKind.PAINT;
-        } else if (kinds.equals(EnumSet.of(PropertyValueKind.SHADOW_LIST))
+        } else if ((kinds.equals(EnumSet.of(PropertyValueKind.SHADOW_LIST))
+                || kinds.equals(EnumSet.of(PropertyValueKind.SHADOW_LIST, PropertyValueKind.NULL)))
                 && definition.constraints().stream().anyMatch(
                         PropertyValueConstraint.ShadowListValues.class::isInstance)) {
             editorKind = EditorKind.SHADOW_LIST;

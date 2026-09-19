@@ -1,6 +1,17 @@
 # Widget events API audit
 
-## MaterialBanner — 2026-09-16
+## Chip — 2026-09-16
+
+Pinned Flutter 3.44.8 exposes one optional native event: `onDeleted: VoidCallback?`.
+It reveals the delete affordance and requests deletion; only the application
+can remove the widget. Chip has no body press or selection callback.
+Create/select/rename/reset, history and save/reopen retain user members.
+Canvas exposes only an inert callback-presence preview and never borrows a
+project FocusNode or requests autofocus. Current inventory: 249 definitions,
+275 callables across 105 types; 204 Events across 76 types, 51 builders,
+seven predicates, two formatters and eleven delegates. See [Chip](CHIP.md).
+
+## MaterialBanner — 2026-09-16 (historical inventory)
 
 One optional VoidCallback? Event: onVisible fires on the first completed
 animation status. Static (null/omitted animation) and stopped animations do not

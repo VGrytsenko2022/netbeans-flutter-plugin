@@ -83,6 +83,19 @@ class CanvasRunnerSourceBundleTest {
     }
 
     @Test
+    void onlyTheExactReviewedModelPathHasTheLargerStillBoundedBudget() throws Exception {
+        String digest=sha256("x".getBytes(StandardCharsets.UTF_8));
+        for(long size:new long[]{CanvasRunnerSourceBundle.MAX_FILE_BYTES+1,CanvasRunnerSourceBundle.MAX_MODEL_BYTES}) {
+            var bundle=new CanvasRunnerSourceBundle(resources("lib/src/canvas_model.dart|"+size+"|"+digest+"\n",Map.of("lib/src/canvas_model.dart","x")),"test");
+            var identity=CanvasRunnerCacheIdentity.create(bundle,sdk("engine-a"),windowsContract());
+            assertThrows(IOException.class,()->bundle.extract(temporary.resolve("model-cache-"+size),identity),"A larger budget must not bypass exact declared size/hash verification");
+            for(String path:new String[]{"lib/src/canvas_view.dart","lib/src/canvas_model.dart.copy","lib/src/Canvas_model.dart","canvas_model.dart"})
+                assertThrows(IOException.class,()->new CanvasRunnerSourceBundle(resources(path+"|"+size+"|"+digest+"\n",Map.of(path,"x")),"test"),path);
+        }
+        assertThrows(IOException.class,()->new CanvasRunnerSourceBundle(resources("lib/src/canvas_model.dart|"+(CanvasRunnerSourceBundle.MAX_MODEL_BYTES+1)+"|"+digest+"\n",Map.of()),"test"));
+    }
+
+    @Test
     void engineRevisionAndSdkLocationArePartOfCacheIdentity() throws Exception {
         CanvasRunnerSourceBundle bundle = bundle(Map.of("pubspec.yaml", "name: runner\n"));
 

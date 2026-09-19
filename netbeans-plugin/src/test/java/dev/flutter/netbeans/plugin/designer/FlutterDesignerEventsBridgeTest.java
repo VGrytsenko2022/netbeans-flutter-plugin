@@ -89,7 +89,7 @@ class FlutterDesignerEventsBridgeTest {
                 count++;
             }
         }
-        assertEquals(203, count);
+        assertEquals(204, count);
         var rejected = new Operations();
         rejected.mutation = CompletableFuture.failedFuture(new IllegalStateException("Analyzer rejected candidate"));
         var failure = assertThrows(java.util.concurrent.CompletionException.class,
@@ -161,7 +161,7 @@ class FlutterDesignerEventsBridgeTest {
                 count++;
             }
         }
-        assertEquals(203, count);
+        assertEquals(204, count);
     }
 
     @Test

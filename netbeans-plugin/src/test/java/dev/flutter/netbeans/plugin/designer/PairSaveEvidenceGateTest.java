@@ -1182,6 +1182,103 @@ class PairSaveEvidenceGateTest {
         assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
     }
 
+    @Test
+    void chipDurationsAcceptOnlyTheGeneratedLiteralConstructorInEitherTrustedCoreTree() throws Exception {
+        for (String property : dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.ANIMATIONS.stream().flatMap(part -> java.util.stream.Stream.of(dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.animationPrefix(part)+"DurationUs",dev.flutter.netbeans.designer.catalog.ChipWidgetPropertySchema.animationPrefix(part)+"ReverseDurationUs")).toList()) {
+            for (String tree : List.of("bin/cache/dart-sdk/lib/core", "bin/cache/pkg/sky_engine/lib/core")) {
+                var fixture = chipDurationFixture(property, tree);
+                for (String kind : List.of("CLASS", "CONSTRUCTOR")) {
+                    var ticket = radioTicket(fixture);
+                    var core = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).toList();
+                    assertEquals(1, core.size()); assertEquals("Duration", core.getFirst().expectedSymbolName());
+                    assertTrue(core.getFirst().staticTypeProbe().isEmpty());
+                    assertTrue(core.getFirst().id().endsWith(":chip-duration:" + property));
+                    var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                            ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+                    var result = ticket.accept(analysis(ticket, evidence));
+                    assertTrue(result.ready(), () -> result.diagnostics().toString());
+                    assertTrue(PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live()).ready());
+                }
+            }
+        }
+    }
+
+    @Test
+    void chipDurationCannotForgeLibraryIdLeafSpanSymbolOrTypeMetadata() throws Exception {
+        var fixture = chipDurationFixture("chipAnimationStyleEnableAnimationDurationUs", "bin/cache/dart-sdk/lib/core");
+        for (String mutation : List.of("library", "id", "widget", "family", "leaf", "span", "symbol", "type")) {
+            var ticket = radioTicket(fixture);
+            var original = ticket.request().symbolProbes().stream().filter(p -> p.expectedLibraryUri().equals("dart:core")).findFirst().orElseThrow();
+            String id = switch (mutation) {
+                case "id" -> original.id() + ":extra";
+                case "widget" -> original.id().replace("bbbbbbbb", "aaaaaaaa");
+                case "family" -> original.id().replace("chip-duration", "radio-core-duration");
+                case "leaf" -> original.id().replace("chipAnimationStyleEnableAnimationDurationUs", "chipAnimationStyleEnableAnimationReverseDurationUs");
+                default -> original.id();
+            };
+            var forged = new DartSymbolProbe(id, original.offset() + (mutation.equals("span") ? 1 : 0), original.length(),
+                    mutation.equals("symbol") ? "DateTime" : original.expectedSymbolName(),
+                    mutation.equals("library") ? "dart:async" : original.expectedLibraryUri(), original.expectedTargetRoot(), original.expectedTargetKind(),
+                    mutation.equals("type") ? Optional.of(new DartStaticTypeProbe(original.offset(), original.length(), 0, 0,
+                            "Duration", "package:flutter/material.dart")) : original.staticTypeProbe());
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().equals(original)
+                    ? accepted(forged, fixture.coreTarget()) : value).toList();
+            var result = ticket.accept(analysis(ticket, evidence));
+            assertAnalyzedRejected(result, PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+            assertFalse(result.ready(), mutation);
+        }
+    }
+
+    @Test
+    void chipDurationRejectsWrongCoreFilesRootsTargetKindsAndMissingEvidence() throws Exception {
+        var fixture = chipDurationFixture("chipAnimationStyleEnableAnimationReverseDurationUs", "bin/cache/dart-sdk/lib/core");
+        Path other = fixture.coreTarget().resolveSibling("object.dart"); Files.writeString(other, "class Object {}\n");
+        Path outside = temporaryDirectory.resolve("not-sdk/core/duration.dart"); Files.createDirectories(outside.getParent()); Files.writeString(outside, "class Duration {}\n");
+        for (Path target : List.of(other, outside, fixture.fixture().frameworkFile())) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? accepted(value.probe(), target) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        for (String kind : List.of("FUNCTION", "TOP_LEVEL_VARIABLE", "GETTER")) {
+            var ticket = radioTicket(fixture);
+            var evidence = radioEvidence(fixture, ticket).stream().map(value -> value.probe().expectedLibraryUri().equals("dart:core")
+                    ? new DartSymbolEvidence(value.probe(), List.of(new DartNavigationTarget(kind, fixture.coreTarget(), 0, 1, 1, 1)), true, Optional.empty()) : value).toList();
+            assertAnalyzedRejected(ticket.accept(analysis(ticket, evidence)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET);
+        }
+        var ticket = radioTicket(fixture);
+        var wrongRoot = radioEvidence(fixture, ticket).stream().map(value -> {
+            if (!value.probe().expectedLibraryUri().equals("dart:core")) return value;
+            var p = value.probe();
+            return accepted(new DartSymbolProbe(p.id(), p.offset(), p.length(), p.expectedSymbolName(), p.expectedLibraryUri(),
+                    fixture.coreTarget().getParent(), p.expectedTargetKind(), p.staticTypeProbe()), fixture.coreTarget());
+        }).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, wrongRoot)), PairSaveEvidenceDiagnostic.Code.UNTRUSTED_PROBE_ROOT);
+        ticket = radioTicket(fixture);
+        var missing = radioEvidence(fixture, ticket).stream().filter(value -> !value.probe().expectedLibraryUri().equals("dart:core")).toList();
+        assertAnalyzedRejected(ticket.accept(analysis(ticket, missing)), PairSaveEvidenceDiagnostic.Code.GENERATED_SYMBOL_PROBE_SET_MISMATCH);
+    }
+
+    @Test
+    void chipDurationTargetIsRevalidatedAfterTheAppliedLiveCas() throws Exception {
+        var fixture = chipDurationFixture("chipAnimationStyleEnableAnimationDurationUs", "bin/cache/dart-sdk/lib/core");
+        var ticket = radioTicket(fixture); var result = ticket.accept(analysis(ticket, radioEvidence(fixture, ticket)));
+        assertTrue(result.ready(), () -> result.diagnostics().toString());
+        Files.delete(fixture.coreTarget());
+        var bound = PairSaveEvidenceGate.bindApplied(result.analyzedOptional().orElseThrow(), fixture.fixture().live());
+        assertFalse(bound.ready());
+        assertTrue(bound.diagnostics().stream().anyMatch(d -> d.code() == PairSaveEvidenceDiagnostic.Code.UNTRUSTED_NAVIGATION_TARGET));
+    }
+
+    private RadioFixture chipDurationFixture(String property, String tree) throws Exception {
+        var fixture = fixture(Optional.empty(), true, List.of(), "flutter.material.Chip", "",
+                Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
+        Path sdk = fixture.flutterLib().getParent().getParent().getParent();
+        Path target = sdk.resolve(tree).resolve("duration.dart"); Files.createDirectories(target.getParent());
+        Files.writeString(target, "class Duration { const Duration({int microseconds = 0}); }\n");
+        return new RadioFixture(fixture, sdk, target);
+    }
+
     private RadioFixture floatingHeaderDurationFixture(String property, String tree) throws Exception {
         var fixture = fixture(Optional.empty(), true, List.of(), "flutter.widgets.SliverFloatingHeader", "",
                 Map.of(new PropertyName(property), new PropertyValue.IntegerValue(java.math.BigInteger.valueOf(123456))));
@@ -3162,6 +3259,11 @@ class PairSaveEvidenceGateTest {
             return new DesignerDocument(DOCUMENT_ID, descriptor, new WidgetNode(
                     StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"), new WidgetTypeId(widgetType),
                     radioProperties, Map.of()));
+        }
+        if (widgetType.equals("flutter.material.Chip")) {
+            var def=BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId(widgetType)).orElseThrow();
+            var seed=dev.flutter.netbeans.designer.catalog.WidgetNodePrototypeFactory.create(def,StableId.parse("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"));
+            return new DesignerDocument(DOCUMENT_ID,descriptor,new WidgetNode(seed.id(),seed.type(),radioProperties,seed.slots()));
         }
         if (widgetType.equals("flutter.widgets.SliverFloatingHeader")) {
             var def=BuiltInWidgetCatalog.getDefault().find(new WidgetTypeId(widgetType)).orElseThrow();
